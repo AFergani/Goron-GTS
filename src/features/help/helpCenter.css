@@ -1,0 +1,325 @@
+/* Centre d'aide : deux colonnes (navigation + contenu), thème cohérent avec les modales existantes */
+
+.help-center-overlay {
+  z-index: 1300;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.modal.help-center-shell {
+  /* Plus spécifique que .modal seul (max-width 520px) */
+  width: min(1400px, 98vw);
+  max-width: min(1400px, 98vw);
+  height: min(92vh, 1000px);
+  max-height: 92vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.help-center-modal-head {
+  cursor: move;
+  flex-shrink: 0;
+}
+
+.help-center-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.help-center-sidebar {
+  width: min(300px, 34vw);
+  flex-shrink: 0;
+  min-height: 0;
+  background: linear-gradient(180deg, #0f203d 0%, #0a172d 100%);
+  border-right: 1px solid var(--border-hi, #274774);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.help-center-sidebar-title {
+  margin: 0 8px 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b8c9e6;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.help-center-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+
+.help-center-nav-parent-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 4px;
+  align-items: stretch;
+}
+
+.help-center-nav-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  color: #b8c9e6;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.help-center-nav-chevron:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.help-center-nav-chevron:focus-visible {
+  outline: 2px solid #f0c14d;
+  outline-offset: 2px;
+}
+
+.help-center-nav-chevron-icon {
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.help-center-nav-chevron-icon--open {
+  transform: rotate(90deg);
+}
+
+.help-center-nav-item--in-parent {
+  min-width: 0;
+}
+
+.help-center-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #c8d7ee;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.help-center-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.help-center-nav-item:focus-visible {
+  outline: 2px solid #f0c14d;
+  outline-offset: 2px;
+}
+
+.help-center-nav-item--active {
+  background: rgba(99, 102, 241, 0.35);
+  color: #fff;
+  font-weight: 600;
+}
+
+.help-center-nav-emoji {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.help-center-nav-label {
+  flex: 1;
+  line-height: 1.35;
+}
+
+.help-center-sidebar-footer {
+  flex-shrink: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.help-center-close-sidebar {
+  width: 100%;
+}
+
+.help-center-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 26px 28px;
+  background: var(--surf, #0f172a);
+}
+
+.help-center-article {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* Glossaire « Configuration writer » : même logique que WriterConfigGeneratorPanel, avec espacement augmenté */
+.help-center-article .writer-config-help-glossary {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(11rem, 34%) 1fr;
+  column-gap: 22px;
+  row-gap: 18px;
+  margin: 6px 0 0;
+}
+
+.help-center-article .writer-config-help-glossary dt {
+  margin: 0;
+  padding-top: 2px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+  align-self: start;
+}
+
+.help-center-article .writer-config-help-glossary dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--text-2);
+}
+
+@media (max-width: 560px) {
+  .help-center-article .writer-config-help-glossary {
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .help-center-article .writer-config-help-glossary dd {
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .help-center-article .writer-config-help-glossary dd:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+}
+
+.help-center-content-title {
+  margin: 0 0 14px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.help-center-lead {
+  margin: 0 0 18px;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.help-center-card {
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.help-center-card--accent {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.help-center-card--muted {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.help-center-card-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.help-center-card .muted,
+.help-center-card p {
+  margin: 0;
+}
+
+.help-center-subsection {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.help-center-subsection-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.help-center-subsection .muted {
+  line-height: 1.55;
+}
+
+.help-center-db-box {
+  margin-bottom: 0;
+}
+
+.help-center-list {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.help-center-list li {
+  margin-bottom: 6px;
+}
+
+.help-center-main h4 {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.help-center-main .db-box {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+  .help-center-layout {
+    flex-direction: column;
+    max-height: none;
+  }
+
+  .help-center-sidebar {
+    width: 100%;
+    max-height: 220px;
+  }
+
+  .help-center-main {
+    max-height: 55vh;
+  }
+}

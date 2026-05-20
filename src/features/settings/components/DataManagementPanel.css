@@ -1,0 +1,26 @@
+/* Barre de progression import masse (multi-fichiers séquentiel) */
+.data-import-batch-overlay {
+  z-index: 1200;
+}
+
+.data-import-batch-modal {
+  max-width: 420px;
+  width: min(92vw, 420px);
+}
+
+.data-import-batch-modal .data-import-batch-progress {
+  width: 100%;
+  height: 10px;
+  margin-top: 12px;
+  accent-color: var(--accent-primary, #2563eb);
+}
+
+.data-import-batch-modal .data-import-batch-label {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.data-import-batch-modal .data-import-batch-hint {
+  margin: 8px 0 0;
+  font-size: 0.9em;
+}

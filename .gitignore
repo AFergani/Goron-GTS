@@ -1,0 +1,30 @@
+# Règles Cursor locales (optionnel par poste)
+.cursor/rules/
+
+# Dossier personnel — ne pas versionner
+Z_Dossier_Perso/
+
+# Releases packagées (ex. Release_Goron-GTS-1.0.63)
+Release_Goron-GTS-*/
+
+# Dépendances et builds
+node_modules/
+dist/
+build/
+
+# Secrets et données locales d'exploitation
+.env
+data/acces_admin.env
+data/gts_writer-config.json
+data/Activedb/
+data/Archives/
+data/logs/
+data/queue/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.zip
+
+# Fichiers temporaires Office
+~$*

@@ -1,0 +1,155 @@
+* {
+  box-sizing: border-box;
+}
+
+:root,
+[data-theme="dark"] {
+  /* Hauteur et largeurs des champs de saisie (hors textarea) */
+  --gts-control-height: 2.5rem;
+  --gts-control-padding-x: 10px;
+  --gts-control-font-size: 13px;
+  --gts-control-line-height: 1.25;
+  --gts-control-radius: 6px;
+  --gts-input-date-width: 9.25rem;
+  --gts-filter-date-gap: 12px;
+  --gts-input-time-width: 5.5rem;
+  --bg: #070f22;
+  --surf: #0b1730;
+  --card: #0e1e3d;
+  --hover: #12264d;
+  --deep: #070e1e;
+  --border: #2b4774;
+  --border-hi: #3f6ba6;
+  --text: #e7f0fb;
+  --text-2: #a8c1df;
+  --accent: #1f5fcf;
+  --accent-hi: #1a4fae;
+  --ok: #1fb68b;
+  --err: #e06262;
+}
+
+[data-theme="light"] {
+  --bg: #f3f7fc;
+  --surf: #ffffff;
+  --card: #f8fbff;
+  --hover: #eaf1fb;
+  --deep: #e8effa;
+  --border: #b8c9df;
+  --border-hi: #8ba6cb;
+  --text: #13263f;
+  --text-2: #355a86;
+  --accent: #1f5fcf;
+  --accent-hi: #1a4fae;
+  --ok: #167e60;
+  --err: #b53a3a;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+/* Champs simples : même hauteur visuelle (texte, nombre, date, heure, select, etc.) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+select {
+  background: var(--surf);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--gts-control-radius);
+  box-sizing: border-box;
+  min-height: var(--gts-control-height);
+  height: var(--gts-control-height);
+  padding: 0 var(--gts-control-padding-x);
+  font-size: var(--gts-control-font-size);
+  line-height: var(--gts-control-line-height);
+}
+
+input[type="date"],
+input[type="time"] {
+  flex: 0 0 auto;
+  width: var(--gts-input-date-width);
+  min-width: var(--gts-input-date-width);
+  max-width: var(--gts-input-date-width);
+  padding: 0 calc(var(--gts-control-padding-x) - 2px);
+  appearance: auto;
+}
+
+input[type="time"] {
+  width: var(--gts-input-time-width);
+  min-width: var(--gts-input-time-width);
+  max-width: var(--gts-input-time-width);
+}
+
+/* Alignement interne WebKit/Chromium (date & heure) */
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit {
+  padding: 0;
+  line-height: var(--gts-control-line-height);
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-hi);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
+/* Scrollbar UI adaptée à l'app (Electron/WebKit) */
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hi) var(--surf);
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: var(--surf);
+  border-radius: 999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--border-hi), var(--accent));
+  border-radius: 999px;
+  border: 2px solid var(--surf);
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+}

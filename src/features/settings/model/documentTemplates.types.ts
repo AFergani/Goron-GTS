@@ -1,0 +1,24 @@
+import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
+
+export type DocumentTemplateListItem = {
+  kind: "builtin" | "custom";
+  templateKey: string;
+  title: string;
+  fileName: string;
+  helpId: string;
+  resolvedPath: string | null;
+  exists: boolean;
+  targetInstallPath: string | null;
+};
+
+export type InterventionWordExtraFieldDef = {
+  id: string;
+  sortOrder: number;
+  fieldKey: string;
+  label: string;
+  fieldType: RondeClosureFieldType;
+  placeholder: string;
+  options: string[];
+  createdAt: string;
+  updatedAt: string;
+};

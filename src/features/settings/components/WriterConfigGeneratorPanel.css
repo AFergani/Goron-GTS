@@ -1,0 +1,207 @@
+/* Panneau génération gts_writer-config : mise en page dédiée (ne pas réutiliser .db-box ici : flex row + space-between). */
+
+.writer-config-panel .writer-config-lead {
+  max-width: none;
+  margin: 0 0 4px;
+  line-height: 1.45;
+}
+
+.writer-config-layout {
+  width: 100%;
+  max-width: none;
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.writer-config-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.writer-config-card__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.writer-config-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.writer-config-subsection__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.writer-config-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.writer-config-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.writer-config-subnet-row {
+  max-width: min(100%, 28rem);
+}
+
+.writer-config-nodes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.writer-config-node-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.writer-config-node-card__head h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.writer-config-node-card__head .btn-light {
+  white-space: nowrap;
+}
+
+.writer-config-actions {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.writer-config-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.writer-config-panel .form label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Hauteur identique input / select (les listes natives peuvent paraître plus hautes sans contrainte explicite). */
+.writer-config-panel .form input[type="text"],
+.writer-config-panel .form input[type="number"],
+.writer-config-panel .form input:not([type]) {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 0;
+  padding: 0 10px;
+  line-height: 1.25;
+  border-color: var(--border-hi);
+}
+
+.writer-config-panel .form select {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 0;
+  padding: 0 32px 0 10px;
+  line-height: 1.25;
+  border-color: var(--border-hi);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--surf);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a8c1df' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px 14px;
+  cursor: pointer;
+}
+
+[data-theme="light"] .writer-config-panel .form select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23355a86' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+@media (max-width: 720px) {
+  .writer-config-grid-2,
+  .writer-config-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .writer-config-nodes {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Modale d’aide configuration writer */
+.writer-config-help-modal .writer-config-help-lead {
+  max-width: none;
+  margin-bottom: 12px;
+}
+
+.writer-config-help-modal .writer-config-help-glossary {
+  margin: 0 0 18px;
+  display: grid;
+  grid-template-columns: minmax(11rem, 32%) 1fr;
+  column-gap: 16px;
+  row-gap: 12px;
+}
+
+.writer-config-help-modal .writer-config-help-glossary dt {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+  align-self: start;
+}
+
+.writer-config-help-modal .writer-config-help-glossary dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.writer-config-help-modal .writer-config-help-glossary code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.writer-config-help-modal h4 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
