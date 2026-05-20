@@ -1,5 +1,11 @@
 # Règles Cursor locales (optionnel par poste)
-.cursor/rules/
+.cursor/
+.cursorignore
+.vscode/
+
+# OS
+.DS_Store
+.Thumbs.db
 
 # Dossier personnel — ne pas versionner
 Z_Dossier_Perso/
@@ -12,19 +18,24 @@ node_modules/
 dist/
 build/
 
-# Secrets et données locales d'exploitation
+# Vite
+vite.config.js.timestamps-*
+vite.config.ts.timestamps-*
+
+# Environment variables
 .env
-data/acces_admin.env
-data/gts_writer-config.json
-data/Activedb/
-data/Archives/
-data/logs/
-data/queue/
+.env.*
+!.env.example
+!.env.test
+
+# Database files
+data/
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 *.zip
+*.sql
 
 # Fichiers temporaires Office
 ~$*
