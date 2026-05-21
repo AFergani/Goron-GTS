@@ -297,6 +297,78 @@
   margin-bottom: 6px;
 }
 
+.help-center-list--ordered {
+  list-style-type: decimal;
+  padding-left: 1.35rem;
+}
+
+.help-center-list--nested {
+  margin-top: 6px;
+  list-style-type: disc;
+}
+
+.help-center-list--examples li {
+  margin-bottom: 12px;
+}
+
+.help-center-callout {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+}
+
+.help-center-callout--warn {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text);
+}
+
+.help-center-callout--tip {
+  margin-top: 12px;
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--text-2);
+}
+
+.help-center-inline-warn {
+  color: var(--text-2);
+  font-size: 0.92rem;
+}
+
+.help-center-table-wrap {
+  overflow-x: auto;
+  margin-top: 4px;
+}
+
+.help-center-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.help-center-table th,
+.help-center-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--border);
+}
+
+.help-center-table th {
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.help-center-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .help-center-main h4 {
   margin: 18px 0 8px;
   font-size: 0.95rem;

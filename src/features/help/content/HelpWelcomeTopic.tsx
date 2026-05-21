@@ -27,10 +27,10 @@ export function HelpWelcomeTopic() {
             <strong>Interventions</strong> : filtrage, création, cycle de vie, exports et liens ronde / gardiennage.
           </li>
           <li>
-            <strong>Rondes</strong> : contractuelle, exceptionnelle, programmations, fiches de passage et exports Word.
+            <strong>Rondes</strong> : choix contractuel / exceptionnel, planification, création des passages et clôture terrain.
           </li>
           <li>
-            <strong>Gardiennage</strong> : création et choix du mode de planification, lignes récurrentes, clôture terrain.
+            <strong>Gardiennage</strong> : modes de planification, lignes récurrentes, clôture manuelle et automatique.
           </li>
           <li>
             <strong>Paramètres → Gestion base de données</strong> : base partagée, archivage, fichier writer, réseau.
