@@ -71,3 +71,10 @@ export type RondeSavePayload = {
   report: string;
   closureCustomValues?: Record<string, string>;
 };
+
+/** Libellé posé par la clôture automatique des rondes exceptionnelles échues (J+5). */
+export const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
+
+export function isRondeAutoClosureReport(report: string): boolean {
+  return String(report || "").trim() === RONDE_AUTO_CLOSURE_REPORT;
+}

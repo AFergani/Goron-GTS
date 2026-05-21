@@ -381,6 +381,10 @@ class UserStore {
     return rondeDomain.listRondes(this, { requesterRole });
   }
 
+  autoCloseExpiredExceptionalRondes(options) {
+    return rondeDomain.autoCloseExpiredExceptionalRondes(this, options);
+  }
+
   createRondeEntry(payload) {
     return rondeDomain.createRonde(this, payload);
   }

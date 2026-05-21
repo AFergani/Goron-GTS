@@ -24,13 +24,19 @@ export function HelpWelcomeTopic() {
         <h3 className="help-center-card-title">Rubriques déjà détaillées</h3>
         <ul className="help-center-list">
           <li>
-            <strong>Interventions</strong> : filtrage, création, cycle de vie, exports et liens ronde / gardiennage.
+            <strong>Main courante</strong> : signalement d&apos;informations terrain, traitement et clôture par le responsable.
           </li>
           <li>
-            <strong>Rondes</strong> : choix contractuel / exceptionnel, planification, création des passages et clôture terrain.
+            <strong>Interventions</strong> : fiche unique, demande / passage terrain, clôture manuelle, liens ronde / gardiennage et facturation.
+          </li>
+          <li>
+            <strong>Rondes</strong> : contractuel / exceptionnel, planification, clôture terrain et clôture auto (exceptionnel, J+5).
           </li>
           <li>
             <strong>Gardiennage</strong> : modes de planification, lignes récurrentes, clôture manuelle et automatique.
+          </li>
+          <li>
+            <strong>Fransor</strong> : pilotage ouverture/fermeture, exceptions calendrier et récap pour facturation.
           </li>
           <li>
             <strong>Paramètres → Gestion base de données</strong> : base partagée, archivage, fichier writer, réseau.

@@ -7,7 +7,8 @@ import type {
   RondeMotifTypeRef,
   RondeOriginKind,
   RondeSavePayload,
-  RondeSource
+  RondeSource,
+  isRondeAutoClosureReport
 } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
@@ -927,6 +928,12 @@ export function RondeEntryModal({
             <span>Compte rendu</span>
             <textarea value={report} disabled={lockFields} onChange={(e) => setReport(e.target.value)} className="mc-textarea" />
           </label>
+          {formLockedClosed && entry?.source !== "PLANIFIE" && isRondeAutoClosureReport(report) ? (
+            <p className="muted mc-ref-hint" style={{ marginTop: 0 }}>
+              Clôture automatique (plus de 5 jours après la date de passage). Utilisez <strong>Rouvrir</strong> puis reclôturez pour saisir
+              les heures effectives, le n° de bon ou un compte rendu terrain.
+            </p>
+          ) : null}
           {((!isCreateMode && entry?.source === "PLANIFIE") || isPlannedCreatePreset) ? (
             <RondeClosureFieldsEditor
               profile={activePlannedProfile ?? undefined}

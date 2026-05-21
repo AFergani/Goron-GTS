@@ -1030,10 +1030,11 @@ function startArchiveScheduler() {
 
 let gardiennageAutoCloseTimer = null;
 
-function runGardiennageAutoCloseTick() {
+function runBackgroundAutoCloseTick() {
   try {
     ensureStore();
     userStore.autoCloseExpiredGardiennages();
+    userStore.autoCloseExpiredExceptionalRondes();
   } catch {
     // Tick silencieux si la base n'est pas encore prête.
   }
@@ -1048,7 +1049,7 @@ function stopGardiennageAutoCloseScheduler() {
 
 function startGardiennageAutoCloseScheduler() {
   stopGardiennageAutoCloseScheduler();
-  const tick = () => runGardiennageAutoCloseTick();
+  const tick = () => runBackgroundAutoCloseTick();
   void tick();
   gardiennageAutoCloseTimer = setInterval(tick, GARDIENNAGE_AUTO_CLOSE_INTERVAL_MS);
 }

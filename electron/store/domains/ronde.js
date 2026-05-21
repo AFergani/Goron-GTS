@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const exceptionalSlots = require("./rondeExceptionalSlotsEngine");
+const { autoCloseExpiredExceptionalRondes } = require("./rondeAutoClose");
 const ORIGIN_KINDS = new Set(["TELESURVEILLANCE", "CLIENT", "AUTRE"]);
 const SOURCES = new Set(["URGENCE", "LIEE_INTERVENTION", "PLANIFIE"]);
 const PLANNED_ROUND_KINDS = new Set(["OPENING", "CLOSING", "RANDOM_DAY", "RANDOM_NIGHT"]);
@@ -324,6 +325,7 @@ function normalizeRondeBody(store, payload) {
 
 function listRondes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
+  autoCloseExpiredExceptionalRondes(store);
   const rows = store.db
     .prepare(
       `SELECT r.*, m.label AS motif_type_label, m.requires_free_text AS motif_type_requires_free_text
@@ -1177,6 +1179,7 @@ function bulkDeleteRondeBatch(store, payload) {
 module.exports = {
   mapRondeRow,
   listRondes,
+  autoCloseExpiredExceptionalRondes,
   createRonde,
   updateRonde,
   setRondeStatus,

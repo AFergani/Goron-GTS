@@ -89,6 +89,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   RONDE_BATCH_UPDATE: "[Rondes] Modification commune d’un lot de demandes exceptionnelles",
   RONDE_BATCH_CANCEL: "[Rondes] Annulation en lot d’un lot de demandes exceptionnelles",
   RONDE_BATCH_DELETE: "[Rondes] Suppression en lot d’un lot de demandes exceptionnelles",
+  RONDE_EXCEPTIONAL_AUTO_CLOSE_BATCH: "[Rondes] Clôture automatique des rondes exceptionnelles échues",
   MAIN_COURANTE_ARCHIVE_BATCH: "[Main courante] Archivage automatique des entrées clôturées",
   MAIN_COURANTE_ARCHIVE_SKIP_WRITER_UNAVAILABLE: "[Main courante] Archivage reporté (writer indisponible)",
   DB_QUARTER_ROTATION: "[Système] Rotation trimestrielle de la base active",

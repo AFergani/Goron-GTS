@@ -1,6 +1,8 @@
 import type { HelpTopicId } from "../model/helpTopics";
+import { HelpFransorTopic } from "./HelpFransorTopic";
 import { HelpGardiennageTopic } from "./HelpGardiennageTopic";
 import { HelpInterventionsTopic } from "./HelpInterventionsTopic";
+import { HelpMainCouranteTopic } from "./HelpMainCouranteTopic";
 import { HelpRondesTopic } from "./HelpRondesTopic";
 import { HelpPlaceholderTopic } from "./HelpPlaceholderTopic";
 import { HelpSettingsAuditTopic } from "./HelpSettingsAuditTopic";
@@ -11,8 +13,6 @@ import { HelpSettingsVariablesTopic } from "./HelpSettingsVariablesTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
 const PLACEHOLDER_TOPICS: HelpTopicId[] = [
-  "main-courante",
-  "fransor",
   "settings-operators",
   "settings-data",
   "settings-data-sites",
@@ -37,6 +37,12 @@ export function renderHelpTopicBody(topicId: HelpTopicId) {
   }
   if (topicId === "gardiennage") {
     return <HelpGardiennageTopic />;
+  }
+  if (topicId === "main-courante") {
+    return <HelpMainCouranteTopic />;
+  }
+  if (topicId === "fransor") {
+    return <HelpFransorTopic />;
   }
   if (topicId === "settings-overview") {
     return <HelpSettingsOverviewTopic />;
