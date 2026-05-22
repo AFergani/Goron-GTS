@@ -1,3 +1,37 @@
+/**
+ * Administration locale des bases SQLite (active, archives trimestrielles, session archive).
+ * Centralise la lecture de la config, l'inventaire des fichiers `.db` et le basculement de la base active.
+ *
+ * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js`
+ * (`system:getDbConfig`, `system:listDatabases`, `system:switchDatabase`) et `gtsApiClient` / Paramètres.
+ */
+
+/**
+ * Fabrique le service d'administration des bases de données du poste.
+ *
+ * @param {object} deps - Dépendances injectées par `main.js`.
+ * @param {import('fs')} deps.fs - Accès disque (existence, copie, listing, dates de modification).
+ * @param {import('path')} deps.path - Résolution et comparaison des chemins.
+ * @param {boolean} deps.isDev - Indique si le profil développement est actif (retourné dans `getDbConfig`).
+ * @param {() => object} deps.readAppConfig - Lecture de `app-config.json` (`dbPath`, `activeSourceDbPath`).
+ * @param {(config: object) => void} deps.writeAppConfig - Persistance après bascule de base.
+ * @param {() => string|null} deps.resolveDbPath - Chemin canonique de la base active (`gts-active.db`).
+ * @param {(rawPath: string) => string} deps.normalizeNestedQuarterDbPath - Normalise les chemins archives imbriqués.
+ * @param {(dbPath: string) => { activeDir: string, archivesDir: string }} deps.getDbStorageLayoutFromPath - Layout Activedb/Archives.
+ * @param {(dbPath: string) => void} deps.setUserStoreByPath - Recharge le `UserStore` sur la nouvelle base.
+ * @param {() => void} deps.refreshWriterRuntime - Recalcule le rôle writer après changement de base.
+ * @param {(username: string) => boolean} deps.canManageDatabase - RBAC bascule de base (directeur / responsable / dev).
+ * @param {(username: string) => boolean} deps.canManageArchiveSession - RBAC ouverture d'une archive en session.
+ * @param {(username: string) => string|null} deps.getActiveUserRole - Rôle effectif (ex. `DEV` pour lever un verrou session).
+ * @param {() => object} deps.getArchiveRuntime - État session archive (`archiveSession`, etc.).
+ * @param {(next: object) => void} deps.setArchiveRuntime - Mise à jour de l'état session archive.
+ * @param {() => import('../userStore')} deps.getUserStore - Store courant pour les audits d'écriture.
+ * @returns {{
+ *   getDbConfig: () => { configured: boolean, dbPath: string|null, isDev: boolean },
+ *   listAvailableDatabases: () => object,
+ *   switchActiveDatabase: (nextDbPath: string, opts?: object) => object
+ * }}
+ */
 function createDatabaseAdminService(deps) {
   const {
     fs,
@@ -18,6 +52,14 @@ function createDatabaseAdminService(deps) {
     getUserStore
   } = deps;
 
+  /**
+   * Retourne l'état de configuration de la base active pour l'écran Paramètres / session.
+   *
+   * Sans session authentifiée, `ipcSystemHandlers` masque le chemin (`dbPath: null`) tout en indiquant
+   * si une base est configurée côté poste.
+   *
+   * @returns {{ configured: boolean, dbPath: string|null, isDev: boolean }}
+   */
   function getDbConfig() {
     const dbPath = resolveDbPath();
     return {
@@ -27,6 +69,25 @@ function createDatabaseAdminService(deps) {
     };
   }
 
+  /**
+   * Liste les fichiers SQLite disponibles dans `Activedb` et `Archives`, avec indicateurs d'usage.
+   *
+   * Chaque entrée inclut `isActive` (fichier servi comme `gts-active`) et `isSourceActive`
+   * (fichier source réel lors d'une session archive, via `activeSourceDbPath` dans la config).
+   *
+   * @returns {{
+   *   activeDbPath: string|null,
+   *   sourceDbPath: string|null,
+   *   archiveSession: object|null,
+   *   items: Array<{
+   *     path: string,
+   *     name: string,
+   *     isActive: boolean,
+   *     isSourceActive: boolean,
+   *     lastModifiedAt: string
+   *   }>
+   * }}
+   */
   function listAvailableDatabases() {
     const dbPath = resolveDbPath();
     if (!dbPath) return { activeDbPath: null, items: [] };
@@ -69,6 +130,28 @@ function createDatabaseAdminService(deps) {
     };
   }
 
+  /**
+   * Bascule la base SQLite active : copie vers `gts-active` si besoin, recharge le store et le writer.
+   *
+   * Règles métier :
+   * - RBAC via `canManageDatabase` ; archives via `canManageArchiveSession` et verrou `archiveSession`.
+   * - Un non-DEV ne peut pas remplacer une session archive ouverte par un autre utilisateur.
+   * - Ouverture depuis `Archives` → session archive active + audit `DB_ARCHIVE_SESSION_ENTER`.
+   * - Retour vers une base non-archive alors qu'une session était active → `DB_ARCHIVE_SESSION_EXIT`.
+   * - Toute bascule réussie produit aussi `DB_ACTIVE_SWITCH` (acteur fixe `system:db-switch` dans l'audit).
+   *
+   * @param {string} nextDbPath - Chemin du fichier `.db` / `.sqlite` cible (actif ou archive).
+   * @param {object} [opts]
+   * @param {string|null} [opts.requesterRole=null] - Transmis par l'IPC pour compatibilité ; les contrôles passent par `requesterUsername`.
+   * @param {string} [opts.requesterUsername="system:db-switch"] - Utilisateur demandeur (RBAC + audits session).
+   * @returns {{
+   *   success: true,
+   *   activeDbPath: string,
+   *   sourceDbPath: string,
+   *   restoredFromArchive: boolean
+   * }}
+   * @throws {Error} Accès refusé, fichier introuvable, format non supporté, ou session archive verrouillée.
+   */
   function switchActiveDatabase(nextDbPath, { requesterRole = null, requesterUsername = "system:db-switch" } = {}) {
     const requestedPath = normalizeNestedQuarterDbPath(String(nextDbPath || "").trim());
     const layout = getDbStorageLayoutFromPath(requestedPath);
