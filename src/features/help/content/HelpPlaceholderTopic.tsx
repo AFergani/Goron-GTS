@@ -6,17 +6,7 @@ const TITLES: Partial<Record<HelpTopicId, string>> = {
   gardiennage: "Gardiennage",
   "main-courante": "Main courante",
   fransor: "Accompagnement Fransor",
-  "settings-overview": "Paramètres",
-  "settings-operators": "Gestion opérateur",
-  "settings-data": "Gestion des données",
-  "settings-data-sites": "Sites",
-  "settings-data-intervenants": "Intervenants",
-  "settings-data-anomaly-types": "Types d'anomalie",
-  "settings-data-holidays": "Jours fériés",
-  "settings-data-ronde-motifs": "Motifs ronde",
-  "settings-data-fransor": "Référentiel Fransor",
-  "settings-data-pending-sites": "Sites soumis",
-  "settings-data-pending-intervenants": "Intervenants soumis"
+  "settings-operators": "Gestion opérateur"
 };
 
 type HelpPlaceholderTopicProps = {
