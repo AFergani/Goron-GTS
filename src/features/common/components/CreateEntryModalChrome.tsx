@@ -1,6 +1,14 @@
+/**
+ * En-tête et pied de page communs des modales « Nouvelle entrée » (création métier).
+ *
+ * Uniformise titres et disposition Annuler | aides | Créer sur main courante,
+ * intervention et ronde. Le type `gardiennage` est prévu dans les titres si une modale
+ * l’adopte plus tard (gardiennage utilise aujourd’hui un chrome dédié).
+ */
+
 import type { ReactNode } from "react";
 
-/** Modales métier « Nouvelle … » à titre uniforme */
+/** Modules métier supportés pour le titre de modale de création. */
 export type CreateEntryModalKind = "mainCourante" | "ronde" | "intervention" | "gardiennage";
 
 const TITLES: Record<CreateEntryModalKind, string> = {
@@ -10,6 +18,7 @@ const TITLES: Record<CreateEntryModalKind, string> = {
   gardiennage: "Nouveau Gardiennage"
 };
 
+/** Titre + bouton fermer (×) pour modales de création. */
 export function CreateEntryModalHeader({
   kind,
   onCloseRequest
@@ -27,7 +36,9 @@ export function CreateEntryModalHeader({
   );
 }
 
-/** Pied réservé à la création : Annuler | textes d&apos;aide | Créer (submit) */
+/**
+ * Pied de modale création : Annuler, zone d’aide centrale, bouton submit (type submit du formulaire parent).
+ */
 export function CreateEntryModalFooter({
   hintContent,
   onCancel,
