@@ -1,3 +1,33 @@
+/**
+ * Mise en file SMB des écritures côté client writer et attente courte de l'ACK (`ack/`).
+ * Si l'ACK n'arrive pas en ~1,5 s, retourne un résultat optimiste `PENDING_QUEUE` et nettoie l'ACK en différé.
+ *
+ * Instancié dans `main.js` ; appelé depuis `ipcDomainHandlers` (main courante, intervention, rondes, gardiennage)
+ * et `mainCourante:create` forward queue.
+ */
+
+/**
+ * Fabrique le service d'enqueue SMB avec attente d'accusé de réception.
+ *
+ * @param {object} deps
+ * @param {import('fs')} deps.fs - Détection fichier ACK, suppression après lecture.
+ * @param {import('path')} deps.path - Chemins `incoming` / `ack`.
+ * @param {() => object|null} deps.ensureWriterQueueDirs - Contexte queue SMB ou `null` si indisponible.
+ * @param {() => object} deps.getLocalSourceContext - Métadonnées source dans le JSON requête.
+ * @param {(filePath: string, data: object) => void} deps.safeWriteJson - Écriture atomique de la requête.
+ * @param {(filePath: string) => object|null} deps.readJsonIfExists - Lecture ACK.
+ * @param {(entry: object) => void} deps.appendWriterTransitLog - Journal transit (événements optionnels).
+ * @param {(opts: object) => void} deps.startDeferredAckCleanup - Surveillance ACK tardif (`main.js`).
+ * @param {(ms: number) => Promise<void>} deps.sleep - Pause entre polls ACK.
+ * @param {(payload: object) => object} deps.omitSessionToken - Retire le jeton session du payload persisté.
+ * @returns {{
+ *   enqueueCreateAndWaitAck: (payload: object) => Promise<object>,
+ *   enqueueUpdateOperatorAndWaitAck: (payload: object) => Promise<object>,
+ *   enqueueManagerActionAndWaitAck: (payload: object) => Promise<object>,
+ *   enqueueManagerReopenAndWaitAck: (payload: object) => Promise<object>,
+ *   enqueueInterventionActionAndWaitAck: (action: string, payload: object) => Promise<object>
+ * }}
+ */
 function createWriterQueueEnqueueService(deps) {
   const {
     fs,
@@ -12,10 +42,30 @@ function createWriterQueueEnqueueService(deps) {
     omitSessionToken
   } = deps;
 
+  /**
+   * Génère ou réutilise un identifiant de corrélation requête / ACK.
+   *
+   * @param {object} payload
+   * @returns {string}
+   */
   function buildRequestId(payload) {
     return payload?.requestId || `req-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   }
 
+  /**
+   * Écrit une requête JSON dans `incoming/`, attend l'ACK jusqu'à `immediateAckTimeoutMs` (1,5 s).
+   *
+   * @param {object} opts
+   * @param {string} opts.action - Code exécuté par `writerQueueActions.executeQueuedAction`.
+   * @param {object} opts.payload - Données métier (sans `sessionToken`).
+   * @param {string|null} opts.enqueueEvent - Log à l'enqueue ; `null` pour ignorer.
+   * @param {string|null} opts.ackEvent - Log ACK immédiat réussi.
+   * @param {string|null} opts.deferredEvent - Log si passage en mode différé.
+   * @param {string|null} opts.lateAckEvent - Log ACK tardif (cleanup différé).
+   * @param {(payload: object) => object} opts.pendingResultFactory - Résultat optimiste si pas d'ACK à temps.
+   * @returns {Promise<object>} `ack.result` ou retour du factory.
+   * @throws {Error} Queue indisponible ou ACK avec `ok: false`.
+   */
   async function enqueueAndWaitAck({
     action,
     payload,
@@ -86,6 +136,12 @@ function createWriterQueueEnqueueService(deps) {
     return pendingResultFactory(payload);
   }
 
+  /**
+   * Enqueue création main courante (`action: create`) avec événements de log dédiés.
+   *
+   * @param {object} payload
+   * @returns {Promise<object>}
+   */
   async function enqueueCreateAndWaitAck(payload) {
     return enqueueAndWaitAck({
       action: "create",
@@ -113,6 +169,12 @@ function createWriterQueueEnqueueService(deps) {
     });
   }
 
+  /**
+   * Enqueue mise à jour opérateur main courante.
+   *
+   * @param {object} payload
+   * @returns {Promise<object>}
+   */
   async function enqueueUpdateOperatorAndWaitAck(payload) {
     return enqueueAndWaitAck({
       action: "update_operator",
@@ -134,6 +196,12 @@ function createWriterQueueEnqueueService(deps) {
     });
   }
 
+  /**
+   * Enqueue action manager (clôture / décision) main courante.
+   *
+   * @param {object} payload
+   * @returns {Promise<object>}
+   */
   async function enqueueManagerActionAndWaitAck(payload) {
     return enqueueAndWaitAck({
       action: "manager_action",
@@ -153,6 +221,12 @@ function createWriterQueueEnqueueService(deps) {
     });
   }
 
+  /**
+   * Enqueue réouverture manager main courante.
+   *
+   * @param {object} payload
+   * @returns {Promise<object>}
+   */
   async function enqueueManagerReopenAndWaitAck(payload) {
     return enqueueAndWaitAck({
       action: "manager_reopen",
@@ -172,6 +246,16 @@ function createWriterQueueEnqueueService(deps) {
     });
   }
 
+  /**
+   * Enqueue générique intervention / rondes / gardiennage (codes alignés `writerQueueActions`).
+   *
+   * Logs enqueue/ack/deferred désactivés (`null`) ; seul `intervention_queue_late_ack` en différé.
+   * Factory enrichi pour `intervention_create`, `ronde_create`, `gardiennage_create`.
+   *
+   * @param {string} action - Ex. `intervention_update`, `ronde_status`, `gardiennage_close`.
+   * @param {object} payload
+   * @returns {Promise<object>}
+   */
   async function enqueueInterventionActionAndWaitAck(action, payload) {
     const buildPendingInterventionResult = (currentPayload) => {
       const nowIso = new Date().toISOString();
