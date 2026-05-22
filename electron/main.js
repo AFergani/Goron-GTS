@@ -601,10 +601,6 @@ function getDbStorageLayoutFromPath(dbPath) {
   return dbPathUtils.getDbStorageLayoutFromPath(path, dbPath);
 }
 
-function getQuarterInfoFromDbPath(dbPath) {
-  return dbPathUtils.getQuarterInfoFromDbPath(path, dbPath);
-}
-
 function normalizeNestedQuarterDbPath(dbPath) {
   return dbPathUtils.normalizeNestedQuarterDbPath(path, fs, dbPath);
 }
