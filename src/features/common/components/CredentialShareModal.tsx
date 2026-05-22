@@ -1,7 +1,15 @@
+/**
+ * Modale post-création ou réinitialisation utilisateur : transmission des identifiants temporaires.
+ *
+ * Enveloppe `CredentialShareCard` (copie presse-papiers). Ouverte depuis `AppShell` lorsque
+ * le presenter Paramètres fournit `credentialsToShare` après création de compte ou reset MDP.
+ */
+
 import { CredentialShareCard } from "./CredentialShareCard";
 
 type CredentialShareModalProps = {
   isOpen: boolean;
+  /** Nom affiché de connexion transmis à l’opérateur. */
   username: string;
   temporaryPassword: string;
   onClose: () => void;
