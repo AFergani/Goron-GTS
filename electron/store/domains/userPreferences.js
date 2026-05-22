@@ -1,7 +1,23 @@
+/**
+ * Préférences utilisateur persistées en base (table `users`, colonne `theme_mode`).
+ *
+ * Lecture et mise à jour du thème clair/sombre pour le compte connecté.
+ * IPC `preferences:get` / `preferences:set` ; consommé par `AppShell` côté UI.
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string, requesterUsername: string }} params
+ * @returns {{ themeMode: 'light'|'dark' }}
+ */
 function getUserPreferences(store, { requesterRole, requesterUsername }) {
   store.ensureDataReaderRole(requesterRole);
   const username = normalizeUsername(requesterUsername);
@@ -15,6 +31,13 @@ function getUserPreferences(store, { requesterRole, requesterUsername }) {
   return { themeMode };
 }
 
+/**
+ * Met à jour le thème du compte actif (valeur normalisée `light` ou `dark`).
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string, requesterUsername: string, themeMode?: string }} params
+ * @returns {{ success: true, themeMode: 'light'|'dark' }}
+ */
 function setUserPreferences(store, { requesterRole, requesterUsername, themeMode }) {
   store.ensureDataReaderRole(requesterRole);
   const username = normalizeUsername(requesterUsername);
