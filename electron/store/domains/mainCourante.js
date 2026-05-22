@@ -38,7 +38,7 @@ function mergeMainCouranteObservations(previous, managerName, addition) {
   return `${p}\n---\n${a}`;
 }
 
-/** Mappe une ligne SQL vers l'objet API (exporté pour `UserStore.mapMainCouranteRow`). */
+/** Mappe une ligne SQL vers l'objet API main courante. */
 function mapMainCouranteRow(row) {
   return {
     id: row.id,

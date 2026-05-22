@@ -1,3 +1,15 @@
+/**
+ * Orchestrateur d'accès base SQLite pour Goron-GTS.
+ *
+ * `UserStore` ouvre la base, applique les schémas (`store/core/schema*`), expose les méthodes
+ * métier appelées par IPC (`main.js`) et le worker writer. Chaque méthode publique délègue
+ * vers `store/domains/*` ou `store/core/*` — pas de règle métier volumineuse ici (règle projet).
+ *
+ * Instance unique par chemin de base, recréée lors d'un changement de DB active.
+ *
+ * @module electron/userStore
+ */
+
 const { DatabaseSync } = require("node:sqlite");
 const { resolveAdminAccess } = require("./store/core/bootstrap");
 const { AppError, failWithLog } = require("./store/core/errors");
@@ -33,14 +45,21 @@ const referentialsDomain = require("./store/domains/referentials");
 const templateAssignmentsDomain = require("./store/domains/templateAssignments");
 const userPreferencesDomain = require("./store/domains/userPreferences");
 
+/** Rôles applicatifs transmis aux domaines et au RBAC (`store/core/rbac`). */
 const ROLE = {
   RESPONSABLE: "RESPONSABLE",
   OPERATEUR: "OPERATEUR",
   DEV: "DEV"
 };
 
-
+/**
+ * Façade SQLite : schéma, audit, erreurs et délégation vers les domaines métier.
+ */
 class UserStore {
+  /**
+   * @param {string} dbPath - Chemin du fichier `.db` actif.
+   * @param {{ isPackaged?: boolean }} [options] - Résolution du code admin DEV (`bootstrap`).
+   */
   constructor(dbPath, options = {}) {
     this.dbPath = dbPath;
     const adminAccess = resolveAdminAccess(options);
@@ -52,6 +71,7 @@ class UserStore {
     this.ensureDevUser();
   }
 
+  /** Crée ou migre les tables (ordre : base → ronde → users/sites → données → gardiennage). */
   ensureSchema() {
     schemaBaseCore.ensureBaseSchema(this);
     schemaRondeCore.ensureRondeSchema(this);
@@ -64,14 +84,17 @@ class UserStore {
     authUsersDomain.ensureDevUser(this, { roles: ROLE });
   }
 
+  /** Journal technique (`error_logs`) — distinct de l'audit métier. */
   logError({ source, code, messageFr, details }) {
     writeErrorLog(this, { source, code, messageFr, details });
   }
 
+  /** Lève une `AppError` après log (messages utilisateur en français). */
   fail(source, userMessage, code, details = {}) {
     failWithLog(this, source, userMessage, code, details);
   }
 
+  /** Écriture dans `audit_logs` (actions métier sensibles). */
   logAudit({ actorUsername, action, targetUsername = null, status = "SUCCESS", details = null }) {
     writeAudit(this.db, { actorUsername, action, targetUsername, status, details });
   }
@@ -105,6 +128,8 @@ class UserStore {
       errorEntries
     });
   }
+
+  // --- Authentification et comptes (`authUsers`) ---
 
   isFullNamePasswordPairUsedByAnotherUser(fullName, rawPassword, excludedUserId = null) {
     return authUsersDomain.isFullNamePasswordPairUsedByAnotherUser(this, fullName, rawPassword, excludedUserId);
@@ -173,6 +198,8 @@ class UserStore {
     return authUsersDomain.unlockUser(this, { requesterRole, requesterUsername, username, role: ROLE });
   }
 
+  // --- Audit, santé base, préférences, modèles Word ---
+
   getDbHealth() {
     return dbHealthDomain.getDbHealth(this);
   }
@@ -192,6 +219,8 @@ class UserStore {
   setUserPreferences({ requesterRole, requesterUsername, themeMode }) {
     return userPreferencesDomain.setUserPreferences(this, { requesterRole, requesterUsername, themeMode });
   }
+
+  // --- RBAC (délégation `store/core/rbac`) ---
 
   ensureDataManagerRole(requesterRole) {
     ensureDataManagerRoleRbac(requesterRole, this.fail.bind(this), ROLE);
@@ -273,6 +302,8 @@ class UserStore {
     return referentialsDomain.deleteAnomalyType(this, { requesterRole, requesterUsername, id, reason });
   }
 
+  // --- Fransor ---
+
   listFransorResponsables({ requesterRole }) {
     return fransorDomain.listFransorResponsables(this, { requesterRole });
   }
@@ -313,13 +344,13 @@ class UserStore {
     return fransorDomain.listFransorMonthlyRecap(this, { requesterRole, month });
   }
 
-  mapMainCouranteRow(row) {
-    return mainCouranteDomain.mapMainCouranteRow(row);
-  }
+  // --- Main courante ---
 
   listMainCouranteEntries({ requesterRole }) {
     return mainCouranteDomain.listMainCouranteEntries(this, { requesterRole });
   }
+
+  // --- Interventions ---
 
   listInterventions({ requesterRole }) {
     return interventionDomain.listInterventions(this, { requesterRole });
@@ -376,6 +407,8 @@ class UserStore {
   deletePendingInterventionIntervenant(payload) {
     return interventionDomain.deletePendingInterventionIntervenant(this, payload);
   }
+
+  // --- Rondes ---
 
   listRondes({ requesterRole }) {
     return rondeDomain.listRondes(this, { requesterRole });
@@ -584,6 +617,8 @@ class UserStore {
     return archiveDomain.archiveMainCouranteClosedEntries(this, { requesterUsername, delayDays });
   }
 
+  // --- Gardiennage ---
+
   listGardiennages({ requesterRole }) {
     return gardiennageDomain.listGardiennages(this, { requesterRole });
   }
@@ -616,5 +651,7 @@ class UserStore {
     return gardiennageDomain.deleteGardiennage(this, payload);
   }
 }
+
+/** @typedef {import('./store/core/errors').AppError} AppError */
 
 module.exports = { UserStore, ROLE, AppError };
