@@ -1,16 +1,36 @@
+/**
+ * Attribution des modèles Word (.docx) par flux métier et portée (site ou famille).
+ *
+ * Table `data_document_template_assignments` (schéma `schemaBusinessData`).
+ * Résolution à l'export : site prioritaire sur famille pour un `flowKind` donné.
+ * Gestion Paramètres (manager) ; `resolveTemplateFileForContext` utilisé par les exports Word.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
 const FLOW_KINDS = new Set(["INTERVENTION", "RONDE_EXCEPTIONNELLE", "RONDE_PLANIFIEE", "GARDIENNAGE"]);
 const SCOPE_KINDS = new Set(["SITE", "FAMILLE"]);
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeFlowKind(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeScopeKind(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ */
 function listTemplateAssignments(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const rows = store.db
@@ -32,6 +52,13 @@ function listTemplateAssignments(store, payload) {
   }));
 }
 
+/**
+ * Crée ou met à jour une attribution (clé unique flux + portée + valeur).
+ * Écriture réservée au rôle data manager.
+ *
+ * @param {import('../userStore')} store
+ * @returns {object} Attribution persistée.
+ */
 function upsertTemplateAssignment(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const flowKind = normalizeFlowKind(payload.flowKind);
@@ -107,6 +134,10 @@ function upsertTemplateAssignment(store, payload) {
   return { id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName, createdAt: now, updatedAt: now };
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deleteTemplateAssignment(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const id = String(payload.id || "").trim();
@@ -145,6 +176,13 @@ function deleteTemplateAssignment(store, payload) {
   return { success: true };
 }
 
+/**
+ * Retourne le nom de fichier `.docx` applicable pour un export (site puis famille).
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string, flowKind: string, siteId?: string, famille?: string }} payload
+ * @returns {{ templateFileName: string|null }}
+ */
 function resolveTemplateFileForContext(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const flowKind = normalizeFlowKind(payload.flowKind);
