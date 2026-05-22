@@ -1,3 +1,10 @@
+/**
+ * Export Word d’une fiche gardiennage clôturée ou annulée.
+ *
+ * Modèle `gardiennage-template.docx` (Paramètres ou ressource publique) via Docxtemplater.
+ * Texte assaini pour XML ; repli docx programmatique si modèle absent.
+ */
+
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
@@ -191,6 +198,7 @@ async function buildFallbackDocument(entry: GardiennageEntry): Promise<Document>
   });
 }
 
+/** Télécharge la fiche Word pour une entrée (statut clôturé / annulé côté UI). */
 export async function exportGardiennageEntryToWord(entry: GardiennageEntry): Promise<void> {
   const templateBlob = (await renderFromResolvedTemplate(entry)) ?? (await renderFromDefaultTemplate(entry));
   if (!templateBlob && !templateMissingWarningShown) {
