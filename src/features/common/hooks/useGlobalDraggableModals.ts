@@ -1,5 +1,17 @@
 import { useEffect } from "react";
 
+/**
+ * Déplacement des modales par glisser-déposer sur l’en-tête (délégation document).
+ *
+ * Monté une fois dans `AppShell` : écouteurs globaux sur `pointerdown` / `move` / `up`
+ * et double-clic. Poignée = `header` de `.modal`, `.mc-modal-head`, ou `h3` hors titres
+ * d’aide. Les contrôles interactifs (boutons, champs, liens) ne déclenchent pas le drag.
+ * Double-clic sur la poignée recentre la modale dans la fenêtre.
+ *
+ * Au premier drag, la modale passe en `position: fixed` avec coordonnées explicites
+ * (largeur figée pour éviter les sauts de layout).
+ */
+
 type DragState = {
   pointerId: number;
   modal: HTMLElement;
@@ -9,8 +21,10 @@ type DragState = {
   startTop: number;
 };
 
+/** Cibles qui ne doivent pas initier ni bloquer implicitement un drag depuis la poignée */
 const INTERACTIVE_SELECTOR = "button, a, input, textarea, select, label, [role='button']";
-/** Les titres de contenu ne doivent pas servir de poignée (ex. aide avec des <h3> dans le corps). */
+
+/** Poignées autorisées ; exclut les titres du centre d’aide dans le corps de modale */
 const HANDLE_SELECTOR =
   ".modal header, .mc-modal-head, .modal h3:not(.help-center-card-title):not(.help-center-content-title)";
 
@@ -45,7 +59,7 @@ export function useGlobalDraggableModals() {
       try {
         drag.modal.releasePointerCapture(event.pointerId);
       } catch {
-        /* no-op */
+        /* capture déjà libérée */
       }
       drag = null;
     };
@@ -103,4 +117,3 @@ export function useGlobalDraggableModals() {
     };
   }, []);
 }
-
