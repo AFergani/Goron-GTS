@@ -1,3 +1,26 @@
+/**
+ * Sonde périodique de disponibilité des pairs writer (GET `/writer/health`) en mode HTTP.
+ * Met à jour `writerRuntime.connectivity` et journalise les changements d'état (`writer_peer_status_changed`).
+ *
+ * Désactivé en `transportMode === "smb_queue"` (connectivité dérivée des heartbeats SMB dans `main.js`).
+ * Piloté par `writerRuntime.js` via `startWriterMonitor` / `stopWriterMonitor`.
+ */
+
+/**
+ * Fabrique le moniteur de connectivité inter-nœuds writer.
+ *
+ * @param {object} deps
+ * @param {(entry: object) => void} deps.appendWriterTransitLog - Log transit lors d'un changement de reachability.
+ * @param {() => object} deps.getLocalSourceContext - Contexte poste local pour les entrées de log.
+ * @param {(host: string, port: number, path: string, timeoutMs: number) => Promise<object>} deps.getJson - Requête HTTP health.
+ * @param {() => object} deps.getWriterRuntime - État writer (`role`, hôtes, ports, `connectivity`, `heartbeatIntervalMs`).
+ * @param {(next: object) => void} deps.setWriterRuntime - Mise à jour de `connectivity`.
+ * @returns {{
+ *   updateConnectivityAndLog: (key: string, reachable: boolean, details?: object) => void,
+ *   stopWriterMonitor: () => void,
+ *   startWriterMonitor: () => void
+ * }}
+ */
 function createWriterMonitorService(deps) {
   const {
     appendWriterTransitLog,
@@ -9,6 +32,14 @@ function createWriterMonitorService(deps) {
 
   let writerMonitorTimer = null;
 
+  /**
+   * Met à jour un indicateur de connectivité et logue uniquement si la valeur a changé.
+   *
+   * @param {"masterReachable"|"backupReachable"} key - Clé dans `writerRuntime.connectivity`.
+   * @param {boolean} reachable - Pair joignable ou non.
+   * @param {object} [details] - Contexte diagnostic (host, port, erreur, mode smb_queue, etc.).
+   * @returns {void}
+   */
   function updateConnectivityAndLog(key, reachable, details) {
     const writerRuntime = getWriterRuntime();
     const previous = writerRuntime.connectivity[key];
@@ -30,6 +61,11 @@ function createWriterMonitorService(deps) {
     });
   }
 
+  /**
+   * Arrête l'intervalle de sonde HTTP (idempotent).
+   *
+   * @returns {void}
+   */
   function stopWriterMonitor() {
     if (writerMonitorTimer) {
       clearInterval(writerMonitorTimer);
@@ -37,6 +73,14 @@ function createWriterMonitorService(deps) {
     }
   }
 
+  /**
+   * Démarre la sonde selon le rôle writer : master → backup, backup → master, client → les deux.
+   *
+   * No-op si writer désactivé ou mode `smb_queue`. Intervalle : `heartbeatIntervalMs` (défaut 3000 ms).
+   * Premier tick immédiat puis `setInterval`.
+   *
+   * @returns {void}
+   */
   function startWriterMonitor() {
     stopWriterMonitor();
     const writerRuntime = getWriterRuntime();
