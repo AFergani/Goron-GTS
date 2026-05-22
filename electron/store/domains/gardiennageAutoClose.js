@@ -1,28 +1,55 @@
+/**
+ * Clôture automatique des gardiennages dont l'horaire de fin est dépassé.
+ *
+ * Appelé avant `listGardiennages`, par timer dans `electron/main.js` et via `UserStore`.
+ * Reprend la logique de `closeGardiennage` (série récurrente vs ponctuel) avec compte rendu système fixe.
+ * Audit agrégé `GARDIENNAGE_AUTO_CLOSE_BATCH` si au moins une fiche est clôturée.
+ */
+
 const { writeAudit } = require("../core/audit");
 
 /** Libellé enregistré en compte rendu de clôture (sans justification terrain). */
 const GARDIENNAGE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 const GARDIENNAGE_AUTO_CLOSE_ACTOR = "system:gardiennage-auto-close";
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function toIsoDate(value) {
   const raw = String(value || "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   return "";
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function toIsoTime(value) {
   const raw = String(value || "").trim();
   if (/^\d{2}:\d{2}$/.test(raw)) return raw;
   return "";
 }
 
+/**
+ * @param {string} isoDate - `AAAA-MM-JJ`
+ * @param {number} amount - Jours à ajouter.
+ * @returns {string}
+ */
 function shiftIsoDate(isoDate, amount) {
   const d = new Date(`${isoDate}T12:00:00`);
   d.setDate(d.getDate() + amount);
   return d.toISOString().slice(0, 10);
 }
 
-/** Instant de fin de prestation (ms) pour décider si la clôture auto s'applique. */
+/**
+ * Instant de fin de prestation (ms) pour décider si la clôture auto s'applique.
+ * Priorité à `planning_slot_end`, sinon date active + `end_time` (+ lendemain si `crosses_midnight`).
+ *
+ * @param {object} row - Ligne `gardiennage_entries`.
+ * @returns {number|null}
+ */
 function resolveSlotEndMs(row) {
   const slotEndRaw = String(row.planning_slot_end || "").trim();
   if (slotEndRaw) {
@@ -40,6 +67,14 @@ function resolveSlotEndMs(row) {
   return Number.isNaN(ts) ? null : ts;
 }
 
+/**
+ * Applique la clôture automatique sur une ligne (aligné sur `closeGardiennage`).
+ *
+ * @param {import('../userStore')} store
+ * @param {object} row
+ * @param {string} nowIso
+ * @returns {boolean} `false` si date de début invalide.
+ */
 function applyAutoCloseRow(store, row, nowIso) {
   const targetCloseDate = toIsoDate(row.recurrence_start_date);
   if (!targetCloseDate) return false;
@@ -103,7 +138,11 @@ function applyAutoCloseRow(store, row, nowIso) {
 }
 
 /**
- * Clôture les fiches planifiées/actives dont l'horaire de fin est dépassé.
+ * Clôture les fiches `PLANIFIE` ou `ACTIF` dont l'horaire de fin est dépassé.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} [options]
+ * @param {string} [options.requesterUsername="system:gardiennage-auto-close"] - Acteur de l'audit batch.
  * @returns {{ closedCount: number, closedIds: string[] }}
  */
 function autoCloseExpiredGardiennageEntries(store, { requesterUsername = GARDIENNAGE_AUTO_CLOSE_ACTOR } = {}) {
@@ -152,7 +191,5 @@ function autoCloseExpiredGardiennageEntries(store, { requesterUsername = GARDIEN
 }
 
 module.exports = {
-  GARDIENNAGE_AUTO_CLOSURE_REPORT,
-  GARDIENNAGE_AUTO_CLOSE_ACTOR,
   autoCloseExpiredGardiennageEntries
 };
