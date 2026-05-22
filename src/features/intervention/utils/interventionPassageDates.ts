@@ -1,4 +1,9 @@
-/** Utilitaires date/heure de passage (arrivée, départ) pour les interventions. */
+/**
+ * Dates et heures de passage intervention (arrivée, départ, passage minuit).
+ *
+ * Infère les dates manquantes sur données legacy, valide la cohérence avant enregistrement
+ * et calcule la « date logique » d’affichage / filtre. Utilisé par `InterventionEntryModal`.
+ */
 
 export function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());

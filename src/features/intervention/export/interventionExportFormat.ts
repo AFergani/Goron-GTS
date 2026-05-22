@@ -1,3 +1,10 @@
+/**
+ * Helpers d’export partagés (horodatage fichier).
+ *
+ * Réutilisé par les exports Excel intervention, ronde, gardiennage.
+ */
+
+/** Horodatage `JJ-MM-AAAA_HHhMM` pour noms de fichiers exportés. */
 export function exportTimestampFrForFilename(): string {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, "0");

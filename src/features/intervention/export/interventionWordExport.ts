@@ -1,3 +1,9 @@
+/**
+ * Export Word d’une fiche intervention (modèle `intervention-template.docx`).
+ *
+ * Docxtemplater + repli docx programmatique ; champs variables et `exportExtraValues`.
+ */
+
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
@@ -173,6 +179,7 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
   });
 }
 
+/** Télécharge la fiche Word pour une intervention. */
 export async function exportInterventionEntryToWord(entry: InterventionEntry): Promise<void> {
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry)));
