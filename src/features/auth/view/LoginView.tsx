@@ -1,9 +1,18 @@
+/**
+ * Écran de connexion Goron-GTS (affiché sans session active dans `AppShell`).
+ *
+ * Vue contrôlée : formulaire nom affiché / mot de passe, choix initial de la base
+ * si non configurée, dialogue compte bloqué. Handlers fournis par `useAuthPresenter`
+ * et `useSettingsPresenter` (chemin DB).
+ */
+
 import type { FormEvent } from "react";
 import type { LoginFormState } from "../model/auth.types";
 import logoGts from "../../../assets/logo-gts.png";
 
 type LoginViewProps = {
   loginForm: LoginFormState;
+  /** `null` tant que la config DB n'est pas chargée ; `false` impose le choix du fichier .db */
   dbConfigured: boolean | null;
   error: string;
   showLockedDialog: boolean;
@@ -36,7 +45,9 @@ export function LoginView({
               Contactez votre responsable ou le directeur de station pour qu'il réinitialise votre accès depuis la gestion des utilisateurs.
             </p>
             <div className="row-actions modal-actions">
-              <button type="button" onClick={onCloseLockedDialog}>Fermer</button>
+              <button type="button" onClick={onCloseLockedDialog}>
+                Fermer
+              </button>
             </div>
           </section>
         </div>
@@ -45,7 +56,9 @@ export function LoginView({
         <section className="panel login-panel">
           <h3>Configuration base de données</h3>
           <p className="muted">Sélectionnez le fichier de base de données (.db) avant toute connexion.</p>
-          <button onClick={onChooseDbPath}>Choisir l'emplacement de la DB</button>
+          <button type="button" onClick={onChooseDbPath}>
+            Choisir l'emplacement de la DB
+          </button>
         </section>
       )}
       <section className="panel login-panel">
