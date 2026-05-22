@@ -1,10 +1,23 @@
+/**
+ * Référentiel des variables de formulaires dynamiques (Paramètres → Variables).
+ *
+ * Tables `data_form_variables` et `data_form_variable_assignments` : champs personnalisés
+ * (clé, libellé, type, options) rattachés à des formulaires (ronde, intervention, etc.),
+ * profils, modèles Word, sites ou familles. Consommé par les modales métier et les exports.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
+/** Clé technique : minuscule, commence par une lettre, `_` et chiffres autorisés. */
 const KEY_RE = /^[a-z][a-z0-9_]{0,62}$/;
 const ASSIGNMENT_KINDS = new Set(["FORM", "PROFILE", "TEMPLATE", "SITE", "FAMILLE"]);
 const FORM_TARGETS = new Set(["RONDE_PLANIFIEE", "RONDE_EXCEPTIONNELLE", "INTERVENTION", "MAIN_COURANTE", "GARDIENNAGE"]);
 const FIELD_TYPES = new Set(["text", "textarea", "number", "time", "select", "toggle"]);
 
+/**
+ * @param {string} raw - JSON tableau d'options (liste déroulante).
+ * @returns {string[]}
+ */
 function parseOptionsJson(raw) {
   try {
     const parsed = JSON.parse(String(raw || "[]"));
@@ -15,6 +28,13 @@ function parseOptionsJson(raw) {
   }
 }
 
+/**
+ * Liste les variables actives et leurs attributions (lecture : rôle data reader).
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ * @returns {object[]}
+ */
 function listFormVariables(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const vars = store.db
@@ -66,6 +86,11 @@ function listFormVariables(store, payload) {
   });
 }
 
+/**
+ * @param {object} input - Variable saisie côté UI.
+ * @param {number} index - Ordre d'affichage / `sort_order`.
+ * @returns {object}
+ */
 function normalizeVariable(input, index) {
   const fieldKey = String(input?.fieldKey || "").trim().toLowerCase();
   const label = String(input?.label || "").trim();
@@ -84,6 +109,14 @@ function normalizeVariable(input, index) {
   return { fieldKey, label, fieldType, placeholder, required, options, assignments, sortOrder: index };
 }
 
+/**
+ * Valide une ligne avant enregistrement (lève via `store.fail` si invalide).
+ *
+ * @param {import('../userStore')} store
+ * @param {object} item
+ * @param {number} index
+ * @returns {void}
+ */
 function validateVariable(store, item, index) {
   const p = `Ligne ${index + 1} : `;
   if (!item.fieldKey) {
@@ -128,6 +161,16 @@ function validateVariable(store, item, index) {
   });
 }
 
+/**
+ * Remplace tout le référentiel (DELETE + INSERT en transaction) puis audit agrégé.
+ *
+ * Règle métier : les attributions `PROFILE` ne sont conservées que si la variable cible
+ * aussi le formulaire `RONDE_PLANIFIEE`. Écriture réservée au rôle data manager.
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string, requesterUsername?: string, variables: object[] }} payload
+ * @returns {object[]} Liste à jour (`listFormVariables`).
+ */
 function saveFormVariables(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const raw = Array.isArray(payload.variables) ? payload.variables : [];
