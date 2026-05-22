@@ -1,5 +1,25 @@
+/**
+ * Consultation du journal d'audit (`audit_logs`) pour l'écran Paramètres.
+ *
+ * Lecture seule : les écritures passent par `store/core/audit.js` (`logAudit` / `writeAudit`).
+ * Accès restreint aux profils station admin (DEV ou RESPONSABLE avec profil métier autorisé).
+ */
+
 const authUsersDomain = require("./authUsers");
 
+/**
+ * Liste les derniers événements d'audit, avec libellés affichables pour les acteurs et cibles.
+ *
+ * Les logins techniques sont remplacés par `full_name` quand l'utilisateur existe encore en base ;
+ * sinon le login est conservé. L'acteur vide devient `"system"`.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} options
+ * @param {string} options.requesterUsername - Compte demandeur (contrôle RBAC).
+ * @param {object} options.role - Constantes de rôles (`ROLE` depuis `userStore`).
+ * @param {number} [options.limit=200] - Nombre de lignes (borné entre 1 et 1000).
+ * @returns {Array<{ occurredAt: string, actorUsername: string, action: string, targetUsername: string|null, status: string, details: object|null }>}
+ */
 function listAuditLogs(store, { requesterUsername, limit = 200, role }) {
   authUsersDomain.ensureStationAdminAccess(store, requesterUsername, role, "audit:list");
 
@@ -33,6 +53,15 @@ function listAuditLogs(store, { requesterUsername, limit = 200, role }) {
   }));
 }
 
+/**
+ * Retourne les bornes temporelles et le volume total du journal (filtres / export Paramètres).
+ *
+ * @param {import('../userStore')} store
+ * @param {object} options
+ * @param {string} options.requesterUsername
+ * @param {object} options.role - Constantes `ROLE`.
+ * @returns {{ firstOccurredAt: string|null, lastOccurredAt: string|null, total: number }}
+ */
 function getAuditMetadata(store, { requesterUsername, role }) {
   authUsersDomain.ensureStationAdminAccess(store, requesterUsername, role, "audit:metadata");
 
