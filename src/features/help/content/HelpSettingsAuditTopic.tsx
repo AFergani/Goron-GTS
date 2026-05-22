@@ -1,3 +1,4 @@
+/** Rubrique Paramètres — journal des actions (lecture, filtres, export). */
 export function HelpSettingsAuditTopic() {
   return (
     <article className="help-center-article">

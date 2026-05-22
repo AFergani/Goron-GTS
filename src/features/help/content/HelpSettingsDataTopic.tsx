@@ -1,3 +1,4 @@
+/** Rubrique Paramètres — référentiels partagés (sites, prestataires, fériés, etc.). */
 export function HelpSettingsDataTopic() {
   return (
     <article className="help-center-article">

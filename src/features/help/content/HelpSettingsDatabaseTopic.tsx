@@ -1,3 +1,7 @@
+/**
+ * Rubrique Paramètres — base SQLite (chemin, sauvegarde, variables d’environnement copiables).
+ */
+
 import { useState } from "react";
 import { Copy } from "lucide-react";
 

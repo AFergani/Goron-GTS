@@ -1,3 +1,10 @@
+/**
+ * Modèle du centre d’aide : identifiants de rubriques, navigation filtrée par droits.
+ *
+ * `buildHelpNavigation` construit la sidebar ; `resolveHelpTopicId` redirige les anciens
+ * identifiants Paramètres vers `settings-data`.
+ */
+
 /** Identifiants des rubriques du centre d'aide (navigation hiérarchique). */
 export type HelpTopicId =
   | "welcome"

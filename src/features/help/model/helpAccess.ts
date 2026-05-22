@@ -1,3 +1,10 @@
+/**
+ * Contrôle d’accès aux rubriques du centre d’aide selon le profil connecté.
+ *
+ * Aligné sur les permissions pages (`pageAccess`) et les droits Paramètres
+ * (opérateurs, données, audit). Utilisé par `HelpCenterModal` et `renderHelpTopicBody`.
+ */
+
 import type { HelpAccessContext, HelpPageAccess, HelpTopicId } from "./helpTopics";
 
 /** Accès aux onglets Gestion des données, modèles, variables, base (aligné sur l'UI Paramètres). */

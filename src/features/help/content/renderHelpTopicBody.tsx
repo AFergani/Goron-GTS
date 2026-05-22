@@ -1,3 +1,9 @@
+/**
+ * Routeur de contenu : associe chaque `HelpTopicId` au composant rubrique correspondant.
+ *
+ * Si la rubrique n’est pas autorisée pour le profil, affiche la page d’accueil (`welcome`).
+ */
+
 import type { HelpAccessContext, HelpTopicId } from "../model/helpTopics";
 import { isHelpTopicAllowed } from "../model/helpAccess";
 import { HelpFransorTopic } from "./HelpFransorTopic";

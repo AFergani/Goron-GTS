@@ -1,3 +1,10 @@
+/**
+ * Modale « Centre d’aide » : navigation latérale + contenu rubrique.
+ *
+ * Ouverte depuis `AppShell` (bouton aide sidebar ou lien contextuel `initialTopicId`).
+ * Rubriques filtrées par `HelpAccessContext` ; en-tête déplaçable (classe CSS globale modales).
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isHelpTopicAllowed } from "../model/helpAccess";
 import { buildHelpNavigation, resolveHelpTopicId, type HelpAccessContext, type HelpNavItem, type HelpTopicId } from "../model/helpTopics";

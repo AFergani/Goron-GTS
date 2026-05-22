@@ -1,3 +1,4 @@
+/** Rubrique centre d’aide — main courante (signalement, suivi, clôture). */
 export function HelpMainCouranteTopic() {
   return (
     <article className="help-center-article">

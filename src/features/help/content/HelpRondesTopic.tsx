@@ -1,3 +1,9 @@
+/**
+ * Rubrique centre d’aide — module Rondes (contractuel / exceptionnel, clôture, profils).
+ */
+
+import { HelpDayListDisplaySection } from "./HelpDayListDisplaySection";
+
 export function HelpRondesTopic() {
   return (
     <article className="help-center-article">
@@ -180,6 +186,8 @@ export function HelpRondesTopic() {
           </li>
         </ul>
       </div>
+
+      <HelpDayListDisplaySection />
 
       <div className="help-center-card">
         <h3 className="help-center-card-title">💡 Exemples pratiques</h3>

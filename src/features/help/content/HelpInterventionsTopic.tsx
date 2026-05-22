@@ -1,3 +1,4 @@
+/** Rubrique centre d’aide — module Interventions (cycle de vie, clôture, exports). */
 export function HelpInterventionsTopic() {
   return (
     <article className="help-center-article">

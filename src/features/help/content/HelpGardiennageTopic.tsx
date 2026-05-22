@@ -1,3 +1,9 @@
+/**
+ * Rubrique centre d’aide — module Gardiennage (planification, clôture, exports).
+ */
+
+import { HelpDayListDisplaySection } from "./HelpDayListDisplaySection";
+
 export function HelpGardiennageTopic() {
   return (
     <article className="help-center-article">
@@ -155,6 +161,8 @@ export function HelpGardiennageTopic() {
           fiches <strong>non clôturées</strong> seront supprimées.
         </div>
       </div>
+
+      <HelpDayListDisplaySection />
 
       <div className="help-center-card">
         <h3 className="help-center-card-title">💡 Exemples pratiques</h3>

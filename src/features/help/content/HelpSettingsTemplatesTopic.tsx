@@ -1,3 +1,4 @@
+/** Rubrique Paramètres — modèles Word (.docx) et variables Docxtemplater. */
 export function HelpSettingsTemplatesTopic() {
   return (
     <article className="help-center-article">

@@ -1,3 +1,10 @@
+/**
+ * Styles du centre d'aide (modale large, sidebar rubriques, cartes contenu).
+ *
+ * Palette alignée sur les modales métier (`mc-modal-*`, badges, tableaux d’aide).
+ * Importé par `HelpCenterModal.tsx` uniquement.
+ */
+
 /* Centre d'aide : deux colonnes (navigation + contenu), thème cohérent avec les modales existantes */
 
 .help-center-overlay {

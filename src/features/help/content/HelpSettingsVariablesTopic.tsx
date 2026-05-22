@@ -1,3 +1,4 @@
+/** Rubrique Paramètres — champs personnalisés (formulaires métier). */
 export function HelpSettingsVariablesTopic() {
   return (
     <article className="help-center-article">

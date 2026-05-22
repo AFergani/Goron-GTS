@@ -1,5 +1,7 @@
 /**
- * Section d'aide commune : bascule affichage journée / liste (Rondes, Gardiennage, etc.).
+ * Section d’aide réutilisable : modes affichage journée / liste (filtres, export Excel).
+ *
+ * Inclus dans les rubriques Rondes et Gardiennage.
  */
 export function HelpDayListDisplaySection() {
   return (

@@ -1,3 +1,4 @@
+/** Rubrique centre d’aide — accompagnement Fransor (ouvertures / fermetures, récap). */
 export function HelpFransorTopic() {
   return (
     <article className="help-center-article">

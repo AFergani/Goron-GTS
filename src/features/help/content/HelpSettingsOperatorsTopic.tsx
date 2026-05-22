@@ -1,3 +1,4 @@
+/** Rubrique Paramètres — gestion des comptes opérateurs et droits pages. */
 export function HelpSettingsOperatorsTopic() {
   return (
     <article className="help-center-article">

@@ -1,3 +1,4 @@
+/** Rubrique d’accueil : sidebar, navigation, accessibilité, états writer. */
 export function HelpWelcomeTopic() {
   return (
     <article className="help-center-article">
