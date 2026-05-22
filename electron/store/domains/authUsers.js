@@ -1,6 +1,20 @@
+/**
+ * Authentification et gestion des comptes utilisateurs (`users`).
+ *
+ * Connexion par **nom affiché** + mot de passe (login interne `username` non exposé en UI).
+ * Hiérarchie des droits : DEV (code admin fichier), directeur / responsable de station,
+ * superviseur (liste + reset MDP uniquement), opérateur.
+ * Règles mot de passe : liste noire, unicité couple nom affiché + MDP sur comptes actifs,
+ * verrouillage après 5 échecs, migration de hash à la connexion.
+ *
+ * Consommé par `UserStore`, `auditLogs.js` (`ensureStationAdminAccess`) et IPC auth/users.
+ */
+
 const crypto = require("crypto");
 const { hashPassword, verifyPassword, needsPasswordMigration } = require("../core/password");
 const { generateEntityId } = require("../core/ids");
+
+/** Profils métier autorisés pour un compte `RESPONSABLE`. */
 const MANAGER_PROFILES = ["SUPERVISEUR", "RESPONSABLE_STATION", "DIRECTEUR_STATION"];
 
 /** Mots de passe trop faibles refusés lors du premier changement. */
@@ -15,6 +29,10 @@ const PASSWORD_BLACKLIST = new Set([
   "monkey", "shadow", "michael", "jessica", "password1", "password123"
 ]);
 
+/**
+ * @param {string} password
+ * @throws {Error} Code `AUTH_PASSWORD_BLACKLISTED` si mot de passe trop courant.
+ */
 function assertPasswordNotBlacklisted(password, context) {
   if (PASSWORD_BLACKLIST.has(String(password || "").toLowerCase())) {
     throw new Error(`[AUTH_PASSWORD_BLACKLISTED] Ce mot de passe est trop simple. Choisissez un mot de passe plus original.`);
@@ -33,6 +51,12 @@ function generateLoginIdentifier() {
   return `usr-${crypto.randomBytes(4).toString("hex")}`;
 }
 
+/**
+ * Mappe une ligne SQL `users` vers l'objet exposé au renderer (dont `pageAccess` normalisé).
+ *
+ * @param {object} user - Ligne brute `users`.
+ * @returns {object} Utilisateur « API » sans `password_hash`.
+ */
 function sanitizeUser(user) {
   let parsedPageAccess = null;
   try {
@@ -69,6 +93,13 @@ function sanitizeUser(user) {
   };
 }
 
+/**
+ * Applique les valeurs par défaut d'accès aux pages selon le rôle cible.
+ *
+ * @param {object|null|undefined} pageAccess
+ * @param {string} role - `OPERATEUR` ou `RESPONSABLE` (pas DEV).
+ * @returns {object}
+ */
 function normalizePageAccess(pageAccess, role) {
   const defaultPageAccess =
     role === "OPERATEUR"
@@ -107,7 +138,7 @@ function ensureStationAdminAccess(store, requesterUsername, roles, source) {
   }
 }
 
-/** Alias : même contrôle que la gestion des comptes (profil lu en base). */
+/** Alias de `ensureStationAdminAccess` (le rôle effectif est relu en base, pas `requesterRole`). */
 function ensureUserAdminPermission(store, requesterRole, requesterUsername, roles, source) {
   ensureStationAdminAccess(store, requesterUsername, roles, source);
 }
@@ -179,6 +210,15 @@ function ensureCanListUsers(store, requesterUsername, roles, source) {
   store.fail(source, "Acces refuse: liste des utilisateurs reservee aux profils habilites.", "AUTH_FORBIDDEN", { requesterUsername });
 }
 
+/**
+ * Vérifie qu'aucun autre compte actif ne partage le même nom affiché et le même mot de passe.
+ *
+ * @param {import('../userStore')} store
+ * @param {string} fullName
+ * @param {string} rawPassword
+ * @param {string|null} [excludedUserId]
+ * @returns {boolean}
+ */
 function isFullNamePasswordPairUsedByAnotherUser(store, fullName, rawPassword, excludedUserId = null) {
   const normalizedFullName = normalizeDisplayName(fullName);
   const rows = excludedUserId
@@ -189,6 +229,16 @@ function isFullNamePasswordPairUsedByAnotherUser(store, fullName, rawPassword, e
   return rows.some((row) => verifyPassword(rawPassword, row.password_hash));
 }
 
+/**
+ * Échoue si le couple nom affiché + mot de passe existe déjà ; sinon retourne le hash Argon2.
+ *
+ * @param {import('../userStore')} store
+ * @param {string} fullName
+ * @param {string} rawPassword
+ * @param {string} source - Canal d'erreur (`auth:firstLogin`, etc.).
+ * @param {string|null} [excludedUserId]
+ * @returns {string} `password_hash` à persister.
+ */
 function assertFullNamePasswordPairUnique(store, fullName, rawPassword, source, excludedUserId = null) {
   if (isFullNamePasswordPairUsedByAnotherUser(store, fullName, rawPassword, excludedUserId)) {
     store.fail(
@@ -200,6 +250,14 @@ function assertFullNamePasswordPairUnique(store, fullName, rawPassword, source, 
   return hashPassword(rawPassword);
 }
 
+/**
+ * Génère un mot de passe temporaire unique pour un nom affiché donné (création / reset).
+ *
+ * @param {import('../userStore')} store
+ * @param {string} fullName
+ * @param {string|null} [excludedUserId]
+ * @returns {string} Mot de passe en clair (à transmettre une seule fois à l'administrateur).
+ */
 function generateUniqueTemporaryPasswordForFullName(store, fullName, excludedUserId = null) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#%!";
   const minLength = 8;
@@ -224,6 +282,12 @@ function generateUniqueTemporaryPasswordForFullName(store, fullName, excludedUse
   );
 }
 
+/**
+ * Génère un identifiant de connexion interne unique (`usr-xxxxxxxx`).
+ *
+ * @param {import('../userStore')} store
+ * @returns {string}
+ */
 function generateUniqueUsername(store) {
   for (let i = 0; i < 20; i += 1) {
     const candidate = generateLoginIdentifier();
@@ -235,6 +299,18 @@ function generateUniqueUsername(store) {
 
 const MAX_FAILED_ATTEMPTS = 5;
 
+/**
+ * Authentifie par nom affiché : comptes standard (hash MDP) ou compte DEV (code admin fichier).
+ *
+ * Gère verrouillage, migration de hash, audit `AUTH_LOGIN` / `AUTH_ACCOUNT_LOCKED`.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} options
+ * @param {string} options.username - Nom affiché saisi (normalisé en minuscules).
+ * @param {string} options.password
+ * @param {object} options.role - Constantes `ROLE` (`DEV`, `OPERATEUR`, `RESPONSABLE`).
+ * @returns {{ user: object }}
+ */
 function login(store, { username, password, role }) {
   const normalizedFullName = normalizeDisplayName(username);
   if (!normalizedFullName) {
@@ -313,6 +389,12 @@ function login(store, { username, password, role }) {
   return { user: sanitizeUser(user) };
 }
 
+/**
+ * Déverrouille un compte après trop de tentatives (hiérarchie MDP respectée).
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function unlockUser(store, { requesterRole, requesterUsername, username, role }) {
   const normalizedUsername = normalizeUsername(username);
   const requester = getRequesterRow(store, requesterUsername);
@@ -341,6 +423,13 @@ function unlockUser(store, { requesterRole, requesterUsername, username, role })
   return { success: true };
 }
 
+/**
+ * Finalise la première connexion : remplace le MDP temporaire, désactive `must_change_password`.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} options - `username` = nom affiché, pas le login interne.
+ * @returns {{ success: true }}
+ */
 function completeFirstLogin(store, { username, temporaryPassword, newPassword }) {
   const normalizedFullName = normalizeDisplayName(username);
   const users = store.db
@@ -370,12 +459,25 @@ function completeFirstLogin(store, { username, temporaryPassword, newPassword })
   return { success: true };
 }
 
+/**
+ * Liste tous les comptes (actifs et inactifs) pour l'écran Paramètres.
+ *
+ * @param {import('../userStore')} store
+ * @returns {object[]}
+ */
 function listUsers(store, { requesterUsername, role }) {
   ensureCanListUsers(store, requesterUsername, role, "users:list");
   const rows = store.db.prepare("SELECT * FROM users ORDER BY datetime(created_at) DESC").all();
   return rows.map((u) => sanitizeUser(u));
 }
 
+/**
+ * Crée un compte opérateur ou responsable avec MDP temporaire et accès pages normalisés.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} options - `role` = rôle du **nouveau** compte ; `roles` = constantes `ROLE`.
+ * @returns {{ user: object, temporaryPassword: string }}
+ */
 function createUser(store, { requesterRole, requesterUsername, username, fullName, role, managerProfile, pageAccess, roles }) {
   const normalizedDisplayName = String(fullName || username || "").trim();
   ensureUserAdminPermission(store, requesterRole, requesterUsername, roles, "users:create");
@@ -433,6 +535,12 @@ function createUser(store, { requesterRole, requesterUsername, username, fullNam
   return { user: sanitizeUser(user), temporaryPassword };
 }
 
+/**
+ * Désactive un compte (`is_active = 0`). Le compte DEV est protégé.
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deactivateUser(store, { requesterRole, requesterUsername, username, role }) {
   const normalizedUsername = normalizeUsername(username);
   ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:deactivate");
@@ -454,6 +562,15 @@ function deactivateUser(store, { requesterRole, requesterUsername, username, rol
   return { success: true };
 }
 
+/**
+ * Met à jour nom affiché, rôle, profil métier, accès pages et/ou réinitialise le MDP.
+ *
+ * Superviseur : reset MDP uniquement. Station admin : modification complète.
+ * Audit `USER_UPDATE_PROFILE` avec `before` / `after`.
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true, temporaryPassword: string|null }}
+ */
 function updateUserProfile(
   store,
   { requesterRole, requesterUsername, username, fullName, newRole, role, managerProfile, pageAccess, mustResetPassword }
@@ -578,6 +695,14 @@ function updateUserProfile(
   return { success: true, temporaryPassword };
 }
 
+/**
+ * Garantit l'existence du compte technique `admin` / `Admin` (rôle DEV) au démarrage du store.
+ * Migre l'ancien login `alexandre` si présent.
+ *
+ * @param {import('../userStore')} store
+ * @param {{ roles: object }} options
+ * @returns {void}
+ */
 function ensureDevUser(store, { roles }) {
   const adminUser = store.db
     .prepare("SELECT id FROM users WHERE username = ?")
