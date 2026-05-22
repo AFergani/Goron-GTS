@@ -1,3 +1,11 @@
+/**
+ * Pagination client des tableaux métier (taille de page, navigation, haut de page).
+ *
+ * Tailles 25 / 50 / 100 / Illimité (`pageSize === 0` désactive prev/next).
+ * Changement de page avec scroll fluide vers le haut ; bouton dédié ChevronsUp.
+ * Compteur en français (« résultat(s) », « page x/y »).
+ */
+
 import { ChevronLeft, ChevronRight, ChevronsUp } from "lucide-react";
 
 type TablePaginationBarProps = {
@@ -10,21 +18,13 @@ type TablePaginationBarProps = {
   onPageSizeChange: (s: number) => void;
 };
 
-/**
- * Barre de pagination partagée pour les tableaux.
- *
- * - Sélecteur de taille de page : 25 / 50 / 100 / Illimité (0).
- * - Boutons page précédente / suivante.
- * - Changer de page remonte automatiquement en haut de la fenêtre.
- * - Bouton dédié "Haut de page" (ChevronsUp).
- */
 export function TablePaginationBar({
   currentPage,
   totalPages,
   totalItems,
   pageSize,
   onPageChange,
-  onPageSizeChange,
+  onPageSizeChange
 }: TablePaginationBarProps) {
   const handlePageChange = (p: number) => {
     onPageChange(p);
