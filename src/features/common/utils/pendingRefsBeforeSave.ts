@@ -1,18 +1,35 @@
 /**
- * Lors de la création d'une fiche, enregistre d'abord les sites / prestataires proposés
- * « en attente » si l'utilisateur a rempli les champs dédiés sans sélectionner le référentiel.
+ * Création de référentiels « en attente » avant l’enregistrement d’une fiche métier.
+ *
+ * Lorsque l’utilisateur saisit un site ou un prestataire hors catalogue (sans sélection
+ * liste), les helpers appellent les callbacks IPC fournis par la modale. En cas de succès,
+ * ils renvoient les libellés créés pour alimenter le payload de la fiche (`createdSiteDisplay`,
+ * `createdIntervenantName`). Échec API : `ok: false` avec `errorMessage` vide (message géré
+ * par la modale / toast).
+ *
+ * `PENDING_*_CREATE_HINT` : textes d’aide affichés dans `PendingSiteIntervenantRefActions`.
+ *
+ * Utilisé par : InterventionEntryModal, RondeEntryModal, RondeRequestModal,
+ * MainCouranteEntryModal (`createPendingSiteIfNeededForSubmit` uniquement).
  */
 
+/** Résultat site + prestataire avant soumission */
 export type PendingRefsBeforeSaveResult =
   | { ok: false; errorMessage: string }
   | { ok: true; createdSiteDisplay: string | null; createdIntervenantName: string | null };
 
+/** Infobulle / aide sous le formulaire de proposition de site */
 export const PENDING_SITE_CREATE_HINT =
   "En validant la création de la fiche, la proposition de site sera ajoutée en attente de validation si le code et le nom sont renseignés.";
 
+/** Infobulle / aide sous le formulaire de proposition de prestataire */
 export const PENDING_INTERVENANT_CREATE_HINT =
   "En validant la création de la fiche, le prestataire sera ajouté en attente de validation si le nom est renseigné.";
 
+/**
+ * Site et prestataire en attente si non sélectionnés dans le référentiel.
+ * Site : code et nom obligatoires si l’un des deux est saisi.
+ */
 export async function createPendingRefsIfNeededForSubmit(params: {
   selectedFromCatalogSite: boolean;
   selectedFromCatalogIntervenant: boolean;
@@ -56,12 +73,13 @@ export async function createPendingRefsIfNeededForSubmit(params: {
   return { ok: true, createdSiteDisplay, createdIntervenantName };
 }
 
+/** Résultat site seul (main courante : prestataire non géré ici) */
 export type PendingSiteOnlyBeforeSaveResult =
   | { ok: false; errorMessage: string }
   | { ok: true; createdSiteDisplay: string | null };
 
 /**
- * Variante sans prestataire (ex. main courante : site facultatif).
+ * Variante site uniquement : site facultatif ; pas d’erreur si champs vides.
  */
 export async function createPendingSiteIfNeededForSubmit(params: {
   selectedFromCatalogSite: boolean;
