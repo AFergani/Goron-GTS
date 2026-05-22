@@ -1,3 +1,9 @@
+/**
+ * Recherche prestataire (autocomplete, min. 3 caractères).
+ *
+ * Réutilisé dans interventions, rondes et gardiennage. Affiche le nom, pas d’identifiant technique.
+ */
+
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { IntervenantRef } from "../../../types";
