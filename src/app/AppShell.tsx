@@ -83,7 +83,6 @@ export function AppShell() {
   const [showCloseAppModal, setShowCloseAppModal] = useState(false);
   const [helpCenterOpen, setHelpCenterOpen] = useState(false);
   const [helpCenterInitialTopic, setHelpCenterInitialTopic] = useState<HelpTopicId | null>(null);
-  const [fransorRefreshToken, setFransorRefreshToken] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const todayLabel = formatSidebarDateTime(now);
   const writerQueueTotal =
@@ -267,11 +266,6 @@ export function AppShell() {
     settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
     settings.setActiveDataTab("sites");
   }, [activePage, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveSettingsTab]);
-
-  useEffect(() => {
-    if (activePage !== "fransor") return;
-    setFransorRefreshToken((value) => value + 1);
-  }, [activePage]);
 
   useEffect(() => {
     if (!session) {
@@ -707,7 +701,6 @@ export function AppShell() {
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
             onToast={setToast}
-            refreshToken={fransorRefreshToken}
           />
         )}
         {activePage === "intervention" && userPageAccess.intervention && (
