@@ -1,3 +1,13 @@
+/**
+ * Profils de rondes planifiées (contractuelles) : en-tête + lignes de planification + formulaire de clôture.
+ *
+ * Tables `data_ronde_planned_profiles` et `data_ronde_planned_profile_lines` (`schemaRonde`).
+ * Upsert remplace les lignes ; validation métier (site, intervenant, récurrence, champs clôture).
+ * Suppression : physique si aucune ronde clôturée liée, sinon désactivation. Génération des rondes : hors module (scheduler / UI).
+ *
+ * Fichier volumineux (~850 lignes) — candidat à découpage (mapping lignes, validation, CRUD) si évolution majeure.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
 const ROUND_KINDS = new Set(["OPENING", "CLOSING", "ACCOMPAGNEMENT", "RANDOM", "RANDOM_DAY", "RANDOM_NIGHT"]);
@@ -372,6 +382,7 @@ function mapProfileRow(store, p, lines) {
   };
 }
 
+/** Liste tous les profils actifs ou non avec leurs lignes de planification. */
 function listRondePlannedProfiles(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const profiles = store.db
@@ -421,6 +432,10 @@ function getProfileById(store, id) {
   return mapProfileRow(store, p, lines);
 }
 
+/**
+ * Crée ou met à jour un profil (lignes remplacées en totalité, audit + `entityHistory`).
+ * Responsable/DEV : `autoValidate` peut valider à la création.
+ */
 function upsertRondePlannedProfile(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const isManager = payload.requesterRole === "RESPONSABLE" || payload.requesterRole === "DEV";
@@ -667,6 +682,11 @@ function upsertRondePlannedProfile(store, payload) {
   return getProfileById(store, profileId);
 }
 
+/**
+ * Supprime le profil si aucune ronde clôturée liée ; sinon désactivation (`action: deactivated`).
+ *
+ * @returns {{ success: true, action: 'deleted'|'deactivated' }}
+ */
 function deleteRondePlannedProfile(store, payload) {
   store.ensureDataDeleteRole(payload.requesterRole);
   const cleanId = String(payload.id || "").trim();
@@ -736,6 +756,7 @@ function deleteRondePlannedProfile(store, payload) {
   return { success: true, action: "deleted" };
 }
 
+/** Fixe la date de fin de validité planification (`planning_valid_to`) avec motif. */
 function setRondePlannedProfilePlanningEnd(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const cleanId = String(payload.id || "").trim();
@@ -791,6 +812,7 @@ function setRondePlannedProfilePlanningEnd(store, payload) {
   return getProfileById(store, cleanId);
 }
 
+/** Active ou retire la validation métier du profil (`validated_at` / `validated_by`). */
 function setRondePlannedProfileValidated(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const cleanId = String(payload.id || "").trim();
