@@ -1,3 +1,13 @@
+/**
+ * Domaine rondes : passages `ronde_entries` (urgence, liée intervention, planifiée).
+ *
+ * Sources `URGENCE` / `LIEE_INTERVENTION` / `PLANIFIE`, lots `request_batch_id`, snapshot de planification,
+ * clôture avec champs personnalisés. Moteur créneaux exceptionnels : `rondeExceptionalSlotsEngine.js` ;
+ * auto-clôture : `rondeAutoClose.js`. Opérations batch (annulation, suppression, champs partagés).
+ *
+ * Fichier volumineux (~1200 lignes) : candidat à découpage (mapping, batch, CRUD) si évolution majeure.
+ */
+
 const crypto = require("crypto");
 const exceptionalSlots = require("./rondeExceptionalSlotsEngine");
 const { autoCloseExpiredExceptionalRondes } = require("./rondeAutoClose");
@@ -121,6 +131,7 @@ function formatDemandeEmiseContextRonde(dateIso, timeHm) {
 
 const SNAP_TIME_LOCAL_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Mappe une ligne SQL + motif vers l'objet API (usage interne). */
 function mapRondeRow(row) {
   const requires =
     row.motif_type_requires_free_text != null && row.motif_type_requires_free_text !== ""
@@ -323,6 +334,7 @@ function normalizeRondeBody(store, payload) {
   };
 }
 
+/** Liste toutes les rondes (motif joint) après auto-clôture des exceptionnelles expirées. */
 function listRondes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   autoCloseExpiredExceptionalRondes(store);
@@ -337,6 +349,9 @@ function listRondes(store, { requesterRole }) {
   return rows.map((row) => mapRondeRow(row));
 }
 
+/**
+ * Crée une ronde ou un lot planifié / exceptionnel (audit `RONDE_CREATE` ou `RONDE_BATCH_CREATE`).
+ */
 function createRonde(store, payload) {
   const {
     requesterRole,
@@ -558,6 +573,7 @@ function createRonde(store, payload) {
   return mapRondeRow(selectRondeWithMotif(store, id));
 }
 
+/** Met à jour une fiche (contrôle optimiste, champs clôture si statut clôturé). */
 function updateRonde(store, payload) {
   const {
     requesterRole,
@@ -675,6 +691,7 @@ function updateRonde(store, payload) {
   return mapRondeRow(selectRondeWithMotif(store, id));
 }
 
+/** Change le statut (`EN_COURS`, `CLOTURE`, `ANNULE`, etc.) avec règles métier et audit. */
 function setRondeStatus(store, { requesterRole, requesterUsername, id, expectedUpdatedAt, status, cancellationReason }) {
   store.ensureDataReaderRole(requesterRole);
   const row = store.db.prepare("SELECT * FROM ronde_entries WHERE id = ?").get(id);
@@ -781,6 +798,7 @@ function assertCoherentExceptionalBatch(store, rows) {
   );
 }
 
+/** Met à jour les champs communs d'un lot de rondes exceptionnelles cohérent. */
 function updateRondeBatchSharedFields(store, payload) {
   const {
     requesterRole,
@@ -1052,6 +1070,7 @@ function updateRondeBatchSharedFields(store, payload) {
   return { ok: true, updatedCount: rowsForUpdate.length };
 }
 
+/** Annule en masse les rondes d'un lot (hors lignes déjà clôturées). */
 function bulkCancelRondeBatch(store, payload) {
   const { requesterRole, requesterUsername, entryIds, reason } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -1089,6 +1108,10 @@ function bulkCancelRondeBatch(store, payload) {
   return { ok: true, cancelledCount: toCancel.length, skippedCount: rows.length - toCancel.length };
 }
 
+/**
+ * Supprime en masse un lot (opérateur : créateur uniquement ; responsable : tout le lot supprimable).
+ * Audit `RONDE_BATCH_DELETE`.
+ */
 function bulkDeleteRondeBatch(store, payload) {
   const { requesterRole, requesterUsername, entryIds, reason } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -1177,8 +1200,8 @@ function bulkDeleteRondeBatch(store, payload) {
 }
 
 module.exports = {
-  mapRondeRow,
   listRondes,
+  /** Réexport — voir `rondeAutoClose.js`. */
   autoCloseExpiredExceptionalRondes,
   createRonde,
   updateRonde,
