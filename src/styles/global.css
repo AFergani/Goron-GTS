@@ -1,7 +1,16 @@
+/**
+ * Styles globaux Goron-GTS (chargés depuis main.tsx).
+ *
+ * Variables de thème clair/sombre, reset minimal, champs de formulaire homogènes,
+ * boutons par défaut, focus clavier (WCAG) et classe utilitaire .app-scrollbar.
+ * Les écrans et composants métier sont dans app.css (import AppShell).
+ */
+
 * {
   box-sizing: border-box;
 }
 
+/* --- Tokens design (sombre par défaut, surcharge en [data-theme="light"]) --- */
 :root,
 [data-theme="dark"] {
   /* Hauteur et largeurs des champs de saisie (hors textarea) */
