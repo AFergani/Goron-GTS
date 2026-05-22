@@ -1,3 +1,28 @@
+/**
+ * Enregistrement des canaux IPC métier authentifiés (`users:*`, `data:*`, `mainCourante:*`, etc.).
+ * Délègue la logique au `UserStore` ; bascule vers la file SMB writer pour les écritures client
+ * (interventions, rondes, gardiennage, parties main courante opérateur/manager).
+ *
+ * Appelé au démarrage via `registerDomainIpcHandlers` dans `main.js`.
+ * Exception : `mainCourante:create` reste dans `main.js` (writer HTTP / queue / logs transit).
+ * Miroir côté renderer : `electron/preload.js` et `gtsApiClient`.
+ */
+
+/**
+ * Enregistre l'ensemble des handlers IPC domaine.
+ *
+ * @param {object} deps - Injections depuis `main.js`.
+ * @param {(channel: string, handler: Function) => void} deps.handleIpcAuth - Wrapper IPC avec session valide.
+ * @param {() => void} deps.ensureStore - Vérifie que `userStore` est initialisé.
+ * @param {() => import('../userStore')} deps.getUserStore - Store métier SQLite.
+ * @param {() => object} deps.getWriterRuntime - État writer (`enabled`, `role`, `transportMode`).
+ * @param {(payload: object) => Promise<object>} deps.enqueueUpdateOperatorAndWaitAck - File main courante opérateur.
+ * @param {(payload: object) => Promise<object>} deps.enqueueManagerActionAndWaitAck - File action manager main courante.
+ * @param {(payload: object) => Promise<object>} deps.enqueueManagerReopenAndWaitAck - File réouverture main courante.
+ * @param {(action: string, payload: object) => Promise<object>} deps.enqueueInterventionActionAndWaitAck - File générique intervention/ronde/gardiennage.
+ * @param {() => Set<string>|Iterable<string>} deps.getActiveUsernames - Sessions actives (canal `users:getActiveSessions`).
+ * @returns {void}
+ */
 function registerDomainIpcHandlers(deps) {
   const {
     handleIpcAuth,
@@ -11,6 +36,12 @@ function registerDomainIpcHandlers(deps) {
     getActiveUsernames
   } = deps;
 
+  /**
+   * Enregistre un canal qui appelle directement une méthode homonyme du `UserStore`.
+   *
+   * @param {string} channel - Nom du canal IPC (ex. `data:sites:list`).
+   * @param {string} methodName - Méthode `getUserStore()[methodName](payload)`.
+   */
   const registerStorePassthrough = (channel, methodName) => {
     handleIpcAuth(channel, (payload) => {
       ensureStore();
@@ -18,6 +49,13 @@ function registerDomainIpcHandlers(deps) {
     });
   };
 
+  /**
+   * Enregistre un canal d'écriture : exécution locale ou mise en file SMB si poste client writer.
+   *
+   * @param {string} channel - Canal IPC.
+   * @param {string} storeMethodName - Méthode store en mode master/backup ou client hors queue.
+   * @param {string} queueActionName - Action transmise à `enqueueInterventionActionAndWaitAck`.
+   */
   const registerQueueAware = (channel, storeMethodName, queueActionName) => {
     handleIpcAuth(channel, (payload) => {
       ensureStore();
@@ -36,6 +74,9 @@ function registerDomainIpcHandlers(deps) {
   registerStorePassthrough("users:deactivate", "deactivateUser");
   registerStorePassthrough("users:unlock", "unlockUser");
 
+  /**
+   * Canal `users:getActiveSessions` — noms d'utilisateurs ayant une session ouverte sur ce poste.
+   */
   handleIpcAuth("users:getActiveSessions", () => {
     const activeUsernames = getActiveUsernames();
     return { activeUsernames: Array.from(activeUsernames) };
@@ -89,10 +130,12 @@ function registerDomainIpcHandlers(deps) {
   registerStorePassthrough("fransor:entries:upsert", "upsertFransorEntry");
   registerStorePassthrough("fransor:recap:listByMonth", "listFransorMonthlyRecap");
 
-  // Main courante (hors create, traité séparément)
+  // Main courante (hors create, traité dans main.js)
   registerStorePassthrough("mainCourante:list", "listMainCouranteEntries");
   registerStorePassthrough("mainCourante:getUnconsultedCount", "getMainCouranteUnconsultedCount");
   registerStorePassthrough("mainCourante:markConsulted", "markMainCouranteEntryConsulted");
+
+  /** Canal `mainCourante:updateOperator` — file SMB client ou `updateMainCouranteEntryOperator` local. */
   handleIpcAuth("mainCourante:updateOperator", (payload) => {
     ensureStore();
     const writerRuntime = getWriterRuntime();
@@ -101,6 +144,8 @@ function registerDomainIpcHandlers(deps) {
     }
     return getUserStore().updateMainCouranteEntryOperator(payload);
   });
+
+  /** Canal `mainCourante:applyManager` — file SMB ou action manager locale. */
   handleIpcAuth("mainCourante:applyManager", (payload) => {
     ensureStore();
     const writerRuntime = getWriterRuntime();
@@ -109,6 +154,8 @@ function registerDomainIpcHandlers(deps) {
     }
     return getUserStore().applyMainCouranteManagerAction(payload);
   });
+
+  /** Canal `mainCourante:reopen` — file SMB ou réouverture locale. */
   handleIpcAuth("mainCourante:reopen", (payload) => {
     ensureStore();
     const writerRuntime = getWriterRuntime();
