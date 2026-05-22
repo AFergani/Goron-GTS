@@ -1,4 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * Presenter Fransor : chargement mensuel et écritures ouverture/fermeture / exceptions calendrier.
+ *
+ * Agrège responsables, saisies du mois, exceptions (fermetures/ouvertures forcées), récap
+ * mensuel et jours fériés (référentiel + fériés fixes France). Rafraîchit à chaque changement
+ * de mois ou après upsert/delete.
+ *
+ * La gestion CRUD des responsables (création, renommage, suppression) est dans Paramètres ;
+ * ce presenter ne l’expose pas.
+ *
+ * Utilisé par : `FransorPage`.
+ */
+
+import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { FransorClosure, FransorEntry, FransorMonthlyRecap, FransorResponsableRef, HolidayRef, Role } from "../../../types";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
@@ -69,31 +82,6 @@ export function useFransorPresenter({
     [refresh, requesterRole, requesterUsername]
   );
 
-  const createResponsable = useCallback(
-    async (name: string) => {
-      await gtsApiClient.createFransorResponsable({
-        requesterRole,
-        requesterUsername,
-        name
-      });
-      await refresh();
-    },
-    [refresh, requesterRole, requesterUsername]
-  );
-
-  const deleteResponsable = useCallback(
-    async (id: string) => {
-      await gtsApiClient.deleteFransorResponsable({
-        requesterRole,
-        requesterUsername,
-        id,
-        reason: "Suppression depuis l'onglet Fransor"
-      });
-      await refresh();
-    },
-    [refresh, requesterRole, requesterUsername]
-  );
-
   const upsertClosure = useCallback(
     async (payload: { id?: string; startDate: string; endDate?: string; label: string; mode: "CLOSED" | "OPEN" }) => {
       await gtsApiClient.upsertFransorClosure({
@@ -119,14 +107,6 @@ export function useFransorPresenter({
     [refresh, requesterRole, requesterUsername]
   );
 
-  const entryMap = useMemo(() => {
-    const map = new Map<string, FransorEntry>();
-    for (const entry of entries) {
-      map.set(`${entry.date}:${entry.responsableId}`, entry);
-    }
-    return map;
-  }, [entries]);
-
   return {
     month,
     setMonth,
@@ -136,11 +116,8 @@ export function useFransorPresenter({
     closures,
     recap,
     holidays,
-    entryMap,
     refresh,
     upsertEntry,
-    createResponsable,
-    deleteResponsable,
     upsertClosure,
     deleteClosure
   };
