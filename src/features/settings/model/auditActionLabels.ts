@@ -1,4 +1,8 @@
-/** Référentiel unique des libellés d’audit (journal + filtres) pour éviter les « Action non référencée ». */
+/**
+ * Référentiel unique des libellés d’audit (journal + filtres) pour éviter les « Action non référencée ».
+ *
+ * Toute nouvelle action backend métier doit être ajoutée ici avant merge.
+ */
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   AUTH_LOGIN: "Connexion utilisateur",
   AUTH_SET_PASSWORD: "Changement de mot de passe",

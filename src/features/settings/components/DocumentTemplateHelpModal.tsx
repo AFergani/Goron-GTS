@@ -1,3 +1,7 @@
+/**
+ * Modale d’aide modèle Word (liste des jetons, copie presse-papiers).
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import type { Role } from "../../../types";

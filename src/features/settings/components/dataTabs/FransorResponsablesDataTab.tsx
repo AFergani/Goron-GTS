@@ -1,3 +1,7 @@
+/**
+ * Onglet responsables Fransor (référentiel module Fransor).
+ */
+
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { FransorResponsableRef } from "../../../../types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";

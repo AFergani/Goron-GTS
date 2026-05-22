@@ -1,3 +1,4 @@
+/* Styles panneau gestion des données — import masse, overlay progression. */
 /* Barre de progression import masse (multi-fichiers séquentiel) */
 .data-import-batch-overlay {
   z-index: 1200;

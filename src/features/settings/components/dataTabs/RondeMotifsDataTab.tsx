@@ -1,3 +1,7 @@
+/**
+ * Onglet motifs de ronde (libellé, couleur).
+ */
+
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { RondeMotifTypeRef } from "../../../rondes/model/ronde.types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";

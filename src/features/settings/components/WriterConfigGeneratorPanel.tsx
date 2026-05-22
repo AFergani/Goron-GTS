@@ -1,3 +1,7 @@
+/**
+ * Générateur de fichier `gts_writer-config` (nœuds maître / backup, sous-réseau service).
+ */
+
 import { Download } from "lucide-react";
 import "./WriterConfigGeneratorPanel.css";
 

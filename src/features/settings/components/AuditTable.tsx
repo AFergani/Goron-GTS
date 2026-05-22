@@ -1,3 +1,7 @@
+/**
+ * Tableau journal d’actions (libellés référencés, détails avant/après, dates fr-FR).
+ */
+
 import type { AuditLog } from "../../../types";
 import { formatAuditActionLabelOrUnknown } from "../model/auditActionLabels";
 

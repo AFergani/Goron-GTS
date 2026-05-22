@@ -1,3 +1,7 @@
+/**
+ * Export Excel du journal d’actions (filtres appliqués côté page).
+ */
+
 import * as XLSX from "xlsx";
 import type { AuditLog } from "../../../types";
 

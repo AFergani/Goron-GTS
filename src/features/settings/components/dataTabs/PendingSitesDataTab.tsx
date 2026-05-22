@@ -1,3 +1,7 @@
+/**
+ * Onglet sites proposés en attente (validation ou rejet avec motif).
+ */
+
 import { Pencil, Trash2 } from "lucide-react";
 import type { PendingInterventionSite } from "../../../intervention/model/intervention.types";
 

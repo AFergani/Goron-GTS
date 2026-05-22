@@ -1,3 +1,9 @@
+/**
+ * Presenter Paramètres : utilisateurs, RBAC, référentiels, BDD, archives, audit, writer.
+ *
+ * Orchestration IPC via `gtsApiClient`. ~1400 lignes — découpage futur si besoin.
+ */
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type ArchiveStatus, type DatabaseItem } from "../../../infrastructure/api/gtsApiClient";

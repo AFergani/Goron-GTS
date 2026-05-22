@@ -1,3 +1,7 @@
+/**
+ * Onglet intervenants proposés en attente (validation ou rejet).
+ */
+
 import { Pencil, Trash2 } from "lucide-react";
 import type { PendingInterventionIntervenant } from "../../../intervention/model/intervention.types";
 

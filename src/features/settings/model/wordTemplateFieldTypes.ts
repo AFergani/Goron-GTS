@@ -1,3 +1,7 @@
+/**
+ * Types et libellés de champs pour modèles Word et panneau variables.
+ */
+
 import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
 
 /** Types de champs alignés sur les rapports Word / formulaires (rondes & interventions). */

@@ -1,3 +1,7 @@
+/**
+ * Onglet sites (CRUD, motif de suppression).
+ */
+
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { SiteRef } from "../../../../types";
 import type { PendingInterventionSite } from "../../../intervention/model/intervention.types";

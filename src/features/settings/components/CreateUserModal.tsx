@@ -1,3 +1,7 @@
+/**
+ * Modale création / édition utilisateur (rôle, profil manager, accès pages via switches).
+ */
+
 import type { FormEvent } from "react";
 import type { CreateUserFormState } from "../model/settings.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";

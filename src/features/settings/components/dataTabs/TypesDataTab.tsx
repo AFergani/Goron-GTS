@@ -1,3 +1,7 @@
+/**
+ * Onglet types d’anomalie main courante (libellé, couleur).
+ */
+
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { AnomalyTypeRef } from "../../../../types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";

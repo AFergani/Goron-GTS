@@ -1,3 +1,7 @@
+/**
+ * Tableau utilisateurs (édition, MDP, déverrouillage, désactivation selon hiérarchie).
+ */
+
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
 import { KeyRound, LockOpen, Pencil, UserX } from "lucide-react";

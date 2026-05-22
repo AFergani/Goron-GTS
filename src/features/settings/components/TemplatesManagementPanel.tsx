@@ -1,3 +1,7 @@
+/**
+ * Panneau modèles Word (upload, installation, aide par type de document).
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { CircleHelp, FileUp, FolderOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { Role, SiteRef } from "../../../types";

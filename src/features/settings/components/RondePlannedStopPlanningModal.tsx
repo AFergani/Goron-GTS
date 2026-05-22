@@ -1,3 +1,7 @@
+/**
+ * Modale arrêt de planification d’un profil ronde planifiée (date de fin, validation).
+ */
+
 import { useEffect, useState } from "react";
 
 type RondePlannedStopPlanningModalProps = {

@@ -1,3 +1,7 @@
+/**
+ * Variables de formulaire configurables (cibles ronde, intervention, gardiennage, etc.).
+ */
+
 import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
 
 export type FormTarget = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE" | "INTERVENTION" | "MAIN_COURANTE" | "GARDIENNAGE";

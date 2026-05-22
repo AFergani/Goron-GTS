@@ -1,3 +1,7 @@
+/**
+ * Hiérarchie métier pour réinitialisation MDP et déverrouillage compte (aligné backend auth).
+ */
+
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
 
