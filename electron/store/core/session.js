@@ -1,24 +1,50 @@
+/**
+ * Gestion des sessions applicatives côté processus principal Electron.
+ *
+ * Jetons opaques en mémoire (`Map`), liés à une base SQLite active et un utilisateur.
+ * Une seule session active par couple (base, utilisateur) ; invalidation si la base change.
+ * TTL 13 h (aligné sur les vacations de 12 h).
+ *
+ * En développement non packagé : persistance chiffrée optionnelle (`safeStorage` / DPAPI)
+ * dans `userData/gts-sessions.enc`. En production : mémoire uniquement, reconnexion à chaque lancement.
+ *
+ * Consommé par `electron/main.js` (auth IPC, contexte requête, badge utilisateurs connectés).
+ */
+
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-/** Durée de vie d'une session : 13h (cohérent avec les vacations de 12h). */
+/** Durée de vie d'une session : 13 h (cohérent avec les vacations de 12 h). */
 const SESSION_TTL_MS = 13 * 60 * 60 * 1000;
 
-/** Jetons de session -> contexte minimal (invalidés si la base active change). */
+/** Jetons de session → contexte minimal (invalidés si la base active change). */
 const sessions = new Map();
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeDbPath(value) {
   return path.normalize(String(value || ""));
 }
 
 /**
  * Invalide les autres sessions d'un même utilisateur sur la même base.
- * Permet d'imposer "1 seule session active par utilisateur".
+ * Permet d'imposer « une seule session active par utilisateur ».
+ *
+ * @param {string} dbPath - Chemin normalisé de la base active.
+ * @param {string} username - Identifiant de connexion (casse ignorée).
+ * @param {string|null} [exceptToken=null] - Jeton à conserver (session en cours de création).
+ * @returns {void}
  */
 function revokeSessionsForUser(dbPath, username, exceptToken = null) {
   const targetDbPath = normalizeDbPath(dbPath);
@@ -36,6 +62,11 @@ function revokeSessionsForUser(dbPath, username, exceptToken = null) {
   }
 }
 
+/**
+ * Indique si l'application tourne en mode développement (non packagée).
+ *
+ * @returns {boolean}
+ */
 function isDevMode() {
   try {
     const { app } = require("electron");
@@ -45,6 +76,11 @@ function isDevMode() {
   }
 }
 
+/**
+ * Chemin du fichier de persistance des sessions (dev uniquement).
+ *
+ * @returns {string|null}
+ */
 function getPersistPath() {
   try {
     const { app } = require("electron");
@@ -56,8 +92,10 @@ function getPersistPath() {
 }
 
 /**
- * En dev uniquement : chiffre et persiste les sessions sur disque via safeStorage (DPAPI).
+ * En dev uniquement : chiffre et persiste les sessions sur disque via `safeStorage` (DPAPI).
  * En production : aucune écriture — les sessions vivent uniquement en mémoire.
+ *
+ * @returns {void}
  */
 function persistToDisk() {
   if (!isDevMode()) return;
@@ -82,6 +120,8 @@ function persistToDisk() {
 /**
  * En dev uniquement : charge et déchiffre les sessions depuis le disque.
  * En production : ne fait rien — reconnexion obligatoire à chaque lancement.
+ *
+ * @returns {void}
  */
 function loadPersistedSessions() {
   if (!isDevMode()) return;
@@ -122,6 +162,15 @@ function loadPersistedSessions() {
   }
 }
 
+/**
+ * Ouvre une session après authentification réussie.
+ *
+ * Révoque d'abord les autres jetons du même utilisateur sur la même base, puis émet un nouveau token.
+ *
+ * @param {string} dbPath - Chemin de la base SQLite courante.
+ * @param {string} username - Login validé.
+ * @returns {string} Jeton hexadécimal (64 caractères).
+ */
 function createSession(dbPath, username) {
   const token = crypto.randomBytes(32).toString("hex");
   const normalizedDbPath = normalizeDbPath(dbPath);
@@ -138,7 +187,12 @@ function createSession(dbPath, username) {
 
 /**
  * Valide le jeton contre la base courante et retourne le profil utilisateur actif.
- * Retourne `{ expired: true }` si la session existe mais a dépassé son TTL de 13h.
+ *
+ * @param {string|null|undefined} token - Jeton transmis par le renderer.
+ * @param {import('../userStore')} userStore - Store lié à la base active (`dbPath`, `db`).
+ * @returns {null|{ expired: true }|{ username: string, role: string, managerProfile: string|null }}
+ *   `null` si jeton absent, inconnu, base différente ou compte inactif ;
+ *   `{ expired: true }` si le TTL de 13 h est dépassé.
  */
 function validateSession(token, userStore) {
   if (!token || typeof token !== "string") return null;
@@ -174,20 +228,33 @@ function validateSession(token, userStore) {
   };
 }
 
+/**
+ * Révoque un jeton (déconnexion explicite).
+ *
+ * @param {string|null|undefined} token
+ * @returns {void}
+ */
 function revokeSession(token) {
   if (token && typeof token === "string" && sessions.delete(token)) {
     persistToDisk();
   }
 }
 
+/**
+ * Vide toutes les sessions en mémoire (changement de base, reset applicatif).
+ *
+ * @returns {void}
+ */
 function clearAllSessions() {
   sessions.clear();
   persistToDisk();
 }
 
 /**
- * Retourne l'ensemble des usernames ayant une session active (non expirée).
- * Utilisé pour afficher le badge "connecté" dans la liste des utilisateurs.
+ * Retourne l'ensemble des logins ayant une session active (non expirée).
+ * Utilisé pour le badge « connecté » dans la liste des utilisateurs (`users:getActiveSessions`).
+ *
+ * @returns {Set<string>} Usernames normalisés en minuscules.
  */
 function getActiveUsernames() {
   const now = Date.now();
@@ -201,7 +268,6 @@ function getActiveUsernames() {
 }
 
 module.exports = {
-  SESSION_TTL_MS,
   createSession,
   validateSession,
   revokeSession,
