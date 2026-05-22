@@ -1,3 +1,11 @@
+/**
+ * Page Gardiennage : onglets « Du jour » (navigation date) et « Planification » (liste filtrée).
+ *
+ * Orchestration presenters + modales création/édition/clôture, exports Excel/Word,
+ * filtres statut/famille/prestataire. Mode d’affichage jour/liste mémorisé en localStorage.
+ * Montée depuis `AppShell` si permission `gardiennage`.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
