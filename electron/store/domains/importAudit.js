@@ -1,6 +1,20 @@
+/**
+ * Audit et rapport fichier des imports en masse (sites, intervenants).
+ *
+ * Conforme aux règles projet : un log agrégé par lot (`DATA_IMPORT_BATCH_RESULT`),
+ * un log par ligne en échec sans PII brute dans `audit_logs` (`DATA_IMPORT_BATCH_ROW_ERROR`),
+ * détail terrain optionnel dans `logs/Import_error.txt` à côté de la base.
+ */
+
 const fs = require("node:fs");
 const path = require("node:path");
 
+/**
+ * Normalise un en-tête de colonne Excel (accents, casse, séparateurs).
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizeImportRowHeaderKey(value) {
   return String(value || "")
     .normalize("NFD")
@@ -11,6 +25,10 @@ function normalizeImportRowHeaderKey(value) {
     .trim();
 }
 
+/**
+ * @param {object|null|undefined} row - Ligne brute importée.
+ * @returns {Map<string, unknown>}
+ */
 function buildNormalizedImportRowMap(row) {
   const normalized = new Map();
   if (!row || typeof row !== "object") return normalized;
@@ -22,6 +40,13 @@ function buildNormalizedImportRowMap(row) {
   return normalized;
 }
 
+/**
+ * Lit la première valeur non vide parmi plusieurs libellés de colonnes possibles.
+ *
+ * @param {object} row
+ * @param {string[]} keys - Alias d'en-têtes (ex. `code site`, `nom`).
+ * @returns {string}
+ */
 function readImportRowText(row, keys) {
   const normalized = buildNormalizedImportRowMap(row);
   for (const rawKey of keys) {
@@ -34,13 +59,27 @@ function readImportRowText(row, keys) {
   return "";
 }
 
+/**
+ * @param {string} dbPath - Chemin de la base active.
+ * @returns {{ logsDir: string, filePath: string }}
+ */
 function resolveImportErrorLogPath(dbPath) {
   const dbDir = String(dbPath || "").trim() ? path.dirname(dbPath) : path.join(process.cwd(), "data");
   const logsDir = path.join(dbDir, "logs");
   return { logsDir, filePath: path.join(logsDir, "Import_error.txt") };
 }
 
-/** Rapport local des lignes rejetées (sites / intervenants) — complète l’audit applicatif. */
+/**
+ * Append un rapport lisible des lignes rejetées (sites ou intervenants uniquement).
+ *
+ * @param {object} options
+ * @param {string} options.dbPath
+ * @param {string} options.actor
+ * @param {string} options.target - `sites` ou `intervenants`.
+ * @param {string} options.fileName
+ * @param {Array<{ rowIndex?: number, message?: string, row?: object }>} options.errorEntries
+ * @returns {void}
+ */
 function appendImportErrorFile({ dbPath, actor, target, fileName, errorEntries }) {
   const rows = Array.isArray(errorEntries) ? errorEntries : [];
   if (!rows.length) return;
@@ -89,6 +128,21 @@ function appendImportErrorFile({ dbPath, actor, target, fileName, errorEntries }
   fs.appendFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
 }
 
+/**
+ * Journalise le résultat d'un import en masse et les erreurs ligne par ligne.
+ *
+ * @param {import('../userStore')} store
+ * @param {object} payload
+ * @param {string} payload.requesterRole
+ * @param {string} payload.requesterUsername
+ * @param {string} payload.target - Cible importée (`sites`, `intervenants`, …).
+ * @param {string} payload.fileName
+ * @param {number} payload.total
+ * @param {number} payload.success
+ * @param {number} payload.failed
+ * @param {Array<{ rowIndex?: number, message?: string, row?: object }>} [payload.errorEntries]
+ * @returns {{ success: true }}
+ */
 function logBulkImportAudit(store, payload) {
   const {
     requesterRole,
