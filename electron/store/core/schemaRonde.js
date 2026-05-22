@@ -1,5 +1,26 @@
+/**
+ * Schéma SQLite rondes : passages, motifs, profils planifiés, jours fériés.
+ *
+ * Deuxième appel dans `UserStore.ensureSchema()` (après `schemaBase`).
+ * Inclut un seed minimal du motif « Autre » si la table `data_ronde_motif_types` est vide.
+ */
+
 const { generateEntityId } = require("./ids");
 
+/**
+ * Crée tables, index et données de référence initiales pour le module rondes.
+ *
+ * Tables principales :
+ * - `ronde_entries` — rondes exceptionnelles et issues de planification.
+ * - `data_ronde_motif_types` — catalogue des motifs (couleur, tri, legacy).
+ * - `data_ronde_planned_profiles` / `data_ronde_planned_profile_lines` — modèles de planification.
+ * - `data_holidays` — jours fériés (exclusion / inclusion dans la génération).
+ *
+ * Effet de bord : si aucun motif n'existe, insertion du motif par défaut `AUTRE` / « Autre (précision obligatoire) ».
+ *
+ * @param {import('../userStore')} store
+ * @returns {void}
+ */
 function ensureRondeSchema(store) {
   store.db.exec(`
     CREATE TABLE IF NOT EXISTS ronde_entries (
