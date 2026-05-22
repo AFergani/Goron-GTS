@@ -1,3 +1,9 @@
+/**
+ * Modale fiche ronde (saisie, clôture, intervention liée, référentiels en attente).
+ *
+ * Hydratation : `[isOpen, mode]` création ; `[isOpen, mode, entry?.id]` édition.
+ */
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";

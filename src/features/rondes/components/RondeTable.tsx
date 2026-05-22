@@ -1,3 +1,7 @@
+/**
+ * Tableau des fiches ronde (tri, statuts, actions icônes, file d’attente writer).
+ */
+
 import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";

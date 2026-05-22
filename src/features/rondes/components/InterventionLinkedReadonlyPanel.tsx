@@ -1,3 +1,7 @@
+/**
+ * Panneau lecture seule de l’intervention liée (ronde créée depuis une intervention).
+ */
+
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 

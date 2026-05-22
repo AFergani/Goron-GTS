@@ -1,3 +1,11 @@
+/**
+ * Types métier rondes : fiches passage, sources (planifiée / urgence / liée intervention).
+ *
+ * Snapshot de demande exceptionnelle (`RondePlanningSnapshotV1`), champs clôture personnalisés,
+ * corrélation profils planifiés (`plannedProfileId`, `plannedSlotKey`). Pas d’affichage brut de
+ * `requestPlanningSnapshotJson` en UI utilisateur.
+ */
+
 import type { RondePlanningSnapshotV1 } from "./rondePlanningSnapshot.types";
 
 export type RondeMotifTypeRef = {

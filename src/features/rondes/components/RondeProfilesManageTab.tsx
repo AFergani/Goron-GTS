@@ -1,3 +1,7 @@
+/**
+ * Onglet gestion des profils planifiés (CRUD profils et lignes, filtres tableau).
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Plus, StopCircle, Trash2 } from "lucide-react";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";

@@ -1,3 +1,9 @@
+/**
+ * Presenter rondes : liste, CRUD, statuts, lots exceptionnels, file PENDING_QUEUE.
+ *
+ * Polling ~20 s. Utilisé par `RondePage` (onglets urgence, planifié, gestion profils déléguée AppShell).
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";

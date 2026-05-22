@@ -1,3 +1,7 @@
+/**
+ * Regroupement des fiches exceptionnelles liées à une même demande (lot / replay).
+ */
+
 import type { RondeEntry } from "../model/ronde.types";
 
 function isExceptional(e: RondeEntry): boolean {

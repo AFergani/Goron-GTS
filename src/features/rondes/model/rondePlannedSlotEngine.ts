@@ -1,3 +1,9 @@
+/**
+ * Moteur de génération des créneaux planifiés (récurrence, fenêtres aléatoires, fériés).
+ *
+ * Utilisé par `plannedSlots`, modales de demande et onglet planification.
+ */
+
 import type { RondePlannedProfileLineRef, RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT } from "./rondePlanned.types";
 import { formatLocalDateIso } from "./rondeCalendarLocal";

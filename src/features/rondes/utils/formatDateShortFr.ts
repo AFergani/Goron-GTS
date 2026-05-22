@@ -1,3 +1,7 @@
+/**
+ * Format date court français pour exports Word ronde.
+ */
+
 /** Date calendaire ISO (AAAA-MM-JJ) → JJ-MM-AAAA (export Word / jetons). */
 export function formatDateShortFr(dateIso: string): string {
   if (!dateIso) return "";

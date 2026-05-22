@@ -1,3 +1,9 @@
+/**
+ * Modale de demande de ronde (planifiée, urgence, lot exceptionnel, snapshot planning).
+ *
+ * Effets de formulaire : `[isOpen, mode]` création ; `[isOpen, mode, entry?.id]` édition.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
