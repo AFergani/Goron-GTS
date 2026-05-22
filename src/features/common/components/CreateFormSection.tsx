@@ -1,3 +1,11 @@
+/**
+ * Section de formulaire avec titre (h4) et corps, pour modales de création / édition longues.
+ *
+ * Structure accessible (`aria-labelledby`), action optionnelle à droite du titre
+ * (ex. « Ajouter une ligne »). Utilisé par main courante, intervention, ronde,
+ * gardiennage et l’éditeur de champs de clôture ronde.
+ */
+
 import { useId, type ReactNode } from "react";
 
 type CreateFormSectionProps = {
@@ -8,9 +16,7 @@ type CreateFormSectionProps = {
   headerAction?: ReactNode;
 };
 
-/**
- * En-tête de bloc réutilisable pour les formulaires de création (main courante, ronde, intervention).
- */
+/** Bloc titre + contenu dans une modale métier (classe CSS `create-form-section`). */
 export function CreateFormSection({ title, children, className, headerAction }: CreateFormSectionProps) {
   const headingId = useId();
   return (
