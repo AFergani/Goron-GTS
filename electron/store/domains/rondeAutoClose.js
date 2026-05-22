@@ -1,5 +1,3 @@
-const { writeAudit } = require("../core/audit");
-
 /** Même libellé que le gardiennage pour homogénéité du journal. */
 const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 const RONDE_AUTO_CLOSE_ACTOR = "system:ronde-exceptional-auto-close";
