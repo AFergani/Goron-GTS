@@ -1,3 +1,14 @@
+/**
+ * Moteur de génération des créneaux de gardiennage à partir d'un snapshot de planification (v1).
+ *
+ * Logique partagée avec le frontend (`src/features/gardiennage/model/gardiennagePlannerEngine.ts`)
+ * pour prévisualisation UI ; le backend l'utilise à la création / mise à jour (`gardiennage.js`)
+ * et pour la détection de chevauchements entre lignes.
+ *
+ * Gère : validité globale date+heure, mode continu, lignes par jour / fériés / veille / date ancrée,
+ * découpe des segments dans la fenêtre de validité.
+ */
+
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
@@ -29,6 +40,12 @@ function isValidPlanningTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || "").trim());
 }
 
+/**
+ * Prédicats jours fériés et veilles (veille = jour précédant une date du référentiel `data_holidays`).
+ *
+ * @param {string[]} holidayDateIsos
+ * @returns {{ isHoliday: (iso: string) => boolean, isHolidayEve: (iso: string) => boolean }}
+ */
 function buildHolidayMatchers(holidayDateIsos) {
   const set = new Set((holidayDateIsos || []).map((iso) => String(iso || "").trim()).filter(Boolean));
   return {
@@ -52,6 +69,16 @@ function gardiennageLineAppliesOnDate(line, dateIso, holiday) {
   return false;
 }
 
+/**
+ * Dates actives d'une ligne sur `[validFromDate, validToDate]`, hors dates déjà couvertes par une ancre.
+ *
+ * @param {object} line - Ligne snapshot (mask, fériés, `anchorDate`, horaires).
+ * @param {string} validFromDate
+ * @param {string} validToDate
+ * @param {Set<string>} skipDates - Dates réservées aux lignes à date ancrée.
+ * @param {{ isHoliday: Function, isHolidayEve: Function }} holiday
+ * @returns {string[]}
+ */
 function collectActiveDatesForLine(line, validFromDate, validToDate, skipDates, holiday) {
   if (isIsoDate(line.anchorDate)) {
     return skipDates.has(line.anchorDate) ? [] : [line.anchorDate];
@@ -79,6 +106,14 @@ function clipSegment(segmentStart, segmentEnd, rangeStart, rangeEnd) {
   return [start, end];
 }
 
+/**
+ * Produit la liste des créneaux insérables en base à partir d'un snapshot normalisé.
+ *
+ * @param {object} snapshot - `version: 1`, validité, `isContinuous`, `lines[]`.
+ * @param {object} [options]
+ * @param {string[]} [options.holidayDateIsos] - Dates `data_holidays`.
+ * @returns {Array<{ lineLabel: string, startIso: string, endIso: string, startDate: string, endDate: string, startTime: string, endTime: string, crossesMidnight: boolean }>}
+ */
 function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
   const fromTime = String(snapshot.validFromTime || "").trim();
   const toTime = String(snapshot.validToTime || "").trim();
