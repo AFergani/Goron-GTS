@@ -1,3 +1,12 @@
+/**
+ * Calendrier de planification gardiennage : jours de semaine, fériés, dates actives par ligne.
+ *
+ * Masque hebdomadaire aligné sur `Date.getDay()` (dim=1 … sam=64). Une ligne sans jour coché
+ * équivaut à tous les jours. Les matchers fériés combinent référentiel BDD et veille de férié.
+ *
+ * Utilisé par : `gardiennagePlannerEngine`, `GardiennageEntryModal`, `GardiennagePlanningLineWeekdays`.
+ */
+
 import type { GardiennagePlanningLineV1 } from "./gardiennage.types";
 
 /** Bits alignés sur Date.getDay() : dim=1, lun=2, … sam=64 */
@@ -63,6 +72,7 @@ export function gardiennageLineAppliesOnDate(
   return false;
 }
 
+/** Dates ISO actives pour une ligne entre validFrom et validTo (exclut dates ancrées des autres lignes). */
 export function collectActiveDatesForLine(
   line: GardiennagePlanningLineV1,
   validFromDate: string,
