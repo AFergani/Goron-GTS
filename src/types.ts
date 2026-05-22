@@ -1,5 +1,18 @@
+/**
+ * Types transverses du frontend Goron-GTS (comptes, droits, référentiels partagés, Fransor).
+ *
+ * Les entités métier détaillées (main courante, intervention, ronde, gardiennage) vivent dans
+ * `features/*/model/*.types.ts`. Ce fichier centralise ce qui est réutilisé par plusieurs modules
+ * et par `gtsApiClient` / `vite-env.d.ts`.
+ */
+
+/** Rôles applicatifs alignés sur le backend (`UserStore` / RBAC). */
 export type Role = "RESPONSABLE" | "OPERATEUR" | "DEV";
+
+/** Sous-profil des comptes responsables (hiérarchie station). */
 export type ManagerProfile = "SUPERVISEUR" | "RESPONSABLE_STATION" | "DIRECTEUR_STATION";
+
+/** Droits d'accès aux pages de la sidebar (persistés en `page_access_json`). */
 export type PageAccess = {
   mainCourante: boolean;
   fransor: boolean;
@@ -9,6 +22,7 @@ export type PageAccess = {
   gardiennage: boolean;
 };
 
+/** Compte utilisateur exposé à l'UI après authentification ou gestion des comptes. */
 export type User = {
   id: string;
   username: string;
@@ -26,11 +40,13 @@ export type User = {
   updatedAt?: string;
 };
 
+/** Formulaire de connexion (nom affiché + mot de passe). */
 export type LoginPayload = {
   username: string;
   password: string;
 };
 
+/** Ligne du journal d'audit affiché dans Paramètres. */
 export type AuditLog = {
   occurredAt: string;
   actorUsername: string;
@@ -39,6 +55,8 @@ export type AuditLog = {
   status: string;
   details: Record<string, unknown> | null;
 };
+
+// --- Référentiels partagés (gestion des données) ---
 
 export type SiteRef = {
   id: string;
@@ -65,6 +83,8 @@ export type AnomalyTypeRef = {
   createdAt: string;
   updatedAt: string | null;
 };
+
+// --- Fransor ---
 
 export type FransorResponsableRef = {
   id: string;
@@ -103,6 +123,7 @@ export type FransorEntry = {
   updatedAt: string;
 };
 
+/** Agrégat mensuel pour export récap Fransor. */
 export type FransorMonthlyRecap = {
   responsableId: string;
   responsableName: string;
