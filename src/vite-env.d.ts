@@ -36,6 +36,7 @@ import type {
   RondePlannedProfilePayload,
   RondePlannedProfileRef
 } from "./features/rondes/model/rondePlanned.types";
+import type { FormVariableDef, FormVariablePayload } from "./features/settings/model/formVariables.types";
 
 declare global {
   interface Window {
@@ -624,48 +625,12 @@ declare global {
           updatedAt: string;
         }>
       >;
-      listFormVariables: (payload: { requesterRole: Role }) => Promise<
-        Array<{
-          id: string;
-          sortOrder: number;
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-          createdAt: string;
-          updatedAt: string;
-        }>
-      >;
+      listFormVariables: (payload: { requesterRole: Role }) => Promise<FormVariableDef[]>;
       saveFormVariables: (payload: {
         requesterRole: Role;
         requesterUsername: string;
-        variables: Array<{
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-        }>;
-      }) => Promise<
-        Array<{
-          id: string;
-          sortOrder: number;
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-          createdAt: string;
-          updatedAt: string;
-        }>
-      >;
+        variables: FormVariablePayload[];
+      }) => Promise<FormVariableDef[]>;
       listGardiennages: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry[]>;
       createGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
       updateGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
