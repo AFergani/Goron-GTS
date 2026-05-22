@@ -1,3 +1,33 @@
+/**
+ * Gestion des modèles Word (.docx) : lecture pour exports, inventaire, installation et modèles scopés.
+ * Cherche d'abord sous `{dataRoot}/templates`, puis les modèles embarqués `dist/templates`.
+ *
+ * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js` et `gtsApiClient`
+ * (Paramètres données, exports main courante / intervention / rondes / gardiennage / Fransor).
+ */
+
+/**
+ * Fabrique le service de modèles documentaires.
+ *
+ * @param {object} deps - Dépendances injectées par `main.js`.
+ * @param {import('fs')} deps.fs - Lecture, copie et listing des fichiers `.docx`.
+ * @param {import('path')} deps.path - Résolution sécurisée des chemins (`basename` anti traversal).
+ * @param {import('electron').Dialog} deps.dialog - Sélecteur de fichier pour install / upsert scopé.
+ * @param {string} deps.appDirname - Répertoire du bundle Electron (`__dirname` de main).
+ * @param {string} deps.processCwd - Répertoire de travail courant (candidat `dist/templates` en dev).
+ * @param {() => string[]} deps.getDataRootCandidates - Racines données Goron (multi-poste).
+ * @param {() => string|null} deps.resolveDbPath - Base active pour déduire `dataRoot` via layout SQLite.
+ * @param {(dbPath: string) => object} deps.getDbStorageLayoutFromPath - Dossiers `Activedb` / `Archives` / racine.
+ * @param {() => void} deps.ensureStore - Vérifie que `UserStore` est initialisé (écritures / RBAC).
+ * @param {() => import('../userStore')} deps.getUserStore - Store pour audit et assignations de modèles.
+ * @returns {{
+ *   getDocumentTemplate: (templateName: string) => object,
+ *   listDocumentTemplatesPayload: () => object,
+ *   installDocumentTemplateCopy: (payload: object) => Promise<object>,
+ *   upsertScopedDocumentTemplate: (payload: object) => Promise<object>,
+ *   resolveWritableTemplatesDirectory: () => string
+ * }}
+ */
 function createDocumentTemplatesService(deps) {
   const {
     fs,
@@ -12,6 +42,12 @@ function createDocumentTemplatesService(deps) {
     getUserStore
   } = deps;
 
+  /**
+   * Résout le premier chemin existant pour un nom de fichier modèle (données puis bundle).
+   *
+   * @param {string} templateName - Nom de fichier (sanitisé via `basename`).
+   * @returns {string|null} Chemin absolu ou `null`.
+   */
   function findFirstExistingTemplatePath(templateName) {
     const safeName = path.basename(String(templateName || "").trim());
     if (!safeName) return null;
@@ -31,6 +67,12 @@ function createDocumentTemplatesService(deps) {
     return null;
   }
 
+  /**
+   * Charge un modèle Word en base64 pour injection côté renderer (export docx).
+   *
+   * @param {string} templateName - Ex. `main-courante-template.docx`.
+   * @returns {{ found: boolean, dataBase64: string|null, sourcePath: string|null }}
+   */
   function getDocumentTemplate(templateName) {
     const safeName = path.basename(String(templateName || "").trim());
     if (!safeName) {
@@ -52,6 +94,12 @@ function createDocumentTemplatesService(deps) {
     }
   }
 
+  /**
+   * Transforme un libellé métier en segment de nom de fichier (ASCII, underscores, max 80 car.).
+   *
+   * @param {string} label - Libellé portée (site, profil, etc.).
+   * @returns {string} Slug ; `profil` si vide après normalisation.
+   */
   function sanitizeProfileLabelForWordTemplateFilename(label) {
     const raw = String(label || "").trim();
     if (!raw) return "";
@@ -73,10 +121,24 @@ function createDocumentTemplatesService(deps) {
     }
   }
 
+  /**
+   * Alias de sanitization pour les noms de modèles scopés (`scopedTemplateFileName`).
+   *
+   * @param {string} label
+   * @returns {string}
+   */
   function sanitizeTemplateSlug(label) {
     return sanitizeProfileLabelForWordTemplateFilename(label || "template");
   }
 
+  /**
+   * Construit un nom de fichier modèle lié à un flux et une portée : `{flux}_{scope}_{slug}.docx`.
+   *
+   * @param {string} flowKind - Ex. type de flux export.
+   * @param {string} scopeKind - Ex. `site`, `profil`.
+   * @param {string} scopeLabel - Libellé affiché (sanitisé en slug).
+   * @returns {string}
+   */
   function scopedTemplateFileName(flowKind, scopeKind, scopeLabel) {
     const flow = String(flowKind || "").trim().toLowerCase() || "flux";
     const scope = String(scopeKind || "").trim().toLowerCase() || "scope";
@@ -84,6 +146,12 @@ function createDocumentTemplatesService(deps) {
     return `${flow}_${scope}_${slug}.docx`;
   }
 
+  /**
+   * Retourne (et crée si besoin) le dossier `{dataRoot}/templates` writable du poste.
+   *
+   * @returns {string} Chemin absolu du répertoire templates.
+   * @throws {Error} Si aucune base n'est configurée (`resolveDbPath` vide).
+   */
   function resolveWritableTemplatesDirectory() {
     const dbPath = resolveDbPath();
     if (!dbPath) {
@@ -95,6 +163,17 @@ function createDocumentTemplatesService(deps) {
     return dir;
   }
 
+  /**
+   * Liste les modèles intégrés et personnalisés pour l'écran Paramètres → Modèles documentaires.
+   *
+   * Inclut pour chaque entrée : existence sur disque, chemin résolu, chemin d'installation cible.
+   * Les `.docx` temporaires Word (`~$...`) sont ignorés.
+   *
+   * @returns {{
+   *   templates: Array<object>,
+   *   writableTemplatesDir: string|null
+   * }}
+   */
   function listDocumentTemplatesPayload() {
     const builtins = [
       { kind: "builtin", templateKey: "fransor-recap", title: "Fransor — récap mensuel (.docx)", fileName: "fransor-recap-template.docx", helpId: "fransor-recap" },
@@ -150,6 +229,17 @@ function createDocumentTemplatesService(deps) {
     return { templates, writableTemplatesDir: writableDir };
   }
 
+  /**
+   * Copie un fichier `.docx` choisi par l'utilisateur vers le dossier templates writable (remplacement par nom).
+   *
+   * RBAC : `ensureDataReaderRole`. Audit : `DATA_DOCUMENT_TEMPLATE_INSTALL`.
+   *
+   * @param {object} payload
+   * @param {string} payload.requesterRole
+   * @param {string} payload.requesterUsername
+   * @param {string} payload.targetFileName - Nom cible sous `templates/` (doit finir par `.docx`).
+   * @returns {Promise<{ canceled: boolean, success: boolean, fileName?: string, resolvedPath?: string, templatesRelativePath?: string }>}
+   */
   async function installDocumentTemplateCopy(payload) {
     ensureStore();
     const userStore = getUserStore();
@@ -192,6 +282,21 @@ function createDocumentTemplatesService(deps) {
     };
   }
 
+  /**
+   * Enregistre un modèle Word scopé (nom dérivé du flux/portée) et crée l'assignation en base.
+   *
+   * RBAC : `ensureDataManagerRole`. Persiste via `userStore.upsertTemplateAssignment`.
+   *
+   * @param {object} payload
+   * @param {string} payload.requesterRole
+   * @param {string} payload.requesterUsername
+   * @param {string} payload.flowKind
+   * @param {string} payload.scopeKind
+   * @param {string} payload.scopeValue - Identifiant technique de portée (stocké en BDD, non affiché UI export).
+   * @param {string} payload.scopeLabel - Libellé métier obligatoire pour le nom de fichier.
+   * @returns {Promise<{ canceled: boolean, success: boolean, fileName?: string, assignment?: object, templatesRelativePath?: string }>}
+   * @throws {Error} Libellé vide ou fichier non `.docx`.
+   */
   async function upsertScopedDocumentTemplate(payload) {
     ensureStore();
     const userStore = getUserStore();
