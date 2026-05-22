@@ -1,3 +1,25 @@
+/**
+ * Dispatch des actions métier exécutées par le worker de file SMB writer (`writerQueueWorker.js`).
+ * Chaque `action` correspond au champ JSON d'une requête dans `incoming/` (aligné sur `ipcDomainHandlers` / `writerQueueEnqueue`).
+ *
+ * Module pur exportant `executeQueuedAction` ; le `userStore` et les hooks d'archivage sont injectés par `main.js`.
+ */
+
+/**
+ * Exécute une action file d'attente côté nœud writer (Master / Backup).
+ *
+ * @param {string} action - Code d'action (ex. `intervention_create`, `update_operator`, `archive_run`, `create`).
+ * @param {object} payload - Corps métier (`requesterRole`, `requesterUsername`, champs domaine).
+ * @param {object} deps - Dépendances fournies par le worker via `main.js`.
+ * @param {import('../userStore')} deps.userStore - Store SQLite du writer.
+ * @param {(trigger: string) => object} deps.ensureQuarterRotationIfNeeded - Rotation trimestrielle (archivage).
+ * @param {(opts: object) => object} deps.runLogicalArchiveNow - Archivage logique main courante.
+ * @param {(() => void)|undefined} deps.onArchiveRunProcessed - Callback après `archive_run` (décrément jobs, etc.).
+ * @returns {Promise<object>} Résultat de la méthode store invoquée.
+ *
+ * Replis :
+ * - Action inconnue ou `create` → `userStore.createMainCouranteEntry(payload)` (création main courante file).
+ */
 async function executeQueuedAction(action, payload, deps) {
   const {
     userStore,
