@@ -1,6 +1,14 @@
+/**
+ * Carte d’affichage et copie des identifiants après création ou réinitialisation d’un compte.
+ *
+ * Affiche le nom affiché et le mot de passe temporaire (libellés métier, pas d’identifiant technique).
+ * Boutons copier unitaires ou les deux ; feedback « Copié » court. Contenu embarqué dans `CredentialShareModal`.
+ */
+
 import { useState } from "react";
 
 type CredentialShareCardProps = {
+  /** Nom affiché de connexion (pas le login technique interne). */
   username: string;
   temporaryPassword: string;
 };
