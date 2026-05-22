@@ -1,3 +1,12 @@
+/**
+ * Référentiels pour la page gardiennage : sites, prestataires, jours fériés.
+ *
+ * Charge les listes via l’API, fusionne les fériés fixes France avec le référentiel BDD.
+ * Expose la création de site / prestataire « en attente » (workflow intervention partagé).
+ *
+ * Utilisé par : `GardiennagePage`, `GardiennageEntryModal`.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";

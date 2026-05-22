@@ -1,3 +1,12 @@
+/**
+ * Presenter gardiennage : liste, CRUD, statuts, clôture, file d’attente writer.
+ *
+ * Polling silencieux ~20 s pour resynchroniser les entrées. Gère `PENDING_QUEUE` en mémoire
+ * jusqu’à confirmation serveur. Messages utilisateur via `onToast`.
+ *
+ * Utilisé par : `GardiennagePage`.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";

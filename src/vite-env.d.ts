@@ -1,5 +1,13 @@
 /// <reference types="vite/client" />
 
+/**
+ * Déclarations TypeScript de `window.gtsApi` (API exposée par `electron/preload.js`).
+ *
+ * Miroir des canaux IPC vers le processus principal ; le client applicatif est
+ * `src/infrastructure/api/gtsApiClient.ts` (jeton de session, garde d'expiration).
+ * Tenir ce fichier aligné avec `preload.js` lors de l'ajout d'un canal.
+ */
+
 import type {
   LoginPayload,
   ManagerProfile,
@@ -36,10 +44,19 @@ import type {
   RondePlannedProfilePayload,
   RondePlannedProfileRef
 } from "./features/rondes/model/rondePlanned.types";
+import type { FormVariableDef, FormVariablePayload } from "./features/settings/model/formVariables.types";
+import type {
+  GardiennageClosePayload,
+  GardiennageEntry,
+  GardiennageSavePayload,
+  GardiennageStatus
+} from "./features/gardiennage/model/gardiennage.types";
 
 declare global {
   interface Window {
+    /** Pont preload Electron ; signatures des appels `ipcRenderer.invoke`. */
     gtsApi: {
+      // --- Système : base, archivage, writer, modèles Word, fenêtre ---
       getDbConfig: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; dbPath: string | null; isDev?: boolean }>;
       listDatabases: (payload?: { sessionToken?: string | null }) => Promise<{
         activeDbPath: string | null;
@@ -213,6 +230,8 @@ declare global {
       minimizeApp: (payload?: { sessionToken?: string | null }) => Promise<{ success: boolean }>;
       subscribeAppExitChoiceRequest: (callback: () => void) => () => void;
       chooseDbPath: (sessionToken?: string | null) => Promise<{ configured: boolean; dbPath: string | null; canceled: boolean }>;
+
+      // --- Authentification et comptes ---
       login: (payload: LoginPayload) => Promise<{ user: User; sessionToken: string }>;
       getAdminAccessStatus: () => Promise<{ enabled: boolean }>;
       firstLogin: (payload: {
@@ -249,6 +268,7 @@ declare global {
         requesterUsername: string;
         username: string;
       }) => Promise<{ success: boolean }>;
+      // --- Audit et préférences ---
       listAuditLogs: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -274,6 +294,7 @@ declare global {
         requesterUsername: string;
         themeMode: "dark" | "light";
       }) => Promise<{ success: boolean; themeMode: "dark" | "light" }>;
+      // --- Référentiels ---
       listSites: (payload: { requesterRole: Role }) => Promise<SiteRef[]>;
       createSite: (payload: {
         requesterRole: Role;
@@ -359,6 +380,7 @@ declare global {
         id: string;
         reason: string;
       }) => Promise<{ success: boolean }>;
+      // --- Fransor ---
       listFransorResponsables: (payload: { requesterRole: Role }) => Promise<FransorResponsableRef[]>;
       createFransorResponsable: (payload: {
         requesterRole: Role;
@@ -403,6 +425,7 @@ declare global {
         fermetureDone: boolean;
       }) => Promise<{ success: boolean }>;
       listFransorMonthlyRecap: (payload: { requesterRole: Role; month: string }) => Promise<FransorMonthlyRecap[]>;
+      // --- Main courante ---
       listMainCouranteEntries: (payload: { requesterRole: Role }) => Promise<MainCouranteEntry[]>;
       getMainCouranteUnconsultedCount: (payload: { requesterRole: Role }) => Promise<{ count: number }>;
       markMainCouranteEntryConsulted: (payload: {
@@ -444,6 +467,7 @@ declare global {
         expectedUpdatedAt: string;
         managerName: string;
       }) => Promise<MainCouranteEntry>;
+      // --- Interventions ---
       listInterventions: (payload: { requesterRole: Role }) => Promise<InterventionEntry[]>;
       getInterventionOpenCount: (payload: { requesterRole: Role }) => Promise<{ count: number }>;
       createInterventionEntry: (payload: {
@@ -511,6 +535,7 @@ declare global {
         pendingId: string;
         reason: string;
       }) => Promise<{ success: boolean }>;
+      // --- Rondes ---
       listRondes: (payload: { requesterRole: Role }) => Promise<RondeEntry[]>;
       createRondeEntry: (payload: {
         requesterRole: Role;
@@ -624,55 +649,58 @@ declare global {
           updatedAt: string;
         }>
       >;
-      listFormVariables: (payload: { requesterRole: Role }) => Promise<
-        Array<{
-          id: string;
-          sortOrder: number;
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-          createdAt: string;
-          updatedAt: string;
-        }>
-      >;
+      // --- Variables de formulaire ---
+      listFormVariables: (payload: { requesterRole: Role }) => Promise<FormVariableDef[]>;
       saveFormVariables: (payload: {
         requesterRole: Role;
         requesterUsername: string;
-        variables: Array<{
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-        }>;
-      }) => Promise<
-        Array<{
-          id: string;
-          sortOrder: number;
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          required: boolean;
-          options: string[];
-          assignments: Array<{ kind: "FORM" | "PROFILE" | "TEMPLATE"; value: string }>;
-          createdAt: string;
-          updatedAt: string;
-        }>
-      >;
-      listGardiennages: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry[]>;
-      createGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
-      updateGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
-      setGardiennageStatus: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
-      deleteGardiennage: (payload: unknown) => Promise<{ success: boolean }>;
-      closeGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
-      reopenGardiennage: (payload: unknown) => Promise<import("./features/gardiennage/model/gardiennage.types").GardiennageEntry>;
+        variables: FormVariablePayload[];
+      }) => Promise<FormVariableDef[]>;
+      // --- Gardiennage ---
+      listGardiennages: (payload: { sessionToken: string; requesterRole: Role }) => Promise<GardiennageEntry[]>;
+      createGardiennage: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+      } & GardiennageSavePayload) => Promise<GardiennageEntry>;
+      updateGardiennage: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        expectedUpdatedAt: string;
+      } & GardiennageSavePayload) => Promise<GardiennageEntry>;
+      setGardiennageStatus: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        expectedUpdatedAt: string;
+        status: GardiennageStatus;
+        cancellationReason?: string;
+      }) => Promise<GardiennageEntry>;
+      deleteGardiennage: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        reason: string;
+      }) => Promise<{ success: boolean; batchId?: string | null; deletedCount?: number; preservedClosedCount?: number }>;
+      closeGardiennage: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        expectedUpdatedAt: string;
+      } & GardiennageClosePayload) => Promise<GardiennageEntry>;
+      reopenGardiennage: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        expectedUpdatedAt: string;
+      }) => Promise<GardiennageEntry>;
     };
   }
 }

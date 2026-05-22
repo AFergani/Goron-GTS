@@ -1,3 +1,10 @@
+/**
+ * Types métier main courante : journal d’exploitation, statuts, payloads API.
+ *
+ * Flux : EN_ATTENTE (signalement) → EN_COURS (à suivre) → CLOTURE. Site facultatif.
+ * Actions responsable : observation, prise en compte, clôture, réouverture.
+ */
+
 export type MainCouranteStatus = "EN_ATTENTE" | "EN_COURS" | "CLOTURE";
 
 export type MainCouranteEntry = {

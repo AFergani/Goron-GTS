@@ -1,3 +1,7 @@
+/**
+ * Panneau lot de demandes exceptionnelles liées (aperçu, suppression groupe).
+ */
+
 import { useMemo, useState } from "react";
 import { Eye } from "lucide-react";
 import type { RondeEntry } from "../model/ronde.types";

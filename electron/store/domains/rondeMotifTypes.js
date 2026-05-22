@@ -1,5 +1,18 @@
+/**
+ * Référentiel des motifs de ronde (`data_ronde_motif_types`).
+ *
+ * Paramètres données et écrans rondes : libellé, couleur, précision libre obligatoire, tri.
+ * Seed « Autre » à la création du schéma (`schemaRonde`). Suppression refusée si motif référencé
+ * par des `ronde_entries`.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
+/**
+ * @param {string} value
+ * @param {string} [fallback="#5c6bc0"]
+ * @returns {string}
+ */
 function normalizeColorHex(value, fallback = "#5c6bc0") {
   const normalized = String(value || "")
     .trim()
@@ -8,6 +21,10 @@ function normalizeColorHex(value, fallback = "#5c6bc0") {
   return fallback;
 }
 
+/**
+ * @param {object} row - Ligne SQL.
+ * @returns {object}
+ */
 function mapRow(row) {
   return {
     id: row.id,
@@ -20,6 +37,10 @@ function mapRow(row) {
   };
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ */
 function listRondeMotifTypes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = store.db
@@ -32,6 +53,10 @@ function listRondeMotifTypes(store, { requesterRole }) {
   return rows.map(mapRow);
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {object} Motif créé.
+ */
 function createRondeMotifType(store, { requesterRole, requesterUsername, label, requiresFreeText, colorHex }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanLabel = String(label || "").trim();
@@ -64,6 +89,10 @@ function createRondeMotifType(store, { requesterRole, requesterUsername, label, 
   return mapRow(store.db.prepare("SELECT * FROM data_ronde_motif_types WHERE id = ?").get(id));
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {object} Motif mis à jour.
+ */
 function updateRondeMotifType(store, { requesterRole, requesterUsername, id, label, requiresFreeText, colorHex }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanId = String(id || "").trim();
@@ -115,6 +144,12 @@ function updateRondeMotifType(store, { requesterRole, requesterUsername, id, lab
   return mapRow(store.db.prepare("SELECT * FROM data_ronde_motif_types WHERE id = ?").get(cleanId));
 }
 
+/**
+ * Suppression physique si aucune ronde ne référence le motif (motif obligatoire).
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deleteRondeMotifType(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const cleanReason = String(reason || "").trim();
@@ -151,6 +186,5 @@ module.exports = {
   listRondeMotifTypes,
   createRondeMotifType,
   updateRondeMotifType,
-  deleteRondeMotifType,
-  mapRow
+  deleteRondeMotifType
 };

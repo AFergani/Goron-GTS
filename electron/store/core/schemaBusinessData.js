@@ -1,3 +1,21 @@
+/**
+ * Schéma SQLite des données de configuration métier : champs Word intervention, variables de formulaire,
+ * assignations de modèles documentaires.
+ *
+ * Complète `schemaBase.js` dans `UserStore.ensureSchema()` (après users/sites, avant ou avec les autres extensions).
+ */
+
+/**
+ * Crée les tables et index liés aux paramètres « données » et exports documentaires.
+ *
+ * Tables :
+ * - `data_intervention_word_extra_fields` — colonnes supplémentaires export Word intervention.
+ * - `data_form_variables` / `data_form_variable_assignments` — variables dynamiques par contexte.
+ * - `data_document_template_assignments` — modèle `.docx` par flux et portée (site, profil, etc.).
+ *
+ * @param {import('../userStore')} store
+ * @returns {void}
+ */
 function ensureBusinessDataSchema(store) {
   store.db.exec(`
     CREATE TABLE IF NOT EXISTS data_intervention_word_extra_fields (

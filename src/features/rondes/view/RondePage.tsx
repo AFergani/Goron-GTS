@@ -1,3 +1,9 @@
+/**
+ * Page Rondes : onglets urgence, planifié, gestion profils ; orchestration presenter + référentiels.
+ *
+ * Filtres tableau, modales demande/fiche, exports, état writer. ~860 lignes — découpage futur si besoin.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";

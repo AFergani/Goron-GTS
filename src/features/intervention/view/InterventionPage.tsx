@@ -1,3 +1,10 @@
+/**
+ * Page Interventions : liste filtrée, statistiques, modale, exports, liens ronde/gardiennage.
+ *
+ * Deep-link `focusInterventionId` depuis AppShell (ronde liée). Permissions ronde/gardiennage
+ * pour créer des fiches liées depuis une intervention clôturée.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Role } from "../../../types";

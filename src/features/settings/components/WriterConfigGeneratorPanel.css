@@ -1,3 +1,4 @@
+/* Styles panneau générateur gts_writer-config (maître / backup). */
 /* Panneau génération gts_writer-config : mise en page dédiée (ne pas réutiliser .db-box ici : flex row + space-between). */
 
 .writer-config-panel .writer-config-lead {

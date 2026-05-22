@@ -1,5 +1,21 @@
 import { useCallback, useState } from "react";
 
+/**
+ * État partagé recherche, plage de dates et pagination pour listes tabulaires.
+ *
+ * Les setters de filtre (`setSearch`, `setDateFrom`, `setDateTo`, `setPageSize`)
+ * remettent `currentPage` à 1. `pageSize === 0` signifie « tout afficher » (une page
+ * logique côté consommateur). Si `dateTo` est vide et `dateFrom` renseigné, les pages
+ * filtrent en général sur la date du jour `dateFrom` uniquement (`effectiveDateTo =
+ * dateTo || dateFrom`).
+ *
+ * Couplé à `TableFiltersBar` et `TablePaginationBar` dans les vues métier.
+ *
+ * Utilisé par : MainCourantePage, InterventionPage, RondePage, GardiennagePage
+ * (onglet planification), RondeProfilesManageTab.
+ */
+
+/** API exposée aux pages et barres de filtres */
 export type UseTableFiltersReturn = {
   search: string;
   dateFrom: string;
@@ -11,16 +27,10 @@ export type UseTableFiltersReturn = {
   setDateTo: (v: string) => void;
   setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
   setPageSize: (s: number) => void;
+  /** Réinitialise recherche et dates ; page 1 ; conserve `pageSize` */
   reset: () => void;
 };
 
-/**
- * Gère l'état commun des filtres et de la pagination pour les tableaux.
- * - Remet la page à 1 dès qu'un filtre (recherche, dates) change.
- * - pageSize=0 = affichage illimité.
- * - Logique date : si dateTo est vide et dateFrom est renseigné,
- *   le consommateur doit traiter cela comme une égalité stricte sur dateFrom.
- */
 export function useTableFilters(initial?: { pageSize?: number }): UseTableFiltersReturn {
   const [search, setSearchState] = useState("");
   const [dateFrom, setDateFromState] = useState("");
@@ -56,7 +66,16 @@ export function useTableFilters(initial?: { pageSize?: number }): UseTableFilter
   }, []);
 
   return {
-    search, dateFrom, dateTo, currentPage, pageSize,
-    setSearch, setDateFrom, setDateTo, setCurrentPage, setPageSize, reset,
+    search,
+    dateFrom,
+    dateTo,
+    currentPage,
+    pageSize,
+    setSearch,
+    setDateFrom,
+    setDateTo,
+    setCurrentPage,
+    setPageSize,
+    reset
   };
 }

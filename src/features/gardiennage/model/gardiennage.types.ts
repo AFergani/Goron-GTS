@@ -1,3 +1,11 @@
+/**
+ * Types métier gardiennage (planification, entrées, payloads API).
+ *
+ * Snapshot de planification versionné (`GardiennagePlanningSnapshotV1`) : lignes horaires,
+ * récurrence, mode continu H24. Statuts PLANIFIE → ACTIF → CLOTURE / ANNULE.
+ * `syncState: PENDING_QUEUE` si écriture différée (writer indisponible).
+ */
+
 export type GardiennageStatus = "PLANIFIE" | "ACTIF" | "CLOTURE" | "ANNULE";
 
 /** Compte rendu posé par la clôture automatique (horaire de fin dépassé). */
@@ -7,6 +15,7 @@ export function isGardiennageAutoClosureReport(report: string): boolean {
   return String(report || "").trim() === GARDIENNAGE_AUTO_CLOSURE_REPORT;
 }
 
+/** Ligne de planning (créneau, masque semaine, fériés / veilles). */
 export type GardiennagePlanningLineV1 = {
   id: string;
   label: string;
@@ -18,6 +27,7 @@ export type GardiennagePlanningLineV1 = {
   includeHolidayEves: boolean;
 };
 
+/** Planification envoyée au moteur de génération et au backend. */
 export type GardiennagePlanningSnapshotV1 = {
   version: 1;
   validFromDate: string;
@@ -28,6 +38,7 @@ export type GardiennagePlanningSnapshotV1 = {
   lines: GardiennagePlanningLineV1[];
 };
 
+/** Entrée liste / modale (libellés site et prestataire, pas d’UUID en UI export utilisateur). */
 export type GardiennageEntry = {
   id: string;
   createdAt: string;
@@ -63,6 +74,7 @@ export type GardiennageEntry = {
   syncState?: "PENDING_QUEUE";
 };
 
+/** Création / mise à jour (planification optionnelle pour lots générés). */
 export type GardiennageSavePayload = {
   siteId: string | null;
   siteDisplay: string;
@@ -80,6 +92,7 @@ export type GardiennageSavePayload = {
   planningSnapshot?: GardiennagePlanningSnapshotV1 | null;
 };
 
+/** Clôture manuelle (horaires effectifs, bon, CR ; `closeDate` pour une occurrence de série). */
 export type GardiennageClosePayload = {
   closureReport: string;
   actualStartTime: string;

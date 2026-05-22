@@ -1,3 +1,10 @@
+/**
+ * Référentiels main courante : sites, types d’anomalie, proposition de site en attente.
+ *
+ * Rafraîchissement périodique (~10 s) pour refléter les validations Paramètres.
+ * Utilisé par : `MainCourantePage`, `MainCouranteEntryModal`.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { AnomalyTypeRef, Role, SiteRef } from "../../../types";

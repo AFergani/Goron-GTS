@@ -1,3 +1,7 @@
+/**
+ * Panneau gestion des données : onglets référentiels, import Excel, pending sites/intervenants.
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";

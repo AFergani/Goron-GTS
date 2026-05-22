@@ -1,3 +1,43 @@
+/**
+ * Orchestration du runtime writer : lecture de `gts_writer-config.json`, résolution du profil actif,
+ * rôle local (master / backup / client / disabled) et démarrage des services associés (HTTP, monitor, queue SMB, tray).
+ *
+ * Point d'entrée principal : `refreshWriterRuntime()` (démarrage app, changement de base, choix config, génération writer).
+ * État mutable tenu dans `main.js` via `getWriterRuntime` / `setWriterRuntime`.
+ */
+
+/**
+ * Fabrique le service de cycle de vie du runtime writer.
+ *
+ * @param {object} deps - Injections depuis `main.js`.
+ * @param {boolean} deps.isDev - Priorité des profils `development` vs `production` dans `resolveActiveWriterProfile`.
+ * @param {() => object} deps.readAppConfig
+ * @param {(config: object) => void} deps.writeAppConfig - Mémorise `writerConfigPath` découvert.
+ * @param {() => { config: object|null, configPath: string|null }} deps.resolveWriterConfigPath
+ * @param {() => void} deps.stopWriterServer
+ * @param {() => void} deps.stopWriterMonitor
+ * @param {() => void} deps.stopWriterQueueWorker
+ * @param {() => void} deps.startWriterServer - Mode `http` sur master/backup uniquement.
+ * @param {() => void} deps.startWriterMonitor
+ * @param {() => void} deps.startWriterQueueWorker - Mode `smb_queue`.
+ * @param {() => void} deps.setupTrayIfNeeded
+ * @param {() => void} deps.refreshTrayMenu
+ * @param {(entry: object) => void} deps.appendWriterTransitLog
+ * @param {() => object} deps.getLocalSourceContext
+ * @param {(nodeCfg: object) => boolean} deps.isLocalNodeMatch - Matching super master / nœuds config.
+ * @param {(config: object) => boolean} deps.isMasterByConfig
+ * @param {(config: object) => boolean} deps.isBackupByConfig
+ * @param {() => object} deps.getWriterRuntime
+ * @param {(next: object) => void} deps.setWriterRuntime
+ * @param {import('path')} deps.path
+ * @param {string} deps.processCwd
+ * @param {import('electron').App} deps.app
+ * @param {string|null} deps.portableExecutableDir
+ * @returns {{
+ *   resolveActiveWriterProfile: (config: object) => { key: string, policy: string, profile: object|null },
+ *   refreshWriterRuntime: () => void
+ * }}
+ */
 function createWriterRuntimeService(deps) {
   const {
     isDev,
@@ -25,6 +65,14 @@ function createWriterRuntimeService(deps) {
     portableExecutableDir
   } = deps;
 
+  /**
+   * Détermine le profil d'environnement actif et sa politique writer (`activeWriterPolicy`).
+   *
+   * Cherche par alias selon `isDev` (development/dev/test/production) puis retombe sur le premier profil.
+   *
+   * @param {object} config - Contenu JSON `gts_writer-config.json` (`environmentProfiles`, `defaultProfile`).
+   * @returns {{ key: string, policy: string, profile: object|null }}
+   */
   function resolveActiveWriterProfile(config) {
     const profiles = config?.environmentProfiles;
     if (!profiles || typeof profiles !== "object") {
@@ -58,6 +106,17 @@ function createWriterRuntimeService(deps) {
     };
   }
 
+  /**
+   * Recharge intégralement le runtime writer depuis la config disque.
+   *
+   * Séquence :
+   * 1. Arrêt serveur HTTP, monitor et worker queue.
+   * 2. Si config absente → `role: disabled`, log `writer_runtime_disabled`.
+   * 3. Sinon résolution profil, rôle (super master local, master, backup, client), secret, ports, `sharedRoot`.
+   * 4. Redémarrage des sous-services selon `transportMode` (`http` / `smb_queue`) et rôle.
+   *
+   * @returns {void}
+   */
   function refreshWriterRuntime() {
     stopWriterServer();
     stopWriterMonitor();

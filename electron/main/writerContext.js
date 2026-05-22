@@ -1,3 +1,36 @@
+/**
+ * Contexte réseau et poste pour le cluster writer : résolution de `gts_writer-config.json`,
+ * choix de l'IPv4 LAN préférée et identité locale (hostname, whoami, rôle).
+ *
+ * Instancié tôt dans `main.js` ; consommé par `writerRuntime`, `writerLogs`, files SMB/HTTP,
+ * `archiveRunner`, `ipcSystemHandlers` (`system:getLocalNodeIdentity`) et matching de nœud en main.
+ */
+
+/**
+ * Fabrique les utilitaires de contexte writer et de lecture de configuration.
+ *
+ * @param {object} deps
+ * @param {import('path')} deps.path
+ * @param {import('fs')} deps.fs
+ * @param {import('os')} deps.os
+ * @param {import('electron').App} deps.app - `getPath('exe')` pour candidats de config.
+ * @param {string} deps.processCwd - Répertoire de travail (candidats `Z_Dossier_Perso`, `config`, `data`).
+ * @param {string|null} deps.portableExecutableDir - `PORTABLE_EXECUTABLE_DIR` si déploiement portable.
+ * @param {() => object} deps.readAppConfig - `writerConfigPath`, `dbPath` mémorisés.
+ * @param {string} deps.writerConfigFileName - Nom canonique `gts_writer-config.json`.
+ * @param {string} deps.legacyWriterConfigMisspellFileName - Ancien nom mal orthographié.
+ * @param {string} deps.legacyWriterConfigFileName - `writer-config.v1.json`.
+ * @param {() => string} deps.getWriterRole - Rôle writer courant pour `getLocalSourceContext`.
+ * @returns {{
+ *   normalizeText: (value: unknown) => string,
+ *   readJsonIfExists: (filePath: string) => object|null,
+ *   resolveWriterConfigPath: () => { config: object|null, configPath: string|null },
+ *   isIpv4Family: (addr: object) => boolean,
+ *   getLocalIPv4: () => string|null,
+ *   getLocalSourceContext: () => object,
+ *   getLocalNodeIdentity: () => object
+ * }}
+ */
 function createWriterContextService(deps) {
   const {
     path,
@@ -13,17 +46,31 @@ function createWriterContextService(deps) {
     getWriterRole
   } = deps;
 
+  /** Heuristique : interfaces VPN / virtuelles pénalisées pour le choix d'IP. */
   const VPN_INTERFACE_NAME_RE =
     /vpn|tap|tun|virtual|proton|wireguard|wintun|zerotier|hamachi|openvpn|nordlynx|tailscale|vethernet|hyper-v|docker|vbox|pptp|l2tp|ppp|nordvpn|mullvad|surfshark|expressvpn|openconnect|anyconnect|citrix|netextender|wg|outline/i;
+  /** Heuristique : interfaces LAN / Wi‑Fi favorisées. */
   const PREFERRED_LAN_INTERFACE_RE =
     /ethernet|wi[- ]?fi|wlan|802\.11|reseau|network|eth\d|en\d|connexion au r[eé]seau|local area connection/i;
 
+  /**
+   * Normalise une chaîne pour comparaison insensible à la casse (matching nœud writer).
+   *
+   * @param {unknown} value
+   * @returns {string}
+   */
   function normalizeText(value) {
     return String(value || "")
       .trim()
       .toLowerCase();
   }
 
+  /**
+   * Lit un fichier JSON s'il existe ; replis `null` si absent ou invalide.
+   *
+   * @param {string} filePath
+   * @returns {object|null}
+   */
   function readJsonIfExists(filePath) {
     if (!filePath || !fs.existsSync(filePath)) return null;
     try {
@@ -33,6 +80,14 @@ function createWriterContextService(deps) {
     }
   }
 
+  /**
+   * Recherche le fichier de configuration writer sur le poste ou près de la base de données.
+   *
+   * Ordre : chemin explicite `app-config.writerConfigPath`, puis candidats sous `data/` et `config/`
+   * (portable, exe, cwd, racine déduite de `dbPath`), avec noms legacy.
+   *
+   * @returns {{ config: object|null, configPath: string|null }}
+   */
   function resolveWriterConfigPath() {
     const appCfg = readAppConfig();
     const explicitPath = appCfg.writerConfigPath;
@@ -81,10 +136,21 @@ function createWriterContextService(deps) {
     return { config: null, configPath: null };
   }
 
+  /**
+   * Indique si une adresse `os.networkInterfaces()` est IPv4 (famille `IPv4` ou `4`).
+   *
+   * @param {object} addr - Entrée interface Node.
+   * @returns {boolean}
+   */
   function isIpv4Family(addr) {
     return addr.family === "IPv4" || addr.family === 4;
   }
 
+  /**
+   * Sélectionne la meilleure IPv4 non interne du poste (évite VPN, favorise Ethernet / 192.168.x.x).
+   *
+   * @returns {string|null} Adresse IPv4 ou `null` si aucune interface utilisable.
+   */
   function getLocalIPv4() {
     const ifaces = os.networkInterfaces();
     const candidates = [];
@@ -117,6 +183,11 @@ function createWriterContextService(deps) {
     return best.address;
   }
 
+  /**
+   * Contexte embarqué dans les requêtes file d'attente / HTTP writer (source de l'action).
+   *
+   * @returns {{ hostname: string, whoami: string, ip: string|null, role: string }}
+   */
   function getLocalSourceContext() {
     return {
       hostname: os.hostname(),
@@ -126,6 +197,11 @@ function createWriterContextService(deps) {
     };
   }
 
+  /**
+   * Identité poste exposée à l'UI Paramètres (`system:getLocalNodeIdentity`).
+   *
+   * @returns {{ hostname: string, host: string, whoami: string }}
+   */
   function getLocalNodeIdentity() {
     return {
       hostname: os.hostname(),

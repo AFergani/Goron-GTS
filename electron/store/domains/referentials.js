@@ -1,3 +1,11 @@
+/**
+ * Référentiels Paramètres : sites, intervenants, types d'anomalie (main courante).
+ *
+ * Tables `data_sites`, `data_intervenants`, `data_anomaly_types` (schéma `schemaBusinessData`).
+ * `auditMode: "batch"` désactive l'audit unitaire (imports en masse via `importAudit.js`).
+ * Modifications : `entityHistory` + audit before/after ; suppressions : motif obligatoire.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
 function normalizeColorHex(value, fallback = "#1f5fcf") {
@@ -13,6 +21,8 @@ function normalizeUpperText(value) {
     .trim()
     .toUpperCase();
 }
+
+/** --- Sites (`data_sites`) --- */
 
 function listSites(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
@@ -31,6 +41,7 @@ function listSites(store, { requesterRole }) {
     }));
 }
 
+/** Crée un site ; `auditMode` `batch` pour import sans log unitaire. */
 function createSite(store, { requesterRole, requesterUsername, code, name, address, parc, famille, auditMode = "single" }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanCode = String(code || "").trim();
@@ -71,6 +82,7 @@ function createSite(store, { requesterRole, requesterUsername, code, name, addre
   return { success: true };
 }
 
+/** Met à jour un site (audit `DATA_SITE_UPDATE` avec `historyBefore` si pas batch). */
 function updateSite(store, { requesterRole, requesterUsername, id, code, name, address, parc, famille, auditMode = "single" }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanCode = String(code || "").trim();
@@ -153,6 +165,8 @@ function deleteSite(store, { requesterRole, requesterUsername, id, reason }) {
   });
   return { success: true };
 }
+
+/** --- Intervenants (`data_intervenants`) --- */
 
 function listIntervenants(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
@@ -266,6 +280,8 @@ function deleteIntervenant(store, { requesterRole, requesterUsername, id, reason
   });
   return { success: true };
 }
+
+/** --- Types d'anomalie main courante (`data_anomaly_types`) --- */
 
 function listAnomalyTypes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);

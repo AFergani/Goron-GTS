@@ -1,6 +1,20 @@
+/**
+ * Script preload Electron : pont sécurisé renderer ↔ processus principal.
+ *
+ * Expose `window.gtsApi` via `contextBridge` (aucun accès direct à Node depuis React).
+ * Chaque méthode délègue à `ipcRenderer.invoke` vers un canal enregistré dans `main.js`
+ * (`ipcSystemHandlers`, `ipcAuthHandlers`, `ipcDomainHandlers`).
+ *
+ * Le client TypeScript `src/infrastructure/api/gtsApiClient.ts` enveloppe ces appels
+ * (jeton de session, typage). Les signatures détaillées sont dans `src/vite-env.d.ts`.
+ *
+ * @module electron/preload
+ */
+
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("gtsApi", {
+  // --- Système : base, archivage, writer, modèles Word, fenêtre ---
   getDbConfig: (payload) => ipcRenderer.invoke("system:getDbConfig", payload),
   listDatabases: (payload) => ipcRenderer.invoke("system:listDatabases", payload),
   switchDatabase: (payload) => ipcRenderer.invoke("system:switchDatabase", payload),
@@ -23,14 +37,24 @@ contextBridge.exposeInMainWorld("gtsApi", {
   getDbHealth: (payload) => ipcRenderer.invoke("system:getDbHealth", payload),
   quitApp: (payload) => ipcRenderer.invoke("system:quitApp", payload),
   minimizeApp: (payload) => ipcRenderer.invoke("system:minimizeApp", payload),
-  /** Abonnement : la croix de la fenêtre demande d’ouvrir la modale (événement main → renderer). */
+
+  /**
+   * Abonnement : la croix de la fenêtre demande d'ouvrir la modale de sortie (main → renderer).
+   *
+   * @param {() => void} callback
+   * @returns {() => void} Désabonnement (à appeler au démontage React).
+   */
   subscribeAppExitChoiceRequest: (callback) => {
     const channel = "app:requestExitChoice";
     const listener = () => callback();
     ipcRenderer.on(channel, listener);
     return () => ipcRenderer.removeListener(channel, listener);
   },
+
+  /** Choix du fichier base au premier lancement ; `sessionToken` optionnel. */
   chooseDbPath: (sessionToken) => ipcRenderer.invoke("system:chooseDbPath", sessionToken ? { sessionToken } : undefined),
+
+  // --- Authentification et comptes ---
   login: (payload) => ipcRenderer.invoke("auth:login", payload),
   getAdminAccessStatus: () => ipcRenderer.invoke("auth:getAdminAccessStatus"),
   firstLogin: (payload) => ipcRenderer.invoke("auth:firstLogin", payload),
@@ -42,11 +66,15 @@ contextBridge.exposeInMainWorld("gtsApi", {
   unlockUser: (payload) => ipcRenderer.invoke("users:unlock", payload),
   getActiveSessions: (payload) => ipcRenderer.invoke("users:getActiveSessions", payload),
   setAdminCode: (payload) => ipcRenderer.invoke("auth:setAdminCode", payload),
+
+  // --- Audit et préférences ---
   listAuditLogs: (payload) => ipcRenderer.invoke("audit:list", payload),
   getAuditMetadata: (payload) => ipcRenderer.invoke("audit:metadata", payload),
   logBulkImportAudit: (payload) => ipcRenderer.invoke("audit:bulkImport", payload),
   getUserPreferences: (payload) => ipcRenderer.invoke("preferences:get", payload),
   setUserPreferences: (payload) => ipcRenderer.invoke("preferences:set", payload),
+
+  // --- Référentiels (sites, intervenants, types, jours fériés, rondes planifiées) ---
   listSites: (payload) => ipcRenderer.invoke("data:sites:list", payload),
   createSite: (payload) => ipcRenderer.invoke("data:sites:create", payload),
   updateSite: (payload) => ipcRenderer.invoke("data:sites:update", payload),
@@ -77,6 +105,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   listInterventionWordExtraFields: (payload) => ipcRenderer.invoke("data:interventionWordExtraFields:list", payload),
   listFormVariables: (payload) => ipcRenderer.invoke("data:formVariables:list", payload),
   saveFormVariables: (payload) => ipcRenderer.invoke("data:formVariables:save", payload),
+
+  // --- Fransor ---
   listFransorResponsables: (payload) => ipcRenderer.invoke("fransor:responsables:list", payload),
   createFransorResponsable: (payload) => ipcRenderer.invoke("fransor:responsables:create", payload),
   updateFransorResponsable: (payload) => ipcRenderer.invoke("fransor:responsables:update", payload),
@@ -87,6 +117,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   listFransorEntriesByMonth: (payload) => ipcRenderer.invoke("fransor:entries:listByMonth", payload),
   upsertFransorEntry: (payload) => ipcRenderer.invoke("fransor:entries:upsert", payload),
   listFransorMonthlyRecap: (payload) => ipcRenderer.invoke("fransor:recap:listByMonth", payload),
+
+  // --- Main courante ---
   listMainCouranteEntries: (payload) => ipcRenderer.invoke("mainCourante:list", payload),
   getMainCouranteUnconsultedCount: (payload) => ipcRenderer.invoke("mainCourante:getUnconsultedCount", payload),
   markMainCouranteEntryConsulted: (payload) => ipcRenderer.invoke("mainCourante:markConsulted", payload),
@@ -94,6 +126,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   updateMainCouranteEntryOperator: (payload) => ipcRenderer.invoke("mainCourante:updateOperator", payload),
   applyMainCouranteManagerAction: (payload) => ipcRenderer.invoke("mainCourante:applyManager", payload),
   reopenMainCouranteEntry: (payload) => ipcRenderer.invoke("mainCourante:reopen", payload),
+
+  // --- Interventions ---
   listInterventions: (payload) => ipcRenderer.invoke("intervention:list", payload),
   getInterventionOpenCount: (payload) => ipcRenderer.invoke("intervention:getOpenCount", payload),
   createInterventionEntry: (payload) => ipcRenderer.invoke("intervention:create", payload),
@@ -108,6 +142,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   createPendingInterventionIntervenant: (payload) => ipcRenderer.invoke("intervention:pendingIntervenants:create", payload),
   resolvePendingInterventionIntervenant: (payload) => ipcRenderer.invoke("intervention:pendingIntervenants:resolve", payload),
   deletePendingInterventionIntervenant: (payload) => ipcRenderer.invoke("intervention:pendingIntervenants:delete", payload),
+
+  // --- Rondes ---
   listRondes: (payload) => ipcRenderer.invoke("ronde:list", payload),
   createRondeEntry: (payload) => ipcRenderer.invoke("ronde:create", payload),
   updateRondeEntry: (payload) => ipcRenderer.invoke("ronde:update", payload),
@@ -115,6 +151,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   updateRondeBatchSharedFields: (payload) => ipcRenderer.invoke("ronde:batchUpdate", payload),
   bulkCancelRondeBatch: (payload) => ipcRenderer.invoke("ronde:batchCancel", payload),
   bulkDeleteRondeBatch: (payload) => ipcRenderer.invoke("ronde:batchDelete", payload),
+
+  // --- Gardiennage ---
   listGardiennages: (payload) => ipcRenderer.invoke("gardiennage:list", payload),
   createGardiennage: (payload) => ipcRenderer.invoke("gardiennage:create", payload),
   updateGardiennage: (payload) => ipcRenderer.invoke("gardiennage:update", payload),

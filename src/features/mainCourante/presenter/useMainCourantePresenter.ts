@@ -1,3 +1,10 @@
+/**
+ * Presenter main courante : liste, stats, création opérateur, édition, actions responsable.
+ *
+ * Polling ~20 s, file `PENDING_QUEUE`, alerte writer indisponible à la création.
+ * Utilisé par : `MainCourantePage` (badge sidebar alimenté par AppShell via API séparée).
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type {

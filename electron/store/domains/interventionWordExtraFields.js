@@ -1,5 +1,18 @@
+/**
+ * Référentiel des champs supplémentaires pour l'export Word des interventions.
+ *
+ * Table `data_intervention_word_extra_fields` (schéma dans `schemaBusinessData`).
+ * Lecture seule côté API : les valeurs saisies sur chaque fiche sont filtrées dans
+ * `intervention.js` (`normalizeExportExtraJson`) selon les `field_key` actifs.
+ */
+
+/** Types de champ alignés sur les variables de formulaires Paramètres. */
 const ALLOWED_TYPES = new Set(["text", "textarea", "number", "time", "select", "toggle"]);
 
+/**
+ * @param {string} raw - JSON tableau d'options (type `select`).
+ * @returns {string[]}
+ */
 function parseOptionsJson(raw) {
   try {
     const parsed = JSON.parse(String(raw || "[]"));
@@ -10,6 +23,13 @@ function parseOptionsJson(raw) {
   }
 }
 
+/**
+ * Liste les définitions de champs triées (`sort_order`, libellé).
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ * @returns {Array<{ id: string, sortOrder: number, fieldKey: string, label: string, fieldType: string, placeholder: string, options: string[], createdAt: string, updatedAt: string }>}
+ */
 function listInterventionWordExtraFields(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const rows = store.db

@@ -1,3 +1,7 @@
+/**
+ * Onglet jours fériés (calendrier, fériés fixes France fusionnés).
+ */
+
 import { ChevronLeft, ChevronRight, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { HolidayRef } from "../../../../types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";

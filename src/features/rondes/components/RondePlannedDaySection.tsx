@@ -1,3 +1,7 @@
+/**
+ * Onglet jour planifié : navigation calendrier, créneaux, demandes et exports du jour.
+ */
+
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, FileDown, RotateCcw } from "lucide-react";
 import type { RondeMotifTypeRef, RondeEntry } from "../model/ronde.types";

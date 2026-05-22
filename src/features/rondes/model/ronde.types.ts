@@ -1,3 +1,11 @@
+/**
+ * Types métier rondes : fiches passage, sources (planifiée / urgence / liée intervention).
+ *
+ * Snapshot de demande exceptionnelle (`RondePlanningSnapshotV1`), champs clôture personnalisés,
+ * corrélation profils planifiés (`plannedProfileId`, `plannedSlotKey`). Pas d’affichage brut de
+ * `requestPlanningSnapshotJson` en UI utilisateur.
+ */
+
 import type { RondePlanningSnapshotV1 } from "./rondePlanningSnapshot.types";
 
 export type RondeMotifTypeRef = {
@@ -71,3 +79,10 @@ export type RondeSavePayload = {
   report: string;
   closureCustomValues?: Record<string, string>;
 };
+
+/** Libellé posé par la clôture automatique des rondes exceptionnelles échues (J+5). */
+export const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
+
+export function isRondeAutoClosureReport(report: string): boolean {
+  return String(report || "").trim() === RONDE_AUTO_CLOSURE_REPORT;
+}

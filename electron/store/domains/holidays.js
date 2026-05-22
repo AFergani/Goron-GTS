@@ -1,5 +1,19 @@
+/**
+ * Référentiel des jours fériés (`data_holidays`).
+ *
+ * Alimente la planification rondes et gardiennage (exclusion / inclusion fériés et veilles).
+ * CRUD via Paramètres ; lecture aussi depuis les écrans Fransor, rondes et gardiennage.
+ * Table créée dans `schemaRonde.ensureRondeSchema`.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
+/**
+ * Normalise une date au format `AAAA-MM-JJ` (validation calendrier à midi UTC).
+ *
+ * @param {unknown} value
+ * @returns {string} Chaîne vide si invalide.
+ */
 function normalizeDateIso(value) {
   const raw = String(value || "").trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
@@ -8,6 +22,11 @@ function normalizeDateIso(value) {
   return raw;
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ * @returns {Array<{ id: string, dateIso: string, label: string, createdAt: string, updatedAt: string|null }>}
+ */
 function listHolidays(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   return store.db
@@ -22,6 +41,10 @@ function listHolidays(store, { requesterRole }) {
     }));
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function createHoliday(store, { requesterRole, requesterUsername, dateIso, label }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanDateIso = normalizeDateIso(dateIso);
@@ -55,6 +78,10 @@ function createHoliday(store, { requesterRole, requesterUsername, dateIso, label
   return { success: true };
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function updateHoliday(store, { requesterRole, requesterUsername, id, dateIso, label }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanId = String(id || "").trim();
@@ -98,6 +125,12 @@ function updateHoliday(store, { requesterRole, requesterUsername, id, dateIso, l
   return { success: true };
 }
 
+/**
+ * Suppression physique avec motif obligatoire (rôle data delete).
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deleteHoliday(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const cleanId = String(id || "").trim();

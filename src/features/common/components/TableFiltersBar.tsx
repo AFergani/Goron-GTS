@@ -1,3 +1,12 @@
+/**
+ * Barre de filtres standard des listes métier (recherche, période, reset, filtres additionnels).
+ *
+ * Ligne 1 : recherche texte, dates Du/Au, bouton icône `RotateCcw` (réinitialiser).
+ * Ligne 2 optionnelle (`children`) : selects spécifiques à la page (statut, site, etc.).
+ * À placer dans un `<section className="panel">` sur chaque page liste.
+ */
+
+import type { ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
 
 type TableFiltersBarProps = {
@@ -11,17 +20,9 @@ type TableFiltersBarProps = {
   /** Placeholder du champ de recherche texte libre */
   searchPlaceholder?: string;
   /** Ligne 2 : filtres spécifiques à la page (selects, etc.) */
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
-/**
- * Barre de filtres partagée pour les tableaux.
- *
- * Ligne 1 : recherche texte + plage de dates + bouton reset.
- * Ligne 2 (optionnelle, via children) : filtres spécifiques à la page.
- *
- * À intégrer à l'intérieur d'un `<section className="panel">` dans chaque page.
- */
 export function TableFiltersBar({
   search,
   onSearchChange,
@@ -31,7 +32,7 @@ export function TableFiltersBar({
   onDateToChange,
   onReset,
   searchPlaceholder = "Rechercher…",
-  children,
+  children
 }: TableFiltersBarProps) {
   return (
     <>
@@ -49,11 +50,7 @@ export function TableFiltersBar({
           <div className="main-log-filters-date-range" role="group" aria-label="Période">
             <label className="main-log-filter-field--date">
               Du
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => onDateFromChange(e.target.value)}
-              />
+              <input type="date" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} />
             </label>
             <label className="main-log-filter-field--date">
               Au

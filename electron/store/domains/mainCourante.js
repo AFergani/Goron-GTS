@@ -1,3 +1,10 @@
+/**
+ * Main courante : informations terrain, workflow opérateur / responsable.
+ *
+ * Statuts : `EN_ATTENTE` → `EN_COURS` (à suivre) ou `CLOTURE`. Archivage logique via `archive.js`.
+ * Observations manager horodatées en français ; compteur « non consultées » pour RESPONSABLE / DEV.
+ */
+
 function normalizeDisplayName(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -31,6 +38,7 @@ function mergeMainCouranteObservations(previous, managerName, addition) {
   return `${p}\n---\n${a}`;
 }
 
+/** Mappe une ligne SQL vers l'objet API main courante. */
 function mapMainCouranteRow(row) {
   return {
     id: row.id,
@@ -53,6 +61,7 @@ function mapMainCouranteRow(row) {
   };
 }
 
+/** Liste les entrées (hors archivées sauf `includeArchived`). */
 function listMainCouranteEntries(store, { requesterRole, includeArchived = false }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = includeArchived
@@ -63,6 +72,7 @@ function listMainCouranteEntries(store, { requesterRole, includeArchived = false
   return rows.map((row) => mapMainCouranteRow(row));
 }
 
+/** Crée une information (`EN_ATTENTE`) ; idempotent si `id` existe déjà. */
 function createMainCouranteEntry(store, { requesterRole, requesterUsername, id, operatorName, siteId, siteDisplay, anomalyTypeId, anomalyTypeLabel, information }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanInfo = String(information || "").trim();
@@ -111,6 +121,7 @@ function createMainCouranteEntry(store, { requesterRole, requesterUsername, id, 
   return mapMainCouranteRow(row);
 }
 
+/** Modification opérateur : uniquement ses entrées `EN_ATTENTE`, non archivées. */
 function updateMainCouranteEntryOperator(
   store,
   { requesterRole, requesterUsername, id, expectedUpdatedAt, siteId, siteDisplay, anomalyTypeId, anomalyTypeLabel, information, requesterFullName }
@@ -202,6 +213,10 @@ function updateMainCouranteEntryOperator(
   return mapMainCouranteRow(updated);
 }
 
+/**
+ * Action responsable : `decision` `suivre` (EN_COURS) ou clôture.
+ * Audit `MAIN_COURANTE_MANAGER_SUIVRE` / `MAIN_COURANTE_MANAGER_CLOTURE`.
+ */
 function applyMainCouranteManagerAction(store, { requesterRole, requesterUsername, id, expectedUpdatedAt, managerName, managerObservation, decision, role }) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("mainCourante:manager", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
@@ -301,6 +316,7 @@ function applyMainCouranteManagerAction(store, { requesterRole, requesterUsernam
   return mapMainCouranteRow(updated);
 }
 
+/** Rouvre une entrée `CLOTURE` vers `EN_COURS` (responsable / DEV). */
 function reopenMainCouranteEntry(store, { requesterRole, requesterUsername, id, expectedUpdatedAt, managerName, role }) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("mainCourante:reopen", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
@@ -366,24 +382,14 @@ function reopenMainCouranteEntry(store, { requesterRole, requesterUsername, id, 
   return mapMainCouranteRow(updated);
 }
 
+/** Vérifie l'existence d'une entrée (corrélation writer / file). */
 function hasMainCouranteEntry(store, id) {
   if (!id) return false;
   const row = store.db.prepare("SELECT id FROM main_courante_entries WHERE id = ? LIMIT 1").get(id);
   return Boolean(row);
 }
 
-module.exports = {
-  mapMainCouranteRow,
-  listMainCouranteEntries,
-  createMainCouranteEntry,
-  updateMainCouranteEntryOperator,
-  applyMainCouranteManagerAction,
-  reopenMainCouranteEntry,
-  getMainCouranteUnconsultedCount,
-  markMainCouranteEntryConsulted,
-  hasMainCouranteEntry
-};
-
+/** Badge sidebar : entrées non encore consultées par un responsable. */
 function getMainCouranteUnconsultedCount(store, { requesterRole, role }) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     return { count: 0 };
@@ -394,12 +400,12 @@ function getMainCouranteUnconsultedCount(store, { requesterRole, role }) {
   return { count: Number(row?.count || 0) };
 }
 
+/** Marque une entrée comme consultée par le responsable (une seule fois). */
 function markMainCouranteEntryConsulted(store, { requesterRole, requesterUsername, id, role }) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("mainCourante:consulted", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
-  const row = store
-    .db
+  const row = store.db
     .prepare("SELECT id, consulted_by_manager_at, consulted_by_manager_name FROM main_courante_entries WHERE id = ?")
     .get(id);
   if (!row) {
@@ -414,3 +420,15 @@ function markMainCouranteEntryConsulted(store, { requesterRole, requesterUsernam
     .run(now, String(requesterUsername || "").trim() || null, id);
   return { success: true };
 }
+
+module.exports = {
+  mapMainCouranteRow,
+  listMainCouranteEntries,
+  createMainCouranteEntry,
+  updateMainCouranteEntryOperator,
+  applyMainCouranteManagerAction,
+  reopenMainCouranteEntry,
+  getMainCouranteUnconsultedCount,
+  markMainCouranteEntryConsulted,
+  hasMainCouranteEntry
+};

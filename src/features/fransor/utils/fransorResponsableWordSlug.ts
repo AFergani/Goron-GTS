@@ -1,7 +1,13 @@
 /**
- * Jetons Word du type {resp_<slug>_ouvertures} — dérivé du nom affiché (référentiel Fransor).
- * Ex. « Mr Fahed Georges » → slug « fahed_georges » (minuscules, sans préfixe de civilité).
+ * Slug de nom pour les jetons Docxtemplater du récap Fransor Word.
+ *
+ * Produit un identifiant stable à partir du nom affiché : minuscules, underscores,
+ * sans civilité (M., Mme, Mr…), accents retirés. Ex. « Mr Fahed Georges » → `fahed_georges`
+ * pour des variables `{resp_fahed_georges_ouvertures}`, etc.
+ *
+ * Utilisé par : `fransorRecapWordExport`, aide modèles Word (Paramètres).
  */
+
 export function fransorResponsableWordSlug(displayName: string): string {
   let s = String(displayName || "").trim();
   s = s.replace(/^(m\.|mme|mr\.?|madame|monsieur)\s+/i, "");

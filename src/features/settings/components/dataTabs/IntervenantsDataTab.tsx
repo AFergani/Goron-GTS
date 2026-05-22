@@ -1,3 +1,7 @@
+/**
+ * Onglet prestataires / intervenants (CRUD).
+ */
+
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { IntervenantRef } from "../../../../types";
 import type { PendingInterventionIntervenant } from "../../../intervention/model/intervention.types";

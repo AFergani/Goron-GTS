@@ -1,3 +1,12 @@
+/**
+ * Moteur client de génération des créneaux gardiennage à partir d’un snapshot de planification.
+ *
+ * Produit des slots datés/heure (y compris nocturnes et mode continu H24), découpés dans
+ * la fenêtre validFrom → validTo. S’appuie sur `gardiennagePlanningCalendar` pour les jours actifs.
+ *
+ * Utilisé par : `GardiennageEntryModal` (prévisualisation avant enregistrement).
+ */
+
 import type { GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
 import { isValidPlanningTime } from "./gardiennagePlanningForm";
 import {
@@ -7,6 +16,7 @@ import {
   shiftIsoDate
 } from "./gardiennagePlanningCalendar";
 
+/** Créneau généré pour affichage ou persistance backend */
 export type GardiennageGeneratedSlot = {
   lineId: string;
   lineLabel: string;
@@ -18,10 +28,6 @@ export type GardiennageGeneratedSlot = {
   endTime: string;
   crossesMidnight: boolean;
 };
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
 
 function toIsoDateTime(isoDate: string, hhmm: string): string {
   return `${isoDate}T${hhmm}:00`;
@@ -43,6 +49,7 @@ export type BuildGardiennageSlotsOptions = {
   holidayDateIsos?: string[];
 };
 
+/** Génère la liste des créneaux couverts par le snapshot (triés par début). */
 export function buildGardiennageSlotsFromSnapshot(
   snapshot: GardiennagePlanningSnapshotV1,
   options: BuildGardiennageSlotsOptions = {}

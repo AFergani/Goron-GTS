@@ -1,3 +1,7 @@
+/**
+ * Types UI Paramètres : onglets, formulaire utilisateur, état modale de confirmation.
+ */
+
 import type { AnomalyTypeRef, AuditLog, HolidayRef, IntervenantRef, ManagerProfile, Role, SiteRef, User } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "variables" | "database" | "audit";

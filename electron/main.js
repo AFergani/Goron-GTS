@@ -27,6 +27,21 @@ const { registerAuthIpcHandlers } = require("./main/ipcAuthHandlers");
 const { registerDomainIpcHandlers } = require("./main/ipcDomainHandlers");
 const { registerSystemIpcHandlers } = require("./main/ipcSystemHandlers");
 
+/**
+ * Point d'entrée du processus principal Electron (Goron-GTS).
+ *
+ * Rôle : orchestrer le cycle de vie de l'application, la base SQLite (`UserStore`),
+ * le runtime writer (Maître / Backup / client, HTTP ou file SMB), les planificateurs
+ * (archivage trimestriel, clôture auto gardiennage/rondes) et le pont IPC vers le renderer.
+ *
+ * La logique détaillée vit dans `electron/main/*` ; ce fichier compose les services,
+ * tient l'état mutable (`userStore`, `writerRuntime`, `archiveRuntime`) et enregistre
+ * les handlers IPC (`ipcAuthHandlers`, `ipcDomainHandlers`, `ipcSystemHandlers`).
+ * Exception : `mainCourante:create` reste ici (forward HTTP / queue SMB / écriture locale).
+ *
+ * @module electron/main
+ */
+
 const isDev = !app.isPackaged;
 const appConfigPath = path.join(app.getPath("userData"), "app-config.json");
 const fallbackWriterLogsDir = path.join(app.getPath("userData"), "logs");
@@ -147,9 +162,6 @@ function getWriterLogsService() {
 function getWriterLogContext() {
   return getWriterLogsService().getWriterLogContext();
 }
-function rotateWriterTransitLogsIfNeeded(logFile) {
-  return getWriterLogsService().rotateWriterTransitLogsIfNeeded(logFile);
-}
 function appendWriterTransitLog(entry) {
   return getWriterLogsService().appendWriterTransitLog(entry);
 }
@@ -176,9 +188,6 @@ function readJsonIfExists(filePath) {
 function resolveWriterConfigPath() {
   return writerContextService.resolveWriterConfigPath();
 }
-function isIpv4Family(addr) {
-  return writerContextService.isIpv4Family(addr);
-}
 function getLocalIPv4() {
   return writerContextService.getLocalIPv4();
 }
@@ -189,6 +198,12 @@ function getLocalNodeIdentity() {
   return writerContextService.getLocalNodeIdentity();
 }
 
+/**
+ * Construit le JSON `gts_writer-config.json` (profils prod/dev, secret HMAC, nœuds master/backup).
+ *
+ * @param {object} [payload]
+ * @returns {object}
+ */
 function buildWriterConfigPayload(payload = {}) {
   const cleanNode = (node, defaultPort) => ({
     hostname: String(node?.hostname || "").trim(),
@@ -243,6 +258,12 @@ function buildWriterConfigPayload(payload = {}) {
   };
 }
 
+/**
+ * Génère le fichier de configuration writer (dialogue ou chemin fourni) et rafraîchit le runtime.
+ *
+ * @param {object} [payload]
+ * @returns {Promise<{ success: boolean, canceled?: boolean, filePath: string|null }>}
+ */
 async function generateWriterConfigFile(payload = {}) {
   ensureStore();
   const appCfg = readAppConfig();
@@ -560,6 +581,11 @@ function omitSessionToken(payload) {
   return rest;
 }
 
+/**
+ * Instancie ou réinstancie `UserStore` ; invalide les sessions si le chemin DB change.
+ *
+ * @param {string} dbPath
+ */
 function setUserStoreByPath(dbPath) {
   const next = path.normalize(String(dbPath || ""));
   const prev = userStore?.dbPath ? path.normalize(userStore.dbPath) : null;
@@ -571,22 +597,6 @@ function setUserStoreByPath(dbPath) {
 
 function getQuarterKey(date = new Date()) {
   return dbPathUtils.getQuarterKey(date);
-}
-
-function normalizeRepeatedSegmentPath(inputPath, segmentName) {
-  return dbPathUtils.normalizeRepeatedSegmentPath(path, inputPath, segmentName);
-}
-
-function quarterKeyToArchiveLabel(quarterKey) {
-  return dbPathUtils.quarterKeyToArchiveLabel(quarterKey);
-}
-
-function formatDateForArchiveFile(date) {
-  return dbPathUtils.formatDateForArchiveFile(date);
-}
-
-function quarterKeyToDateRangeLabel(quarterKey) {
-  return dbPathUtils.quarterKeyToDateRangeLabel(quarterKey);
 }
 
 function canManageArchiveSession(requesterUsername) {
@@ -601,10 +611,6 @@ function getDbStorageLayoutFromPath(dbPath) {
   return dbPathUtils.getDbStorageLayoutFromPath(path, dbPath);
 }
 
-function getQuarterInfoFromDbPath(dbPath) {
-  return dbPathUtils.getQuarterInfoFromDbPath(path, dbPath);
-}
-
 function normalizeNestedQuarterDbPath(dbPath) {
   return dbPathUtils.normalizeNestedQuarterDbPath(path, fs, dbPath);
 }
@@ -617,6 +623,11 @@ function buildCanonicalActiveDbPath(currentDbPath) {
   return dbPathUtils.buildCanonicalActiveDbPath(path, currentDbPath);
 }
 
+/**
+ * Copie la base vers le trimestre courant si besoin (rotation fichier `.db` + audit).
+ *
+ * @param {string} [trigger]
+ */
 function ensureQuarterRotationIfNeeded(trigger = "scheduler") {
   const currentDbPath = resolveDbPath();
   if (!currentDbPath || !fs.existsSync(currentDbPath)) {
@@ -663,6 +674,9 @@ function ensureQuarterRotationIfNeeded(trigger = "scheduler") {
   return { rotated: true, quarterKey, beforeDbPath: currentDbPath, afterDbPath: canonicalActivePath, archiveDbPath: targetPath };
 }
 
+/**
+ * Archive logique des entrées main courante clôturées (délai `ARCHIVE_LOGICAL_DELAY_DAYS`).
+ */
 function runLogicalArchiveNow({ trigger = "scheduler", requesterUsername = "system:archive" } = {}) {
   ensureStore();
   const cfg = readAppConfig();
@@ -760,6 +774,11 @@ function canManageDatabase(requesterUsername) {
   return dbAccessControlService.canManageDatabase(requesterUsername);
 }
 
+/**
+ * Résout le chemin de la base active (`app-config` puis candidats portables / dev).
+ *
+ * @returns {string|null}
+ */
 function resolveDbPath() {
   const appCfg = readAppConfig();
   const explicitPath = appCfg.dbPath;
@@ -1030,10 +1049,11 @@ function startArchiveScheduler() {
 
 let gardiennageAutoCloseTimer = null;
 
-function runGardiennageAutoCloseTick() {
+function runBackgroundAutoCloseTick() {
   try {
     ensureStore();
     userStore.autoCloseExpiredGardiennages();
+    userStore.autoCloseExpiredExceptionalRondes();
   } catch {
     // Tick silencieux si la base n'est pas encore prête.
   }
@@ -1048,7 +1068,7 @@ function stopGardiennageAutoCloseScheduler() {
 
 function startGardiennageAutoCloseScheduler() {
   stopGardiennageAutoCloseScheduler();
-  const tick = () => runGardiennageAutoCloseTick();
+  const tick = () => runBackgroundAutoCloseTick();
   void tick();
   gardiennageAutoCloseTimer = setInterval(tick, GARDIENNAGE_AUTO_CLOSE_INTERVAL_MS);
 }
@@ -1092,9 +1112,7 @@ const writerRuntimeService = createWriterRuntimeService({
   app,
   portableExecutableDir: process.env.PORTABLE_EXECUTABLE_DIR || null
 });
-function resolveActiveWriterProfile(config) {
-  return writerRuntimeService.resolveActiveWriterProfile(config);
-}
+/** Relit la config writer, résout le rôle local et démarre/arrête HTTP, monitor, worker SMB, tray. */
 function refreshWriterRuntime() {
   return writerRuntimeService.refreshWriterRuntime();
 }
@@ -1150,6 +1168,12 @@ function mapTechnicalErrorToFrenchMessage(error) {
   return rawMessage;
 }
 
+/**
+ * Enregistre un handler IPC sans session (limite taille payload, messages FR, `AppError`).
+ *
+ * @param {string} channel
+ * @param {(payload: unknown) => Promise<unknown>} fn
+ */
 function handleIpc(channel, fn) {
   ipcMain.handle(channel, async (_, payload) => {
     try {
@@ -1164,6 +1188,11 @@ function handleIpc(channel, fn) {
   });
 }
 
+/**
+ * Valide `sessionToken` et enrichit le payload avec rôle / profil manager.
+ *
+ * @param {object} payload
+ */
 function attachAuthContext(payload) {
   const base = payload && typeof payload === "object" ? payload : {};
   const token = base.sessionToken;
@@ -1182,6 +1211,12 @@ function attachAuthContext(payload) {
   };
 }
 
+/**
+ * Handler IPC authentifié (`ensureStore` + `attachAuthContext`).
+ *
+ * @param {string} channel
+ * @param {(payload: object) => Promise<unknown>} fn
+ */
 function handleIpcAuth(channel, fn) {
   ipcMain.handle(channel, async (_, payload) => {
     try {
@@ -1275,6 +1310,9 @@ registerDomainIpcHandlers({
   enqueueInterventionActionAndWaitAck,
   getActiveUsernames: sessionMain.getActiveUsernames
 });
+/**
+ * Création main courante : écriture locale (master/backup), file SMB ou forward HTTP Maître puis Backup.
+ */
 handleIpcAuth("mainCourante:create", (payload) => {
   ensureStore();
   if (!writerRuntime.enabled || writerRuntime.role === "master" || writerRuntime.role === "backup") {
@@ -1332,6 +1370,7 @@ handleIpcAuth("mainCourante:create", (payload) => {
   });
 });
 
+/** Démarrage : sessions persistées, base, writer, planificateurs, fenêtre principale. */
 app.whenReady().then(() => {
   // Supprime la barre de menu globalement (toutes les fenêtres de l'application).
   Menu.setApplicationMenu(null);

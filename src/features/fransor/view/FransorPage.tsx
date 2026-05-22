@@ -1,9 +1,21 @@
+/**
+ * Page Fransor : suivi quotidien ouvertures/fermetures client, calendrier et récap mensuel.
+ *
+ * Règles d’affichage : jours ouvrés (hors week-end et fériés) sauf exception calendrier
+ * (mode OPEN force ouvert, CLOSED force fermé). Saisie par responsable, récap par mois,
+ * export texte / Word, gestion des périodes exceptionnelles.
+ *
+ * Montée depuis `AppShell` si la permission page `fransor` est active.
+ * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, CircleHelp, FileDown, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import type { Role } from "../../../types";
 import { exportFransorMonthlyRecapToWord } from "../export/fransorRecapWordExport";
 
+/** Jours ISO du mois `YYYY-MM` */
 function getDaysInMonth(month: string) {
   const [year, monthPart] = month.split("-").map((v) => Number(v));
   if (!year || !monthPart) return [];
@@ -65,13 +77,11 @@ function getLocalIsoDate(date = new Date()) {
 export function FransorPage({
   requesterRole,
   requesterUsername,
-  onToast,
-  refreshToken = 0
+  onToast
 }: {
   requesterRole: Role;
   requesterUsername: string;
   onToast?: (message: string) => void;
-  refreshToken?: number;
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [entryDate, setEntryDate] = useState(getLocalIsoDate);
@@ -92,6 +102,7 @@ export function FransorPage({
   const [dayViewMode, setDayViewMode] = useState<"missing" | "filled">("missing");
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
 
+  /* --- Dérivés calendrier : exceptions, fériés, jour courant, jours à compléter --- */
   const todayIso = getLocalIsoDate();
   const days = useMemo(() => getDaysInMonth(presenter.month), [presenter.month]);
   const exceptionByDate = useMemo(() => {
@@ -225,6 +236,7 @@ export function FransorPage({
     };
   }, [presenter.recap]);
 
+  /* --- Récap texte / export Word --- */
   const recapPlainText = useMemo(() => {
     const lines = [
       `Mois en cours : ${formatMonthFr(presenter.month)}`,
@@ -242,6 +254,7 @@ export function FransorPage({
     return true;
   }, [closureEndDate, closureLabel, closureStartDate]);
 
+  /* --- Échap : fermer modales ouverte (saisie, exceptions, aide, suppression) --- */
   useEffect(() => {
     const hasOpenModal = showAddModal || showClosureModal || showHelpModal || Boolean(deleteClosureId);
     if (!hasOpenModal) return;
@@ -268,6 +281,7 @@ export function FransorPage({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deleteClosureId, showAddModal, showClosureModal, showHelpModal]);
 
+  /** Ouvre la modale de saisie (jour courant ou date calendrier, états préremplis) */
   const openEntryModal = (
     prefilledDate?: string,
     defaultOuverture = false,

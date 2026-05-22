@@ -1,3 +1,10 @@
+/**
+ * Modale de première connexion : définition du mot de passe personnel obligatoire.
+ *
+ * Affichée par `AppShell` lorsque `mustChangePassword` est vrai après login.
+ * Logique métier et validation dans `useAuthPresenter` (vue contrôlée).
+ */
+
 import type { FormEvent } from "react";
 import type { PasswordUpdateFormState } from "../model/auth.types";
 import logoGts from "../../../assets/logo-gts.png";
@@ -12,6 +19,7 @@ type FirstLoginModalProps = {
   onSubmit: (e: FormEvent) => void;
 };
 
+/** Formulaire nouveau mot de passe + indicateurs de validation (6 caractères, confirmation). */
 export function FirstLoginModal({
   isOpen,
   form,

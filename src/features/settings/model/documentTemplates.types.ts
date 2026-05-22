@@ -1,3 +1,7 @@
+/**
+ * Types modèles Word (builtin/custom, champs intervention, chemins d’installation).
+ */
+
 import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
 
 export type DocumentTemplateListItem = {

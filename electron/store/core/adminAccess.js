@@ -1,17 +1,32 @@
+/**
+ * Accès administrateur local (profil DEV) : lecture du code maître depuis un fichier chiffré
+ * ou, en repli, depuis `data/acces_admin.env`.
+ *
+ * Consommé par `bootstrap.js` (`resolveAdminAccess` au démarrage du `UserStore`) et par
+ * `ipcAuthHandlers` (`auth:setAdminCode` → `writeEncryptedAdminCode`).
+ */
+
 const fs = require("fs");
 const path = require("path");
 
+/** Nom du fichier .env legacy sous `data/` (déploiement non packagé ou rétrocompat). */
 const ADMIN_ENV_FILE_NAME = "acces_admin.env";
-const ADMIN_MASTER_CODE_KEY = "GTS_ADMIN_MASTER_CODE";
+/** Clés acceptées dans le fichier .env pour le code maître (première valeur non vide gagne). */
 const ADMIN_MASTER_CODE_KEYS = [
   "GTS_ADMIN_MASTER_CODE",
   "ADMIN_MASTER_CODE",
   "GTS_ADMIN_CODE",
   "GORON_GTS_ADMIN_MASTER_CODE"
 ];
-/** Nom du fichier chiffré via safeStorage (DPAPI sous Windows). */
+/** Nom du fichier chiffré via safeStorage (DPAPI sous Windows), stocké dans `userData`. */
 const ADMIN_ENC_FILE_NAME = "gts-admin.enc";
 
+/**
+ * Parse un contenu type fichier `.env` (lignes `CLE=valeur`, commentaires `#`).
+ *
+ * @param {string} content - Contenu brut du fichier.
+ * @returns {Record<string, string>} Paires clé/valeur ; BOM UTF-8 en tête de fichier toléré.
+ */
 function parseDotEnvFile(content) {
   const entries = {};
   const lines = String(content || "")
@@ -40,6 +55,13 @@ function parseDotEnvFile(content) {
   return entries;
 }
 
+/**
+ * Liste les chemins candidats de `acces_admin.env` selon le mode d'exécution (dev, portable, installé).
+ *
+ * @param {object} options
+ * @param {boolean} options.isPackaged - `true` si application Electron packagée.
+ * @returns {string[]} Chemins absolus à tester dans l'ordre.
+ */
 function resolveAdminEnvCandidates({ isPackaged }) {
   if (!isPackaged) {
     return [path.join(process.cwd(), "data", ADMIN_ENV_FILE_NAME)];
@@ -79,6 +101,14 @@ function resolveAdminEnvCandidates({ isPackaged }) {
   return [...candidates];
 }
 
+/**
+ * Lit le code administrateur depuis le premier `acces_admin.env` trouvé (mode legacy).
+ *
+ * @param {object} [options]
+ * @param {boolean} [options.isPackaged=false] - Élargit les chemins de recherche si packagé.
+ * @returns {{ code: string|null, sourcePath: string|null, exists: boolean }}
+ *   `exists: true` si un fichier a été trouvé même sans clé reconnue.
+ */
 function readAdminMasterCode({ isPackaged = false } = {}) {
   const candidates = resolveAdminEnvCandidates({ isPackaged });
   for (const candidate of candidates) {
@@ -87,23 +117,25 @@ function readAdminMasterCode({ isPackaged = false } = {}) {
       if (!fs.existsSync(resolvedPath)) continue;
       const rawContent = fs.readFileSync(resolvedPath, "utf-8");
       const parsed = parseDotEnvFile(rawContent);
-      const code = ADMIN_MASTER_CODE_KEYS
-        .map((key) => String(parsed[key] || "").trim())
-        .find((value) => Boolean(value));
+      const code = ADMIN_MASTER_CODE_KEYS.map((key) => String(parsed[key] || "").trim()).find((value) =>
+        Boolean(value)
+      );
       if (!code) {
         return { code: null, sourcePath: resolvedPath, exists: true };
       }
       return { code, sourcePath: resolvedPath, exists: true };
     } catch {
-      // Ignore invalid/unreadable files and continue with next candidate.
+      // Fichier invalide : essayer le candidat suivant.
     }
   }
   return { code: null, sourcePath: null, exists: false };
 }
 
 /**
- * Lit le code admin depuis le fichier chiffré (DPAPI/safeStorage).
- * Retourne null si le fichier est absent, invalide ou si safeStorage n'est pas disponible.
+ * Lit le code admin depuis le fichier chiffré (DPAPI / `safeStorage` Electron).
+ *
+ * @param {string} encFilePath - Chemin absolu, typiquement `{userData}/gts-admin.enc`.
+ * @returns {string|null} Code en clair ou `null` si absent, illisible ou chiffrement indisponible.
  */
 function readEncryptedAdminCode(encFilePath) {
   try {
@@ -121,8 +153,12 @@ function readEncryptedAdminCode(encFilePath) {
 }
 
 /**
- * Chiffre et enregistre le code admin dans le fichier DPAPI.
- * Lève une erreur si safeStorage n'est pas disponible.
+ * Chiffre et enregistre le code admin (base64 sur disque, déchiffrable uniquement sur le poste).
+ *
+ * @param {string} encFilePath - Fichier cible (`gts-admin.enc`).
+ * @param {string} code - Nouveau code maître (validation longueur côté IPC).
+ * @returns {void}
+ * @throws {Error} Si `safeStorage` n'est pas disponible sur le poste.
  */
 function writeEncryptedAdminCode(encFilePath, code) {
   const { safeStorage } = require("electron");
@@ -135,8 +171,6 @@ function writeEncryptedAdminCode(encFilePath, code) {
 }
 
 module.exports = {
-  ADMIN_ENV_FILE_NAME,
-  ADMIN_MASTER_CODE_KEY,
   ADMIN_ENC_FILE_NAME,
   readAdminMasterCode,
   readEncryptedAdminCode,

@@ -1,3 +1,10 @@
+/**
+ * Presenter Interventions : liste, statistiques, CRUD, statuts et facturation.
+ *
+ * Polling ~20 s, gestion `PENDING_QUEUE`, compteurs pour le bandeau de la page.
+ * Utilisé par : `InterventionPage`.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";

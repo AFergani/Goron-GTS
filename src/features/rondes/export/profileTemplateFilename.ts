@@ -1,4 +1,6 @@
 /**
+ * Nom de fichier modèle Word par libellé de profil planifié.
+ *
  * Doit rester aligné avec `sanitizeProfileLabelForWordTemplateFilename` dans `electron/main.js`
  * (copie du fichier vers data/templates).
  */

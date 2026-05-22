@@ -1,3 +1,10 @@
+/**
+ * Client TypeScript des appels `window.gtsApi` (preload Electron).
+ *
+ * Ajoute le jeton de session, typage des payloads/réponses et déconnexion automatique
+ * sur erreurs `SESSION_EXPIRED` / `SESSION_INVALID`. Point d'entrée unique des features vers le backend.
+ */
+
 import type {
   AnomalyTypeRef,
   AuditLog,
@@ -95,6 +102,7 @@ export type DatabaseItem = {
 let gtsSessionToken: string | null = null;
 let onSessionExpiredCallback: (() => void) | null = null;
 
+/** Met à jour le jeton injecté dans chaque appel authentifié (`SessionProvider`). */
 export function setGtsApiSessionToken(token: string | null) {
   gtsSessionToken = token;
 }
@@ -135,12 +143,13 @@ function withSessionOnly(): { sessionToken: string } {
   return { sessionToken: gtsSessionToken };
 }
 
-/** Wraps an authenticated IPC call: auto-clears the session on SESSION_EXPIRED / SESSION_INVALID. */
+/** Enveloppe un appel IPC authentifié ; déclenche la déconnexion si la session est invalide ou expirée. */
 function auth<T>(fn: () => Promise<T>): Promise<T> {
   return guardSession(fn);
 }
 
 
+/** Façade métier : une méthode par canal `gtsApi` / IPC. */
 export const gtsApiClient = {
   getDbConfig(): Promise<DbConfig> {
     return window.gtsApi.getDbConfig(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);

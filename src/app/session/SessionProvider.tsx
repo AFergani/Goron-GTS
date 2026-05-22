@@ -1,7 +1,16 @@
+/**
+ * Contexte React de session utilisateur (connexion, jeton IPC, persistance dev).
+ *
+ * Enveloppe l'application dans `App.tsx`. Synchronise `gtsApiClient` avec le jeton
+ * serveur, restaure la session depuis `localStorage` uniquement en mode développement,
+ * et déclenche la déconnexion si le backend signale une session expirée ou invalide.
+ */
+
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "../../types";
 import { gtsApiClient, setGtsApiSessionToken, setOnSessionExpired } from "../../infrastructure/api/gtsApiClient";
 
+/** Utilisateur connecté + jeton de session Electron, ou absence de session. */
 export type Session = { user: User; sessionToken: string } | null;
 
 type SessionContextValue = {
@@ -13,9 +22,12 @@ type SessionContextValue = {
 const SESSION_STORAGE_KEY = "gts.session";
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
+/**
+ * Fournit la session à toute l'arborescence React et pilote le jeton IPC / DevTools DEV.
+ */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSessionState] = useState<Session>(null);
-  // En production, isDevMode est false : aucune persistance localStorage.
+  /** `null` tant que `getDbConfig` n'a pas répondu ; évite une restauration localStorage avant le mode connu. */
   const [isDevMode, setIsDevMode] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -32,8 +44,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Restauration de la session persistée (dev uniquement).
   useEffect(() => {
-    if (isDevMode === null) return; // Attendre la réponse isDev.
-    if (!isDevMode) return;        // Production : reconnexion obligatoire.
+    if (isDevMode === null) return;
+    if (!isDevMode) return;
     let isCancelled = false;
     void (async () => {
       try {
@@ -51,7 +63,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
       }
     })();
-    return () => { isCancelled = true; };
+    return () => {
+      isCancelled = true;
+    };
   }, [isDevMode]);
 
   // Persistance de la session (dev uniquement).
@@ -67,6 +81,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   }, [session, isDevMode]);
 
+  /** Déconnexion IPC, purge du jeton et du stockage local, puis état React à null. */
   const clearSession = useCallback(() => {
     void (async () => {
       try {
@@ -80,7 +95,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // Déconnexion automatique sur session expirée détectée côté IPC.
   const clearSessionRef = useRef(clearSession);
   clearSessionRef.current = clearSession;
   useEffect(() => {
@@ -88,7 +102,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Durcissement production : DevTools activables uniquement pour le profil DEV connecté.
     const enabled = Boolean(session && session.user.role === "DEV");
     void gtsApiClient.setDevToolsEnabled(enabled).catch(() => {
       // On conserve le comportement applicatif si l'appel système échoue ponctuellement.
@@ -103,6 +116,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
+/**
+ * Accès à la session courante ; lève une erreur si le composant n'est pas sous `SessionProvider`.
+ */
 export function useSession() {
   const value = useContext(SessionContext);
   if (!value) {

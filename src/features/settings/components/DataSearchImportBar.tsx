@@ -1,3 +1,7 @@
+/**
+ * Barre recherche + import Excel + reset filtres (onglets données).
+ */
+
 import { RotateCcw } from "lucide-react";
 import type { DataTab } from "../model/settings.types";
 

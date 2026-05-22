@@ -1,3 +1,9 @@
+/**
+ * Téléchargement navigateur d’un Blob (export Word, Excel, etc.).
+ *
+ * Utilitaire partagé par main courante, interventions, rondes, gardiennage, Fransor.
+ */
+
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

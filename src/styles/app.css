@@ -1,3 +1,15 @@
+/**
+ * Styles applicatifs Goron-GTS (importés par AppShell).
+ *
+ * Layout shell (sidebar, contenu), auth, modales, tables métier (main courante,
+ * intervention, rondes, gardiennage, Fransor, paramètres), badges et media queries.
+ * S'appuie sur les variables CSS de global.css (--bg, --accent, --gts-control-*).
+ *
+ * Fichier volumineux : préférer des blocs commentés par feature lors d'ajouts ;
+ * un découpage par page (ex. main-courante.css) est recommandé avant grosses évolutions.
+ */
+
+/* --- Layout shell et authentification --- */
 .page,
 .auth-page {
   min-height: 100vh;

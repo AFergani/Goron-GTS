@@ -1,24 +1,32 @@
+/**
+ * Presenter authentification : connexion, première définition de mot de passe, compte verrouillé.
+ *
+ * Appelé depuis `AppShell` lorsque aucune session n'est active. Délègue à `gtsApiClient`
+ * et remonte la session créée via `onSessionCreated`.
+ */
+
 import { FormEvent, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Session } from "../../../app/session/SessionProvider";
 import type { LoginFormState, PasswordUpdateFormState } from "../model/auth.types";
 
+/** Normalise les messages d'erreur IPC (retrait du bruit technique et des codes [AUTH_*]). */
 function getErrorMessage(err: unknown, fallback: string) {
   if (!(err instanceof Error)) return fallback;
   const raw = err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim();
-  // Supprimer les tags techniques internes des messages métier.
   return raw.replace(/^\[[A-Z_]+\]\s*/, "") || fallback;
 }
 
-export function useAuthPresenter({
-  onSessionCreated,
-  onError,
-  onToast
-}: {
+type UseAuthPresenterOptions = {
   onSessionCreated: (session: Session) => void;
   onError: (message: string) => void;
   onToast: (message: string) => void;
-}) {
+};
+
+/**
+ * État et handlers pour `LoginView` et `FirstLoginModal`.
+ */
+export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuthPresenterOptions) {
   const [showPasswordUpdateModal, setShowPasswordUpdateModal] = useState(false);
   const [showLockedDialog, setShowLockedDialog] = useState(false);
   const [pendingFirstLogin, setPendingFirstLogin] = useState<{ displayName: string; temporaryPassword: string } | null>(null);

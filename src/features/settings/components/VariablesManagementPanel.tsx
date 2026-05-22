@@ -1,3 +1,7 @@
+/**
+ * Panneau variables de formulaire (affectations site/famille/profil, types de champs).
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { Role, SiteRef } from "../../../types";

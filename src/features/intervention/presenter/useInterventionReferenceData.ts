@@ -1,13 +1,20 @@
+/**
+ * Référentiels page Interventions : sites, prestataires, création pending.
+ *
+ * Les listes « en attente » sont gérées dans Paramètres ; ici seuls sites/intervenants
+ * validés + callbacks `createPending*` pour les modales de saisie.
+ *
+ * Utilisé par : `InterventionPage`, `InterventionEntryModal` (via la page).
+ * `IntervenantSearchInput` réutilisé aussi par rondes et gardiennage.
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
-import type { PendingInterventionIntervenant, PendingInterventionSite } from "../model/intervention.types";
 
 export function useInterventionReferenceData(requesterRole: Role, requesterUsername: string, onToast?: (message: string) => void) {
   const [sites, setSites] = useState<SiteRef[]>([]);
   const [intervenants, setIntervenants] = useState<IntervenantRef[]>([]);
-  const [pendingSites, setPendingSites] = useState<PendingInterventionSite[]>([]);
-  const [pendingIntervenants, setPendingIntervenants] = useState<PendingInterventionIntervenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -15,16 +22,12 @@ export function useInterventionReferenceData(requesterRole: Role, requesterUsern
     setLoading(true);
     setError("");
     try {
-      const [siteRows, intervenantRows, pendingRows, pendingIntervenantRows] = await Promise.all([
+      const [siteRows, intervenantRows] = await Promise.all([
         gtsApiClient.listSites({ requesterRole }),
-        gtsApiClient.listIntervenants({ requesterRole }),
-        gtsApiClient.listPendingInterventionSites({ requesterRole }),
-        gtsApiClient.listPendingInterventionIntervenants({ requesterRole })
+        gtsApiClient.listIntervenants({ requesterRole })
       ]);
       setSites(siteRows);
       setIntervenants(intervenantRows);
-      setPendingSites(pendingRows);
-      setPendingIntervenants(pendingIntervenantRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible de charger les référentiels intervention.");
     } finally {
@@ -80,8 +83,6 @@ export function useInterventionReferenceData(requesterRole: Role, requesterUsern
   return {
     sites,
     intervenants,
-    pendingSites,
-    pendingIntervenants,
     loading,
     error,
     reload: load,

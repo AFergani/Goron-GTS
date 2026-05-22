@@ -1,3 +1,7 @@
+/**
+ * Export Excel des listes ronde contractuelle ou exceptionnelle.
+ */
+
 import * as XLSX from "xlsx";
 import type { RondeEntry } from "../model/ronde.types";
 import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";

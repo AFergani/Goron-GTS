@@ -1,3 +1,9 @@
+/**
+ * Formatage dates/statuts et noms de fichiers export main courante.
+ *
+ * `safeExportFilenamePart` réutilisé par d’autres modules (intervention, gardiennage, Fransor).
+ */
+
 import type { MainCouranteStatus } from "../model/mainCourante.types";
 
 export function formatMainCouranteDate(iso: string | undefined): string {
@@ -17,6 +23,7 @@ export function statusLabelFr(status: MainCouranteStatus): string {
   return "Clôturé";
 }
 
+/** Segment de nom de fichier sans caractères interdits Windows. */
 export function safeExportFilenamePart(s: string): string {
   const t = s.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").trim();
   return t.slice(0, 48) || "entree";

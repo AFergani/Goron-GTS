@@ -1,3 +1,11 @@
+/**
+ * Domaine interventions : fiches `intervention_entries`, statuts, facturation, archivage logique.
+ *
+ * Inclut les référentiels « en attente » (sites / intervenants saisis à la volée avant rattachement
+ * au catalogue `data_sites` / `data_intervenants`). Champs export Word filtrés via
+ * `data_intervention_word_extra_fields`. Liens vérifiés avant suppression d'un pending (ronde, gardiennage).
+ */
+
 const { generateEntityId } = require("../core/ids");
 
 function toIsoDate(value) {
@@ -122,6 +130,7 @@ function normalizeExportExtraJson(store, payload) {
   return JSON.stringify(out);
 }
 
+/** Mappe une ligne SQL vers l'objet API intervention (usage interne). */
 function mapInterventionRow(row) {
   return {
     id: row.id,
@@ -246,6 +255,7 @@ function ensureInterventionPayload(store, payload, { requireArrival = false, req
   };
 }
 
+/** Liste les interventions (hors archivées sauf `includeArchived`). */
 function listInterventions(store, { requesterRole, includeArchived = false }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = includeArchived
@@ -258,6 +268,7 @@ function listInterventions(store, { requesterRole, includeArchived = false }) {
   return rows.map((row) => mapInterventionRow(row));
 }
 
+/** Compte les interventions `EN_COURS` non archivées (badge sidebar). */
 function getInterventionOpenCount(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const row = store.db
@@ -266,6 +277,7 @@ function getInterventionOpenCount(store, { requesterRole }) {
   return { count: Number(row?.count || 0) };
 }
 
+/** Crée une fiche (idempotent si `id` existe déjà). Audit `INTERVENTION_CREATE`. */
 function createInterventionEntry(store, payload) {
   const {
     requesterRole,
@@ -356,6 +368,10 @@ function createInterventionEntry(store, payload) {
   return mapInterventionRow(row);
 }
 
+/**
+ * Met à jour une fiche (contrôle optimiste `expectedUpdatedAt`, champs clôture si statut clôturé).
+ * Refuse modification si `archived_at` renseigné.
+ */
 function updateInterventionEntry(store, payload) {
   const {
     requesterRole,
@@ -472,6 +488,7 @@ function updateInterventionEntry(store, payload) {
   return mapInterventionRow(store.db.prepare("SELECT * FROM intervention_entries WHERE id = ?").get(id));
 }
 
+/** Passe le statut (`EN_COURS`, `CLOTURE`, `ANNULE`) avec règles de clôture et motif si annulation. */
 function setInterventionStatus(store, { requesterRole, requesterUsername, id, expectedUpdatedAt, status, cancellationReason }) {
   store.ensureDataReaderRole(requesterRole);
   const row = store.db.prepare("SELECT * FROM intervention_entries WHERE id = ?").get(id);
@@ -530,6 +547,7 @@ function setInterventionStatus(store, { requesterRole, requesterUsername, id, ex
   return mapInterventionRow(store.db.prepare("SELECT * FROM intervention_entries WHERE id = ?").get(id));
 }
 
+/** Facturable / non facturable — réservé RESPONSABLE et DEV ; justification si non facturable. */
 function setInterventionBillingStatus(store, { requesterRole, requesterUsername, id, expectedUpdatedAt, billingStatus, reason, role }) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("intervention:billing", "Accès refusé : action réservée aux responsables.", "AUTH_FORBIDDEN");
@@ -565,6 +583,7 @@ function setInterventionBillingStatus(store, { requesterRole, requesterUsername,
   return mapInterventionRow(store.db.prepare("SELECT * FROM intervention_entries WHERE id = ?").get(id));
 }
 
+/** Sites saisis en attente de validation (table `intervention_site_pending`). */
 function listPendingInterventionSites(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = store.db
@@ -579,6 +598,7 @@ function listPendingInterventionSites(store, { requesterRole }) {
   }));
 }
 
+/** Enregistre un site provisoire à la saisie (sans doublon code catalogue / pending). */
 function createPendingInterventionSite(store, { requesterRole, requesterUsername, code, name }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanCode = String(code || "").trim();
@@ -618,6 +638,7 @@ function createPendingInterventionSite(store, { requesterRole, requesterUsername
   return { success: true, alreadyExists: false };
 }
 
+/** Intervenants saisis en attente (`intervention_intervenant_pending`). */
 function listPendingInterventionIntervenants(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = store.db
@@ -631,6 +652,7 @@ function listPendingInterventionIntervenants(store, { requesterRole }) {
   }));
 }
 
+/** Enregistre un intervenant provisoire (sans doublon nom catalogue / pending). */
 function createPendingInterventionIntervenant(store, { requesterRole, requesterUsername, name }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanName = String(name || "").trim();
@@ -667,6 +689,7 @@ function createPendingInterventionIntervenant(store, { requesterRole, requesterU
   return { success: true, alreadyExists: false };
 }
 
+/** Rattache un site en attente au référentiel `data_sites` (création ou mise à jour). */
 function resolvePendingInterventionSite(store, { requesterRole, requesterUsername, pendingId, parc, famille }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db.prepare("SELECT * FROM intervention_site_pending WHERE id = ?").get(String(pendingId || "").trim());
@@ -714,6 +737,7 @@ function resolvePendingInterventionSite(store, { requesterRole, requesterUsernam
   return { success: true, siteId, alreadyExists: false };
 }
 
+/** Rattache un intervenant en attente au référentiel `data_intervenants`. */
 function resolvePendingInterventionIntervenant(store, { requesterRole, requesterUsername, pendingId, name }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db
@@ -765,6 +789,7 @@ function resolvePendingInterventionIntervenant(store, { requesterRole, requester
   return { success: true, intervenantId, alreadyExists: false };
 }
 
+/** Supprime un site en attente si non référencé par une entrée métier (motif obligatoire). */
 function deletePendingInterventionSite(store, { requesterRole, requesterUsername, pendingId, reason }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db.prepare("SELECT * FROM intervention_site_pending WHERE id = ?").get(String(pendingId || "").trim());
@@ -836,6 +861,7 @@ function deletePendingInterventionSite(store, { requesterRole, requesterUsername
   return { success: true };
 }
 
+/** Supprime un intervenant en attente si non lié (intervention, ronde, gardiennage). */
 function deletePendingInterventionIntervenant(store, { requesterRole, requesterUsername, pendingId, reason }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db
@@ -911,7 +937,6 @@ function deletePendingInterventionIntervenant(store, { requesterRole, requesterU
 }
 
 module.exports = {
-  mapInterventionRow,
   listInterventions,
   getInterventionOpenCount,
   createInterventionEntry,

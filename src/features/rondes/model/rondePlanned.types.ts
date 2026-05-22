@@ -1,3 +1,7 @@
+/**
+ * Profils de ronde planifiée (contractuel) : lignes, récurrences, champs de clôture, payloads API.
+ */
+
 /** Ligne de profil : aléatoire unique avec période jour/nuit (masque). Les créneaux émis restent RANDOM_DAY / RANDOM_NIGHT. */
 export type RondePlannedProfileStoredRoundKind = "OPENING" | "CLOSING" | "ACCOMPAGNEMENT" | "RANDOM";
 

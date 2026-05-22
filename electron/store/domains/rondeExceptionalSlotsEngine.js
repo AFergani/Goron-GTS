@@ -1,6 +1,10 @@
 /**
- * Dérive les passages (date + heure demandée) d'une demande exceptionnelle depuis
- * un RondePlanningSnapshotV1 — alignement avec la générateur frontend (modale RondeRequestModal).
+ * Moteur de génération des passages pour rondes exceptionnelles (snapshot planification v1).
+ *
+ * Produit la liste des créneaux date+heure attendus depuis `RondePlanningSnapshotV1` (lignes,
+ * intervalles, aléatoires jour/nuit, fériés). Utilisé par `ronde.js` pour resynchroniser un lot
+ * (`buildDesiredExceptionalSlotList`, multiset add/consume, clés `horaires_demande_obs`).
+ * Logique alignée avec le générateur frontend (modale demande ronde).
  */
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -286,7 +290,13 @@ function extractSlotKeyFromRondeObservation(requestDateIso, obs) {
   return exceptionalPlanningSlotKey(requestDateIso, "");
 }
 
-/** @param snapshot {object} RondePlanningSnapshotV1 parsé — @param holidayDateIsoSet Set<string> */
+/**
+ * Calcule tous les passages attendus sur la plage de validité du snapshot.
+ *
+ * @param {object|null} snapshot - `version: 1`, validFrom/To, lignes (types ronde planifiée).
+ * @param {Set<string>} holidayDateIsoSet - Dates `data_holidays`.
+ * @returns {Array<{ requestDate: string, requestedTime: string }>}
+ */
 function buildDesiredExceptionalSlotList(snapshot, holidayDateIsoSet) {
   if (!snapshot || snapshot.version !== 1) return [];
   const rangeEndIso = snapshot.validTo && String(snapshot.validTo).trim() ? String(snapshot.validTo).trim() : String(snapshot.validFrom || "").trim();
@@ -420,6 +430,13 @@ function buildDesiredExceptionalSlotList(snapshot, holidayDateIsoSet) {
   return items;
 }
 
+/**
+ * Décrémente le compteur d'une clé passage (resync lot vs fiches existantes).
+ *
+ * @param {Map<string, number>} mapObj
+ * @param {string} slotKeyStr - Format `date|heure` via `exceptionalPlanningSlotKey`.
+ * @returns {boolean} `true` si la clé existait avec compteur > 0.
+ */
 function multisetConsumeOne(mapObj, slotKeyStr) {
   const c = mapObj.get(slotKeyStr) || 0;
   if (c <= 0) return false;
@@ -427,6 +444,13 @@ function multisetConsumeOne(mapObj, slotKeyStr) {
   return true;
 }
 
+/**
+ * Ajoute les passages désirés au multiset (clé canonique date|heure).
+ *
+ * @param {Map<string, number>} mapObj
+ * @param {Array<{ requestDate: string, requestedTime: string }>} slotList
+ * @returns {void}
+ */
 function multisetAddMany(mapObj, slotList) {
   for (const s of slotList) {
     const k = exceptionalPlanningSlotKey(s.requestDate, s.requestedTime);
@@ -436,7 +460,6 @@ function multisetAddMany(mapObj, slotList) {
 
 module.exports = {
   buildDesiredExceptionalSlotList,
-  exceptionalPlanningSlotKey,
   extractSlotKeyFromRondeObservation,
   multisetAddMany,
   multisetConsumeOne

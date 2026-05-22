@@ -1,11 +1,23 @@
+/**
+ * Interrupteur booléen réutilisable (bouton `role="switch"`, pas de checkbox brute).
+ *
+ * Conforme aux règles projet : `aria-checked`, `aria-label`, `title`, focus clavier
+ * via le bouton natif. Variantes : libellé à gauche (`labelFirst`), curseur seul
+ * (`labelHidden` avec libellé conservé pour l’accessibilité).
+ *
+ * Utilisé pour permissions utilisateur, filtres de pages (rondes, gardiennage),
+ * options de modales (intervention, ronde, gardiennage) et panneau variables.
+ */
+
 type ToggleSwitchProps = {
   checked: boolean;
   onChange: (next: boolean) => void;
+  /** Libellé visible (ou source aria/title si `labelHidden`) */
   label: string;
   disabled?: boolean;
   /** Libellé à gauche, curseur à droite (flex space-between) */
   labelFirst?: boolean;
-  /** Masque le libellé visuel (curseur seul) ; `label` reste utilisé pour aria-label / title */
+  /** Masque le libellé visuel ; `label` reste utilisé pour aria-label / title */
   labelHidden?: boolean;
   /** Infobulle native au survol (sinon le libellé court) */
   tooltip?: string;

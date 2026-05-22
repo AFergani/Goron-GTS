@@ -1,3 +1,9 @@
+/**
+ * Page Paramètres : onglets opérateurs, données, modèles, variables, BDD, journal d’actions.
+ *
+ * Filtres audit paginés, droits station (directeur / superviseur). Pas d’affichage d’identifiants techniques en liste.
+ */
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { CircleHelp, Download, FolderOpen, RotateCcw } from "lucide-react";

@@ -1,6 +1,23 @@
-const crypto = require("crypto");
+/**
+ * Module Fransor : accompagnements quotidiens, responsables et exceptions de fermeture.
+ *
+ * Trois référentiels :
+ * - `fransor_responsables` — personnes référencées (CRUD Paramètres, soft delete).
+ * - `fransor_closures` — périodes / libellés OPEN ou CLOSED (exceptions calendrier).
+ * - `fransor_accompagnements` — coches ouverture / fermeture par date et responsable.
+ *
+ * Les listes mensuelles utilisent le mois `AAAA-MM`. Audit et `entityHistory` sur responsables et closures.
+ * Saisie des accompagnements : rôle data reader ; référentiels : reader / manager / delete selon l'action.
+ */
+
 const { generateEntityId } = require("../core/ids");
 
+/**
+ * Convertit un mois `AAAA-MM` en borne `[from, to)` pour requêtes SQL (`date >= from AND date < to`).
+ *
+ * @param {string} month
+ * @returns {{ from: string, to: string }|null}
+ */
 function parseMonthRange(month) {
   const clean = String(month || "").trim();
   if (!/^\d{4}-\d{2}$/.test(clean)) return null;
@@ -11,6 +28,10 @@ function parseMonthRange(month) {
   return { from, to };
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ */
 function listFransorResponsables(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   return store.db
@@ -29,6 +50,10 @@ function listFransorResponsables(store, { requesterRole }) {
     }));
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function createFransorResponsable(store, { requesterRole, requesterUsername, name }) {
   store.ensureDataManagerRole(requesterRole);
   const cleanName = String(name || "").trim();
@@ -58,6 +83,10 @@ function createFransorResponsable(store, { requesterRole, requesterUsername, nam
   return { success: true };
 }
 
+/**
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function updateFransorResponsable(store, { requesterRole, requesterUsername, id, name }) {
   store.ensureDataManagerRole(requesterRole);
   const cleanName = String(name || "").trim();
@@ -90,6 +119,12 @@ function updateFransorResponsable(store, { requesterRole, requesterUsername, id,
   return { success: true };
 }
 
+/**
+ * Désactivation logique (`is_active = 0`) avec motif obligatoire.
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deleteFransorResponsable(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const cleanReason = String(reason || "").trim();
@@ -109,6 +144,12 @@ function deleteFransorResponsable(store, { requesterRole, requesterUsername, id,
   return { success: true };
 }
 
+/**
+ * Exceptions dont la période chevauche le mois demandé.
+ *
+ * @param {import('../userStore')} store
+ * @param {{ requesterRole: string, month: string }} payload
+ */
 function listFransorClosures(store, { requesterRole, month }) {
   store.ensureDataReaderRole(requesterRole);
   const range = parseMonthRange(month);
@@ -134,6 +175,13 @@ function listFransorClosures(store, { requesterRole, month }) {
     }));
 }
 
+/**
+ * Crée ou met à jour une exception (par `id`, ou par triplet période + libellé existant).
+ *
+ * @param {import('../userStore')} store
+ * @param {object} payload - `mode` : `OPEN` | `CLOSED` (défaut `CLOSED`).
+ * @returns {{ success: true }}
+ */
 function upsertFransorClosure(store, { id, requesterRole, requesterUsername, startDate, endDate, label, mode = "CLOSED" }) {
   store.ensureDataManagerRole(requesterRole);
   const cleanId = String(id || "").trim();
@@ -263,6 +311,12 @@ function upsertFransorClosure(store, { id, requesterRole, requesterUsername, sta
   return { success: true };
 }
 
+/**
+ * Suppression physique de l'exception (motif obligatoire, audit `FRANSOR_CLOSURE_DELETE`).
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function deleteFransorClosure(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const cleanReason = String(reason || "").trim();
@@ -288,6 +342,11 @@ function deleteFransorClosure(store, { requesterRole, requesterUsername, id, rea
   return { success: true };
 }
 
+/**
+ * Accompagnements du mois (une ligne par date + responsable).
+ *
+ * @param {import('../userStore')} store
+ */
 function listFransorEntriesByMonth(store, { requesterRole, month }) {
   store.ensureDataReaderRole(requesterRole);
   const range = parseMonthRange(month);
@@ -315,6 +374,12 @@ function listFransorEntriesByMonth(store, { requesterRole, month }) {
     }));
 }
 
+/**
+ * Crée ou met à jour les coches ouverture / fermeture pour une date et un responsable.
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
 function upsertFransorEntry(store, { requesterRole, requesterUsername, date, responsableId, ouvertureDone, fermetureDone }) {
   store.ensureDataReaderRole(requesterRole);
   const cleanDate = String(date || "").trim();
@@ -382,6 +447,11 @@ function upsertFransorEntry(store, { requesterRole, requesterUsername, date, res
   return { success: true };
 }
 
+/**
+ * Récapitulatif mensuel par responsable (totaux ouvertures / fermetures, export Word).
+ *
+ * @param {import('../userStore')} store
+ */
 function listFransorMonthlyRecap(store, { requesterRole, month }) {
   store.ensureDataReaderRole(requesterRole);
   const range = parseMonthRange(month);

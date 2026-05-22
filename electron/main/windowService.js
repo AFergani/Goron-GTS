@@ -1,3 +1,28 @@
+/**
+ * Création et comportement de la fenêtre principale Electron (géométrie persistée, CSP prod, DevTools, tray).
+ * Gère le chargement Vite en dev ou `dist/index.html` en production, le menu contextuel et la fermeture
+ * (croix → événement renderer `app:requestExitChoice` sauf quit explicite).
+ *
+ * Instancié dans `main.js` ; `createWindow()` appelé dans `app.whenReady`.
+ */
+
+/**
+ * Fabrique le service de fenêtre principale.
+ *
+ * @param {object} deps
+ * @param {typeof import('electron').BrowserWindow} deps.BrowserWindow
+ * @param {typeof import('electron').Menu} deps.Menu - Menu contextuel clic droit.
+ * @param {import('path')} deps.path
+ * @param {boolean} deps.isDev - Charge `localhost:5173` et ouvre DevTools au démarrage si vrai.
+ * @param {() => object} deps.readAppConfig - Lit `windowBounds` / `windowMaximized`.
+ * @param {(config: object) => void} deps.writeAppConfig - Persiste géométrie sur move/resize/close.
+ * @param {() => void} deps.setupTrayIfNeeded - Initialise le tray après création fenêtre (`trayService`).
+ * @param {() => boolean} deps.getIsDevToolsAllowed - `true` en dev ou si switch admin DevTools actif.
+ * @param {() => boolean} deps.getIsAppQuitting - Distingue fermeture réelle (tray Quitter) de la croix.
+ * @param {(win: import('electron').BrowserWindow) => void} deps.setMainWindow - Enregistre la référence globale `mainWindow`.
+ * @param {string} deps.baseDirname - Répertoire `electron/` (`preload.js`, icône, dist).
+ * @returns {{ createWindow: () => import('electron').BrowserWindow }}
+ */
 function createWindowService(deps) {
   const {
     BrowserWindow,
@@ -13,6 +38,16 @@ function createWindowService(deps) {
     baseDirname
   } = deps;
 
+  /**
+   * Crée la fenêtre principale, branche les listeners et charge l'UI React.
+   *
+   * Effets de bord :
+   * - Persistance `windowBounds` / `windowMaximized` dans `app-config.json` sur déplacement et redimensionnement.
+   * - En production : en-tête CSP injecté sur les réponses de la session.
+   * - Sur `close` sans `isAppQuitting` : `preventDefault` + IPC `app:requestExitChoice` vers le renderer.
+   *
+   * @returns {import('electron').BrowserWindow}
+   */
   function createWindow() {
     const cfg = readAppConfig();
     const savedBounds = cfg.windowBounds && typeof cfg.windowBounds === "object" ? cfg.windowBounds : null;

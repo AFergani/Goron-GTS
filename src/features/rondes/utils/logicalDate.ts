@@ -1,3 +1,7 @@
+/**
+ * Date logique d’une ronde (passage après minuit, créneau nuit).
+ */
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NIGHT_TRANSITION_LIMIT_MINUTES = 6 * 60;

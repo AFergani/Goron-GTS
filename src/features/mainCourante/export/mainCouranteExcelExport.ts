@@ -1,3 +1,7 @@
+/**
+ * Export Excel du journal main courante (résultat filtré côté page).
+ */
+
 import * as XLSX from "xlsx";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import { exportTimestampForFilename, formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";

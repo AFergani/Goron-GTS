@@ -1,3 +1,12 @@
+/**
+ * Formulaire de planification → snapshot versionné pour le moteur et l’API.
+ *
+ * Modes : ponctuel (une journée), récurrent (lignes + période), H24 continu.
+ * Valide les horaires `HH:mm` et construit `GardiennagePlanningSnapshotV1`.
+ *
+ * Utilisé par : `GardiennageEntryModal` (prévisualisation + soumission).
+ */
+
 import type { GardiennagePlanningLineV1, GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
 import { GARDIENNAGE_WEEKDAYS_ALL_MASK } from "./gardiennagePlanningCalendar";
 

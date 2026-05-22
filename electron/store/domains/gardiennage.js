@@ -1,3 +1,12 @@
+/**
+ * Domaine gardiennage : CRUD `gardiennage_entries`, planification par snapshot (v1), lots `planning_batch_id`.
+ *
+ * Moteur de créneaux : `gardiennagePlannerEngine.js` ; clôture automatique : `gardiennageAutoClose.js`.
+ * Modes : demande simple (récurrence / ponctuel) ou génération multi-créneaux depuis `planningSnapshot`.
+ * Statuts : PLANIFIE, ACTIF, CLOTURE, ANNULE. Écritures audit via `writeAudit` (before/after selon l'action).
+ * Liste : déclenche `autoCloseExpiredGardiennageEntries` avant lecture.
+ */
+
 const { writeAudit } = require("../core/audit");
 const { generateEntityId } = require("../core/ids");
 const { autoCloseExpiredGardiennageEntries } = require("./gardiennageAutoClose");
@@ -251,6 +260,7 @@ function insertGardiennageRow(store, rowPayload) {
     );
 }
 
+/** Liste toutes les entrées (reader) après passage auto-clôture des expirées. */
 function listGardiennages(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   autoCloseExpiredGardiennageEntries(store);
@@ -263,6 +273,10 @@ function listGardiennages(store, { requesterRole }) {
   return rows.map(mapRow);
 }
 
+/**
+ * Crée une entrée ou un lot planifié (audit `GARDIENNAGE_CREATE` ou `GARDIENNAGE_BATCH_CREATE`).
+ * Valide chevauchements de lignes et génère les créneaux si snapshot présent.
+ */
 function createGardiennage(store, payload) {
   const { requesterRole, requesterUsername, id } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -382,6 +396,10 @@ function createGardiennage(store, payload) {
   return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(id));
 }
 
+/**
+ * Met à jour une demande (manager, contrôle `expectedUpdatedAt`).
+ * Peut régénérer tout le lot planifié (suppression des non clôturées + réinsertion).
+ */
 function updateGardiennage(store, payload) {
   const { requesterRole, requesterUsername, id, expectedUpdatedAt } = payload;
   store.ensureDataManagerRole(requesterRole);
@@ -511,6 +529,7 @@ function updateGardiennage(store, payload) {
   return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(id));
 }
 
+/** Change le statut ; annulation d'un lot propage `ANNULE` sur les créneaux non clôturés du batch. */
 function setGardiennageStatus(store, payload) {
   const { requesterRole, requesterUsername, id, expectedUpdatedAt, status, cancellationReason } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -594,6 +613,9 @@ function setGardiennageStatus(store, payload) {
   return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(id));
 }
 
+/**
+ * Clôture avec compte rendu et horaires réels ; gère clôture d'un jour sur série récurrente.
+ */
 function closeGardiennage(store, payload) {
   const {
     requesterRole,
@@ -718,6 +740,7 @@ function closeGardiennage(store, payload) {
   return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(id));
 }
 
+/** Rouvre un gardiennage clôturé ou annulé (retour à PLANIFIE, effacement champs de clôture). */
 function reopenGardiennage(store, payload) {
   const { requesterRole, requesterUsername, id, expectedUpdatedAt } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -770,6 +793,9 @@ function reopenGardiennage(store, payload) {
   return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(id));
 }
 
+/**
+ * Supprime entrée ou lot (hors lignes CLOTURE). Opérateur : uniquement ses créations (audit CREATE/BATCH_CREATE).
+ */
 function deleteGardiennage(store, payload) {
   const { requesterRole, requesterUsername, id, reason } = payload;
   store.ensureDataReaderRole(requesterRole);
@@ -833,6 +859,7 @@ function deleteGardiennage(store, payload) {
 
 module.exports = {
   listGardiennages,
+  /** Réexport — voir `gardiennageAutoClose.js`. */
   autoCloseExpiredGardiennageEntries,
   createGardiennage,
   updateGardiennage,

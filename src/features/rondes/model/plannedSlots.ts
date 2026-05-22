@@ -1,3 +1,9 @@
+/**
+ * Créneaux planifiés applicables pour une date (agrégation par site, libellés passage).
+ *
+ * S’appuie sur `rondePlannedSlotEngine` pour la génération aléatoire et les récurrences.
+ */
+
 import type { RondePlannedProfileLineRef, RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
 import {
   addDaysIso,

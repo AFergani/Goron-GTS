@@ -1,3 +1,20 @@
+/**
+ * Schéma SQLite de base : utilisateurs, journaux, référentiels essentiels, main courante,
+ * Fransor, interventions (tables cœur + migrations légères `ALTER` si colonne manquante).
+ *
+ * Appelé en premier dans `UserStore.ensureSchema()` avant les schémas métier complémentaires
+ * (`schemaRonde`, `schemaUsersSites`, `schemaBusinessData`, `schemaGardiennage`).
+ */
+
+/**
+ * Crée ou met à jour les tables fondamentales et index associés (`CREATE IF NOT EXISTS`).
+ *
+ * Effets de bord : exécution SQL synchrone sur `store.db` ; migration additive
+ * `intervention_entries.arrival_date` si absente (bases anciennes).
+ *
+ * @param {import('../userStore')} store - Instance store (connexion ouverte).
+ * @returns {void}
+ */
 function ensureBaseSchema(store) {
   store.db.exec(`
     CREATE TABLE IF NOT EXISTS users (

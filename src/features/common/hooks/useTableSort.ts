@@ -1,7 +1,18 @@
 import { useMemo, useState } from "react";
 
+/**
+ * Tri client des lignes de tableau par colonne (comparateurs fournis par la vue).
+ *
+ * `sortedEntries` est recalculé quand `entries`, `sortKey`, `sortDirection` ou
+ * `comparators` changent. `toggleSort` : sur la colonne active, alterne asc/desc ;
+ * sur une nouvelle colonne, active cette clé en ascendant.
+ *
+ * Utilisé par : MainCouranteTable, InterventionTable, RondeTable, GardiennageTable.
+ */
+
 export type SortDirection = "asc" | "desc";
 
+/** Comparateur numérique par clé de colonne (retour < 0, 0, > 0 comme `Array.sort`) */
 type ComparatorMap<T, TKey extends string> = Record<TKey, (a: T, b: T) => number>;
 
 export function useTableSort<T, TKey extends string>(

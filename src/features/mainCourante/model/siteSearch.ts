@@ -1,3 +1,9 @@
+/**
+ * Recherche et libellé site pour la main courante (et modules qui réutilisent le composant).
+ *
+ * Format catalogue : « Nom (CODE) ». Filtre autocomplete dès 3 caractères (code ou nom).
+ */
+
 import type { SiteRef } from "../../../types";
 
 /** Libellé après choix dans le formulaire et dans le journal : « Nom du site (Code) » */

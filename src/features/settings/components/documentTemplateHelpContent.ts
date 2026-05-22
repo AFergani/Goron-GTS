@@ -1,4 +1,8 @@
-/** Contenu des modales d'aide : jetons Docxtemplater `{nom}` (sans afficher de chemins techniques complets en UI si possible). */
+/**
+ * Contenu des modales d’aide modèles Word : jetons Docxtemplater `{nom}`.
+ *
+ * Pas de chemins techniques complets exposés en UI utilisateur.
+ */
 export type TemplateHelpBlock = {
   title: string;
   intro?: string;

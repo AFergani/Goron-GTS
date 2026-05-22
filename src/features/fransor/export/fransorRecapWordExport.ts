@@ -1,3 +1,11 @@
+/**
+ * Export Word du récapitulatif mensuel Fransor (modèle `fransor-recap-template.docx`).
+ *
+ * Charge le modèle via l’API (Paramètres → Données → modèles), injecte totaux, boucle
+ * `{#recap_rows}` et jetons plats `resp_<slug>_ouvertures|fermetures|nom` par responsable.
+ * Téléchargement local `.docx` — pas d’UUID ni identifiants techniques dans le fichier.
+ */
+
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import type { FransorMonthlyRecap } from "../../../types";
@@ -23,7 +31,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return buffer;
 }
 
-/** Données Docxtemplater : totaux, lignes pour boucles {#recap_rows}{/recap_rows}, jetons plats par responsable. */
+/** Payload Docxtemplater : totaux globaux, lignes tableau et jetons par responsable */
 export function buildFransorRecapWordData(
   monthIso: string,
   monthLabelFr: string,
@@ -61,6 +69,7 @@ export function buildFransorRecapWordData(
   return data;
 }
 
+/** Génère et télécharge `Fransor_recap_<mois>.docx` */
 export async function exportFransorMonthlyRecapToWord(
   monthIso: string,
   monthLabelFr: string,

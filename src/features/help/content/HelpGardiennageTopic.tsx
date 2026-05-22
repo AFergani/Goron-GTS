@@ -1,142 +1,194 @@
+/**
+ * Rubrique centre d’aide — module Gardiennage (planification, clôture, exports).
+ */
+
+import { HelpDayListDisplaySection } from "./HelpDayListDisplaySection";
+
 export function HelpGardiennageTopic() {
   return (
     <article className="help-center-article">
-      <h2 className="help-center-content-title">🛡️ Gardiennage</h2>
+      <h2 className="help-center-content-title">🛡️ Le module Gardiennage</h2>
       <p className="help-center-lead">
-        Utilisez le <strong>gardiennage</strong> pour faire planifier une <strong>présence physique</strong> sur un site :
-        une fois, sur plusieurs jours, ou selon un rythme récurrent. Chaque <strong>prestation journalière</strong> (une fiche par jour ou créneau
-        prévu) peut ensuite être <strong>clôturée</strong> pour tracer le passage terrain — ce n&apos;est pas bloquant techniquement, mais c&apos;est la
-        démarche attendue pour garder une trace fiable.
+        Le module <strong>Gardiennage</strong> permet de planifier et de suivre une présence physique sur un site (ponctuelle,
+        sur plusieurs jours ou récurrente).
+      </p>
+      <p className="help-center-lead">
+        Chaque créneau planifié génère une <strong>fiche journalière</strong>. Pour assurer la traçabilité des prestations sur le
+        terrain, chaque fiche doit idéalement être clôturée en fin de mission.
       </p>
 
       <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">➕ Créer un gardiennage — par où commencer</h3>
-        <ul className="muted help-center-list">
+        <h3 className="help-center-card-title">➕ Créer un gardiennage : par où commencer ?</h3>
+        <ol className="muted help-center-list help-center-list--ordered">
           <li>
-            Cliquez sur <strong>Nouveau gardiennage</strong>. Renseignez au minimum le <strong>site</strong> et le <strong>prestataire</strong> qui
-            assurera la présence.
+            <strong>Initialisation :</strong> cliquez sur <strong>Nouveau gardiennage</strong>. Renseignez au minimum le{" "}
+            <strong>Site</strong> et le <strong>Prestataire</strong>.
+            <ul className="help-center-list help-center-list--nested">
+              <li>
+                <em>Astuce :</em> si la demande découle d&apos;une intervention ou d&apos;une ronde, créez le gardiennage directement depuis
+                cette fiche pour pré-remplir ces informations.
+              </li>
+            </ul>
           </li>
           <li>
-            La <strong>consigne</strong> est recommandée dès que l&apos;agent a besoin d&apos;instructions : accès, consignes client, point de
-            contact, particularités du site.
+            <strong>Consignes :</strong> utilisez le champ <strong>Consigne</strong> pour transmettre les informations essentielles à
+            l&apos;agent (accès, contacts sur place, particularités du site).
           </li>
           <li>
-            Si la demande vient d&apos;une <strong>intervention</strong> ou d&apos;une <strong>ronde</strong>, créez le gardiennage depuis cette
-            fiche : le site et le prestataire sont en général déjà renseignés ; vous n&apos;avez plus qu&apos;à définir la planification.
+            <strong>Vérification :</strong> avant d&apos;enregistrer, consultez l&apos;<strong>Aperçu des créneaux</strong>. Il liste
+            l&apos;ensemble des fiches jours/horaires qui vont être générées. Ajustez vos critères si le résultat ne correspond pas aux besoins.
           </li>
-          <li>
-            Avant d&apos;enregistrer, parcourez l&apos;<strong>aperçu des créneaux</strong> : il montre les jours et horaires qui seront créés. Si
-            le résultat ne correspond pas au besoin, corrigez les dates ou les lignes avant validation.
-          </li>
-        </ul>
+        </ol>
       </div>
 
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🎯 Choisir le bon mode de planification</h3>
+        <div className="help-center-callout help-center-callout--warn" role="note">
+          <strong>Important :</strong> un seul mode de planification doit être actif par demande.
+        </div>
+        <div className="help-center-table-wrap">
+          <table className="help-center-table">
+            <thead>
+              <tr>
+                <th scope="col">Mode</th>
+                <th scope="col">Utilisation idéale</th>
+                <th scope="col">Exemples</th>
+                <th scope="col">Spécificités techniques</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <strong>Journée unique</strong>
+                </td>
+                <td>Prestation isolée sur une seule date.</td>
+                <td>
+                  Garde le samedi de 08:00 à 18:00.
+                  <br />
+                  Astreinte un jour férié.
+                </td>
+                <td>
+                  Si l&apos;heure de fin est inférieure à l&apos;heure de début (ex. 20:00 → 08:00), l&apos;application bascule
+                  automatiquement la fin au <strong>lendemain</strong>.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>H24</strong>
+                </td>
+                <td>Présence continue et ininterrompue sur une période donnée.</td>
+                <td>Surveillance non-stop du lundi 08:00 au vendredi 20:00.</td>
+                <td>
+                  <strong>Ne pas utiliser</strong> pour des nuits récurrentes (ex. 20:00 à 08:00 chaque soir). Privilégiez le mode{" "}
+                  <strong>Planification libre</strong>.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Planification libre</strong>
+                </td>
+                <td>Rythme récurrent qui se répète sur une période (semaines / mois).</td>
+                <td>Nuits du lundi au vendredi sur 3 mois.</td>
+                <td>
+                  Définissez la période globale (<strong>Du / Au</strong>), puis détaillez les horaires dans le tableau des lignes.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="help-center-card">
+        <h3 className="help-center-card-title">📋 Zoom sur la planification libre (gestion des lignes)</h3>
         <p className="muted">
-          Dans la section <strong>Planification</strong>, un seul mode doit être actif. 
+          Chaque ligne du tableau représente un créneau horaire associé à des jours précis :
         </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Journée unique</strong> — à utiliser pour <strong>une seule prestation sur une date</strong>.
-            <br />
-            Exemples : garde le samedi de 08:00 à 18:00 ; astreinte ponctuelle un jour férié. Indiquez la <strong>date</strong>, l&apos;heure de{" "}
-            <strong>début</strong> et de <strong>fin</strong>. Si la fin est le lendemain (ex. 20:00 → 08:00), l&apos;application décale
-            automatiquement la fin au jour suivant.
+            <strong>Horaires obligatoires :</strong> renseignez une heure de début et une heure de fin (ex. 20:00 et 08:00 pour une nuit).
           </li>
           <li>
-            <strong>H24</strong> — à utiliser quand la présence doit couvrir <strong>toute la période sans coupure horaire</strong> entre deux
-            instants précis (date + heure de début, date + heure de fin).
-            <br />
-            Exemples : surveillance continue du lundi 08:00 au vendredi 20:00 ; couverture 24 h/24 sur trois jours.{" "}
-            <strong>Ne pas</strong> utiliser ce mode pour des créneaux du type « nuits du lundi au vendredi 20:00–08:00 » : préférez la{" "}
-            <strong>planification libre</strong>, ou créez <strong>deux demandes</strong> si vous devez combiner du H24 et des horaires récurrents
-            précis.
+            <strong>Sélection des jours :</strong> cochez les jours concernés (Lun à Dim).
+            <ul className="help-center-list help-center-list--nested">
+              <li>
+                <em>Cas classique :</em> pour des nuits en semaine, cochez de Lun à Ven.
+              </li>
+            </ul>
           </li>
           <li>
-            <strong>Planification libre</strong> — mode le plus courant pour un <strong>rythme qui se répète</strong> sur une période (semaines ou
-            mois).
+            <strong>Jours fériés (JF) :</strong> cochez cette case si le créneau doit également s&apos;appliquer les jours fériés de la
+            période.
+          </li>
+          <li>
+            <strong>Multi-lignes :</strong> ajoutez plusieurs lignes si le besoin varie (ex. ligne 1 pour les nuits en semaine, ligne 2 pour
+            les journées du week-end).
             <br />
-            Indiquez la validité <strong>Du</strong> et <strong>Au</strong> (dates du besoin global), puis décrivez les horaires dans les{" "}
-            <strong>lignes de planification</strong> (voir section suivante).
+            <span className="help-center-inline-warn">
+              Les horaires de deux lignes ne doivent pas se chevaucher sur un même jour, sous peine de refus d&apos;enregistrement.
+            </span>
+          </li>
+          <li>
+            <strong>Date optionnelle (exception) :</strong> renseigner une date précise sur une ligne fait s&apos;appliquer ce créneau{" "}
+            <strong>uniquement ce jour-là</strong> (la sélection Lun–Dim est ignorée pour cette ligne). Ce n&apos;est pas un remplacement
+            automatique des autres lignes : si une ligne récurrente couvre aussi ce jour, les horaires doivent rester compatibles (pas de
+            chevauchement). Utile pour un renfort ou une exception ponctuelle dans la période.
           </li>
         </ul>
       </div>
 
       <div className="help-center-card">
-        <h3 className="help-center-card-title">📋 Planification libre — remplir les lignes</h3>
+        <h3 className="help-center-card-title">✅ Clôture des fiches (suivi terrain)</h3>
+        <p className="muted">
+          La validation d&apos;une planification génère autant de fiches indépendantes que de jours de présence prévus.
+        </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Une ligne = un créneau horaire</strong> avec les jours où il s&apos;applique. Heures de <strong>début</strong> et de{" "}
-            <strong>fin</strong> obligatoires (ex. 20:00 et 08:00 pour une nuit).
+            <strong>Clôture manuelle :</strong> depuis la <strong>vue journée</strong>, utilisez la coche rapide pour clôturer un créneau,
+            ou ouvrez la fiche et cliquez sur <strong>Clôturer</strong>.
           </li>
           <li>
-            Cochez les jours <strong>Lun … Dim</strong> concernés. Exemple classique — garde de nuit en semaine : début 20:00, fin 08:00, cocher{" "}
-            <strong>Lun à Ven</strong>, laisser <strong>Sam</strong> et <strong>Dim</strong> décochés.
+            <strong>Clôture automatique :</strong> dès que l&apos;horaire de fin d&apos;un créneau est dépassé, le système clôture
+            automatiquement la fiche avec la mention <strong>Clôture automatique par système</strong> (sans heures effectives ni rapport).
           </li>
           <li>
-            Cochez <strong>Jours fériés</strong> si le même créneau doit aussi s&apos;appliquer les jours fériés dans la période ; sinon laissez
-            décoché.
-          </li>
-          <li>
-            <strong>Plusieurs lignes</strong> si le besoin change selon les jours (ex. ligne 1 : nuit lun–ven, ligne 2 : jour sam–dim). Les
-            horaires de deux lignes ne doivent pas se chevaucher sur un même jour : l&apos;enregistrement est refusé avec un message explicite.
-          </li>
-          <li>
-            <strong>Date optionnelle</strong> sur une ligne : à réserver pour une <strong>exception ponctuelle</strong> (un seul jour précis dans la
-            période). Les jours de la semaine sont alors ignorés pour cette ligne.
-          </li>
-          <li>
-            Une validation peut générer <strong>plusieurs fiches</strong> (une par jour de présence prévu). C&apos;est normal pour un planning sur
-            plusieurs semaines : vous clôturerez chaque jour concerné au fil de l&apos;exploitation.
+            <strong>Correction / enrichissement :</strong> si une fiche a été clôturée automatiquement mais nécessite un suivi, cliquez sur{" "}
+            <strong>Rouvrir</strong>. Vous pourrez alors y injecter les données terrain : heures réelles, numéro de bon ou compte rendu
+            (facultatifs).
           </li>
         </ul>
+        <div className="help-center-callout help-center-callout--tip" role="note">
+          <strong>Modifications en lot :</strong> si une prestation est annulée, vous pouvez supprimer les fiches créées en lot. Seules les
+          fiches <strong>non clôturées</strong> seront supprimées.
+        </div>
       </div>
 
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">✅ Clôture — automatique et manuelle</h3>
-        <ul className="muted help-center-list">
-          <li>
-            Chaque <strong>prestation journalière</strong> (une fiche par jour ou créneau) est concernée. En vue <strong>journée</strong>, la coche
-            rapide permet une clôture manuelle ; sinon ouvrez la fiche puis <strong>Clôturer</strong>.
-          </li>
-          <li>
-            <strong>Clôture automatique</strong> : dès que l&apos;horaire de fin prévu est passé, la fiche est clôturée par le système avec le libellé{" "}
-            <strong>Clôture automatique par système</strong> (sans heures effectives ni compte rendu). Cela évite d&apos;accumuler des fiches ouvertes
-            dans la liste.
-          </li>
-          <li>
-            Pour compléter ou corriger une clôture automatique : <strong>Rouvrir</strong> la fiche, puis <strong>Clôturer</strong> à nouveau avec les
-            informations terrain (heures, n° de bon, compte rendu — tous facultatifs).
-          </li>
-          <li>
-            Une planification sur plusieurs jours crée <strong>autant de fiches</strong> que de créneaux prévus ; chaque jour est traité{" "}
-            <strong>indépendamment</strong>.
-          </li>
-          <li>
-            <strong>Annuler</strong> avec un motif si la prestation ne doit plus avoir lieu. <strong>Supprimer</strong> sur un lot : seules les fiches{" "}
-            <strong>non clôturées</strong> sont retirées.
-          </li>
-        </ul>
-      </div>
+      <HelpDayListDisplaySection />
 
       <div className="help-center-card">
-        <h3 className="help-center-card-title">💡 Exemples de besoins courants</h3>
-        <ul className="muted help-center-list">
+        <h3 className="help-center-card-title">💡 Exemples pratiques</h3>
+        <ul className="muted help-center-list help-center-list--examples">
           <li>
-            <strong>Une garde samedi 8 h–18 h</strong> → <strong>Journée unique</strong>, date du samedi, début 08:00, fin 18:00.
+            <strong>Besoin :</strong> une garde le samedi de 08:00 à 18:00.
+            <br />
+            <strong>→ Mode :</strong> <em>Journée unique</em> — renseigner la date, 08:00 et 18:00.
           </li>
           <li>
-            <strong>Nuits du lundi au vendredi 20 h–8 h pendant deux mois</strong> → <strong>Planification libre</strong>, Du/Au sur les deux mois,
-            une ligne 20:00–08:00, Lun–Ven, JF si besoin.
+            <strong>Besoin :</strong> des nuits du lundi au vendredi (20:00 à 08:00) pendant deux mois.
+            <br />
+            <strong>→ Mode :</strong> <em>Planification libre</em> — période sur 2 mois ; 1 ligne : 20:00–08:00 ; cocher Lun à Ven.
           </li>
           <li>
-            <strong>Présence continue du 1er au 15 du mois sans horaire de coupure</strong> → <strong>H24</strong>, du 1er (heure de début) au 15
-            (heure de fin).
+            <strong>Besoin :</strong> une surveillance non-stop du 1er au 15 du mois.
+            <br />
+            <strong>→ Mode :</strong> <em>H24</em> — date de début le 1er (ex. 08:00) ; date de fin le 15 (ex. 20:00).
           </li>
           <li>
-            <strong>Renfort ponctuel un jour précis</strong> dans une période déjà couverte par d&apos;autres lignes → ajoutez une ligne avec la{" "}
-            <strong>date optionnelle</strong> de ce jour et les horaires du renfort.
+            <strong>Besoin :</strong> un renfort exceptionnel un mercredi de 14:00 à 18:00 au milieu d&apos;un planning mensuel déjà couvert
+            par d&apos;autres lignes.
+            <br />
+            <strong>→ Mode :</strong> <em>Planification libre</em> — ajouter une <strong>ligne supplémentaire</strong> avec la{" "}
+            <strong>date optionnelle</strong> de ce mercredi et les horaires 14:00–18:00 (vérifier qu&apos;il n&apos;y a pas de chevauchement
+            avec les créneaux déjà prévus ce jour-là).
           </li>
         </ul>
       </div>

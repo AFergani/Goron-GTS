@@ -1,4 +1,10 @@
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
+/**
+ * Export Word fiche ronde (modèle par défaut ou par profil planifié).
+ *
+ * Jetons Docxtemplater, champs clôture, repli docx ; partagé avec Paramètres (modèles).
+ */
+
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";

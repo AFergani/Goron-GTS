@@ -1,33 +1,35 @@
-import type { HelpTopicId } from "../model/helpTopics";
+/**
+ * Routeur de contenu : associe chaque `HelpTopicId` au composant rubrique correspondant.
+ *
+ * Si la rubrique n’est pas autorisée pour le profil, affiche la page d’accueil (`welcome`).
+ */
+
+import type { HelpAccessContext, HelpTopicId } from "../model/helpTopics";
+import { isHelpTopicAllowed } from "../model/helpAccess";
+import { HelpFransorTopic } from "./HelpFransorTopic";
 import { HelpGardiennageTopic } from "./HelpGardiennageTopic";
 import { HelpInterventionsTopic } from "./HelpInterventionsTopic";
+import { HelpMainCouranteTopic } from "./HelpMainCouranteTopic";
 import { HelpRondesTopic } from "./HelpRondesTopic";
-import { HelpPlaceholderTopic } from "./HelpPlaceholderTopic";
+import { HelpSettingsDataTopic } from "./HelpSettingsDataTopic";
+import { HelpSettingsOperatorsTopic } from "./HelpSettingsOperatorsTopic";
 import { HelpSettingsAuditTopic } from "./HelpSettingsAuditTopic";
 import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
-import { HelpSettingsOverviewTopic } from "./HelpSettingsOverviewTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
 import { HelpSettingsVariablesTopic } from "./HelpSettingsVariablesTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
-const PLACEHOLDER_TOPICS: HelpTopicId[] = [
-  "main-courante",
-  "fransor",
-  "settings-operators",
-  "settings-data",
-  "settings-data-sites",
-  "settings-data-intervenants",
-  "settings-data-anomaly-types",
-  "settings-data-holidays",
-  "settings-data-ronde-motifs",
-  "settings-data-fransor",
-  "settings-data-pending-sites",
-  "settings-data-pending-intervenants"
-];
+function welcomeTopic() {
+  return <HelpWelcomeTopic />;
+}
 
-export function renderHelpTopicBody(topicId: HelpTopicId) {
+export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessContext) {
+  if (!isHelpTopicAllowed(topicId, access)) {
+    return welcomeTopic();
+  }
+
   if (topicId === "welcome") {
-    return <HelpWelcomeTopic />;
+    return welcomeTopic();
   }
   if (topicId === "interventions") {
     return <HelpInterventionsTopic />;
@@ -38,8 +40,17 @@ export function renderHelpTopicBody(topicId: HelpTopicId) {
   if (topicId === "gardiennage") {
     return <HelpGardiennageTopic />;
   }
-  if (topicId === "settings-overview") {
-    return <HelpSettingsOverviewTopic />;
+  if (topicId === "main-courante") {
+    return <HelpMainCouranteTopic />;
+  }
+  if (topicId === "fransor") {
+    return <HelpFransorTopic />;
+  }
+  if (topicId === "settings-data") {
+    return <HelpSettingsDataTopic />;
+  }
+  if (topicId === "settings-operators") {
+    return <HelpSettingsOperatorsTopic />;
   }
   if (topicId === "settings-database") {
     return <HelpSettingsDatabaseTopic />;
@@ -53,8 +64,5 @@ export function renderHelpTopicBody(topicId: HelpTopicId) {
   if (topicId === "settings-variables") {
     return <HelpSettingsVariablesTopic />;
   }
-  if (PLACEHOLDER_TOPICS.includes(topicId)) {
-    return <HelpPlaceholderTopic topicId={topicId} />;
-  }
-  return <HelpWelcomeTopic />;
+  return welcomeTopic();
 }

@@ -1,3 +1,10 @@
+/**
+ * Tableau des gardiennages (tri colonnes, badges statut, file d’attente DB).
+ *
+ * Actions : clôturer (si actif/planifié), modifier, export Word (clôturé/annulé), supprimer.
+ * Colonne Période optionnelle (onglet Planification).
+ */
+
 import { Check, FileText, Moon, Pencil, Trash2 } from "lucide-react";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { GardiennageEntry } from "../model/gardiennage.types";

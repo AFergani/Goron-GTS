@@ -1,3 +1,9 @@
+/**
+ * Tableau interventions : tri, copie code site, actions ouvrir / suivi / export Word.
+ *
+ * Badges statut et file d’attente DB. Dates au format français.
+ */
+
 import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";

@@ -1,3 +1,7 @@
+/**
+ * Libellés français récapitulatifs des lignes et profils planifiés (UI gestion profils).
+ */
+
 import type { RondePlannedProfileRef, RondePlannedRoundKind, RondePlannedRecurrenceKind } from "./rondePlanned.types";
 import { RANDOM_PERIOD_DAY } from "./rondePlanned.types";
 

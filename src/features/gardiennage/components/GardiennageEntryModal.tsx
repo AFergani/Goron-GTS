@@ -1,3 +1,13 @@
+/**
+ * Modale création / édition gardiennage (planification versionnée, prévisualisation créneaux).
+ *
+ * Modes ponctuel, récurrent (lignes type ronde), H24. Site / prestataire, liens intervention
+ * et ronde, annulation avec motif, garde fermeture en création (`useCreateModalCloseGuard`).
+ * Hydratation formulaire : `[isOpen, mode, entry?.id]` — pas de reset sur refresh listes.
+ *
+ * Fichier volumineux (~1000 lignes) : candidat à un découpage (sections planning / statut).
+ */
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";

@@ -1,3 +1,13 @@
+/**
+ * Modale création / édition / facturation d’une intervention.
+ *
+ * Site, prestataire, passage (dates arrivée/départ), clôture, annulation, champs variables Word,
+ * liens ronde/gardiennage, pending refs, garde fermeture création.
+ * Hydratation : `[isOpen, mode, entry?.id]`.
+ *
+ * Fichier volumineux (~1050 lignes) — candidat à découpage par sections.
+ */
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link2 } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";

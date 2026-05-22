@@ -1,3 +1,10 @@
+/**
+ * Export Excel de la liste gardiennage (onglet Planification ou filtré).
+ *
+ * Colonnes métier uniquement (site, période, horaires, statut…) — pas d’UUID en export.
+ * Fichier `gardiennage_export_<horodatage>.xlsx` téléchargé localement.
+ */
+
 import * as XLSX from "xlsx";
 import type { GardiennageEntry } from "../model/gardiennage.types";
 import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";

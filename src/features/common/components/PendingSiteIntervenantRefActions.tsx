@@ -1,3 +1,11 @@
+/**
+ * Actions « Site / prestataire introuvable » dans les modales de saisie métier.
+ *
+ * Affiche les boutons et les sous-formulaires de proposition de référentiel avant enregistrement
+ * (workflow pending intervention). Masqué dès qu’un site ou intervenant du référentiel est sélectionné.
+ * Libellés d’aide centralisés dans `pendingRefsBeforeSave`.
+ */
+
 import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import {
@@ -20,8 +28,7 @@ type PendingSiteIntervenantRefActionsProps = {
 };
 
 /**
- * Boutons « Site / prestataire introuvable » + formulaires associés.
- * Masqués dès qu’une entrée du référentiel est sélectionnée.
+ * Boutons « Site introuvable » / « Intervenant introuvable » + formulaires enfants fournis par le parent.
  */
 export function PendingSiteIntervenantRefActions({
   withIntervenant = true,

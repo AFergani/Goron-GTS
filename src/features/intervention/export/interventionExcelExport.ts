@@ -1,3 +1,7 @@
+/**
+ * Export Excel de la liste interventions filtrée (colonnes métier, pas d’UUID).
+ */
+
 import * as XLSX from "xlsx";
 import type { InterventionEntry } from "../model/intervention.types";
 import { exportTimestampFrForFilename } from "./interventionExportFormat";

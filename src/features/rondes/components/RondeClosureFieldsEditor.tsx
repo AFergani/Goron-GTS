@@ -1,3 +1,7 @@
+/**
+ * Champs de clôture configurables (variables ronde) dans la modale de fiche.
+ */
+
 import type { Dispatch, SetStateAction } from "react";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
