@@ -1,3 +1,10 @@
+/**
+ * Coque applicative Goron-GTS : authentification, sidebar, navigation métier et indicateurs writer.
+ *
+ * Montée sous `SessionProvider` dans `App.tsx`. Orchestre les pages features (main courante,
+ * interventions, rondes, gardiennage, Fransor, paramètres) selon `pageAccess` du compte connecté.
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Moon, Power, Settings, Sun } from "lucide-react";
 import logoGts from "../assets/logo-gts.png";
@@ -25,6 +32,7 @@ import "../styles/app.css";
 type AppPage = "mainCourante" | "fransor" | "intervention" | "rondes" | "settings" | "gardiennage";
 type ThemeMode = "dark" | "light";
 
+/** Première page autorisée dans l'ordre sidebar (intervention → … → paramètres). */
 function getFirstSidebarPageAccess(pageAccess: Record<AppPage, boolean>): AppPage {
   const sidebarOrder: AppPage[] = ["intervention", "rondes", "gardiennage", "mainCourante", "fransor", "settings"];
   for (const page of sidebarOrder) {
@@ -33,6 +41,7 @@ function getFirstSidebarPageAccess(pageAccess: Record<AppPage, boolean>): AppPag
   return "mainCourante";
 }
 
+/** Horodatage sidebar au format français lisible. */
 function formatSidebarDateTime(date: Date): string {
   const datePart = date.toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -47,6 +56,9 @@ function formatSidebarDateTime(date: Date): string {
   return `${datePart}, ${timePart}`;
 }
 
+/**
+ * Racine UI après connexion : layout sidebar + contenu, badges, thème et santé writer.
+ */
 export function AppShell() {
   useGlobalDraggableModals();
   const { session, setSession, clearSession } = useSession();
@@ -64,11 +76,8 @@ export function AppShell() {
     return saved === "light" ? "light" : "dark";
   });
   const [themeReadyForSessionSave, setThemeReadyForSessionSave] = useState(false);
-  /** Navigation « ronde liée → fiche intervention » : ouverture ciblée de la modale intervention */
+  /** Deep-link ronde → intervention : ouvre la modale intervention ciblée. */
   const [focusInterventionIdFromRonde, setFocusInterventionIdFromRonde] = useState<string | null>(null);
-  /** Navigation « gardiennage → page rondes » (réservé pour deep-link futur) */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_focusRondeIdFromGardiennage, setFocusRondeIdFromGardiennage] = useState<string | null>(null);
   const [writerStatus, setWriterStatus] = useState<WriterStatus | null>(null);
   const [writerQueueStats, setWriterQueueStats] = useState<WriterQueueStats | null>(null);
   const [showCloseAppModal, setShowCloseAppModal] = useState(false);
@@ -119,12 +128,12 @@ export function AppShell() {
     setActivePage("intervention");
   };
 
-  const navigateToLinkedRonde = (rondeId: string) => {
+  /** Bascule vers Rondes (sélection de ligne ciblée à brancher sur `RondePage` si besoin). */
+  const navigateToLinkedRonde = (_rondeId: string) => {
     if (!userPageAccess.rondes) {
       setToast("Accès à la page Rondes non autorisé.");
       return;
     }
-    setFocusRondeIdFromGardiennage(rondeId);
     setActivePage("rondes");
   };
 
