@@ -1,3 +1,9 @@
+/**
+ * Ligne de planning : interrupteurs Lun–Dim + « Jours fériés » (masque `weekdaysMask`).
+ *
+ * Masqué si la ligne a une `anchorDate` (journée ponctuelle ancrée).
+ */
+
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { GardiennagePlanningLineV1 } from "../model/gardiennage.types";
 import { GARDIENNAGE_WEEKDAY_BITS } from "../model/gardiennagePlanningCalendar";
