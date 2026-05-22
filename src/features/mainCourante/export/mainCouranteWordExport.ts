@@ -1,3 +1,9 @@
+/**
+ * Export Word d’une entrée main courante (`main-courante-template.docx`).
+ *
+ * Docxtemplater + repli docx avec logo ; dates et statuts en français.
+ */
+
 import {
   AlignmentType,
   Document,

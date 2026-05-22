@@ -1,3 +1,9 @@
+/**
+ * Tableau journal main courante : tri, badges statut, actions opérateur / responsable.
+ *
+ * Consultation, édition, traitement (« À suivre » / clôture), copie code site.
+ */
+
 import { Eye } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";

@@ -1,3 +1,10 @@
+/**
+ * Recherche site par code ou nom (autocomplete, min. 3 caractères).
+ *
+ * Site facultatif (`optional`). Copie du code site si sélection catalogue.
+ * Réutilisé par : main courante, interventions, rondes, gardiennage.
+ */
+
 import { Copy, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { SiteRef } from "../../../types";

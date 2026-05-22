@@ -1,3 +1,10 @@
+/**
+ * Page Main courante : journal filtré, persistance filtres localStorage, exports Excel/Word.
+ *
+ * Compteurs statuts, modale unique (create/edit/manager/view). Responsable vs opérateur
+ * pour les actions disponibles sur une ligne.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";

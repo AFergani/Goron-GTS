@@ -1,3 +1,10 @@
+/**
+ * Modale main courante : création, édition opérateur, traitement responsable, lecture seule.
+ *
+ * Site optionnel, type d’anomalie, proposition site en attente, garde fermeture en création.
+ * Hydratation formulaire : `[isOpen, mode, entry?.id]`.
+ */
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { MainCouranteCreatePayload, MainCouranteEntry, MainCouranteSavePayload } from "../model/mainCourante.types";
