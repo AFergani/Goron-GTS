@@ -1,3 +1,34 @@
+/**
+ * Worker périodique de la file SMB writer : heartbeats, nettoyage, traitement des requêtes `incoming/`.
+ * Seul le Master traite en continu ; le Backup ne traite que si le heartbeat Master est périmé (failover file).
+ *
+ * Instancié en lazy dans `main.js` ; démarré / arrêté par `writerRuntime.js` en `transportMode === "smb_queue"`.
+ * Délègue l'exécution métier à `writerQueueActions.executeQueuedAction`.
+ */
+
+/**
+ * Fabrique le worker de file d'attente SMB.
+ *
+ * @param {object} deps - Injections depuis `main.js` (`getWriterQueueWorkerService`).
+ * @param {import('fs')} deps.fs - Listing, rename, unlink des fichiers queue.
+ * @param {import('path')} deps.path
+ * @param {(filePath: string) => object|null} deps.readJsonIfExists
+ * @param {() => void} deps.ensureStore
+ * @param {(filePath: string, data: object) => void} deps.safeWriteJson - Écriture ACK dans `ack/`.
+ * @param {() => object} deps.getLocalSourceContext
+ * @param {(entry: object) => void} deps.appendWriterTransitLog
+ * @param {Function} deps.executeQueuedAction - Routeur `writerQueueActions` (+ `userStore` injecté par main).
+ * @param {(trigger: string) => object} deps.ensureQuarterRotationIfNeeded
+ * @param {(opts: object) => object} deps.runLogicalArchiveNow
+ * @param {() => object} deps.getArchiveRuntime
+ * @param {(next: object) => void} deps.setArchiveRuntime - Décrément `pendingJobs` après `archive_run`.
+ * @param {() => object|null} deps.ensureWriterQueueDirs
+ * @param {(queueCtx: object) => void} deps.cleanupQueueArtifacts
+ * @param {(queueCtx: object) => void} deps.updateSmbConnectivity - Heartbeats → `connectivity` UI.
+ * @param {(filePath: string, windowMs: number) => boolean} deps.isHeartbeatFresh
+ * @param {() => object} deps.getWriterRuntime
+ * @returns {{ startWriterQueueWorker: () => void, stopWriterQueueWorker: () => void }}
+ */
 function createWriterQueueWorkerService(deps) {
   const {
     fs,
@@ -22,6 +53,14 @@ function createWriterQueueWorkerService(deps) {
   let writerQueueTimer = null;
   let writerQueueBusy = false;
 
+  /**
+   * Traite la plus ancienne requête JSON de `incoming/` (une par appel).
+   *
+   * Déplace vers `processing/`, exécute l'action, écrit l'ACK (`ok` / erreur), journalise, supprime le fichier processing.
+   *
+   * @param {object} queueCtx - Répertoires `incomingDir`, `processingDir`, `ackDir`, heartbeats.
+   * @returns {Promise<void>}
+   */
   async function processOneQueuedRequest(queueCtx) {
     const files = fs
       .readdirSync(queueCtx.incomingDir)
@@ -96,6 +135,11 @@ function createWriterQueueWorkerService(deps) {
     }
   }
 
+  /**
+   * Arrête le timer du worker (idempotent).
+   *
+   * @returns {void}
+   */
   function stopWriterQueueWorker() {
     if (writerQueueTimer) {
       clearInterval(writerQueueTimer);
@@ -103,6 +147,14 @@ function createWriterQueueWorkerService(deps) {
     }
   }
 
+  /**
+   * Démarre le worker SMB : tick ≈ moitié de `heartbeatIntervalMs`, mutex `writerQueueBusy`.
+   *
+   * Chaque tick : heartbeat local, cleanup, connectivité SMB, puis au plus une requête traitée
+   * (master toujours ; backup si master heartbeat expiré).
+   *
+   * @returns {void} No-op si writer désactivé ou hors mode `smb_queue`.
+   */
   function startWriterQueueWorker() {
     stopWriterQueueWorker();
     const writerRuntime = getWriterRuntime();
