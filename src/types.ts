@@ -2,7 +2,8 @@
  * Types transverses du frontend Goron-GTS (comptes, droits, référentiels partagés, Fransor).
  *
  * Les entités métier détaillées (main courante, intervention, ronde, gardiennage) vivent dans
- * `features/*/model/*.types.ts`. Ce fichier centralise ce qui est réutilisé par plusieurs modules
+ * les fichiers types de chaque feature (sous-dossier model). Ce fichier centralise ce qui est
+ * réutilisé par plusieurs modules
  * et par `gtsApiClient` / `vite-env.d.ts`.
  */
 
