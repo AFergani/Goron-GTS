@@ -5,7 +5,8 @@ export function HelpSettingsAuditTopic() {
       <h2 className="help-center-content-title">📜 Journal des actions</h2>
       <p className="help-center-lead">
         L&apos;onglet <strong>Journal des actions</strong> (accessible dans les <em>Paramètres</em>) affiche l&apos;historique complet des écritures
-        métiers et des événements sensibles enregistrés par l&apos;application. Il consigne en temps réel les créations, modifications, suppressions,
+        métiers et des événements sensibles enregistrés par l&apos;application. Chaque ligne comporte un <strong>horodatage</strong> et l&apos;
+        <strong>acteur</strong> à l&apos;origine de l&apos;action. Il consigne en temps réel les créations, modifications, suppressions,
         validations, imports de masse, ainsi que les actes d&apos;administration (gestion des comptes, changements de base, cycles d&apos;archivage).
       </p>
       <p className="help-center-lead">

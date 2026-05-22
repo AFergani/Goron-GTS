@@ -5,8 +5,11 @@
  */
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   AUTH_LOGIN: "Connexion utilisateur",
+  AUTH_ACCOUNT_LOCKED: "[Utilisateurs] Compte verrouillé après échecs de connexion",
   AUTH_SET_PASSWORD: "Changement de mot de passe",
   AUTH_FIRST_LOGIN_COMPLETED: "Première connexion finalisée",
+  USER_UNLOCK: "[Utilisateurs] Déverrouillage de compte",
+  USER_PREFERENCES_THEME_UPDATE: "[Utilisateurs] Changement de thème (clair / sombre)",
   USERS_LIST: "Consultation de la liste utilisateurs",
   USER_CREATE: "Création d'utilisateur",
   USER_RESET_PASSWORD: "Réinitialisation du mot de passe",

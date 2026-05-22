@@ -10,8 +10,8 @@ export function HelpSettingsVariablesTopic() {
       </p>
       <p className="help-center-lead">
         Chaque variable se configure avec un libellé (visible par les agents), un type de saisie (texte, liste, etc.), une portée (site ou famille de
-        sites) et une affectation à un ou plusieurs formulaires. Toutes les modifications sont immédiatement appliquées et journalisées dans le{" "}
-        <strong>journal d&apos;audit</strong> de la station.
+        sites) et une affectation à un ou plusieurs formulaires. Après validation par le bouton d&apos;enregistrement, les changements sont appliqués et une
+        ligne est ajoutée au <strong>journal d&apos;audit</strong> (acteur et horodatage, libellé [Paramètres] variables de formulaires).
       </p>
 
       <div className="help-center-card help-center-card--accent">
