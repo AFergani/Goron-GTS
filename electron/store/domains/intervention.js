@@ -228,6 +228,13 @@ function ensureInterventionPayload(store, payload, { requireArrival = false, req
     if (delay == null) {
       store.fail("intervention:validate", "L'heure d'arrivée est incohérente.", "INTERVENTION_ARRIVAL_INVALID");
     }
+    if (delay != null && delay < 0) {
+      store.fail(
+        "intervention:validate",
+        "La date et l'heure de la demande ne peuvent pas être postérieures à l'arrivée (délai d'intervention négatif).",
+        "INTERVENTION_REQUEST_AFTER_ARRIVAL"
+      );
+    }
   }
   if (departureTime && !resolvedDepartureDate) {
     store.fail("intervention:validate", "L'heure de départ est incohérente.", "INTERVENTION_DEPARTURE_INVALID");

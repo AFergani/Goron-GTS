@@ -1052,6 +1052,7 @@ let gardiennageAutoCloseTimer = null;
 function runBackgroundAutoCloseTick() {
   try {
     ensureStore();
+    userStore.extendOpenEndedGardiennageHorizons();
     userStore.autoCloseExpiredGardiennages();
     userStore.autoCloseExpiredExceptionalRondes();
   } catch {

@@ -161,7 +161,21 @@ export function GardiennagePage({
 
   /* ── Handlers ── */
   const openCreate = () => { setActiveEntry(null); setModalMode("create"); setModalOpen(true); };
-  const openEdit = (entry: GardiennageEntry) => { setActiveEntry(entry); setModalMode("edit"); setModalOpen(true); };
+  const openEdit = (entry: GardiennageEntry) => {
+    const batchId = String(entry.planningBatchId || "").trim();
+    let target = entry;
+    if (batchId) {
+      const batchEntries = presenter.entries.filter((row) => String(row.planningBatchId || "").trim() === batchId);
+      const editableWithSnapshot = batchEntries.find(
+        (row) => row.planningSnapshot && row.status !== "CLOTURE" && row.status !== "ANNULE"
+      );
+      const anyWithSnapshot = batchEntries.find((row) => row.planningSnapshot);
+      target = editableWithSnapshot || anyWithSnapshot || entry;
+    }
+    setActiveEntry(target);
+    setModalMode("edit");
+    setModalOpen(true);
+  };
   const closeModal = () => { setModalOpen(false); setActiveEntry(null); };
   const openCloseModal = (entry: GardiennageEntry) => { setCloseModalEntry(entry); setCloseModalOpen(true); };
   const openDeleteConfirm = (entry: GardiennageEntry) => { setDeleteTarget(entry); setDeleteReason(""); };

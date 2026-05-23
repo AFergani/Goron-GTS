@@ -7,9 +7,14 @@
 
 type ToastProps = {
   message: string;
+  variant?: "default" | "error";
 };
 
-export function Toast({ message }: ToastProps) {
+export function Toast({ message, variant = "default" }: ToastProps) {
   if (!message) return null;
-  return <div className="toast">{message}</div>;
+  return (
+    <div className={variant === "error" ? "toast toast--error" : "toast"} role={variant === "error" ? "alert" : "status"}>
+      {message}
+    </div>
+  );
 }

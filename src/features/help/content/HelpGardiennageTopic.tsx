@@ -76,8 +76,11 @@ export function HelpGardiennageTopic() {
                 <td>
                   <strong>H24</strong>
                 </td>
-                <td>Présence continue et ininterrompue sur une période donnée.</td>
-                <td>Surveillance non-stop du lundi 08:00 au vendredi 20:00.</td>
+                <td>
+                  Présence continue et ininterrompue sur une période donnée. Sans date de fin : prestation jusqu&apos;à nouvel ordre avec
+                  horizon glissant (90 jours renouvelés automatiquement tant que la demande reste planifiée ou active).
+                </td>
+                <td>Surveillance non-stop du lundi 08:00 au vendredi 20:00, ou H24 sans date de fin (prolongation auto).</td>
                 <td>
                   <strong>Ne pas utiliser</strong> pour des nuits récurrentes (ex. 20:00 à 08:00 chaque soir). Privilégiez le mode{" "}
                   <strong>Planification libre</strong>.
@@ -149,6 +152,7 @@ export function HelpGardiennageTopic() {
           <li>
             <strong>Clôture automatique :</strong> dès que l&apos;horaire de fin d&apos;un créneau est dépassé, le système clôture
             automatiquement la fiche avec la mention <strong>Clôture automatique par système</strong> (sans heures effectives ni rapport).
+            Les demandes <strong>H24 sans date de fin</strong> ne sont pas clôturées ainsi : leur horizon est prolongé automatiquement.
           </li>
           <li>
             <strong>Correction / enrichissement :</strong> si une fiche a été clôturée automatiquement mais nécessite un suivi, cliquez sur{" "}

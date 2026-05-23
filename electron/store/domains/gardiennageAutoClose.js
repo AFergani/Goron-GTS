@@ -50,6 +50,17 @@ function shiftIsoDate(isoDate, amount) {
  * @param {object} row - Ligne `gardiennage_entries`.
  * @returns {number|null}
  */
+function isOpenEndedContinuousRow(row) {
+  const raw = String(row.planning_snapshot_json || "").trim();
+  if (!raw) return false;
+  try {
+    const snap = JSON.parse(raw);
+    return Boolean(snap?.isOpenEnded && snap?.isContinuous);
+  } catch {
+    return false;
+  }
+}
+
 function resolveSlotEndMs(row) {
   const slotEndRaw = String(row.planning_slot_end || "").trim();
   if (slotEndRaw) {
@@ -158,6 +169,7 @@ function autoCloseExpiredGardiennageEntries(store, { requesterUsername = GARDIEN
   const closedSamples = [];
 
   for (const row of rows) {
+    if (isOpenEndedContinuousRow(row)) continue;
     const endMs = resolveSlotEndMs(row);
     if (endMs == null || nowMs < endMs) continue;
     if (!applyAutoCloseRow(store, row, nowIso)) continue;

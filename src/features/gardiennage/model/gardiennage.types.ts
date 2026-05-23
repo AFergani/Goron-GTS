@@ -35,6 +35,8 @@ export type GardiennagePlanningSnapshotV1 = {
   validToDate: string;
   validToTime: string;
   isContinuous: boolean;
+  /** H24 sans date de fin : prestation jusqu'à nouvel ordre (horizon glissant prolongé par le backend). */
+  isOpenEnded?: boolean;
   lines: GardiennagePlanningLineV1[];
 };
 

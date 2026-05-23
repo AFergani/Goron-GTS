@@ -8,22 +8,16 @@ import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
 
 type HolidaysDataTabProps = {
   canDeleteData: boolean;
-  allHolidays: HolidayRef[];
-  holidayDateIso: string;
-  holidayLabel: string;
   holidayYear: string;
   editingHolidayId: string | null;
   editingHolidayDateIso: string;
   editingHolidayLabel: string;
   pagedHolidays: HolidayRef[];
   filteredHolidays: HolidayRef[];
-  setHolidayDateIso: (value: string) => void;
-  setHolidayLabel: (value: string) => void;
   setHolidayYear: (value: string) => void;
   setEditingHolidayId: (value: string | null) => void;
   setEditingHolidayDateIso: (value: string) => void;
   setEditingHolidayLabel: (value: string) => void;
-  onCreateHoliday: (dateIso: string, label: string) => SyncOrAsync;
   onUpdateHoliday: (id: string, dateIso: string, label: string) => SyncOrAsync;
   onDeleteHoliday: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
@@ -43,7 +37,7 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
     <div className="table-scroll-x">
       <div className="main-courante-table-toolbar" style={{ marginBottom: 10 }}>
         <p className="muted">
-          Les jours fériés fixes français sont gérés automatiquement. Ajoutez ici uniquement les jours non fixes ou spécifiques.
+          Les jours fériés fixes français sont gérés automatiquement. Utilisez « Ajouter une entrée » pour les jours non fixes ou spécifiques.
         </p>
         <div className="row-actions" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
           <button
@@ -98,37 +92,6 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>
-              <input type="date" value={props.holidayDateIso} onChange={(e) => props.setHolidayDateIso(e.target.value)} />
-            </td>
-            <td>
-              <input
-                value={props.holidayLabel}
-                onChange={(e) => props.setHolidayLabel(e.target.value)}
-                placeholder="Ex: Fête nationale"
-              />
-            </td>
-            <td>
-              <button
-                className="btn-light action-icon-btn"
-                title="Ajouter"
-                aria-label="Ajouter"
-                onClick={() => {
-                  const date = props.holidayDateIso.trim();
-                  if (date && props.allHolidays.some((h) => h.dateIso === date)) {
-                    props.onNotify?.("Cette date fériée existe déjà.");
-                    return;
-                  }
-                  void props.onCreateHoliday(props.holidayDateIso, props.holidayLabel);
-                  props.setHolidayDateIso("");
-                  props.setHolidayLabel("");
-                }}
-              >
-                <Save size={14} />
-              </button>
-            </td>
-          </tr>
           {props.pagedHolidays.map((item) => (
             <tr key={item.id}>
               <td>

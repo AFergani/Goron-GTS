@@ -423,6 +423,8 @@ export function InterventionEntryModal({
       return null;
     }
     const passageValidation = validatePassageDateTimes({
+      requestDate,
+      requestTime: requestTimeNorm,
       arrivalDate: passageDatesResolved.arrivalDate,
       arrivalTime: arrivalTimeNorm,
       departureDate: passageDatesResolved.departureDate,

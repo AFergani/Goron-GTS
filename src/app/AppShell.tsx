@@ -28,6 +28,7 @@ import type { WriterQueueStats, WriterStatus } from "../infrastructure/api/gtsAp
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
+import "../styles/fransor.css";
 
 type AppPage = "mainCourante" | "fransor" | "intervention" | "rondes" | "settings" | "gardiennage";
 type ThemeMode = "dark" | "light";
@@ -64,7 +65,14 @@ export function AppShell() {
   const { session, setSession, clearSession } = useSession();
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
+  const notifyToast = useCallback((message: string, variant: "default" | "error" = "default") => {
+    if (!message) {
+      setToast(null);
+      return;
+    }
+    setToast({ message, variant });
+  }, []);
   const [credentialsToShare, setCredentialsToShare] = useState<{ username: string; temporaryPassword: string } | null>(null);
   const [activePage, setActivePage] = useState<AppPage>("mainCourante");
   const previousSessionUsernameRef = useRef<string | null>(null);
@@ -120,7 +128,7 @@ export function AppShell() {
 
   const navigateToLinkedIntervention = (interventionId: string) => {
     if (!userPageAccess.intervention) {
-      setToast("Accès à la page Interventions non autorisé.");
+      notifyToast("Accès à la page Interventions non autorisé.");
       return;
     }
     setFocusInterventionIdFromRonde(interventionId);
@@ -130,7 +138,7 @@ export function AppShell() {
   /** Bascule vers Rondes (sélection de ligne ciblée à brancher sur `RondePage` si besoin). */
   const navigateToLinkedRonde = (_rondeId: string) => {
     if (!userPageAccess.rondes) {
-      setToast("Accès à la page Rondes non autorisé.");
+      notifyToast("Accès à la page Rondes non autorisé.");
       return;
     }
     setActivePage("rondes");
@@ -148,14 +156,14 @@ export function AppShell() {
   const auth = useAuthPresenter({
     onSessionCreated: setSession,
     onError: setError,
-    onToast: setToast
+    onToast: notifyToast
   });
 
   const settings = useSettingsPresenter({
     session,
     onError: setError,
     onInfo: setInfo,
-    onToast: setToast,
+    onToast: notifyToast,
     onCredentialsReady: setCredentialsToShare
   });
 
@@ -187,8 +195,8 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (!toast) return;
-    const timeout = setTimeout(() => setToast(""), 2600);
+    if (!toast?.message) return;
+    const timeout = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(timeout);
   }, [toast]);
 
@@ -401,7 +409,7 @@ export function AppShell() {
           onSubmit={auth.onFirstLogin}
         />
         {exitChoiceModal}
-        <Toast message={toast} />
+        <Toast message={toast?.message ?? ""} variant={toast?.variant} />
       </>
     );
   }
@@ -667,7 +675,7 @@ export function AppShell() {
             onResolvePendingIntervenant={(payload) => void settings.onResolvePendingIntervenant(payload)}
             onDeletePendingSiteSubmission={(payload) => settings.onDeletePendingSiteSubmission(payload)}
             onDeletePendingIntervenantSubmission={(payload) => settings.onDeletePendingIntervenantSubmission(payload)}
-            onNotify={setToast}
+            onNotify={notifyToast}
             onRefreshDatabases={() => void settings.loadDatabaseList()}
             onSwitchDatabase={(dbPath) => void settings.onSwitchDatabase(dbPath)}
             onRefreshArchiveStatus={() => void settings.loadArchiveStatus()}
@@ -693,14 +701,14 @@ export function AppShell() {
             operatorName={session.user.fullName}
             requesterUsername={session.user.username}
             requesterRole={session.user.role}
-            onToast={setToast}
+            onToast={notifyToast}
           />
         )}
         {activePage === "fransor" && userPageAccess.fransor && (
           <FransorPage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
-            onToast={setToast}
+            onToast={notifyToast}
           />
         )}
         {activePage === "intervention" && userPageAccess.intervention && (
@@ -709,7 +717,7 @@ export function AppShell() {
             requesterUsername={session.user.username}
             canAccessRondes={Boolean(userPageAccess.rondes)}
             canAccessGardiennage={Boolean(userPageAccess.gardiennage)}
-            onToast={setToast}
+            onToast={notifyToast}
             focusInterventionId={focusInterventionIdFromRonde}
             onFocusInterventionConsumed={() => setFocusInterventionIdFromRonde(null)}
           />
@@ -718,7 +726,7 @@ export function AppShell() {
           <GardiennagePage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
-            onToast={setToast}
+            onToast={notifyToast}
             onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
             onNavigateToLinkedRonde={userPageAccess.rondes ? navigateToLinkedRonde : undefined}
           />
@@ -727,7 +735,7 @@ export function AppShell() {
           <RondePage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
-            onToast={setToast}
+            onToast={notifyToast}
             onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
             onUpsertRondePlannedProfile={(payload) => void settings.onUpsertRondePlannedProfile(payload)}
             onDeleteRondePlannedProfile={(id, reason) => void settings.onDeleteRondePlannedProfile(id, reason)}
@@ -758,7 +766,7 @@ export function AppShell() {
           temporaryPassword={credentialsToShare?.temporaryPassword || ""}
           onClose={() => setCredentialsToShare(null)}
         />
-        <Toast message={toast} />
+        <Toast message={toast?.message ?? ""} variant={toast?.variant} />
       </section>
     </main>
   );

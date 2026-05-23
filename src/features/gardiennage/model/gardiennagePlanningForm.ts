@@ -12,10 +12,36 @@ import { GARDIENNAGE_WEEKDAYS_ALL_MASK } from "./gardiennagePlanningCalendar";
 
 export type GardiennagePlanningFormMode = "ponctuel" | "h24" | "recurring";
 
+/** Horizon de génération / prévisualisation pour H24 sans date de fin. */
+export const GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS = 90;
+
+/** Prolongation auto lorsque la fin planifiée est à cette distance (jours) ou moins (aligné backend). */
+export const GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT = 14;
+
+/** Date de fin cible H24 ouvert : max(début + horizon, aujourd'hui + horizon). */
+export function computeOpenEndedHorizonEndDate(
+  validFromDate: string,
+  referenceDateIso?: string
+): string {
+  const ref = referenceDateIso?.trim() || new Date().toISOString().slice(0, 10);
+  const from = validFromDate?.trim() || ref;
+  const fromHorizon = shiftIsoDate(from, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
+  const refHorizon = shiftIsoDate(ref, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
+  return fromHorizon > refHorizon ? fromHorizon : refHorizon;
+}
+
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function isValidPlanningTime(value: string): boolean {
   return TIME_RE.test(value);
+}
+
+/** Heure de fin H24 : si absente, identique à l'heure de début (fin de période au même horaire). */
+export function resolveH24ValidToTime(validFromTime: string, validToTime: string): string {
+  const to = String(validToTime || "").trim();
+  if (isValidPlanningTime(to)) return to;
+  const from = String(validFromTime || "").trim();
+  return isValidPlanningTime(from) ? from : "";
 }
 
 export function resolvePlanningFormMode(isPonctuel: boolean, isContinuous: boolean): GardiennagePlanningFormMode {
@@ -44,6 +70,48 @@ function parseTimeToMin(hhmm: string): number {
   if (!isValidPlanningTime(hhmm)) return -1;
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
+}
+
+function formatMinToHhmm(totalMin: number): string {
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Infère le mode UI depuis un snapshot persisté. */
+export function inferPlanningModeFromSnapshot(
+  snap: GardiennagePlanningSnapshotV1
+): GardiennagePlanningFormMode {
+  if (snap.isContinuous) return "h24";
+  if (snap.lines?.length === 1 && snap.lines[0]?.id === "ponctuel-slot") return "ponctuel";
+  return "recurring";
+}
+
+/** Étend la fenêtre de validité pour inclure la fin réelle des créneaux nocturnes. */
+export function resolveRecurringRangeBounds(
+  validToDate: string,
+  lines: GardiennagePlanningLineV1[]
+): { validToDate: string; validToTime: string } {
+  const hasOvernight = lines.some((line) => {
+    const startMin = parseTimeToMin(line.startTime);
+    const endMin = parseTimeToMin(line.endTime);
+    return startMin >= 0 && endMin >= 0 && endMin <= startMin;
+  });
+  if (!hasOvernight) {
+    return { validToDate, validToTime: "23:59" };
+  }
+  let maxEndMin = 0;
+  for (const line of lines) {
+    const endMin = parseTimeToMin(line.endTime);
+    const startMin = parseTimeToMin(line.startTime);
+    if (endMin >= 0 && endMin <= startMin && endMin > maxEndMin) {
+      maxEndMin = endMin;
+    }
+  }
+  return {
+    validToDate: shiftIsoDate(validToDate, 1),
+    validToTime: formatMinToHhmm(maxEndMin)
+  };
 }
 
 function defaultLine(label: string, anchorDate: string, startTime: string, endTime: string): GardiennagePlanningLineV1 {
@@ -77,13 +145,20 @@ export function buildEffectivePlanningSnapshot(input: BuildPlanningSnapshotInput
   const mode = resolvePlanningFormMode(input.isPonctuel, input.isContinuous);
 
   if (mode === "h24") {
+    const toDateRaw = input.validToDate?.trim() || "";
+    const isOpenEnded = !toDateRaw;
+    const toDate = isOpenEnded
+      ? computeOpenEndedHorizonEndDate(fromDate)
+      : toDateRaw;
+    const validToTime = resolveH24ValidToTime(input.validFromTime, input.validToTime);
     return {
       version: 1,
       validFromDate: fromDate,
       validFromTime: input.validFromTime,
-      validToDate: input.validToDate || fromDate,
-      validToTime: input.validToTime,
+      validToDate: toDate,
+      validToTime,
       isContinuous: true,
+      isOpenEnded,
       lines: []
     };
   }
@@ -104,12 +179,13 @@ export function buildEffectivePlanningSnapshot(input: BuildPlanningSnapshotInput
   }
 
   const toDate = input.validToDate || fromDate;
+  const recurringBounds = resolveRecurringRangeBounds(toDate, input.planningLines);
   return {
     version: 1,
     validFromDate: fromDate,
     validFromTime: "00:00",
-    validToDate: toDate,
-    validToTime: "23:59",
+    validToDate: recurringBounds.validToDate,
+    validToTime: recurringBounds.validToTime,
     isContinuous: false,
     lines: input.planningLines
   };
@@ -125,11 +201,14 @@ export function isPlanningFormValid(input: BuildPlanningSnapshotInput): boolean 
   }
 
   if (mode === "h24") {
+    if (!isValidPlanningTime(input.validFromTime)) return false;
+    const effectiveToTime = resolveH24ValidToTime(input.validFromTime, input.validToTime);
+    if (!effectiveToTime) return false;
     const toDate = input.validToDate?.trim();
-    if (!toDate || toDate < fromDate) return false;
-    if (!isValidPlanningTime(input.validFromTime) || !isValidPlanningTime(input.validToTime)) return false;
+    if (!toDate) return true;
+    if (toDate < fromDate) return false;
     const rangeStart = `${fromDate}T${input.validFromTime}`;
-    const rangeEnd = `${toDate}T${input.validToTime}`;
+    const rangeEnd = `${toDate}T${effectiveToTime}`;
     return rangeStart < rangeEnd;
   }
 

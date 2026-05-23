@@ -8,7 +8,7 @@
  */
 
 import type { GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
-import { isValidPlanningTime } from "./gardiennagePlanningForm";
+import { isValidPlanningTime, resolveH24ValidToTime } from "./gardiennagePlanningForm";
 import {
   buildHolidayMatchers,
   collectActiveDatesForLine,
@@ -55,7 +55,9 @@ export function buildGardiennageSlotsFromSnapshot(
   options: BuildGardiennageSlotsOptions = {}
 ): GardiennageGeneratedSlot[] {
   const fromTime = String(snapshot.validFromTime || "").trim();
-  const toTime = String(snapshot.validToTime || "").trim();
+  const toTime = snapshot.isContinuous
+    ? resolveH24ValidToTime(fromTime, String(snapshot.validToTime || "").trim())
+    : String(snapshot.validToTime || "").trim();
   if (!isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
   const rangeStart = toIsoDateTime(snapshot.validFromDate, fromTime);
   const rangeEnd = toIsoDateTime(snapshot.validToDate, toTime);

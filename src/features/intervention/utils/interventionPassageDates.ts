@@ -114,7 +114,44 @@ export function resolvePassageDatesForSave(params: {
   return { arrivalDate, departureDate };
 }
 
+/** Délai demande → arrivée en minutes (même règles que le backend / colonne « Délai »). */
+export function computeInterventionDelayMinutes(params: {
+  requestDate: string;
+  requestTime: string;
+  arrivalDate?: string | null;
+  arrivalTime: string;
+}): number | null {
+  const requestDate = String(params.requestDate || "").trim();
+  const requestTime = normalizeTimeForSave(params.requestTime);
+  const arrivalTime = normalizeTimeForSave(params.arrivalTime);
+  if (!isIsoDate(requestDate) || !isValidTime(requestTime) || !arrivalTime) return null;
+  const startMs = parseDateTimeMs(requestDate, requestTime);
+  const arrivalBase = isIsoDate(String(params.arrivalDate || "").trim())
+    ? String(params.arrivalDate).trim()
+    : requestDate;
+  let arrivalMs = parseDateTimeMs(arrivalBase, arrivalTime);
+  if (startMs == null || arrivalMs == null) return null;
+  if (!isIsoDate(String(params.arrivalDate || "").trim()) && arrivalMs < startMs) {
+    arrivalMs += 24 * 60 * 60 * 1000;
+  }
+  return Math.round((arrivalMs - startMs) / 60000);
+}
+
+function formatDateTimeFr(dateIso: string, timeIso: string): string {
+  const ms = parseDateTimeMs(dateIso, timeIso);
+  if (ms == null) return `${dateIso} ${timeIso}`;
+  return new Date(ms).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 export function validatePassageDateTimes(params: {
+  requestDate?: string;
+  requestTime?: string;
   arrivalDate: string;
   arrivalTime: string;
   departureDate: string;
@@ -137,6 +174,22 @@ export function validatePassageDateTimes(params: {
     const departureMs = parseDateTimeMs(departureDate, departureTime);
     if (arrivalMs != null && departureMs != null && departureMs < arrivalMs) {
       return "La date et l'heure de départ doivent être postérieures à l'arrivée.";
+    }
+  }
+  const requestDate = String(params.requestDate || "").trim();
+  const requestTime = normalizeTimeForSave(String(params.requestTime || ""));
+  if (requestDate && requestTime && arrivalTime && isIsoDate(arrivalDate)) {
+    const delayMinutes = computeInterventionDelayMinutes({
+      requestDate,
+      requestTime,
+      arrivalDate,
+      arrivalTime
+    });
+    if (delayMinutes != null && delayMinutes < 0) {
+      return (
+        `La date et l'heure de la demande (${formatDateTimeFr(requestDate, requestTime)}) ne peuvent pas être postérieures à l'arrivée ` +
+        `(${formatDateTimeFr(arrivalDate, arrivalTime)}). Délai calculé : ${delayMinutes} min.`
+      );
     }
   }
   return null;

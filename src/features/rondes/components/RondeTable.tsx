@@ -120,19 +120,21 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
         <tbody>
           {sortedEntries.map((entry) => (
             <tr key={entry.id}>
-              <td>{formatRequestDate(entry.requestDate)}</td>
-              <td className="mc-site-wrap">
-                <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
-              </td>
-              <td>
+              <td className="ronde-request-date-cell">
                 {entry.plannedRoundKind ? (
                   <span
                     className={`ronde-kind-badge ronde-kind-badge--${plannedKindTone(entry.plannedRoundKind as RondePlannedRoundKind)}`}
-                    title={`Type planifié: ${formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}`}
+                    title={`Type planifié : ${formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}`}
                   >
                     {formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}
                   </span>
                 ) : null}
+                <span>{formatRequestDate(entry.requestDate)}</span>
+              </td>
+              <td className="mc-site-wrap">
+                <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
+              </td>
+              <td>
                 <div className="ronde-origin-cell">
                   <span className="ronde-origin-badge">{entry.originKind === "TELESURVEILLANCE" ? "Télésurveillance" : entry.originKind === "CLIENT" ? "Client" : "Autre"}</span>
                   <span className="ronde-origin-detail">

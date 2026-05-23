@@ -115,7 +115,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   GARDIENNAGE_STATUS_ANNULE: "[Gardiennage] Gardiennage annulé",
   GARDIENNAGE_STATUS_CHANGE: "[Gardiennage] Changement de statut",
   GARDIENNAGE_REOPEN: "[Gardiennage] Gardiennage rouvert",
-  GARDIENNAGE_AUTO_CLOSE_BATCH: "[Gardiennage] Clôture automatique des prestations échues"
+  GARDIENNAGE_AUTO_CLOSE_BATCH: "[Gardiennage] Clôture automatique des prestations échues",
+  GARDIENNAGE_OPEN_ENDED_HORIZON_BATCH: "[Gardiennage] Prolongation automatique d'un gardiennage H24 jusqu'à nouvel ordre"
 };
 
 export function formatAuditActionLabel(action: string): string {

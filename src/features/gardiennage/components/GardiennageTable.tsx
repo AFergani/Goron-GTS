@@ -5,7 +5,7 @@
  * Colonne Période optionnelle (onglet Planification).
  */
 
-import { Check, FileText, Moon, Pencil, Trash2 } from "lucide-react";
+import { Check, FileText, Infinity, Moon, Pencil, Trash2 } from "lucide-react";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { GardiennageEntry } from "../model/gardiennage.types";
 
@@ -28,6 +28,20 @@ function formatDateFr(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function isOpenEndedH24(entry: GardiennageEntry): boolean {
+  const snap = entry.planningSnapshot;
+  return Boolean(snap?.isOpenEnded && snap?.isContinuous);
+}
+
+function OpenEndedInfinityMark() {
+  const label = "Jusqu'à nouvel ordre";
+  return (
+    <span className="gardiennage-open-ended-icon" title={label} aria-label={label}>
+      <Infinity size={15} strokeWidth={2.25} aria-hidden />
+    </span>
+  );
 }
 
 type GardiennageTableProps = {
@@ -99,11 +113,11 @@ export function GardiennageTable({
                   <td>
                     <span className="gardiennage-periode">
                       {formatDateFr(entry.recurrenceStartDate)}
-                      {entry.isPonctuel
-                        ? ""
-                        : entry.recurrenceEndDate
-                          ? ` → ${formatDateFr(entry.recurrenceEndDate)}`
-                          : " → ∞"}
+                      {entry.isPonctuel ? null : entry.recurrenceEndDate ? (
+                        <> → {formatDateFr(entry.recurrenceEndDate)}</>
+                      ) : (
+                        <> → <OpenEndedInfinityMark /></>
+                      )}
                     </span>
                   </td>
                 )}
@@ -112,9 +126,19 @@ export function GardiennageTable({
                 <td>
                   <div className="gardiennage-creneau-cell">
                     <span className="gardiennage-creneau-label">
-                      {entry.startTime && entry.endTime
-                        ? `${entry.startTime} → ${entry.endTime}`
-                        : "—"}
+                      {entry.startTime ? (
+                        isOpenEndedH24(entry) ? (
+                          <>
+                            {entry.startTime} → <OpenEndedInfinityMark />
+                          </>
+                        ) : entry.endTime ? (
+                          `${entry.startTime} → ${entry.endTime}`
+                        ) : (
+                          entry.startTime
+                        )
+                      ) : (
+                        "—"
+                      )}
                     </span>
                     {entry.crossesMidnight && (
                       <span
@@ -156,8 +180,18 @@ export function GardiennageTable({
                     <button
                       type="button"
                       className="mc-table-action-btn"
-                      title="Ouvrir"
-                      aria-label="Ouvrir ce gardiennage"
+                      title={
+                        entry.status === "CLOTURE" || entry.status === "ANNULE"
+                          ? "Consultation uniquement (créneau clôturé ou annulé)"
+                          : entry.planningBatchId
+                            ? "Modifier toute la planification (lot)"
+                            : "Modifier la planification"
+                      }
+                      aria-label={
+                        entry.status === "CLOTURE" || entry.status === "ANNULE"
+                          ? "Consulter ce gardiennage"
+                          : "Modifier la planification"
+                      }
                       onClick={() => onEdit(entry)}
                     >
                       <Pencil size={15} />

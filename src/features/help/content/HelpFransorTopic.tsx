@@ -87,14 +87,14 @@ export function HelpFransorTopic() {
               </tr>
               <tr>
                 <td>
-                  <strong>Période d&apos;exception « Fermeture »</strong>
+                  <strong>Période d&apos;exception « Fermer »</strong>
                 </td>
                 <td>Exclue</td>
                 <td>Sortie temporaire du suivi (ex. fermeture annuelle, congés).</td>
               </tr>
               <tr>
                 <td>
-                  <strong>Période d&apos;exception « Ouverture »</strong>
+                  <strong>Période d&apos;exception « Ouvert »</strong>
                 </td>
                 <td>Prévue (exception)</td>
                 <td>Rend la journée obligatoire, même un week-end ou un jour férié.</td>
@@ -108,16 +108,27 @@ export function HelpFransorTopic() {
         <h3 className="help-center-card-title">📆 Gérer les périodes exceptionnelles</h3>
         <p className="muted">
           Le bouton <strong>Périodes exceptionnelles</strong> permet d&apos;ajuster le calendrier pour l&apos;adapter aux réalités du terrain
-          (fermetures exceptionnelles).
+          (congés, astreintes, fermetures ponctuelles, etc.).
         </p>
+        <div className="help-center-callout help-center-callout--tip" role="note">
+          <strong>Ne pas confondre :</strong> dans la modale des exceptions, les types <strong>Ouvert</strong> et <strong>Fermer</strong> pilotent
+          le calendrier (jour obligatoire ou exclu du suivi). Ils ne remplacent pas les actions quotidiennes <strong>Ouverture</strong> /{" "}
+          <strong>Fermeture</strong> saisies par responsable sur chaque journée.
+        </div>
         <ul className="muted help-center-list">
           <li>
-            <strong>Création :</strong> renseignez la date de début, la date de fin, le type (<strong>Ouverture</strong> ou{" "}
-            <strong>Fermeture</strong>) et un motif explicite.
+            <strong>Type « Fermer » :</strong> retire temporairement une ou plusieurs dates du suivi (aucune action O/F attendue).
           </li>
           <li>
-            <strong>Priorité des règles :</strong> en cas de chevauchement sur une même date, la règle la plus récente ou une instruction
-            d&apos;ouverture explicite l&apos;emporte toujours.
+            <strong>Type « Ouvert » :</strong> rend une date obligatoire même si c&apos;est un week-end ou un jour férié.
+          </li>
+          <li>
+            <strong>Création :</strong> renseignez la date de début, la date de fin (optionnelle), le type (<strong>Ouvert</strong> ou{" "}
+            <strong>Fermer</strong>) et un motif explicite, puis cliquez sur <strong>Enregistrer exception</strong>.
+          </li>
+          <li>
+            <strong>Priorité des règles :</strong> en cas de chevauchement sur une même date, la règle la plus récente ou une exception{" "}
+            <strong>Ouvert</strong> explicite l&apos;emporte toujours.
           </li>
           <li>
             <strong>Suppression :</strong> vous pouvez modifier ou supprimer une exception depuis le tableau de gestion. La suppression nécessite
@@ -154,15 +165,15 @@ export function HelpFransorTopic() {
             badges passent au vert.
           </li>
           <li>
-            <strong>Fermeture pour congés (ex. du 15 au 20 août) :</strong> aucun mouvement ne doit être réclamé par le système.
+            <strong>Congés ou fermeture annuelle (ex. du 15 au 20 août) :</strong> aucune action O/F ne doit être réclamée sur cette période.
             <br />
-            <strong>→</strong> créez une période exceptionnelle de type <em>Fermeture</em> avec le motif « Congés ».
+            <strong>→</strong> créez une exception de type <em>Fermer</em> avec le motif « Congés », puis validez.
           </li>
           <li>
-            <strong>Astreinte un samedi férié :</strong> un événement exige une ouverture exceptionnelle.
+            <strong>Astreinte un samedi férié :</strong> le client doit être suivi ce jour-là malgré le calendrier standard.
             <br />
-            <strong>→</strong> créez une période exceptionnelle de type <em>Ouverture</em> pour ce samedi précis. Saisissez ensuite vos responsables
-            O / F normalement.
+            <strong>→</strong> créez une exception de type <em>Ouvert</em> pour ce samedi, puis saisissez les actions <em>Ouverture</em> /{" "}
+            <em>Fermeture</em> du jour avec les responsables concernés.
           </li>
           <li>
             <strong>Fin de mois réglementaire :</strong> préparation de la facturation.

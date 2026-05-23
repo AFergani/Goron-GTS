@@ -108,7 +108,7 @@ export function HelpSettingsDataTopic() {
           </li>
           <li>
             <strong>Impact :</strong> ces dates basculent automatiquement les modules <strong>Fransor</strong> et <strong>Rondes</strong> en mode
-            « jour non ouvré » (sauf si une période d&apos;exception « Ouverture » est configurée).
+            « jour non ouvré » (sauf si une période d&apos;exception « Ouvert » est configurée).
           </li>
         </ul>
 

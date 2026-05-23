@@ -81,7 +81,9 @@ export function collectActiveDatesForLine(
   holiday: GardiennageHolidayMatchers
 ): string[] {
   if (isIsoDate(line.anchorDate)) {
-    return skipDates.has(line.anchorDate) ? [] : [line.anchorDate];
+    const anchor = line.anchorDate;
+    if (anchor < validFromDate || anchor > validToDate) return [];
+    return [anchor];
   }
   const activeDates: string[] = [];
   let cursor = validFromDate;

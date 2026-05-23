@@ -2,14 +2,19 @@
  * Domaine gardiennage : CRUD `gardiennage_entries`, planification par snapshot (v1), lots `planning_batch_id`.
  *
  * Moteur de créneaux : `gardiennagePlannerEngine.js` ; clôture automatique : `gardiennageAutoClose.js`.
+ * Horizon glissant H24 ouvert : `gardiennageOpenEndedHorizon.js` (avant clôture auto).
  * Modes : demande simple (récurrence / ponctuel) ou génération multi-créneaux depuis `planningSnapshot`.
  * Statuts : PLANIFIE, ACTIF, CLOTURE, ANNULE. Écritures audit via `writeAudit` (before/after selon l'action).
- * Liste : déclenche `autoCloseExpiredGardiennageEntries` avant lecture.
+ * Liste : prolongation H24 ouvert puis `autoCloseExpiredGardiennageEntries`.
  */
 
 const { writeAudit } = require("../core/audit");
 const { generateEntityId } = require("../core/ids");
 const { autoCloseExpiredGardiennageEntries } = require("./gardiennageAutoClose");
+const {
+  computeOpenEndedHorizonEndDate,
+  extendOpenEndedGardiennageHorizons
+} = require("./gardiennageOpenEndedHorizon");
 const {
   buildGardiennageSlotsFromSnapshot,
   collectActiveDatesForLine,
@@ -189,18 +194,64 @@ function findGardiennageCreatorUsername(store, row) {
   return "";
 }
 
+function addDaysIso(isoDate, amount) {
+  const d = new Date(`${isoDate}T12:00:00`);
+  d.setDate(d.getDate() + amount);
+  const pad2 = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function isPonctuelPlanningSnapshot(snapshot) {
+  if (!snapshot || snapshot.isContinuous) return false;
+  const lines = Array.isArray(snapshot.lines) ? snapshot.lines : [];
+  return lines.length === 1 && lines[0]?.id === "ponctuel-slot";
+}
+
+function slotConflictsWithClosedRow(slot, closedRow) {
+  const closedStart = String(closedRow.planning_slot_start || "").trim();
+  const closedEnd = String(closedRow.planning_slot_end || "").trim();
+  if (closedStart && closedEnd) {
+    return slot.startIso < closedEnd && closedStart < slot.endIso;
+  }
+  return (
+    String(closedRow.recurrence_start_date || "") === slot.startDate &&
+    String(closedRow.start_time || "") === slot.startTime &&
+    String(closedRow.end_time || "") === slot.endTime
+  );
+}
+
+function filterSlotsPreservingClosed(generatedSlots, closedRows) {
+  if (!closedRows.length) return generatedSlots;
+  return generatedSlots.filter((slot) => !closedRows.some((row) => slotConflictsWithClosedRow(slot, row)));
+}
+
 function normalizePlanningSnapshot(payload) {
   const snap = payload.planningSnapshot;
   if (!snap || Number(snap.version) !== 1) return null;
-  if (!toIsoDate(snap.validFromDate) || !toIsoDate(snap.validToDate)) return null;
-  if (!toIsoTime(snap.validFromTime) || !toIsoTime(snap.validToTime)) return null;
+  const validFromDate = toIsoDate(snap.validFromDate);
+  if (!validFromDate) return null;
+  const validFromTime = toIsoTime(snap.validFromTime);
+  if (!validFromTime) return null;
+  const isContinuous = Boolean(snap.isContinuous);
+  let validToTime = toIsoTime(snap.validToTime);
+  if (!validToTime && isContinuous) {
+    validToTime = validFromTime;
+  }
+  if (!validToTime) return null;
+  const isOpenEnded = Boolean(snap.isOpenEnded);
+  let validToDate = toIsoDate(snap.validToDate);
+  if (!validToDate && isOpenEnded) {
+    validToDate = computeOpenEndedHorizonEndDate(validFromDate);
+  }
+  if (!validToDate) return null;
   return {
     version: 1,
-    validFromDate: toIsoDate(snap.validFromDate),
-    validFromTime: toIsoTime(snap.validFromTime),
-    validToDate: toIsoDate(snap.validToDate),
-    validToTime: toIsoTime(snap.validToTime),
+    validFromDate,
+    validFromTime,
+    validToDate,
+    validToTime,
     isContinuous: Boolean(snap.isContinuous),
+    isOpenEnded,
     lines: Array.isArray(snap.lines) ? snap.lines
       .map((line, index) => ({
         id: String(line.id || `line-${index + 1}`),
@@ -263,6 +314,7 @@ function insertGardiennageRow(store, rowPayload) {
 /** Liste toutes les entrées (reader) après passage auto-clôture des expirées. */
 function listGardiennages(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
+  extendOpenEndedGardiennageHorizons(store);
   autoCloseExpiredGardiennageEntries(store);
   const rows = store.db
     .prepare(
@@ -322,8 +374,8 @@ function createGardiennage(store, payload) {
         endTime: slot.endTime,
         crossesMidnight: slot.crossesMidnight,
         recurrenceStartDate: slot.startDate,
-        recurrenceEndDate: slot.endDate,
-        isPonctuel: true,
+        recurrenceEndDate: planningSnapshot.isOpenEnded ? "" : slot.endDate,
+        isPonctuel: isPonctuelPlanningSnapshot(planningSnapshot),
         intervenantId: payload.intervenantId || null,
         intervenantName: String(payload.intervenantName || "").trim(),
         notes: String(payload.notes || "").trim(),
@@ -435,20 +487,25 @@ function updateGardiennage(store, payload) {
     const closedRows = store.db
       .prepare("SELECT * FROM gardiennage_entries WHERE (planning_batch_id = ? OR id = ?) AND status = 'CLOTURE'")
       .all(existingBatchId, id);
+    const slotsToInsert = filterSlotsPreservingClosed(generatedSlots, closedRows);
+    if (!slotsToInsert.length && !closedRows.length) {
+      store.fail("gardiennage:update", "Aucun créneau généré avec cette validité/lignes.", "GARDIENNAGE_PLANNER_EMPTY");
+    }
     store.db
       .prepare("DELETE FROM gardiennage_entries WHERE (planning_batch_id = ? OR id = ?) AND status <> 'CLOTURE'")
       .run(existingBatchId, id);
-    generatedSlots.forEach((slot, index) => {
+    let assignAnchorId = true;
+    slotsToInsert.forEach((slot) => {
       insertGardiennageRow(store, {
-        id: index === 0 ? id : generateEntityId(),
+        id: assignAnchorId ? id : generateEntityId(),
         siteId: payload.siteId || null,
         siteDisplay: String(payload.siteDisplay || "").trim(),
         startTime: slot.startTime,
         endTime: slot.endTime,
         crossesMidnight: slot.crossesMidnight,
         recurrenceStartDate: slot.startDate,
-        recurrenceEndDate: slot.endDate,
-        isPonctuel: true,
+        recurrenceEndDate: planningSnapshot.isOpenEnded ? "" : slot.endDate,
+        isPonctuel: isPonctuelPlanningSnapshot(planningSnapshot),
         intervenantId: payload.intervenantId || null,
         intervenantName: String(payload.intervenantName || "").trim(),
         notes: String(payload.notes || "").trim(),
@@ -461,6 +518,7 @@ function updateGardiennage(store, payload) {
         createdAt: now,
         updatedAt: now
       });
+      assignAnchorId = false;
     });
     closedRows.forEach((row) => {
       store.db
@@ -483,6 +541,23 @@ function updateGardiennage(store, payload) {
           row.id
         );
     });
+    const returnId = slotsToInsert.length ? id : (closedRows.find((row) => row.id === id)?.id || closedRows[0]?.id || id);
+    writeAudit(store.db, {
+      actorUsername: requesterUsername,
+      action: "GARDIENNAGE_UPDATE",
+      status: "SUCCESS",
+      details: {
+        id: returnId,
+        before: { siteDisplay: existing.site_display, startTime: existing.start_time, endTime: existing.end_time },
+        after: {
+          siteDisplay: payload.siteDisplay,
+          startTime,
+          endTime,
+          planner: { batchId: existingBatchId, generated: true, inserted: slotsToInsert.length, preservedClosed: closedRows.length }
+        }
+      }
+    });
+    return mapRow(store.db.prepare("SELECT * FROM gardiennage_entries WHERE id = ?").get(returnId));
   } else {
     store.db
       .prepare(
@@ -859,6 +934,7 @@ function deleteGardiennage(store, payload) {
 
 module.exports = {
   listGardiennages,
+  extendOpenEndedGardiennageHorizons,
   /** Réexport — voir `gardiennageAutoClose.js`. */
   autoCloseExpiredGardiennageEntries,
   createGardiennage,

@@ -203,7 +203,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [importBatchProgress, setImportBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalTarget, setCreateModalTarget] = useState<
-    "sites" | "intervenants" | "types" | "rondeMotifs" | "fransorResponsables"
+    "sites" | "intervenants" | "types" | "rondeMotifs" | "fransorResponsables" | "holidays"
   >("sites");
   const [pendingSiteToResolveId, setPendingSiteToResolveId] = useState<string | null>(null);
   const [pendingIntervenantToResolveId, setPendingIntervenantToResolveId] = useState<string | null>(null);
@@ -499,6 +499,8 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     setRondeMotifLabel("");
     setRondeMotifColor("#5c6bc0");
     setFransorResponsableName("");
+    setHolidayDateIso("");
+    setHolidayLabel("");
     setPendingSiteToResolveId(null);
     setPendingIntervenantToResolveId(null);
   };
@@ -533,6 +535,17 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       await Promise.resolve(props.onCreateType(typeLabel, typeColor));
     } else if (createModalTarget === "rondeMotifs") {
       await Promise.resolve(props.onCreateRondeMotifType(rondeMotifLabel, rondeMotifColor));
+    } else if (createModalTarget === "holidays") {
+      const date = holidayDateIso.trim();
+      if (!date) {
+        props.onNotify("La date est obligatoire.");
+        return;
+      }
+      if (holidaysForUi.some((h) => h.dateIso === date)) {
+        props.onNotify("Cette date fériée existe déjà.");
+        return;
+      }
+      await Promise.resolve(props.onCreateHoliday(date, holidayLabel.trim()));
     } else {
       await Promise.resolve(props.onCreateFransorResponsable(fransorResponsableName));
     }
@@ -600,7 +613,8 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
                 props.activeDataTab === "intervenants" ||
                 props.activeDataTab === "types" ||
                 props.activeDataTab === "rondeMotifs" ||
-                props.activeDataTab === "fransorResponsables"
+                props.activeDataTab === "fransorResponsables" ||
+                props.activeDataTab === "holidays"
                 ? props.activeDataTab
                 : "sites"
             );
@@ -729,22 +743,16 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "holidays" && (
         <HolidaysDataTab
           canDeleteData={props.canDeleteData}
-          allHolidays={holidaysForUi}
-          holidayDateIso={holidayDateIso}
-          holidayLabel={holidayLabel}
           holidayYear={holidayYear}
           editingHolidayId={editingHolidayId}
           editingHolidayDateIso={editingHolidayDateIso}
           editingHolidayLabel={editingHolidayLabel}
           pagedHolidays={pagedHolidays}
           filteredHolidays={filteredHolidays}
-          setHolidayDateIso={setHolidayDateIso}
-          setHolidayLabel={setHolidayLabel}
           setHolidayYear={setHolidayYear}
           setEditingHolidayId={setEditingHolidayId}
           setEditingHolidayDateIso={setEditingHolidayDateIso}
           setEditingHolidayLabel={setEditingHolidayLabel}
-          onCreateHoliday={props.onCreateHoliday}
           onUpdateHoliday={props.onUpdateHoliday}
           onDeleteHoliday={props.onDeleteHoliday}
           openDeleteReasonModal={openDeleteReasonModal}
@@ -841,7 +849,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
                     ? "Ajouter un type d'anomalie"
                     : createModalTarget === "rondeMotifs"
                       ? "Ajouter un motif de ronde"
-                      : "Ajouter un responsable Fransor"}
+                      : createModalTarget === "holidays"
+                        ? "Ajouter un jour férié"
+                        : "Ajouter un responsable Fransor"}
               </h3>
             </div>
             <div className="form">
@@ -882,6 +892,22 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
                   <label className="data-type-color-field">
                     Couleur du badge
                     <input type="color" value={rondeMotifColor} onChange={(e) => setRondeMotifColor(e.target.value)} />
+                  </label>
+                </div>
+              )}
+              {createModalTarget === "holidays" && (
+                <div className="data-management-create-ref-form data-management-create-ref-form--anomaly-inline">
+                  <label className="data-management-create-ref-form__label data-management-create-ref-form__label--date">
+                    Date
+                    <input type="date" value={holidayDateIso} onChange={(e) => setHolidayDateIso(e.target.value)} />
+                  </label>
+                  <label className="data-management-create-ref-form__label data-management-create-ref-form__label--grow">
+                    Libellé
+                    <input
+                      placeholder="Ex. : pont local, fermeture exceptionnelle"
+                      value={holidayLabel}
+                      onChange={(e) => setHolidayLabel(e.target.value)}
+                    />
                   </label>
                 </div>
               )}

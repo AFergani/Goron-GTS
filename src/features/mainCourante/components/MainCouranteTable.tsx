@@ -174,7 +174,6 @@ export function MainCouranteTable({
   const comparators = {
     date: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     operator: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.operatorName || "").localeCompare(b.operatorName || "", "fr"),
-    manager: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.managerName || "").localeCompare(b.managerName || "", "fr"),
     site: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     type: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.anomalyTypeLabel || "").localeCompare(b.anomalyTypeLabel || "", "fr"),
     info: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.information || "").localeCompare(b.information || "", "fr"),
@@ -189,7 +188,6 @@ export function MainCouranteTable({
       <colgroup>
         <col className="mc-col-date" />
         <col className="mc-col-operator" />
-        <col className="mc-col-manager" />
         <col className="mc-col-site" />
         <col className="mc-col-type" />
         <col className="mc-col-information" />
@@ -201,11 +199,10 @@ export function MainCouranteTable({
         <tr>
           <th className="mc-col-date"><button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>Date {sortLabel("date")}</button></th>
           <th className="mc-col-operator"><button type="button" className="table-sort-btn" onClick={() => toggleSort("operator")}>Opérateur {sortLabel("operator")}</button></th>
-          <th className="mc-col-manager"><button type="button" className="table-sort-btn" onClick={() => toggleSort("manager")}>Responsable {sortLabel("manager")}</button></th>
           <th className="mc-col-site"><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
           <th className="mc-col-type"><button type="button" className="table-sort-btn" onClick={() => toggleSort("type")}>Type {sortLabel("type")}</button></th>
           <th className="mc-col-information"><button type="button" className="table-sort-btn" onClick={() => toggleSort("info")}>Information {sortLabel("info")}</button></th>
-          <th className="mc-col-observation">Obs. resp.</th>
+          <th className="mc-col-observation">Observation responsable</th>
           <th className="mc-col-status"><button type="button" className="table-sort-btn" onClick={() => toggleSort("status")}>État {sortLabel("status")}</button></th>
           <th className="mc-col-actions">Actions</th>
         </tr>
@@ -215,7 +212,6 @@ export function MainCouranteTable({
           <tr key={entry.id}>
             <td className="mc-col-date">{formatMcDate(entry.createdAt)}</td>
             <td className="mc-col-operator">{entry.operatorName}</td>
-            <td className="mc-col-manager">{entry.managerName || "—"}</td>
             <td className="mc-col-site mc-site-wrap">
               <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
             </td>

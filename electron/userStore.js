@@ -623,6 +623,10 @@ class UserStore {
     return gardiennageDomain.listGardiennages(this, { requesterRole });
   }
 
+  extendOpenEndedGardiennageHorizons(options) {
+    return gardiennageDomain.extendOpenEndedGardiennageHorizons(this, options);
+  }
+
   autoCloseExpiredGardiennages(options) {
     return gardiennageDomain.autoCloseExpiredGardiennageEntries(this, options);
   }

@@ -9,10 +9,11 @@
  * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, CircleHelp, FileDown, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, FileDown, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
-import type { Role } from "../../../types";
+import type { FransorClosure, Role } from "../../../types";
 import { exportFransorMonthlyRecapToWord } from "../export/fransorRecapWordExport";
 
 /** Jours ISO du mois `YYYY-MM` */
@@ -47,9 +48,33 @@ function getWeekdayOffsetFromMonday(isoDate: string) {
   return (date.getDay() + 6) % 7;
 }
 
+type FransorDisplayedDay = {
+  date: string;
+  missingOpening: boolean;
+  missingClosing: boolean;
+  openingResponsableId?: string;
+  closingResponsableId?: string;
+};
+
 function formatDateFr(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00`);
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Libellé carte calendrier (mois déjà indiqué dans le sélecteur). Ex. « Lundi 04 » ou « Mer 04 » en compact. */
+function formatDayCardLabel(isoDate: string, compact = false) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  const weekdayRaw = date
+    .toLocaleDateString("fr-FR", { weekday: compact ? "short" : "long" })
+    .replace(/\.$/, "");
+  const weekday = `${weekdayRaw.charAt(0).toUpperCase()}${weekdayRaw.slice(1)}`;
+  const dayNum = date.toLocaleDateString("fr-FR", { day: "2-digit" });
+  return `${weekday} ${dayNum}`;
+}
+
+function formatDayCardAriaLabel(isoDate: string) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 function formatMonthFr(month: string) {
@@ -60,11 +85,28 @@ function formatMonthFr(month: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Libellé court du mois (ex. « Mai »). */
+function formatMonthShortFr(month: string) {
+  const [year, monthPart] = month.split("-").map((v) => Number(v));
+  if (!year || !monthPart) return month;
+  const date = new Date(year, monthPart - 1, 1);
+  const text = date.toLocaleDateString("fr-FR", { month: "short" }).replace(/\.$/, "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function shiftMonth(month: string, delta: number) {
   const [year, monthPart] = month.split("-").map((v) => Number(v));
   if (!year || !monthPart) return month;
   const date = new Date(year, monthPart - 1 + delta, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Les 12 clés `YYYY-MM` d'une année civile. */
+function getYearMonthKeys(year: number) {
+  return Array.from({ length: 12 }, (_, index) => {
+    const monthPart = String(index + 1).padStart(2, "0");
+    return `${year}-${monthPart}`;
+  });
 }
 
 function getLocalIsoDate(date = new Date()) {
@@ -74,6 +116,10 @@ function getLocalIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function formatClosureModeLabel(mode: "CLOSED" | "OPEN") {
+  return mode === "OPEN" ? "Ouvert" : "Fermer";
+}
+
 export function FransorPage({
   requesterRole,
   requesterUsername,
@@ -81,7 +127,7 @@ export function FransorPage({
 }: {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: (message: string, variant?: "default" | "error") => void;
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [entryDate, setEntryDate] = useState(getLocalIsoDate);
@@ -97,10 +143,22 @@ export function FransorPage({
   const [deleteClosureId, setDeleteClosureId] = useState<string | null>(null);
   const [deleteClosureReason, setDeleteClosureReason] = useState("");
   const [showClosureModal, setShowClosureModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [closureModalYear, setClosureModalYear] = useState(() => new Date().getFullYear());
+  const [closureModalSelectedMonth, setClosureModalSelectedMonth] = useState("");
+  const [closuresByMonth, setClosuresByMonth] = useState<Record<string, FransorClosure[]>>({});
+  const [closureYearLoading, setClosureYearLoading] = useState(false);
   const [exportRecapLoading, setExportRecapLoading] = useState(false);
-  const [dayViewMode, setDayViewMode] = useState<"missing" | "filled">("missing");
+  const [compactDayLabels, setCompactDayLabels] = useState(false);
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mq = window.matchMedia("(max-width: 680px)");
+    const sync = () => setCompactDayLabels(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   /* --- Dérivés calendrier : exceptions, fériés, jour courant, jours à compléter --- */
   const todayIso = getLocalIsoDate();
@@ -176,7 +234,8 @@ export function FransorPage({
     const list: Array<{ date: string; missingOpening: boolean; missingClosing: boolean; openingResponsableId?: string; closingResponsableId?: string }> = [];
     for (const dayIso of days) {
       const exception = exceptionByDate.get(dayIso);
-      if (dayIso >= todayIso) continue;
+      /* Jours futurs exclus ; le jour J est inclus (comme la ligne « Journée »). */
+      if (dayIso > todayIso) continue;
       const isPlannedDay = exception?.mode === "OPEN"
         ? true
         : exception?.mode === "CLOSED"
@@ -198,19 +257,13 @@ export function FransorPage({
     }
     return list;
   }, [days, exceptionByDate, holidayDateSet, presenter.entries, todayIso]);
-  const missingDays = useMemo(() => dayStatuses.filter((item) => item.missingOpening || item.missingClosing), [dayStatuses]);
-  const filledDays = useMemo(() => dayStatuses.filter((item) => !item.missingOpening && !item.missingClosing), [dayStatuses]);
-  const displayedDays = useMemo(() => (dayViewMode === "missing" ? missingDays : filledDays), [dayViewMode, filledDays, missingDays]);
   const displayedDaysByDate = useMemo(() => {
-    const map = new Map<
-      string,
-      { date: string; missingOpening: boolean; missingClosing: boolean; openingResponsableId?: string; closingResponsableId?: string }
-    >();
-    for (const item of displayedDays) {
+    const map = new Map<string, FransorDisplayedDay>();
+    for (const item of dayStatuses) {
       map.set(item.date, item);
     }
     return map;
-  }, [displayedDays]);
+  }, [dayStatuses]);
   const monthCalendarWeeks = useMemo(() => {
     if (!days.length) return [];
     const firstDayOffset = getWeekdayOffsetFromMonday(days[0]);
@@ -222,6 +275,9 @@ export function FransorPage({
     const weeks: Array<Array<string | null>> = [];
     for (let index = 0; index < cells.length; index += 7) {
       weeks.push(cells.slice(index, index + 7));
+    }
+    while (weeks.length > 0 && weeks[weeks.length - 1].every((cell) => !cell)) {
+      weeks.pop();
     }
     return weeks;
   }, [days]);
@@ -236,6 +292,67 @@ export function FransorPage({
     };
   }, [presenter.recap]);
 
+  const monthClosuresCount = presenter.closures.length;
+  const monthClosuresAriaSummary =
+    monthClosuresCount === 0
+      ? "Aucune période exceptionnelle sur ce mois"
+      : monthClosuresCount === 1
+        ? "1 période exceptionnelle sur ce mois"
+        : `${monthClosuresCount} périodes exceptionnelles sur ce mois`;
+
+  const closureModalYearMonths = useMemo(() => getYearMonthKeys(closureModalYear), [closureModalYear]);
+
+  const refreshClosureYear = useCallback(async () => {
+    setClosureYearLoading(true);
+    try {
+      const results = await Promise.all(
+        closureModalYearMonths.map((month) => gtsApiClient.listFransorClosures({ requesterRole, month }))
+      );
+      const byMonth: Record<string, FransorClosure[]> = {};
+      closureModalYearMonths.forEach((month, index) => {
+        byMonth[month] = results[index];
+      });
+      setClosuresByMonth(byMonth);
+    } catch (error) {
+      onToast?.(error instanceof Error ? error.message : "Erreur de chargement des périodes.", "error");
+    } finally {
+      setClosureYearLoading(false);
+    }
+  }, [closureModalYearMonths, onToast, requesterRole]);
+
+  useEffect(() => {
+    if (!showClosureModal) return;
+    void refreshClosureYear();
+  }, [showClosureModal, refreshClosureYear, presenter.closures]);
+
+  const selectedMonthClosures = useMemo(() => {
+    if (!closureModalSelectedMonth) return [];
+    return (closuresByMonth[closureModalSelectedMonth] ?? []).slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }, [closureModalSelectedMonth, closuresByMonth]);
+
+  const openClosureModal = () => {
+    const pageYear = Number(presenter.month.slice(0, 4));
+    setClosureModalYear(Number.isFinite(pageYear) ? pageYear : new Date().getFullYear());
+    setClosureModalSelectedMonth(presenter.month);
+    setShowClosureModal(true);
+  };
+
+  const changeClosureModalYear = (nextYear: number) => {
+    if (!Number.isFinite(nextYear) || nextYear < 2000 || nextYear > 2100) return;
+    setClosureModalYear(nextYear);
+    setClosureModalSelectedMonth((previous) => {
+      const monthPart = (previous || presenter.month).slice(5, 7);
+      return `${nextYear}-${monthPart}`;
+    });
+  };
+
+  const resetClosureModalToCurrentMonth = () => {
+    const currentMonth = getLocalIsoDate().slice(0, 7);
+    const currentYear = Number(currentMonth.slice(0, 4));
+    setClosureModalYear(Number.isFinite(currentYear) ? currentYear : new Date().getFullYear());
+    setClosureModalSelectedMonth(currentMonth);
+  };
+
   /* --- Récap texte / export Word --- */
   const recapPlainText = useMemo(() => {
     const lines = [
@@ -248,15 +365,48 @@ export function FransorPage({
     ];
     return lines.join("\n");
   }, [presenter.month, presenter.recap, recapTotals.totalFermetures, recapTotals.totalOuvertures]);
-  const isClosureFormValid = useMemo(() => {
-    if (!closureStartDate || !closureLabel.trim()) return false;
-    if (closureEndDate && closureEndDate < closureStartDate) return false;
-    return true;
-  }, [closureEndDate, closureLabel, closureStartDate]);
+  const submitClosureException = async () => {
+    const startDate = closureStartDate.trim();
+    const label = closureLabel.trim();
+    if (!startDate) {
+      onToast?.("La date de début est obligatoire.", "error");
+      return;
+    }
+    if (!label) {
+      onToast?.("Le motif est obligatoire.", "error");
+      return;
+    }
+    if (closureEndDate.trim() && closureEndDate < startDate) {
+      onToast?.("La date de fin ne peut pas être antérieure à la date de début.", "error");
+      return;
+    }
+    try {
+      await presenter.upsertClosure({
+        id: editingClosureId || undefined,
+        startDate,
+        endDate: closureEndDate.trim() || undefined,
+        label,
+        mode: closureMode
+      });
+      setClosureStartDate("");
+      setClosureEndDate("");
+      setClosureLabel("");
+      setClosureMode("CLOSED");
+      setEditingClosureId(null);
+      if (showClosureModal) {
+        const savedMonth = startDate.slice(0, 7);
+        setClosureModalSelectedMonth(savedMonth);
+        setClosureModalYear(Number(savedMonth.slice(0, 4)));
+      }
+      onToast?.("Exception calendrier enregistrée.");
+    } catch (error) {
+      onToast?.(error instanceof Error ? error.message : "Ajout impossible.", "error");
+    }
+  };
 
-  /* --- Échap : fermer modales ouverte (saisie, exceptions, aide, suppression) --- */
+  /* --- Échap : fermer modales ouverte (saisie, exceptions, suppression) --- */
   useEffect(() => {
-    const hasOpenModal = showAddModal || showClosureModal || showHelpModal || Boolean(deleteClosureId);
+    const hasOpenModal = showAddModal || showClosureModal || Boolean(deleteClosureId);
     if (!hasOpenModal) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -271,15 +421,11 @@ export function FransorPage({
       }
       if (showClosureModal) {
         setShowClosureModal(false);
-        return;
-      }
-      if (showHelpModal) {
-        setShowHelpModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteClosureId, showAddModal, showClosureModal, showHelpModal]);
+  }, [deleteClosureId, showAddModal, showClosureModal]);
 
   /** Ouvre la modale de saisie (jour courant ou date calendrier, états préremplis) */
   const openEntryModal = (
@@ -401,18 +547,7 @@ export function FransorPage({
   return (
     <>
       <section className="panel">
-        <div className="fransor-help-row">
-          <h3>Suivi quotidien</h3>
-          <button
-            type="button"
-            className="btn-light action-icon-btn"
-            title="Comment ça marche"
-            aria-label="Comment ça marche"
-            onClick={() => setShowHelpModal(true)}
-          >
-            <CircleHelp size={14} />
-          </button>
-        </div>
+        <h3>Suivi quotidien</h3>
         <div className="row fransor-main-row">
           <label className="fransor-month-filter">
             <span>Mois :</span>
@@ -447,22 +582,6 @@ export function FransorPage({
               </button>
             </div>
           </label>
-          <div className="fransor-type-switch fransor-switch-right">
-            <button
-              type="button"
-              className={dayViewMode === "missing" ? "tab active" : "tab"}
-              onClick={() => setDayViewMode("missing")}
-            >
-              À compléter
-            </button>
-            <button
-              type="button"
-              className={dayViewMode === "filled" ? "tab active" : "tab"}
-              onClick={() => setDayViewMode("filled")}
-            >
-              Renseignées
-            </button>
-          </div>
           {presenter.loading ? <span className="muted">Chargement…</span> : null}
         </div>
         <div className="fransor-today-row">
@@ -482,7 +601,7 @@ export function FransorPage({
                   )
                 }
               >
-                {formatDateFr(todayIso)}
+                {formatDayCardLabel(todayIso, compactDayLabels)}
                 <span className="fransor-day-badges" aria-hidden="true">
                   <span className={`fransor-day-badge ${todayStatus.hasOpening ? "ok" : "missing"}`}>O</span>
                   <span className={`fransor-day-badge ${todayStatus.hasClosing ? "ok" : "missing"}`}>F</span>
@@ -492,8 +611,27 @@ export function FransorPage({
               <span className="muted">Non prévue ({todayNonPlannedReason})</span>
             )}
           </div>
-          <button type="button" className="btn-light" onClick={() => setShowClosureModal(true)}>
-            Périodes exceptionnelles
+          <button
+            type="button"
+            className="btn-light fransor-closures-btn"
+            onClick={openClosureModal}
+            title={
+              monthClosuresCount > 0
+                ? `${monthClosuresAriaSummary} (${formatMonthFr(presenter.month)})`
+                : `Gérer les périodes exceptionnelles (${formatMonthFr(presenter.month)})`
+            }
+            aria-label={
+              monthClosuresCount > 0
+                ? `Périodes exceptionnelles, ${monthClosuresAriaSummary}`
+                : "Périodes exceptionnelles"
+            }
+          >
+            <span className="fransor-closures-btn-label">Périodes exceptionnelles</span>
+            {monthClosuresCount > 0 ? (
+              <span className="fransor-closures-count-badge" aria-hidden="true">
+                {monthClosuresCount}
+              </span>
+            ) : null}
           </button>
         </div>
         <div className="fransor-missing-days-list">
@@ -501,19 +639,29 @@ export function FransorPage({
             {monthCalendarWeeks.map((week, weekIndex) => (
               <div key={`week-${weekIndex}`} className="fransor-calendar-week">
                 {week.map((dayIso, dayIndex) => {
-                  if (!dayIso) return <div key={`empty-${weekIndex}-${dayIndex}`} className="fransor-calendar-cell empty" aria-hidden="true" />;
+                  if (!dayIso) {
+                    return (
+                      <div
+                        key={`pad-${weekIndex}-${dayIndex}`}
+                        className="fransor-calendar-cell fransor-calendar-cell--pad"
+                        aria-hidden="true"
+                      />
+                    );
+                  }
                   const item = displayedDaysByDate.get(dayIso);
-                  if (!item) return <div key={dayIso} className="fransor-calendar-cell empty" aria-hidden="true" />;
+                  if (!item) {
+                    return <div key={dayIso} className="fransor-calendar-cell fransor-calendar-cell--void" aria-hidden="true" />;
+                  }
                   return (
-                    <div key={dayIso} className="fransor-calendar-cell">
+                    <div key={item.date} className="fransor-calendar-cell">
                       <button
                         type="button"
                         className="btn-light fransor-missing-day-btn fransor-calendar-day-btn"
                         onClick={() =>
                           openEntryModal(
                             item.date,
-                            dayViewMode === "missing" ? item.missingOpening : true,
-                            dayViewMode === "missing" ? item.missingClosing : true,
+                            !item.missingOpening,
+                            !item.missingClosing,
                             item.openingResponsableId || "",
                             item.closingResponsableId || ""
                           )
@@ -523,10 +671,15 @@ export function FransorPage({
                             ? "Ouverture et fermeture à saisir"
                             : item.missingOpening
                               ? "Ouverture à saisir"
-                              : "Fermeture à saisir"
+                              : item.missingClosing
+                                ? "Fermeture à saisir"
+                                : "Modifier la saisie du jour"
                         }
+                        aria-label={formatDayCardAriaLabel(item.date)}
                       >
-                        {formatDateFr(item.date)}
+                        <span className="fransor-calendar-day-label">
+                          {formatDayCardLabel(item.date, compactDayLabels)}
+                        </span>
                         <span className="fransor-day-badges" aria-hidden="true">
                           <span className={`fransor-day-badge ${item.missingOpening ? "missing" : "ok"}`}>O</span>
                           <span className={`fransor-day-badge ${item.missingClosing ? "missing" : "ok"}`}>F</span>
@@ -537,9 +690,9 @@ export function FransorPage({
                 })}
               </div>
             ))}
-            {!displayedDays.length && (
+            {!dayStatuses.length && (
               <div className="fransor-calendar-empty" role="status" aria-live="polite">
-                {dayViewMode === "missing" ? "Aucune journée manquante sur le mois." : "Aucune journée renseignée sur le mois."}
+                Aucune journée ouvrée à afficher sur ce mois.
               </div>
             )}
           </div>
@@ -693,236 +846,226 @@ export function FransorPage({
       )}
       {showClosureModal && (
         <div className="modal-overlay">
-          <div className="modal fransor-help-modal">
-            <div className="row">
-              <h3>Périodes exceptionnelles (ouvertures et fermetures)</h3>
-              <button type="button" className="btn-light" onClick={() => setShowClosureModal(false)}>
-                Fermer
-              </button>
-            </div>
-            <div className="fransor-closure-help">
-              <h4>Aide rapide</h4>
-              <ol>
-                <li>
-                  <strong>Créer une période :</strong> renseigner la date de début, la date de fin (optionnelle), le type
-                  (Ouverture/Fermeture), puis un motif clair.
-                </li>
-                <li>
-                  <strong>Enregistrer :</strong> cliquer sur <strong>Enregistrer exception</strong> pour appliquer la période
-                  au calendrier.
-                </li>
-                <li>
-                  <strong>Modifier :</strong> utiliser l'icône crayon dans le tableau, ajuster les valeurs, puis
-                  réenregistrer.
-                </li>
-                <li>
-                  <strong>Supprimer :</strong> utiliser l'icône suppression, puis saisir un motif de suppression
-                  obligatoire.
-                </li>
-              </ol>
-            </div>
-            <div className="row fransor-closure-create">
-              <label>
-                Date début
-                <input type="date" value={closureStartDate} onChange={(e) => setClosureStartDate(e.target.value)} />
-              </label>
-              <label>
-                Date fin (optionnelle)
-                <input
-                  type="date"
-                  value={closureEndDate}
-                  onChange={(e) => setClosureEndDate(e.target.value)}
-                  title="Optionnel: remplir seulement pour une période"
-                />
-              </label>
-              <select value={closureMode} onChange={(e) => setClosureMode(e.target.value === "OPEN" ? "OPEN" : "CLOSED")}>
-                <option value="CLOSED">Fermeture</option>
-                <option value="OPEN">Ouverture</option>
-              </select>
-              <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Motif (ex: Férié)" />
-            </div>
-            <div className="fransor-closure-actions">
-              {editingClosureId && (
-                <button
-                  type="button"
-                  className="btn-light action-icon-btn"
-                  title="Annuler la modification"
-                  aria-label="Annuler la modification"
-                  onClick={() => {
-                    setEditingClosureId(null);
-                    setClosureStartDate("");
-                    setClosureEndDate("");
-                    setClosureLabel("");
-                    setClosureMode("CLOSED");
-                  }}
+          <div className="modal fransor-help-modal fransor-closure-modal">
+            <h3 className="fransor-closure-modal-title">Périodes exceptionnelles (ouvertures et fermetures)</h3>
+
+            <div className="fransor-closure-modal-sections">
+              <section className="fransor-closure-help" aria-labelledby="fransor-closure-help-title">
+                <h4 id="fransor-closure-help-title">Aide rapide</h4>
+                <ol>
+                  <li>
+                    <strong>Parcourir :</strong> choisir l&apos;année, puis cliquer sur un mois — le chiffre sur la carte
+                    indique le nombre de périodes enregistrées pour ce mois.
+                  </li>
+                  <li>
+                    <strong>Consulter :</strong> le tableau en bas liste les périodes du mois sélectionné.
+                  </li>
+                  <li>
+                    <strong>Créer :</strong> renseigner la date de début, la date de fin (optionnelle), le type (Ouvert/Fermer)
+                    et un motif, puis cliquer sur <strong>Enregistrer exception</strong>.
+                  </li>
+                  <li>
+                    <strong>Modifier :</strong> utiliser l&apos;icône crayon dans le tableau, ajuster les valeurs, puis
+                    réenregistrer.
+                  </li>
+                  <li>
+                    <strong>Supprimer :</strong> utiliser l&apos;icône suppression, puis saisir un motif obligatoire.
+                  </li>
+                </ol>
+              </section>
+
+              <section className="fransor-closure-nav-section" aria-label="Navigation par année et par mois">
+                <div className="fransor-closure-year-row">
+                  <span className="fransor-closure-year-label">Année :</span>
+                  <div className="fransor-month-input-row fransor-closure-year-input-row">
+                    <button
+                      type="button"
+                      className="btn-light action-icon-btn"
+                      title="Année précédente"
+                      aria-label="Année précédente"
+                      onClick={() => changeClosureModalYear(closureModalYear - 1)}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    <input
+                      type="number"
+                      className="fransor-closure-year-input"
+                      value={closureModalYear}
+                      min={2000}
+                      max={2100}
+                      step={1}
+                      aria-label="Année des périodes exceptionnelles"
+                      onChange={(event) => {
+                        const parsed = Number(event.target.value);
+                        if (Number.isFinite(parsed)) changeClosureModalYear(parsed);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-light action-icon-btn"
+                      title="Année suivante"
+                      aria-label="Année suivante"
+                      onClick={() => changeClosureModalYear(closureModalYear + 1)}
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-light action-icon-btn"
+                      title="Revenir au mois en cours"
+                      aria-label="Revenir au mois en cours"
+                      onClick={resetClosureModalToCurrentMonth}
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="fransor-closure-month-window"
+                  role="group"
+                  aria-label={`Mois de l'année ${closureModalYear}, sélectionner un mois pour afficher ses périodes`}
                 >
-                  <RotateCcw size={14} />
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={!isClosureFormValid}
-                onClick={async () => {
-                  if (!isClosureFormValid) return;
-                  try {
-                    await presenter.upsertClosure({
-                      id: editingClosureId || undefined,
-                      startDate: closureStartDate,
-                      endDate: closureEndDate || undefined,
-                      label: closureLabel,
-                      mode: closureMode
-                    });
-                    setClosureStartDate("");
-                    setClosureEndDate("");
-                    setClosureLabel("");
-                    setClosureMode("CLOSED");
-                    setEditingClosureId(null);
-                    onToast?.("Exception calendrier enregistrée.");
-                  } catch (error) {
-                    onToast?.(error instanceof Error ? error.message : "Ajout impossible.");
-                  }
-                }}
-              >
-                {editingClosureId ? "Mettre à jour exception" : "Enregistrer exception"}
-              </button>
-            </div>
-            {presenter.closures.length > 0 && (
-              <table className="fransor-closure-table">
-                <thead>
-                  <tr>
-                    <th>Du</th>
-                    <th>Au</th>
-                    <th>Type</th>
-                    <th>Motif</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {presenter.closures.map((closure) => (
-                    <tr key={closure.id}>
-                      <td>{formatDateFr(closure.startDate)}</td>
-                      <td>{formatDateFr(closure.endDate)}</td>
-                      <td>{closure.mode === "OPEN" ? "Ouverture" : "Fermeture"}</td>
-                      <td>{closure.label}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-light action-icon-btn"
-                          title="Modifier l'exception"
-                          aria-label="Modifier l'exception"
-                          onClick={() => {
-                            setEditingClosureId(closure.id);
-                            setClosureStartDate(closure.startDate);
-                            setClosureEndDate(closure.endDate);
-                            setClosureLabel(closure.label);
-                            setClosureMode(closure.mode);
-                          }}
+                  {closureModalYearMonths.map((month) => {
+                    const count = closuresByMonth[month]?.length ?? 0;
+                    const isSelected = closureModalSelectedMonth === month;
+                    const isPageMonth = presenter.month === month;
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        className={`fransor-closure-month-chip${isSelected ? " fransor-closure-month-chip--selected" : ""}${isPageMonth ? " fransor-closure-month-chip--page-month" : ""}`}
+                        onClick={() => setClosureModalSelectedMonth(month)}
+                        aria-pressed={isSelected}
+                        title={`${formatMonthFr(month)} : ${count} période${count > 1 ? "s" : ""}`}
+                        aria-label={`${formatMonthFr(month)}, ${count} période${count > 1 ? "s" : ""}`}
+                      >
+                        <span className="fransor-closure-month-chip-name">{formatMonthShortFr(month)}</span>
+                        <span
+                          className={`fransor-closures-count-badge fransor-closures-count-badge--chip${count === 0 ? " fransor-closures-count-badge--empty" : ""}`}
+                          aria-hidden="true"
                         >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-danger action-icon-btn"
-                          title="Supprimer l'exception"
-                          aria-label="Supprimer l'exception"
-                          onClick={() => {
-                            setDeleteClosureId(closure.id);
-                            setDeleteClosureReason("");
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-      {showHelpModal && (
-        <div className="modal-overlay">
-          <div className="modal fransor-help-modal">
-            <div className="row">
-              <h3>Comment utiliser l'accompagnement Fransor</h3>
+                          {closureYearLoading ? "…" : count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="fransor-closure-form-section" aria-label="Ajout ou modification d'une période">
+                <div className="row fransor-closure-create">
+                  <label>
+                    Date début
+                    <input type="date" value={closureStartDate} onChange={(e) => setClosureStartDate(e.target.value)} />
+                  </label>
+                  <label>
+                    Date fin (optionnelle)
+                    <input
+                      type="date"
+                      value={closureEndDate}
+                      onChange={(e) => setClosureEndDate(e.target.value)}
+                      title="Optionnel: remplir seulement pour une période"
+                    />
+                  </label>
+                  <select
+                    value={closureMode}
+                    onChange={(e) => setClosureMode(e.target.value === "OPEN" ? "OPEN" : "CLOSED")}
+                    aria-label="Type d'exception calendrier"
+                  >
+                    <option value="CLOSED">Fermer</option>
+                    <option value="OPEN">Ouvert</option>
+                  </select>
+                  <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Motif (ex: Férié)" />
+                </div>
+                <div className="fransor-closure-actions">
+                  {editingClosureId && (
+                    <button
+                      type="button"
+                      className="btn-light action-icon-btn"
+                      title="Annuler la modification"
+                      aria-label="Annuler la modification"
+                      onClick={() => {
+                        setEditingClosureId(null);
+                        setClosureStartDate("");
+                        setClosureEndDate("");
+                        setClosureLabel("");
+                        setClosureMode("CLOSED");
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
+                  <button type="button" onClick={() => void submitClosureException()}>
+                    {editingClosureId ? "Mettre à jour exception" : "Enregistrer exception"}
+                  </button>
+                </div>
+              </section>
+
+              <section className="fransor-closure-list-section" aria-label="Liste des périodes du mois sélectionné">
+                {closureModalSelectedMonth ? (
+                  <h4 className="fransor-closure-list-title">{formatMonthFr(closureModalSelectedMonth)}</h4>
+                ) : null}
+                {selectedMonthClosures.length > 0 && (
+                  <table className="fransor-closure-table">
+                    <thead>
+                      <tr>
+                        <th>Du</th>
+                        <th>Au</th>
+                        <th>Type</th>
+                        <th>Motif</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedMonthClosures.map((closure) => (
+                        <tr key={closure.id}>
+                          <td>{formatDateFr(closure.startDate)}</td>
+                          <td>{formatDateFr(closure.endDate)}</td>
+                          <td>{formatClosureModeLabel(closure.mode)}</td>
+                          <td>{closure.label}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-light action-icon-btn"
+                              title="Modifier l'exception"
+                              aria-label="Modifier l'exception"
+                              onClick={() => {
+                                setEditingClosureId(closure.id);
+                                setClosureStartDate(closure.startDate);
+                                setClosureEndDate(closure.endDate);
+                                setClosureLabel(closure.label);
+                                setClosureMode(closure.mode);
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-danger action-icon-btn"
+                              title="Supprimer l'exception"
+                              aria-label="Supprimer l'exception"
+                              onClick={() => {
+                                setDeleteClosureId(closure.id);
+                                setDeleteClosureReason("");
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {!closureYearLoading && closureModalSelectedMonth && selectedMonthClosures.length === 0 ? (
+                  <p className="muted fransor-closure-empty">
+                    Aucune période enregistrée pour {formatMonthFr(closureModalSelectedMonth)}.
+                  </p>
+                ) : null}
+              </section>
             </div>
-            <p>
-              Cette page permet de suivre les ouvertures et fermetures quotidiennes du client <strong>Fransor</strong>, puis de
-              visualiser le récapitulatif mensuel par responsable.
-            </p>
-            <h4>1. Choisir la période</h4>
-            <ul>
-              <li>
-                <strong>Sélection du mois :</strong> Utilisez les chevrons (<code>^</code>) pour naviguer entre les mois.
-              </li>
-              <li>
-                <strong>Réinitialisation :</strong> Cliquez sur l'icône de flèche circulaire (reset) pour revenir
-                instantanément au mois en cours.
-              </li>
-            </ul>
-            <div className="fransor-help-fake-row">
-              <button type="button" className="btn-light" disabled>
-                Mois :
-              </button>
-              <button type="button" className="btn-light" disabled>
-                <ChevronDown size={14} />
-              </button>
-              <button type="button" className="btn-light" disabled>
-                avril 2026
-              </button>
-              <button type="button" className="btn-light" disabled>
-                <ChevronUp size={14} />
-              </button>
-              <button type="button" className="btn-light" disabled>
-                <RotateCcw size={14} />
-              </button>
-            </div>
-            <h4>2. Saisir ou modifier une journée</h4>
-            <ul>
-              <li>
-                <strong>Accès :</strong> Cliquez directement sur le bouton d'une date (ex: <code>lun. 06/04/2026</code>)
-                pour ouvrir le formulaire de saisie.
-              </li>
-              <li>
-                <strong>Modification :</strong> Si une entrée existe déjà, la modale s'ouvrira avec les informations
-                pré-remplies pour vous permettre de les corriger.
-              </li>
-              <li>
-                <strong>Statut :</strong> Les boutons en haut à droite (<strong>À compléter</strong> / <strong>Renseignées</strong>)
-                servent de légende ou de filtre pour identifier rapidement l'état d'avancement du mois.
-              </li>
-            </ul>
-            <div className="fransor-help-fake-row">
-              <button type="button" className="tab active" disabled>
-                À compléter
-              </button>
-              <button type="button" className="tab" disabled>
-                Renseignées
-              </button>
-              <button type="button" className="btn-light" disabled>
-                Journée : lun. 27/04/2026
-              </button>
-            </div>
-            <h4>3. Gérer les périodes exceptionnelles</h4>
-            <p>
-              Cliquez sur le bouton <strong>Périodes exceptionnelles</strong> pour déclarer des journées ou des événements
-              inhabituels (jours fériés, fermetures spéciales, etc.) via une interface dédiée.
-            </p>
-            <h4>4. Consulter le Récap mensuel</h4>
-            <ul>
-              <li>Le tableau en bas de page compile automatiquement les données saisies.</li>
-              <li>
-                <strong>Action :</strong> Utilisez le bouton <strong>Copier le récap</strong> pour placer les données dans
-                votre presse-papier et les coller facilement dans un rapport externe.
-              </li>
-            </ul>
-            <p>
-              Le calendrier reste aligné en 6 lignes pour un affichage stable d'un mois à l'autre, même quand peu de
-              journées sont renseignées.
-            </p>
             <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setShowHelpModal(false)}>
+              <button type="button" className="btn-light" onClick={() => setShowClosureModal(false)}>
                 Fermer
               </button>
             </div>

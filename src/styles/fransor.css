@@ -1,0 +1,520 @@
+/**
+ * Styles page Fransor et classes partagées fransor-* (modales d'aide, audit).
+ *
+ * Importé globalement par AppShell avec app.css.
+ * S'appuie sur les variables CSS de global.css.
+ */
+
+/* Journal d'audit — badge page Fransor */
+
+.audit-page-badge--fransor {
+  color: #d4b7ff;
+  background: rgba(123, 64, 201, 0.24);
+  border-color: rgba(201, 168, 255, 0.45);
+}
+
+[data-theme="light"] .audit-page-badge--fransor {
+  color: #5f2f9d;
+  background: rgba(129, 76, 206, 0.14);
+  border-color: rgba(112, 64, 184, 0.34);
+}
+
+
+/* Page Fransor — suivi quotidien, calendrier, périodes exceptionnelles */
+
+.fransor-toolbar label {
+  display: grid;
+  gap: 6px;
+}
+
+.fransor-main-row {
+  align-items: end;
+}
+
+.fransor-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fransor-help-row h3 {
+  margin: 0;
+}
+
+.fransor-switch-right {
+  margin-left: auto;
+}
+
+.fransor-type-switch {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.fransor-month-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fransor-month-input-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fransor-entry-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 170px) 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.fransor-entry-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px;
+  font-weight: 600;
+}
+
+.fransor-action-checks {
+  display: inline-flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.fransor-action-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.fransor-missing-days-list {
+  display: grid;
+  gap: 8px;
+}
+
+.fransor-calendar-grid {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.fransor-calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.fransor-calendar-cell {
+  min-width: 0;
+  min-height: 44px;
+}
+
+.fransor-calendar-cell--pad,
+.fransor-calendar-cell--void {
+  min-height: 44px;
+  pointer-events: none;
+}
+
+.fransor-calendar-cell.empty {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fransor-calendar-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.fransor-missing-day-btn {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.fransor-missing-day-btn.fransor-calendar-day-btn {
+  width: 100%;
+  max-width: none;
+  min-height: 44px;
+  padding: 8px 30px 8px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: 8px;
+}
+
+.fransor-calendar-day-label {
+  display: block;
+  min-width: 0;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.fransor-day-badges {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fransor-day-badge {
+  min-width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.fransor-day-badge.ok {
+  background: #1f9d55;
+}
+
+.fransor-day-badge.missing {
+  background: #d64545;
+}
+
+.fransor-today-day-btn {
+  width: auto;
+  min-width: 0;
+  max-width: min(100%, 240px);
+  padding: 6px 36px 6px 8px;
+  min-height: 32px;
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .fransor-main-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .fransor-switch-right {
+    margin-left: 0;
+  }
+
+  .fransor-today-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 680px) {
+  .fransor-missing-day-btn.fransor-calendar-day-btn {
+    min-height: 34px;
+    padding: 5px 30px 5px 6px;
+    font-size: 12px;
+  }
+
+  .fransor-closure-month-chip {
+    min-width: 48px;
+    padding: 6px 3px;
+  }
+
+  .fransor-closure-month-chip-name {
+    font-size: 11px;
+  }
+}
+
+.fransor-today-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.fransor-today-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fransor-closures-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fransor-closures-btn-label {
+  min-width: 0;
+}
+
+.fransor-closures-count-badge {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent, #4a8fd4);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.fransor-closure-modal-title {
+  margin: 0 0 4px;
+}
+
+.fransor-closure-modal-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.fransor-closure-nav-section,
+.fransor-closure-form-section,
+.fransor-closure-list-section {
+  display: grid;
+  gap: 10px;
+}
+
+.fransor-closure-year-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fransor-closure-year-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fransor-closure-year-input {
+  width: 5.5rem;
+  text-align: center;
+}
+
+.fransor-closure-month-window {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.fransor-closure-month-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 52px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+}
+
+.fransor-closure-month-chip:focus-visible {
+  outline: 2px solid var(--accent, #4a8fd4);
+  outline-offset: 2px;
+}
+
+.fransor-closure-month-chip--selected {
+  border-color: var(--accent, #4a8fd4);
+  background: rgba(74, 143, 212, 0.12);
+}
+
+.fransor-closure-month-chip--page-month:not(.fransor-closure-month-chip--selected) {
+  box-shadow: inset 0 0 0 1px rgba(74, 143, 212, 0.35);
+}
+
+.fransor-closure-month-chip-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fransor-closure-list-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fransor-closures-count-badge--chip {
+  min-width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
+.fransor-closures-count-badge--empty {
+  background: rgba(136, 146, 164, 0.35);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.fransor-help-modal {
+  width: 100%;
+  max-width: min(1180px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* Même gabarit que les autres modales Gestion des données (modal + fransor-help-modal) ; évite le défilement horizontal */
+.ronde-planned-rule-modal.fransor-help-modal {
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Modales et grilles Fransor (legacy / partagé) */
+
+.fransor-help-modal h4 {
+  margin: 10px 0 6px;
+}
+
+.fransor-help-fake-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+
+.fransor-responsable-create,
+.fransor-closure-create {
+  align-items: center;
+  gap: 10px;
+}
+
+.fransor-closure-help {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 0;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+}
+
+.fransor-closure-help h4 {
+  margin: 0 0 6px;
+}
+
+.fransor-closure-help ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.fransor-closure-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.fransor-closure-form-section .fransor-closure-create {
+  margin-bottom: 0;
+}
+
+.fransor-closure-table {
+  margin-top: 0;
+}
+
+.fransor-responsable-create input {
+  flex: 1 1 280px;
+}
+
+.fransor-closure-create input[type="text"],
+.fransor-closure-create input:not([type]) {
+  flex: 1 1 280px;
+}
+
+.fransor-grid-table {
+  min-width: 1100px;
+  table-layout: fixed;
+}
+
+.fransor-grid-table th,
+.fransor-grid-table td {
+  text-align: center;
+  padding: 6px;
+}
+
+.fransor-grid-table th:first-child,
+.fransor-grid-table td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 1;
+}
+
+.fransor-responsable-cell {
+  min-width: 220px;
+}
+
+.fransor-responsable-row {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fransor-open-cell {
+  min-width: 56px;
+}
+
+.fransor-closed-cell {
+  background: rgba(120, 120, 120, 0.25);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.fransor-mini-btn {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  margin: 0 1px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.fransor-mini-btn.is-on.opening {
+  border-color: rgba(58, 185, 120, 0.7);
+  background: rgba(58, 185, 120, 0.18);
+  color: #7ce9c8;
+}
+
+.fransor-mini-btn.is-on.closing {
+  border-color: rgba(255, 192, 105, 0.75);
+  background: rgba(255, 192, 105, 0.18);
+  color: #ffd296;
+}

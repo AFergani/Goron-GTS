@@ -22,6 +22,9 @@ import {
 import { buildGardiennageSlotsFromSnapshot } from "../model/gardiennagePlannerEngine";
 import {
   buildEffectivePlanningSnapshot,
+  GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT,
+  GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
+  inferPlanningModeFromSnapshot,
   isPlanningFormValid,
   isValidPlanningTime,
   resolvePlanningFormMode,
@@ -229,9 +232,11 @@ export function GardiennageEntryModal({
   useEffect(() => {
     if (!isOpen || isCreateMode || !entry) return;
     const snap = entry.planningSnapshot;
-    const isContinuous = Boolean(snap?.isContinuous);
-    const isPonctuel = Boolean(entry.isPonctuel) && !isContinuous;
+    const planningModeFromSnap = snap ? inferPlanningModeFromSnapshot(snap) : resolvePlanningFormMode(Boolean(entry.isPonctuel), false);
+    const isContinuous = planningModeFromSnap === "h24";
+    const isPonctuel = planningModeFromSnap === "ponctuel";
     const firstLine = snap?.lines?.[0];
+    const h24OpenEnded = Boolean(snap?.isOpenEnded);
     const hydrated: FormState = {
       siteId: entry.siteId,
       siteDisplay: entry.siteDisplay,
@@ -249,10 +254,10 @@ export function GardiennageEntryModal({
       validFromTime: isPonctuel
         ? (firstLine?.startTime || entry.startTime || "")
         : (snap?.validFromTime || entry.startTime || ""),
-      validToDate: snap?.validToDate || entry.recurrenceEndDate || entry.recurrenceStartDate,
+      validToDate: h24OpenEnded ? "" : (snap?.validToDate || entry.recurrenceEndDate || entry.recurrenceStartDate),
       validToTime: isPonctuel
         ? (firstLine?.endTime || entry.endTime || "")
-        : (snap?.validToTime || entry.endTime || ""),
+        : (h24OpenEnded ? "" : (snap?.validToTime || entry.endTime || "")),
       isContinuous,
       planningLines: isContinuous || isPonctuel
         ? []
@@ -304,13 +309,16 @@ export function GardiennageEntryModal({
           ...f,
           isPonctuel: false,
           isContinuous: true,
-          planningLines: []
+          planningLines: [],
+          validToDate: "",
+          validToTime: ""
         };
       }
       return {
         ...f,
         isPonctuel: false,
         isContinuous: false,
+        validToDate: f.validToDate.trim() || f.validFromDate || formatNowDate(),
         planningLines: f.planningLines.length ? f.planningLines : [createDefaultLine()]
       };
     });
@@ -319,7 +327,9 @@ export function GardiennageEntryModal({
     () => buildEffectivePlanningSnapshot({
       validFromDate: form.validFromDate || form.recurrenceStartDate,
       validFromTime: form.validFromTime,
-      validToDate: form.validToDate || form.recurrenceEndDate,
+      validToDate: planningMode === "h24"
+        ? form.validToDate
+        : (form.validToDate || form.recurrenceEndDate),
       validToTime: form.validToTime,
       isPonctuel: form.isPonctuel,
       isContinuous: form.isContinuous,
@@ -733,7 +743,11 @@ export function GardiennageEntryModal({
                         type="date"
                         value={form.validFromDate}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validFromDate: e.target.value, validToDate: f.validToDate < e.target.value ? e.target.value : f.validToDate }))}
+                        onChange={(e) => setForm((f) => ({
+                          ...f,
+                          validFromDate: e.target.value,
+                          validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
+                        }))}
                       />
                     </label>
                     <label className="gardiennage-time-field">
@@ -747,23 +761,37 @@ export function GardiennageEntryModal({
                     </label>
                     <span className="gardiennage-date-sep">au</span>
                     <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date</span>
-                      <input
-                        type="date"
-                        value={form.validToDate}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        min={form.validFromDate || undefined}
-                        onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                      />
+                      <span className="gardiennage-date-label">Date fin (optionnelle)</span>
+                      <span className="gardiennage-date-input-wrap">
+                        <input
+                          type="date"
+                          className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
+                          value={form.validToDate}
+                          disabled={isSaving || isAnnule || isReadOnlyByRole}
+                          min={form.validFromDate || undefined}
+                          aria-label="Date de fin (optionnelle)"
+                          onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                        />
+                        {!form.validToDate.trim() ? (
+                          <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
+                        ) : null}
+                      </span>
                     </label>
                     <label className="gardiennage-time-field">
-                      <span className="gardiennage-date-label">Heure</span>
-                      <input
-                        type="time"
-                        value={form.validToTime}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validToTime: e.target.value }))}
-                      />
+                      <span className="gardiennage-date-label">Heure (optionnelle)</span>
+                      <span className="gardiennage-date-input-wrap">
+                        <input
+                          type="time"
+                          className={form.validToTime.trim() ? "" : "gardiennage-date-input--empty"}
+                          value={form.validToTime}
+                          disabled={isSaving || isAnnule || isReadOnlyByRole}
+                          aria-label="Heure de fin (optionnelle)"
+                          onChange={(e) => setForm((f) => ({ ...f, validToTime: e.target.value }))}
+                        />
+                        {!form.validToTime.trim() ? (
+                          <span className="gardiennage-date-placeholder" aria-hidden="true">--:--</span>
+                        ) : null}
+                      </span>
                     </label>
                   </div>
                 )}
@@ -803,7 +831,16 @@ export function GardiennageEntryModal({
                 )}
                 {planningMode === "h24" && (
                   <p className="muted mc-ref-hint">
-                    Couverture continue sur la période indiquée. Pour combiner H24 et horaires récurrents, créez deux demandes distinctes.
+                    Couverture continue sur la période indiquée. Laissez la date de fin vide pour une prestation jusqu&apos;à nouvel ordre :
+                    le système maintient un horizon glissant de {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours (prolongation automatique lorsque la
+                    fin approche à {GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT} jours ou moins, tant que la demande reste planifiée ou active).
+                    L&apos;heure de fin est optionnelle : si elle est vide, elle reprend l&apos;heure de début. Pour combiner H24 et horaires
+                    récurrents, créez deux demandes distinctes.
+                  </p>
+                )}
+                {!isCreateMode && entry?.planningBatchId && entry.planningSnapshot && !isCloture && !isAnnule && (
+                  <p className="muted mc-ref-hint" role="note">
+                    La modification resynchronise tous les créneaux du lot non clôturés. Les créneaux déjà clôturés ne sont pas modifiés.
                   </p>
                 )}
                 {planningMode === "recurring" && (
@@ -935,6 +972,9 @@ export function GardiennageEntryModal({
               <CreateFormSection title="Prévisualisation">
                 <p className="muted mc-ref-hint">
                   {previewSlots.length} créneau(x) généré(s) sur la validité configurée · Total effectif: {formatDurationMinutes(previewTotalMinutes)}.
+                  {planningMode === "h24" && !form.validToDate.trim() ? (
+                    <> · Horizon glissant : au moins {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours à l&apos;avance (prolongation automatique).</>
+                  ) : null}
                 </p>
                 <div style={{ maxHeight: 160, overflow: "auto", border: "1px solid var(--border-color)", borderRadius: 8, padding: 8 }}>
                   {previewSlots.slice(0, 40).map((slot) => (

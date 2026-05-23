@@ -40,6 +40,14 @@ function isValidPlanningTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || "").trim());
 }
 
+/** Heure de fin H24 : si absente, identique à l'heure de début. */
+function resolveH24ValidToTime(validFromTime, validToTime) {
+  const to = String(validToTime || "").trim();
+  if (isValidPlanningTime(to)) return to;
+  const from = String(validFromTime || "").trim();
+  return isValidPlanningTime(from) ? from : "";
+}
+
 /**
  * Prédicats jours fériés et veilles (veille = jour précédant une date du référentiel `data_holidays`).
  *
@@ -81,7 +89,9 @@ function gardiennageLineAppliesOnDate(line, dateIso, holiday) {
  */
 function collectActiveDatesForLine(line, validFromDate, validToDate, skipDates, holiday) {
   if (isIsoDate(line.anchorDate)) {
-    return skipDates.has(line.anchorDate) ? [] : [line.anchorDate];
+    const anchor = line.anchorDate;
+    if (anchor < validFromDate || anchor > validToDate) return [];
+    return [anchor];
   }
   const activeDates = [];
   let cursor = validFromDate;
@@ -116,7 +126,9 @@ function clipSegment(segmentStart, segmentEnd, rangeStart, rangeEnd) {
  */
 function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
   const fromTime = String(snapshot.validFromTime || "").trim();
-  const toTime = String(snapshot.validToTime || "").trim();
+  const toTime = snapshot.isContinuous
+    ? resolveH24ValidToTime(fromTime, String(snapshot.validToTime || "").trim())
+    : String(snapshot.validToTime || "").trim();
   if (!isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
   const rangeStart = toIsoDateTime(snapshot.validFromDate, fromTime);
   const rangeEnd = toIsoDateTime(snapshot.validToDate, toTime);
