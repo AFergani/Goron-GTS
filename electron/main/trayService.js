@@ -6,6 +6,8 @@
  * et `ipcSystemHandlers.js` (`system:minimizeApp`).
  */
 
+const { resolveAppIconPath } = require("./resolveAppIconPath");
+
 /**
  * Fabrique le service tray Electron.
  *
@@ -48,7 +50,10 @@ function createTrayService(deps) {
    */
   function ensureAppTray() {
     if (appTray) return appTray;
-    const trayIconPath = path.join(iconDirname, "app-icon.ico");
+    const trayIconPath = resolveAppIconPath(iconDirname);
+    if (!trayIconPath) {
+      throw new Error("Icône tray introuvable : placez app-icon.ico ou app-icon.png dans electron/.");
+    }
     appTray = new Tray(trayIconPath);
     appTray.on("double-click", () => {
       const mainWindow = getMainWindow();

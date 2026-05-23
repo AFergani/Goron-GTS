@@ -2895,10 +2895,12 @@ th {
 
 .fransor-calendar-cell {
   min-height: 42px;
+  min-width: 0;
 }
 
 .fransor-calendar-cell.empty {
   visibility: hidden;
+  pointer-events: none;
 }
 
 .fransor-calendar-empty {
@@ -2913,18 +2915,22 @@ th {
 
 .fransor-missing-day-btn {
   position: relative;
-  width: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   justify-content: flex-start;
   text-align: left;
-  padding-right: 40px;
+  padding: 6px 36px 6px 8px;
   min-height: 32px;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  font-size: clamp(10px, 1.1vw, 13px);
 }
 
 .fransor-calendar-day-btn {
-  width: 186px;
-  max-width: 186px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .fransor-day-badges {
@@ -2957,9 +2963,25 @@ th {
 }
 
 .fransor-today-day-btn {
-  width: 186px;
-  min-width: 186px;
-  max-width: 186px;
+  width: auto;
+  min-width: 0;
+  max-width: min(100%, 220px);
+}
+
+@media (max-width: 1100px) {
+  .fransor-main-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .fransor-switch-right {
+    margin-left: 0;
+  }
+
+  .fransor-today-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
 }
 
 .fransor-today-entry-row {

@@ -6,6 +6,8 @@
  * Instancié dans `main.js` ; `createWindow()` appelé dans `app.whenReady`.
  */
 
+const { resolveAppIconPath } = require("./resolveAppIconPath");
+
 /**
  * Fabrique le service de fenêtre principale.
  *
@@ -51,13 +53,13 @@ function createWindowService(deps) {
   function createWindow() {
     const cfg = readAppConfig();
     const savedBounds = cfg.windowBounds && typeof cfg.windowBounds === "object" ? cfg.windowBounds : null;
-    const windowIconPath = path.join(baseDirname, "app-icon.ico");
+    const windowIconPath = resolveAppIconPath(baseDirname);
     const win = new BrowserWindow({
       width: Number(savedBounds?.width) > 0 ? Number(savedBounds.width) : 1200,
       height: Number(savedBounds?.height) > 0 ? Number(savedBounds.height) : 800,
       x: Number.isFinite(savedBounds?.x) ? Number(savedBounds.x) : undefined,
       y: Number.isFinite(savedBounds?.y) ? Number(savedBounds.y) : undefined,
-      icon: windowIconPath,
+      ...(windowIconPath ? { icon: windowIconPath } : {}),
       webPreferences: {
         preload: path.join(baseDirname, "preload.js"),
         contextIsolation: true,
