@@ -290,8 +290,8 @@ export function VariablesManagementPanel({
         </div>
       </div>
       <p className="muted">
-        Centralise les champs personnalisés des formulaires et leur attribution par profil. Chaque création, modification ou suppression est enregistrée
-        immédiatement en base.
+        Centralise les champs personnalisés des formulaires et leur attribution par profil. À chaque enregistrement (bouton de sauvegarde), une ligne est
+        ajoutée au journal d&apos;actions avec l&apos;acteur et l&apos;horodatage ([Paramètres] variables de formulaires).
       </p>
       <div className="table-scroll-x">
         <table className="data-table-fixed">
