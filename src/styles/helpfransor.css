@@ -1,0 +1,57 @@
+/* Styles des modales d'aide Fransor et gabarits partagés */
+
+.fransor-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.fransor-help-row h3 {
+  margin: 0;
+}
+
+.fransor-help-modal {
+  width: 100%;
+  max-width: min(1180px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* Même gabarit que les autres modales Gestion des données (modal + fransor-help-modal) ; évite le défilement horizontal */
+.ronde-planned-rule-modal.fransor-help-modal {
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.fransor-help-modal h4 {
+  margin: 10px 0 6px;
+}
+
+.fransor-help-fake-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fransor-closure-help {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 0;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+}
+
+.fransor-closure-help h4 {
+  margin: 0 0 6px;
+}
+
+.fransor-closure-help ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}

@@ -96,20 +96,6 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
     footerNote:
       "Chaque champ de clôture du profil est aussi disponible sous sa clé : {ma_clef}."
   },
-  "fransor-recap": {
-    title: "Fransor — récap mensuel (fransor-recap-template.docx)",
-    intro:
-      "Export depuis la page Fransor (bouton à côté du récap). Les jetons par responsable (`resp_…`) listés ci‑dessous sont générés à partir du référentiel **Fransor → Responsables** (même règle de slug que l’export : civilités retirées, accents supprimés, espaces → tirets bas). Boucle tableau : {#recap_rows} … {/recap_rows} avec les champs responsable_nom, ouvertures, fermetures, total_actions, slug.",
-    variables: [
-      { token: "{month_iso}", description: "Mois AAAA-MM." },
-      { token: "{month_label_fr}", description: "Libellé mois en français." },
-      { token: "{CountOuverture}", description: "Total ouvertures du mois (tous responsables)." },
-      { token: "{CountFermeture}", description: "Total fermetures du mois." },
-      { token: "{total_actions}", description: "Somme des actions (ouvertures + fermetures)." }
-    ],
-    footerNote:
-      "Tableau structuré : {#recap_rows}{responsable_nom} {ouvertures} {fermetures} {total_actions}{/recap_rows}. Chaque ligne expose aussi `slug` pour croiser avec les jetons plats du tableau."
-  },
   "custom-docx": {
     title: "Modèle personnalisé (.docx)",
     intro:

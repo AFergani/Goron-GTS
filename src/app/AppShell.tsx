@@ -29,6 +29,7 @@ import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
 import "../styles/fransor.css";
+import "../styles/helpfransor.css";
 
 type AppPage = "mainCourante" | "fransor" | "intervention" | "rondes" | "settings" | "gardiennage";
 type ThemeMode = "dark" | "light";

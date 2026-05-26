@@ -112,14 +112,6 @@ export function HelpSettingsTemplatesTopic() {
             <tbody>
               <tr>
                 <td>
-                  <strong>Fransor</strong> <span className="muted">(récapitulatif)</span>
-                </td>
-                <td>
-                  <code>fransor-recap-template.docx</code>
-                </td>
-              </tr>
-              <tr>
-                <td>
                   <strong>Main courante</strong>
                 </td>
                 <td>

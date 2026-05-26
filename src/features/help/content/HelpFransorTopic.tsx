@@ -40,12 +40,8 @@ export function HelpFransorTopic() {
           </li>
           <li>
             <strong>Saisie sur le calendrier :</strong> cliquez directement sur une date du mois pour ouvrir la fenêtre de saisie.
-            <ul className="help-center-list help-center-list--nested">
-              <li>
-                <em>Astuce :</em> utilisez les filtres <strong>À compléter</strong> (journées passées incomplètes) et <strong>Renseignées</strong>{" "}
-                (journées terminées) pour contrôler votre avancement.
-              </li>
-            </ul>
+            Les badges <strong>O</strong> (ouverture) et <strong>F</strong> (fermeture) passent au vert dès que l&apos;action est enregistrée,
+            ce qui permet de visualiser instantanément l&apos;avancement du mois.
           </li>
           <li>
             <strong>Validation des badges :</strong> <strong>O</strong> correspond à l&apos;ouverture et <strong>F</strong> à la fermeture. Un badge{" "}
@@ -107,8 +103,9 @@ export function HelpFransorTopic() {
       <div className="help-center-card">
         <h3 className="help-center-card-title">📆 Gérer les périodes exceptionnelles</h3>
         <p className="muted">
-          Le bouton <strong>Périodes exceptionnelles</strong> permet d&apos;ajuster le calendrier pour l&apos;adapter aux réalités du terrain
-          (congés, astreintes, fermetures ponctuelles, etc.).
+          Le bouton <strong>Périodes exceptionnelles</strong> ouvre une modale dédiée avec un <strong>sélecteur d&apos;année</strong> et{" "}
+          <strong>12 cartes mois</strong> cliquables. Chaque carte affiche le nombre d&apos;exceptions du mois correspondant. Cliquez sur un mois
+          pour afficher le détail des périodes dans le tableau en dessous.
         </p>
         <div className="help-center-callout help-center-callout--tip" role="note">
           <strong>Ne pas confondre :</strong> dans la modale des exceptions, les types <strong>Ouvert</strong> et <strong>Fermer</strong> pilotent
@@ -138,7 +135,7 @@ export function HelpFransorTopic() {
       </div>
 
       <div className="help-center-card">
-        <h3 className="help-center-card-title">📊 Récapitulatif mensuel et exports</h3>
+        <h3 className="help-center-card-title">📊 Récapitulatif mensuel</h3>
         <p className="muted">
           Le tableau <strong>Récap mensuel</strong> compile automatiquement l&apos;activité de chaque responsable actif sur le mois sélectionné
           (nombre d&apos;ouvertures, de fermetures et total global).
@@ -147,10 +144,6 @@ export function HelpFransorTopic() {
           <li>
             <strong>Copier le récap :</strong> génère un texte de synthèse directement dans votre presse-papiers, idéal pour être collé dans un
             e-mail ou un message rapide.
-          </li>
-          <li>
-            <strong>Export Word :</strong> l&apos;icône de téléchargement produit un document formel à partir du modèle configuré dans{" "}
-            <strong>Paramètres → Gestion modèles</strong>.
           </li>
         </ul>
       </div>
@@ -178,7 +171,7 @@ export function HelpFransorTopic() {
           <li>
             <strong>Fin de mois réglementaire :</strong> préparation de la facturation.
             <br />
-            <strong>→</strong> filtrez sur <strong>À compléter</strong> pour rattraper les oublis, vérifiez le tableau <strong>Récap mensuel</strong>,
+            <strong>→</strong> repérez les badges rouges sur le calendrier pour rattraper les oublis, vérifiez le tableau <strong>Récap mensuel</strong>,
             puis copiez les données pour transmission au client.
           </li>
         </ul>

@@ -176,7 +176,6 @@ function createDocumentTemplatesService(deps) {
    */
   function listDocumentTemplatesPayload() {
     const builtins = [
-      { kind: "builtin", templateKey: "fransor-recap", title: "Fransor — récap mensuel (.docx)", fileName: "fransor-recap-template.docx", helpId: "fransor-recap" },
       { kind: "builtin", templateKey: "main-courante", title: "Main courante — export Word", fileName: "main-courante-template.docx", helpId: "main-courante" },
       { kind: "builtin", templateKey: "intervention", title: "Intervention — export Word", fileName: "intervention-template.docx", helpId: "intervention" },
       { kind: "builtin", templateKey: "ronde", title: "Ronde contractuelle — modèle par défaut (.docx)", fileName: "ronde-template.docx", helpId: "ronde" },

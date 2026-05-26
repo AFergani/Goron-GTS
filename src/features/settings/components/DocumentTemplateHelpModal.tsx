@@ -7,7 +7,6 @@ import { Copy } from "lucide-react";
 import type { Role } from "../../../types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { DOCUMENT_TEMPLATE_HELP } from "./documentTemplateHelpContent";
-import { fransorResponsableWordSlug } from "../../fransor/utils/fransorResponsableWordSlug";
 import type { FormVariableDef } from "../model/formVariables.types";
 import type { FormTarget } from "../model/formVariables.types";
 
@@ -15,7 +14,6 @@ type DocumentTemplateHelpModalProps = {
   helpId: string | null;
   onClose: () => void;
   onNotify?: (message: string) => void;
-  /** Pour lister les jetons `{resp_…}` réels (référentiel Fransor). */
   requesterRole?: Role;
 };
 
@@ -25,8 +23,6 @@ export function DocumentTemplateHelpModal({
   onNotify,
   requesterRole
 }: DocumentTemplateHelpModalProps) {
-  const [fransorTokenRows, setFransorTokenRows] = useState<Array<{ token: string; description: string }>>([]);
-  const [fransorTokensLoading, setFransorTokensLoading] = useState(false);
   const [templateCustomRows, setTemplateCustomRows] = useState<Array<{ token: string; description: string }>>([]);
   const [templateCustomLoading, setTemplateCustomLoading] = useState(false);
 
@@ -37,49 +33,6 @@ export function DocumentTemplateHelpModal({
     if (value === "ronde" || value === "custom-docx") return ["RONDE_PLANIFIEE", "RONDE_EXCEPTIONNELLE"];
     return [];
   }
-
-  useEffect(() => {
-    if (helpId !== "fransor-recap" || !requesterRole) {
-      setFransorTokenRows([]);
-      setFransorTokensLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setFransorTokensLoading(true);
-    void gtsApiClient
-      .listFransorResponsables({ requesterRole })
-      .then((rows) => {
-        if (cancelled) return;
-        const out: Array<{ token: string; description: string }> = [];
-        for (const r of rows) {
-          const name = String(r.name || "").trim();
-          if (!name) continue;
-          const slug = fransorResponsableWordSlug(name);
-          out.push({
-            token: `{resp_${slug}_nom}`,
-            description: `Nom affiché du responsable (« ${name} »).`
-          });
-          out.push({
-            token: `{resp_${slug}_ouvertures}`,
-            description: `Ouvertures du mois pour « ${name} » (récap).`
-          });
-          out.push({
-            token: `{resp_${slug}_fermetures}`,
-            description: `Fermetures du mois pour « ${name} » (récap).`
-          });
-        }
-        setFransorTokenRows(out);
-      })
-      .catch(() => {
-        if (!cancelled) setFransorTokenRows([]);
-      })
-      .finally(() => {
-        if (!cancelled) setFransorTokensLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [helpId, requesterRole]);
 
   useEffect(() => {
     if (!helpId || !requesterRole) {
@@ -124,9 +77,8 @@ export function DocumentTemplateHelpModal({
 
   const displayVariables = useMemo(() => {
     if (!block) return [];
-    const withFransor = helpId === "fransor-recap" ? [...block.variables, ...fransorTokenRows] : [...block.variables];
-    return [...withFransor, ...templateCustomRows];
-  }, [helpId, block, fransorTokenRows, templateCustomRows]);
+    return [...block.variables, ...templateCustomRows];
+  }, [block, templateCustomRows]);
 
   if (!helpId || !block) return null;
 
@@ -146,15 +98,6 @@ export function DocumentTemplateHelpModal({
           <h3>{block.title}</h3>
         </div>
         {block.intro ? <p className="muted document-template-help-modal__intro">{block.intro}</p> : null}
-        {helpId === "fransor-recap" && fransorTokensLoading ? (
-          <p className="muted document-template-help-modal__intro">Chargement des jetons depuis le référentiel Fransor…</p>
-        ) : null}
-        {helpId === "fransor-recap" && !fransorTokensLoading && requesterRole && !fransorTokenRows.length ? (
-          <p className="muted document-template-help-modal__intro">
-            Aucun responsable dans le référentiel : ajoutez-en dans Paramètres → Données → Fransor pour voir les jetons{' '}
-            <code>{'{resp_…}'}</code> ici.
-          </p>
-        ) : null}
         {templateCustomLoading ? (
           <p className="muted document-template-help-modal__intro">Chargement des variables custom…</p>
         ) : null}

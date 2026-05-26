@@ -3,18 +3,18 @@
  *
  * Règles d’affichage : jours ouvrés (hors week-end et fériés) sauf exception calendrier
  * (mode OPEN force ouvert, CLOSED force fermé). Saisie par responsable, récap par mois,
- * export texte / Word, gestion des périodes exceptionnelles.
+ * export texte, gestion des périodes exceptionnelles.
  *
  * Montée depuis `AppShell` si la permission page `fransor` est active.
  * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, FileDown, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import type { FransorClosure, Role } from "../../../types";
-import { exportFransorMonthlyRecapToWord } from "../export/fransorRecapWordExport";
+
 
 /** Jours ISO du mois `YYYY-MM` */
 function getDaysInMonth(month: string) {
@@ -147,7 +147,7 @@ export function FransorPage({
   const [closureModalSelectedMonth, setClosureModalSelectedMonth] = useState("");
   const [closuresByMonth, setClosuresByMonth] = useState<Record<string, FransorClosure[]>>({});
   const [closureYearLoading, setClosureYearLoading] = useState(false);
-  const [exportRecapLoading, setExportRecapLoading] = useState(false);
+
   const [compactDayLabels, setCompactDayLabels] = useState(false);
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
 
@@ -532,18 +532,6 @@ export function FransorPage({
     }
   };
 
-  const exportRecapWord = async () => {
-    setExportRecapLoading(true);
-    try {
-      await exportFransorMonthlyRecapToWord(presenter.month, formatMonthFr(presenter.month), presenter.recap);
-      onToast?.("Document Word exporté.");
-    } catch (e) {
-      onToast?.(e instanceof Error ? e.message : "Export Word impossible.");
-    } finally {
-      setExportRecapLoading(false);
-    }
-  };
-
   return (
     <>
       <section className="panel">
@@ -703,16 +691,6 @@ export function FransorPage({
         <div className="row">
           <h3>Récap mensuel</h3>
           <div className="row-actions">
-            <button
-              type="button"
-              className="btn-light action-icon-btn"
-              title="Exporter le récap au format Word (modèle fransor-recap-template.docx)"
-              aria-label="Exporter le récap mensuel en Word"
-              disabled={exportRecapLoading}
-              onClick={() => void exportRecapWord()}
-            >
-              <FileDown size={16} aria-hidden />
-            </button>
             <button type="button" className="btn-light" onClick={() => void copyRecapText()}>
               Copier le récap
             </button>
