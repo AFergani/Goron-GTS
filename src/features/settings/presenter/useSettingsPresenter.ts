@@ -1264,7 +1264,7 @@ export function useSettingsPresenter({
         });
         onToast("Mot de passe réinitialisé.");
         if (result.temporaryPassword) {
-          onCredentialsReady({ username: user.username, temporaryPassword: result.temporaryPassword });
+          onCredentialsReady({ username: user.fullName, temporaryPassword: result.temporaryPassword });
         }
         await loadUsers();
       } catch (err) {
