@@ -392,6 +392,8 @@ export function InterventionPage({
         sites={references.sites}
         intervenants={references.intervenants}
         rondeMotifs={rondeMotifsForModal}
+        onCreatePendingSite={references.createPendingSite}
+        onCreatePendingIntervenant={references.createPendingIntervenant}
         onNotify={onToast}
         onClose={() => {
           setLinkedRondeOpen(false);
