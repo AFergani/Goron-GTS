@@ -1166,14 +1166,21 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
-      await gtsApiClient.resolvePendingInterventionSite({
+      const result = await gtsApiClient.resolvePendingInterventionSite({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
         parc: payload.parc,
         famille: payload.famille
       });
-      onToast("Site en attente validé et ajouté aux sites.");
+      const p = result?.propagation;
+      const totalPropagated = p
+        ? (p.interventionEntries || 0) + (p.rondeEntries || 0) + (p.gardiennageEntries || 0) + (p.mainCouranteEntries || 0)
+        : 0;
+      const toastMsg = totalPropagated > 0
+        ? `Site validé et propagé à ${totalPropagated} entrée(s) existante(s).`
+        : "Site en attente validé et ajouté aux sites.";
+      onToast(toastMsg);
       await Promise.all([loadSites(), onRefreshImportedData("interventionPendingSites")]);
     } catch (err) {
       onError(getErrorMessage(err, "Erreur de validation du site en attente."));
@@ -1184,13 +1191,20 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
-      await gtsApiClient.resolvePendingInterventionIntervenant({
+      const result = await gtsApiClient.resolvePendingInterventionIntervenant({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
         name: payload.name
       });
-      onToast("Intervenant en attente validé et ajouté aux intervenants.");
+      const p = result?.propagation;
+      const totalPropagated = p
+        ? (p.interventionEntries || 0) + (p.rondeEntries || 0) + (p.gardiennageEntries || 0)
+        : 0;
+      const toastMsg = totalPropagated > 0
+        ? `Intervenant validé et propagé à ${totalPropagated} entrée(s) existante(s).`
+        : "Intervenant en attente validé et ajouté aux intervenants.";
+      onToast(toastMsg);
       await Promise.all([loadIntervenants(), onRefreshImportedData("interventionPendingIntervenants")]);
     } catch (err) {
       onError(getErrorMessage(err, "Erreur de validation de l'intervenant en attente."));

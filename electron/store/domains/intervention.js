@@ -706,7 +706,17 @@ function createPendingInterventionIntervenant(store, { requesterRole, requesterU
   return { success: true, alreadyExists: false };
 }
 
-/** Rattache un site en attente au référentiel `data_sites` (création ou mise à jour). */
+/**
+ * Rattache un site en attente au référentiel `data_sites` (création ou rattachement
+ * si le code existe déjà), puis propage le `site_id` validé vers toutes les entrées
+ * métier (intervention, ronde, gardiennage, main courante) qui référençaient ce
+ * pending avec `site_id = NULL`.
+ * Toute l'opération est encapsulée dans une transaction atomique.
+ *
+ * @param {object} store   Instance du store (db, logAudit, fail, ensureDataReaderRole).
+ * @param {object} params  pendingId, parc, famille, requesterRole, requesterUsername.
+ * @returns {{ success: boolean, siteId: string, alreadyExists: boolean, propagation: object }}
+ */
 function resolvePendingInterventionSite(store, { requesterRole, requesterUsername, pendingId, parc, famille }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db.prepare("SELECT * FROM intervention_site_pending WHERE id = ?").get(String(pendingId || "").trim());
@@ -722,39 +732,110 @@ function resolvePendingInterventionSite(store, { requesterRole, requesterUsernam
   if (!cleanParc) {
     store.fail("intervention:pendingSiteResolve", "Le parc est obligatoire.", "INTERVENTION_PENDING_SITE_PARC_REQUIRED");
   }
-  const existingSite = store.db.prepare("SELECT id FROM data_sites WHERE lower(code) = lower(?) LIMIT 1").get(pending.code);
-  if (existingSite) {
-    store.db.prepare("DELETE FROM intervention_site_pending WHERE id = ?").run(pending.id);
+
+  store.db.exec("BEGIN IMMEDIATE");
+  try {
+    const existingSite = store.db
+      .prepare("SELECT id, code, name FROM data_sites WHERE lower(code) = lower(?) LIMIT 1")
+      .get(pending.code);
+
+    let resolvedSiteId;
+    let alreadyExists = false;
+    let officialName;
+    let officialCode;
+
+    if (existingSite) {
+      resolvedSiteId = existingSite.id;
+      alreadyExists = true;
+      officialName = existingSite.name;
+      officialCode = existingSite.code;
+      store.db.prepare("DELETE FROM intervention_site_pending WHERE id = ?").run(pending.id);
+    } else {
+      resolvedSiteId = generateEntityId();
+      officialName = pending.name;
+      officialCode = pending.code;
+      store.db
+        .prepare("INSERT INTO data_sites (id, code, name, parc, famille, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(resolvedSiteId, pending.code, pending.name, cleanParc, cleanFamille, new Date().toISOString());
+      store.db.prepare("DELETE FROM intervention_site_pending WHERE id = ?").run(pending.id);
+    }
+
+    const canonicalDisplay = `${officialName} (${officialCode})`;
+    const likePattern = `%(${pending.code})%`;
+    const propagation = propagateSiteIdToEntries(store, resolvedSiteId, canonicalDisplay, likePattern);
+
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "INTERVENTION_SITE_PENDING_RESOLVE",
       details: {
         pendingSite: { id: pending.id, code: pending.code, name: pending.name },
-        resolvedSiteId: existingSite.id,
-        mode: "already_exists"
+        ...(alreadyExists
+          ? { resolvedSiteId, mode: "already_exists" }
+          : {
+              createdSite: { id: resolvedSiteId, code: pending.code, name: pending.name, parc: cleanParc, famille: cleanFamille },
+              mode: "created"
+            }),
+        propagation
       }
     });
-    return { success: true, siteId: existingSite.id, alreadyExists: true };
-  }
 
-  const siteId = generateEntityId();
-  store.db
-    .prepare("INSERT INTO data_sites (id, code, name, parc, famille, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(siteId, pending.code, pending.name, cleanParc, cleanFamille, new Date().toISOString());
-  store.db.prepare("DELETE FROM intervention_site_pending WHERE id = ?").run(pending.id);
-  store.logAudit({
-    actorUsername: requesterUsername || "unknown",
-    action: "INTERVENTION_SITE_PENDING_RESOLVE",
-    details: {
-      pendingSite: { id: pending.id, code: pending.code, name: pending.name },
-      createdSite: { id: siteId, code: pending.code, name: pending.name, parc: cleanParc, famille: cleanFamille },
-      mode: "created"
+    store.db.exec("COMMIT");
+    return { success: true, siteId: resolvedSiteId, alreadyExists, propagation };
+  } catch (err) {
+    try {
+      store.db.exec("ROLLBACK");
+    } catch (_) {
+      /* rollback best-effort */
     }
-  });
-  return { success: true, siteId, alreadyExists: false };
+    throw err;
+  }
 }
 
-/** Rattache un intervenant en attente au référentiel `data_intervenants`. */
+/**
+ * Propage `site_id` et `site_display` validés vers les 4 tables métier dont les
+ * entrées référençaient le site pending (site_id NULL + code dans site_display).
+ *
+ * @param {object} store           Instance du store (db).
+ * @param {string} siteId          ID du site validé à propager.
+ * @param {string} canonicalDisplay  Libellé officiel « Nom (CODE) ».
+ * @param {string} likePattern     Pattern SQL LIKE `%(CODE)%`.
+ * @returns {{ interventionEntries: number, rondeEntries: number, gardiennageEntries: number, mainCouranteEntries: number }}
+ */
+function propagateSiteIdToEntries(store, siteId, canonicalDisplay, likePattern) {
+  const updateSql = (table) =>
+    store.db
+      .prepare(
+        `UPDATE ${table}
+         SET site_id = ?, site_display = ?
+         WHERE site_id IS NULL
+           AND lower(site_display) LIKE lower(?)`
+      )
+      .run(siteId, canonicalDisplay, likePattern);
+
+  const interventionResult = updateSql("intervention_entries");
+  const rondeResult = updateSql("ronde_entries");
+  const gardiennageResult = updateSql("gardiennage_entries");
+  const mainCouranteResult = updateSql("main_courante_entries");
+
+  return {
+    interventionEntries: interventionResult.changes,
+    rondeEntries: rondeResult.changes,
+    gardiennageEntries: gardiennageResult.changes,
+    mainCouranteEntries: mainCouranteResult.changes
+  };
+}
+
+/**
+ * Rattache un intervenant en attente au référentiel `data_intervenants` (création
+ * ou rattachement si le nom existe déjà), puis propage le `intervenant_id` validé
+ * vers les entrées métier (intervention, ronde, gardiennage) qui référençaient ce
+ * pending avec `intervenant_id = NULL`.
+ * Toute l'opération est encapsulée dans une transaction atomique.
+ *
+ * @param {object} store   Instance du store (db, logAudit, fail, ensureDataReaderRole).
+ * @param {object} params  pendingId, name (optionnel, correction admin), requesterRole, requesterUsername.
+ * @returns {{ success: boolean, intervenantId: string, alreadyExists: boolean, propagation: object }}
+ */
 function resolvePendingInterventionIntervenant(store, { requesterRole, requesterUsername, pendingId, name }) {
   store.ensureDataReaderRole(requesterRole);
   const pending = store.db
@@ -775,35 +856,84 @@ function resolvePendingInterventionIntervenant(store, { requesterRole, requester
       "INTERVENTION_PENDING_INTERVENANT_NAME_REQUIRED"
     );
   }
-  const existing = store.db.prepare("SELECT id FROM data_intervenants WHERE lower(name) = lower(?) LIMIT 1").get(finalName);
-  if (existing) {
-    store.db.prepare("DELETE FROM intervention_intervenant_pending WHERE id = ?").run(pending.id);
+
+  store.db.exec("BEGIN IMMEDIATE");
+  try {
+    const existing = store.db
+      .prepare("SELECT id FROM data_intervenants WHERE lower(name) = lower(?) LIMIT 1")
+      .get(finalName);
+
+    let resolvedId;
+    let alreadyExists = false;
+
+    if (existing) {
+      resolvedId = existing.id;
+      alreadyExists = true;
+      store.db.prepare("DELETE FROM intervention_intervenant_pending WHERE id = ?").run(pending.id);
+    } else {
+      resolvedId = generateEntityId();
+      store.db
+        .prepare("INSERT INTO data_intervenants (id, name, created_at) VALUES (?, ?, ?)")
+        .run(resolvedId, finalName, new Date().toISOString());
+      store.db.prepare("DELETE FROM intervention_intervenant_pending WHERE id = ?").run(pending.id);
+    }
+
+    const propagation = propagateIntervenantIdToEntries(store, resolvedId, finalName, pending.name);
+
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "INTERVENTION_INTERVENANT_PENDING_RESOLVE",
       details: {
         pendingIntervenant: { id: pending.id, name: pending.name },
-        resolvedIntervenantId: existing.id,
-        mode: "already_exists"
+        ...(alreadyExists
+          ? { resolvedIntervenantId: resolvedId, mode: "already_exists" }
+          : { createdIntervenant: { id: resolvedId, name: finalName }, mode: "created" }),
+        propagation
       }
     });
-    return { success: true, intervenantId: existing.id, alreadyExists: true };
-  }
-  const intervenantId = generateEntityId();
-  store.db
-    .prepare("INSERT INTO data_intervenants (id, name, created_at) VALUES (?, ?, ?)")
-    .run(intervenantId, finalName, new Date().toISOString());
-  store.db.prepare("DELETE FROM intervention_intervenant_pending WHERE id = ?").run(pending.id);
-  store.logAudit({
-    actorUsername: requesterUsername || "unknown",
-    action: "INTERVENTION_INTERVENANT_PENDING_RESOLVE",
-    details: {
-      pendingIntervenant: { id: pending.id, name: pending.name },
-      createdIntervenant: { id: intervenantId, name: finalName },
-      mode: "created"
+
+    store.db.exec("COMMIT");
+    return { success: true, intervenantId: resolvedId, alreadyExists, propagation };
+  } catch (err) {
+    try {
+      store.db.exec("ROLLBACK");
+    } catch (_) {
+      /* rollback best-effort */
     }
-  });
-  return { success: true, intervenantId, alreadyExists: false };
+    throw err;
+  }
+}
+
+/**
+ * Propage `intervenant_id` et `intervenant_name` validés vers les 3 tables métier
+ * dont les entrées référençaient l'intervenant pending (intervenant_id NULL + nom exact).
+ *
+ * @param {object} store          Instance du store (db).
+ * @param {string} intervenantId  ID de l'intervenant validé à propager.
+ * @param {string} finalName      Nom officiel (potentiellement corrigé par l'admin).
+ * @param {string} originalName   Nom original saisi par l'opérateur (pour le matching).
+ * @returns {{ interventionEntries: number, rondeEntries: number, gardiennageEntries: number }}
+ */
+function propagateIntervenantIdToEntries(store, intervenantId, finalName, originalName) {
+  const updateSql = (table) =>
+    store.db
+      .prepare(
+        `UPDATE ${table}
+         SET intervenant_id = ?, intervenant_name = ?
+         WHERE intervenant_id IS NULL
+           AND lower(intervenant_name) = lower(?)`
+      )
+      .run(intervenantId, finalName, originalName);
+
+  const interventionResult = updateSql("intervention_entries");
+  const rondeResult = updateSql("ronde_entries");
+  const gardiennageResult = updateSql("gardiennage_entries");
+
+  return {
+    interventionEntries: interventionResult.changes,
+    rondeEntries: rondeResult.changes,
+    gardiennageEntries: gardiennageResult.changes
+  };
 }
 
 /** Supprime un site en attente si non référencé par une entrée métier (motif obligatoire). */

@@ -679,7 +679,12 @@ export const gtsApiClient = {
     pendingId: string;
     parc: string;
     famille: string;
-  }): Promise<{ success: boolean; siteId: string; alreadyExists: boolean }> {
+  }): Promise<{
+    success: boolean;
+    siteId: string;
+    alreadyExists: boolean;
+    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
+  }> {
     return window.gtsApi.resolvePendingInterventionSite(withSession(payload));
   },
   deletePendingInterventionSite(payload: {
@@ -705,7 +710,12 @@ export const gtsApiClient = {
     requesterUsername: string;
     pendingId: string;
     name?: string;
-  }): Promise<{ success: boolean; intervenantId: string; alreadyExists: boolean }> {
+  }): Promise<{
+    success: boolean;
+    intervenantId: string;
+    alreadyExists: boolean;
+    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
+  }> {
     return window.gtsApi.resolvePendingInterventionIntervenant(withSession(payload));
   },
   deletePendingInterventionIntervenant(payload: {

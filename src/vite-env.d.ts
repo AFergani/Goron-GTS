@@ -510,7 +510,12 @@ declare global {
         pendingId: string;
         parc: string;
         famille: string;
-      }) => Promise<{ success: boolean; siteId: string; alreadyExists: boolean }>;
+      }) => Promise<{
+        success: boolean;
+        siteId: string;
+        alreadyExists: boolean;
+        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
+      }>;
       deletePendingInterventionSite: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -528,7 +533,12 @@ declare global {
         requesterUsername: string;
         pendingId: string;
         name?: string;
-      }) => Promise<{ success: boolean; intervenantId: string; alreadyExists: boolean }>;
+      }) => Promise<{
+        success: boolean;
+        intervenantId: string;
+        alreadyExists: boolean;
+        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
+      }>;
       deletePendingInterventionIntervenant: (payload: {
         requesterRole: Role;
         requesterUsername: string;
