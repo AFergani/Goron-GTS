@@ -553,6 +553,23 @@ export function useSettingsPresenter({
 
   useEffect(() => {
     if (!session) return;
+    const loadPendingCounts = () => {
+      void gtsApiClient
+        .listPendingInterventionSites({ requesterRole: session.user.role })
+        .then((rows) => setInterventionPendingSites(rows))
+        .catch(() => setInterventionPendingSites([]));
+      void gtsApiClient
+        .listPendingInterventionIntervenants({ requesterRole: session.user.role })
+        .then((rows) => setInterventionPendingIntervenants(rows))
+        .catch(() => setInterventionPendingIntervenants([]));
+    };
+    loadPendingCounts();
+    const pendingTimer = setInterval(loadPendingCounts, 30000);
+    return () => clearInterval(pendingTimer);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
     const refreshMs = 10000;
 
     if (activeSettingsTab === "operators") {

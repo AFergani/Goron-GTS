@@ -594,13 +594,18 @@ function setInterventionBillingStatus(store, { requesterRole, requesterUsername,
 function listPendingInterventionSites(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = store.db
-    .prepare("SELECT * FROM intervention_site_pending ORDER BY datetime(created_at) DESC")
+    .prepare(
+      `SELECT p.*, u.full_name AS created_by_display
+       FROM intervention_site_pending p
+       LEFT JOIN users u ON u.username = p.created_by
+       ORDER BY datetime(p.created_at) DESC`
+    )
     .all();
   return rows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
-    createdBy: row.created_by,
+    createdBy: row.created_by_display || row.created_by,
     createdAt: row.created_at
   }));
 }
@@ -649,12 +654,17 @@ function createPendingInterventionSite(store, { requesterRole, requesterUsername
 function listPendingInterventionIntervenants(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const rows = store.db
-    .prepare("SELECT * FROM intervention_intervenant_pending ORDER BY datetime(created_at) DESC")
+    .prepare(
+      `SELECT p.*, u.full_name AS created_by_display
+       FROM intervention_intervenant_pending p
+       LEFT JOIN users u ON u.username = p.created_by
+       ORDER BY datetime(p.created_at) DESC`
+    )
     .all();
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
-    createdBy: row.created_by,
+    createdBy: row.created_by_display || row.created_by,
     createdAt: row.created_at
   }));
 }

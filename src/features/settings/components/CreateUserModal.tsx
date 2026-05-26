@@ -97,14 +97,14 @@ export function CreateUserModal({
                   onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, rondes: next } })}
                 />
                 <ToggleSwitch
-                  label="Paramètres"
-                  checked={form.pageAccess.settings}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, settings: next } })}
-                />
-                <ToggleSwitch
                   label="Gardiennage"
                   checked={form.pageAccess.gardiennage}
                   onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, gardiennage: next } })}
+                />
+                <ToggleSwitch
+                  label="Paramètres"
+                  checked={form.pageAccess.settings}
+                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, settings: next } })}
                 />
               </div>
             </fieldset>

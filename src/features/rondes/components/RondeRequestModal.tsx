@@ -66,7 +66,9 @@ type RondeRequestModalProps = {
   initialMotifTypeId?: string | null;
   initialConsigne?: string | null;
   initialSiteId?: string | null;
+  initialSiteDisplay?: string | null;
   initialIntervenantId?: string | null;
+  initialIntervenantName?: string | null;
   initialInterventionId?: string | null;
   /** Réhydrate validité/lignes (Demande liée sur ronde exceptionnelle). */
   replayPlanningSnapshot?: RondePlanningSnapshotV1 | null;
@@ -439,11 +441,27 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     }
     setError("");
     setSubmitting(false);
-    setShowPendingSiteForm(false);
-    setShowPendingIntervenantForm(false);
-    setPendingCode("");
-    setPendingName("");
-    setPendingIntervenantName("");
+
+    const hasPendingSite = !props.initialSiteId && Boolean(props.initialSiteDisplay);
+    const hasPendingIntervenant = !props.initialIntervenantId && Boolean(props.initialIntervenantName);
+    if (hasPendingSite) {
+      const codeMatch = (props.initialSiteDisplay ?? "").match(/\(([^()]+)\)/);
+      setPendingCode(codeMatch?.[1]?.trim() ?? "");
+      const namePart = (props.initialSiteDisplay ?? "").replace(/\s*\([^()]+\)\s*$/, "").trim();
+      setPendingName(namePart);
+      setShowPendingSiteForm(true);
+    } else {
+      setShowPendingSiteForm(false);
+      setPendingCode("");
+      setPendingName("");
+    }
+    if (hasPendingIntervenant) {
+      setPendingIntervenantName(props.initialIntervenantName ?? "");
+      setShowPendingIntervenantForm(true);
+    } else {
+      setShowPendingIntervenantForm(false);
+      setPendingIntervenantName("");
+    }
   }, [
     props.isOpen,
     props.editProfile?.id,
@@ -453,7 +471,9 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     props.initialMotifTypeId,
     props.initialConsigne,
     props.initialSiteId,
+    props.initialSiteDisplay,
     props.initialIntervenantId,
+    props.initialIntervenantName,
     props.replayPlanningSnapshot,
     linkedBatchSig,
     isEdit

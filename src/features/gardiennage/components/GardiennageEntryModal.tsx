@@ -221,11 +221,25 @@ export function GardiennageEntryModal({
     setForm(init);
     setInitialForm(init);
     setCancelReason("");
-    setShowPendingSiteForm(false);
-    setShowPendingIntervenantForm(false);
-    setPendingCode("");
-    setPendingName("");
-    setPendingIntervenantName("");
+    const hasPendingSite = createPreset && !createPreset.siteId && Boolean(createPreset.siteDisplay);
+    const hasPendingIntervenant = createPreset && !createPreset.intervenantId && Boolean(createPreset.intervenantName);
+    if (hasPendingSite) {
+      const codeMatch = (createPreset.siteDisplay ?? "").match(/\(([^()]+)\)/);
+      setPendingCode(codeMatch?.[1]?.trim() ?? "");
+      setPendingName((createPreset.siteDisplay ?? "").replace(/\s*\([^()]+\)\s*$/, "").trim());
+      setShowPendingSiteForm(true);
+    } else {
+      setShowPendingSiteForm(false);
+      setPendingCode("");
+      setPendingName("");
+    }
+    if (hasPendingIntervenant) {
+      setPendingIntervenantName(createPreset.intervenantName ?? "");
+      setShowPendingIntervenantForm(true);
+    } else {
+      setShowPendingIntervenantForm(false);
+      setPendingIntervenantName("");
+    }
   }, [isOpen, isCreateMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Hydratation depuis l'entrée existante en mode édition */

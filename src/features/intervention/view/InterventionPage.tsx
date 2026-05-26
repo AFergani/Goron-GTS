@@ -386,7 +386,9 @@ export function InterventionPage({
         fixedOrigin="SUITE_INTERVENTION"
         initialInterventionId={linkedInterventionForRonde?.id ?? null}
         initialSiteId={linkedInterventionForRonde?.siteId ?? null}
+        initialSiteDisplay={linkedInterventionForRonde?.siteDisplay ?? null}
         initialIntervenantId={linkedInterventionForRonde?.intervenantId ?? null}
+        initialIntervenantName={linkedInterventionForRonde?.intervenantName ?? null}
         sites={references.sites}
         intervenants={references.intervenants}
         rondeMotifs={rondeMotifsForModal}
