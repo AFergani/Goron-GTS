@@ -870,6 +870,20 @@ export function RondePage({
           setModalMode("edit");
           setModalOpen(true);
         }}
+        onNavigateBackToAnchorRonde={linkedDemandAnchorId ? () => {
+          const anchor = ronde.entries.find((e) => e.id === linkedDemandAnchorId);
+          if (!anchor) {
+            onToast?.("Rapport de ronde d'origine introuvable.");
+            return;
+          }
+          setRequestModalOpen(false);
+          setRequestPlanningReplay(null);
+          setLinkedDemandAnchorId(null);
+          setCreatePreset(null);
+          setActiveEntry(anchor);
+          setModalMode("edit");
+          setModalOpen(true);
+        } : undefined}
         onNotify={onToast}
         sites={references.sites}
         intervenants={references.intervenants}

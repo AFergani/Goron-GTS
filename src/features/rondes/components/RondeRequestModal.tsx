@@ -94,6 +94,8 @@ type RondeRequestModalProps = {
     reason: string
   ) => Promise<{ ok: boolean; deletedCount: number } | null>;
   onOpenLinkedBatchRonde?: (entry: RondeEntry) => void;
+  /** Retour vers le rapport de ronde d'ancrage (navigation Rapport → Demande → Rapport). */
+  onNavigateBackToAnchorRonde?: () => void;
   onCreatePendingSite?: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant?: (name: string) => Promise<boolean>;
 };
@@ -922,9 +924,22 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                 ? "Modifier la programmation"
                 : "Planifier une ronde"}
           </h3>
-          <button type="button" className="mc-modal-close" onClick={props.onClose} aria-label="Fermer">
-            ×
-          </button>
+          <div className="row-actions">
+            {props.onNavigateBackToAnchorRonde && (
+              <button
+                type="button"
+                className="btn-light"
+                title="Retour au rapport de ronde"
+                aria-label="Rapport de ronde"
+                onClick={props.onNavigateBackToAnchorRonde}
+              >
+                Rapport de ronde
+              </button>
+            )}
+            <button type="button" className="mc-modal-close" onClick={props.onClose} aria-label="Fermer">
+              ×
+            </button>
+          </div>
         </header>
         <div className="form">
           <div className="ronde-planned-profile-modal__date-range-row">
