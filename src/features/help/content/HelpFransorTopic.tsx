@@ -122,6 +122,10 @@ export function HelpFransorTopic() {
           <li>
             <strong>Création :</strong> renseignez la date de début, la date de fin (optionnelle), le type (<strong>Ouvert</strong> ou{" "}
             <strong>Fermer</strong>) et un motif explicite, puis cliquez sur <strong>Enregistrer exception</strong>.
+            <br />
+            <em>Si la date de fin n&apos;est pas renseignée, l&apos;exception porte sur une journée unique</em> (la date de début).
+            Contrairement à d&apos;autres modules où l&apos;absence de date de fin signifie « jusqu&apos;à nouvel ordre »,
+            ici elle indique simplement qu&apos;une seule date est concernée.
           </li>
           <li>
             <strong>Priorité des règles :</strong> en cas de chevauchement sur une même date, la règle la plus récente ou une exception{" "}

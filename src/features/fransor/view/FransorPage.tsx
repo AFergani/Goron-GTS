@@ -13,7 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
-import type { FransorClosure, Role } from "../../../types";
+import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
+import type { FransorClosure, Role, SiteRef } from "../../../types";
 
 
 /** Jours ISO du mois `YYYY-MM` */
@@ -149,7 +151,18 @@ export function FransorPage({
   const [closureYearLoading, setClosureYearLoading] = useState(false);
 
   const [compactDayLabels, setCompactDayLabels] = useState(false);
+  const [fransorSiteLabel, setFransorSiteLabel] = useState("");
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
+
+  useEffect(() => {
+    let cancelled = false;
+    void gtsApiClient.listSites({ requesterRole }).then((sites: SiteRef[]) => {
+      if (cancelled) return;
+      const match = sites.find((s) => s.code.toUpperCase() === "FRANSOR" || s.name.toUpperCase().includes("FRANSOR"));
+      if (match) setFransorSiteLabel(formatSiteSelectedLabel(match));
+    });
+    return () => { cancelled = true; };
+  }, [requesterRole]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -535,7 +548,12 @@ export function FransorPage({
   return (
     <>
       <section className="panel">
-        <h3>Suivi quotidien</h3>
+        <div className="row fransor-help-row">
+          <h3>Suivi quotidien</h3>
+          {fransorSiteLabel ? (
+            <SiteDisplayCopyButton siteLabel={fransorSiteLabel} onNotify={onToast} className="btn-light fransor-site-copy-btn" />
+          ) : null}
+        </div>
         <div className="row fransor-main-row">
           <label className="fransor-month-filter">
             <span>Mois :</span>

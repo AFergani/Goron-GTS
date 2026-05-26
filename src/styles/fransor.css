@@ -27,6 +27,15 @@
   gap: 6px;
 }
 
+.fransor-site-copy-btn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .fransor-main-row {
   align-items: end;
 }
