@@ -564,12 +564,22 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       <div className="tabs">
         <button className={props.activeDataTab === "sites" ? "tab active" : "tab"} onClick={() => props.onDataTabChange("sites")}>
           Sites
+          {props.interventionPendingSites.length > 0 ? (
+            <span className="tab-badge" title={`${props.interventionPendingSites.length} site(s) en attente`}>
+              {props.interventionPendingSites.length}
+            </span>
+          ) : null}
         </button>
         <button
           className={props.activeDataTab === "intervenants" ? "tab active" : "tab"}
           onClick={() => props.onDataTabChange("intervenants")}
         >
           Intervenants
+          {props.interventionPendingIntervenants.length > 0 ? (
+            <span className="tab-badge" title={`${props.interventionPendingIntervenants.length} intervenant(s) en attente`}>
+              {props.interventionPendingIntervenants.length}
+            </span>
+          ) : null}
         </button>
         <button className={props.activeDataTab === "types" ? "tab active" : "tab"} onClick={() => props.onDataTabChange("types")}>
           Types d'anomalie

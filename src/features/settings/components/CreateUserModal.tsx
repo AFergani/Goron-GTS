@@ -116,7 +116,7 @@ export function CreateUserModal({
           {mode === "edit" && (
             <fieldset>
               <legend>Sécurité</legend>
-              <div className="toggle-field-list">
+              <div className="toggle-field-list toggle-field-list--single">
                 <ToggleSwitch
                   label="Demander la réinitialisation du mot de passe"
                   checked={form.mustResetPassword}

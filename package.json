@@ -7,6 +7,9 @@
     "dev:ui": "vite",
     "dev:electron": "wait-on tcp:5173 && electron .",
     "dev": "concurrently -k \"npm:dev:ui\" \"npm:dev:electron\"",
+    "dev:2:ui": "vite --port 5174",
+    "dev:2:electron": "wait-on tcp:5174 && cross-env DEV_PORT=5174 electron .",
+    "dev:2": "concurrently -k \"npm:dev:2:ui\" \"npm:dev:2:electron\"",
     "build:ui": "vite build",
     "build": "npm run build:ui",
     "dist:portable": "npm run build:ui && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win portable",
@@ -27,6 +30,7 @@
   "dependencies": {
     "docx": "^9.6.1",
     "docxtemplater": "^3.68.5",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.8.0",
     "pizzip": "^3.2.0",
     "react": "^19.2.5",

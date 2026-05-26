@@ -15,7 +15,7 @@ const { resolveAppIconPath } = require("./resolveAppIconPath");
  * @param {typeof import('electron').BrowserWindow} deps.BrowserWindow
  * @param {typeof import('electron').Menu} deps.Menu - Menu contextuel clic droit.
  * @param {import('path')} deps.path
- * @param {boolean} deps.isDev - Charge `localhost:5173` et ouvre DevTools au démarrage si vrai.
+ * @param {boolean} deps.isDev - Charge `localhost:${DEV_PORT||5173}` et ouvre DevTools au démarrage si vrai.
  * @param {() => object} deps.readAppConfig - Lit `windowBounds` / `windowMaximized`.
  * @param {(config: object) => void} deps.writeAppConfig - Persiste géométrie sur move/resize/close.
  * @param {() => void} deps.setupTrayIfNeeded - Initialise le tray après création fenêtre (`trayService`).
@@ -74,7 +74,8 @@ function createWindowService(deps) {
     win.setAutoHideMenuBar(true);
 
     if (isDev) {
-      win.loadURL("http://localhost:5173");
+      const devPort = process.env.DEV_PORT || "5173";
+      win.loadURL(`http://localhost:${devPort}`);
       win.webContents.openDevTools({ mode: "detach" });
     } else {
       const cspPolicy = [

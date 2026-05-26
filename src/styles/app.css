@@ -66,8 +66,25 @@
 
 .toggle-field-list {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-top: 8px;
+}
+
+@media (max-width: 680px) {
+  .toggle-field-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .toggle-field-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.toggle-field-list--single {
+  grid-template-columns: 1fr;
 }
 
 .toggle-switch {
@@ -414,7 +431,9 @@
   min-width: 0;
 }
 
-.nav-btn-badge {
+.nav-btn-badge,
+.tab-badge,
+.icon-btn-badge {
   flex-shrink: 0;
   min-width: 20px;
   height: 20px;
@@ -428,6 +447,23 @@
   align-items: center;
   justify-content: center;
   padding: 0 6px;
+}
+
+.tab-badge {
+  margin-left: 6px;
+  height: 18px;
+  min-width: 18px;
+  font-size: 10px;
+}
+
+.icon-btn-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  height: 16px;
+  min-width: 16px;
+  font-size: 9px;
+  padding: 0 4px;
 }
 
 .topbar {
@@ -560,6 +596,7 @@ th {
 }
 
 .icon-btn {
+  position: relative;
   width: 44px;
   min-width: 44px;
   height: 36px;

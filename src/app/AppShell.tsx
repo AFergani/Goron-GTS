@@ -572,6 +572,15 @@ export function AppShell() {
               onClick={openSettingsAtFirstTabs}
             >
               <Settings size={16} />
+              {(settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length) > 0 ? (
+                <span
+                  className="icon-btn-badge"
+                  title={`${settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length} élément(s) en attente de validation`}
+                  aria-label={`${settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length} élément(s) en attente de validation`}
+                >
+                  {settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length}
+                </span>
+              ) : null}
             </button>
           )}
           <button

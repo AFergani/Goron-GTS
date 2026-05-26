@@ -161,10 +161,10 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredEntries.length === 0) return;
     try {
-      exportMainCouranteToExcel(filteredEntries);
+      await exportMainCouranteToExcel(filteredEntries);
       onToast?.("Export Excel téléchargé.");
     } catch (e) {
       onToast?.(e instanceof Error ? e.message : "Export Excel impossible.");
@@ -323,7 +323,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
             type="button"
             className="btn-light"
             disabled={loading || filteredEntries.length === 0}
-            onClick={handleExportExcel}
+            onClick={() => void handleExportExcel()}
           >
             Exporter données
           </button>

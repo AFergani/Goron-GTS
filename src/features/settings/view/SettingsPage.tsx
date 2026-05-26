@@ -244,6 +244,11 @@ export function SettingsPage(props: SettingsPageProps) {
         {props.canManageData && (
           <button className={activeTab === "data" ? "tab active" : "tab"} onClick={() => props.onTabChange("data")}>
             Gestion des données
+            {(props.interventionPendingSites.length + props.interventionPendingIntervenants.length) > 0 ? (
+              <span className="tab-badge">
+                {props.interventionPendingSites.length + props.interventionPendingIntervenants.length}
+              </span>
+            ) : null}
           </button>
         )}
         {props.canManageData && (
