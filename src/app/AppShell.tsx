@@ -145,6 +145,14 @@ export function AppShell() {
     setActivePage("rondes");
   };
 
+  const navigateToLinkedGardiennage = (_gardiennageId: string) => {
+    if (!userPageAccess.gardiennage) {
+      notifyToast("Accès à la page Gardiennage non autorisé.");
+      return;
+    }
+    setActivePage("gardiennage");
+  };
+
   const openSettingsAtFirstTabs = () => {
     if (!userPageAccess.settings) return;
     setActivePage("settings");
@@ -730,6 +738,8 @@ export function AppShell() {
             onToast={notifyToast}
             focusInterventionId={focusInterventionIdFromRonde}
             onFocusInterventionConsumed={() => setFocusInterventionIdFromRonde(null)}
+            onNavigateToLinkedRonde={userPageAccess.rondes ? navigateToLinkedRonde : undefined}
+            onNavigateToLinkedGardiennage={userPageAccess.gardiennage ? navigateToLinkedGardiennage : undefined}
           />
         )}
         {activePage === "gardiennage" && userPageAccess.gardiennage && (

@@ -156,7 +156,9 @@ function mapInterventionRow(row) {
     cancellationReason: row.cancellation_reason || "",
     closedAt: row.closed_at || null,
     archivedAt: row.archived_at || null,
-    exportExtraValues: parseExportExtraJson(row.export_extra_json)
+    exportExtraValues: parseExportExtraJson(row.export_extra_json),
+    linkedRondeId: row.linked_ronde_id || null,
+    linkedGardiennageId: row.linked_gardiennage_id || null
   };
 }
 
@@ -263,15 +265,21 @@ function ensureInterventionPayload(store, payload, { requireArrival = false, req
 }
 
 /** Liste les interventions (hors archivées sauf `includeArchived`). */
+/**
+ * Liste les interventions avec les liens inversés ronde/gardiennage.
+ * Les sous-requêtes récupèrent le premier ID lié (ronde via `origin_intervention_id`,
+ * gardiennage via `intervention_id`) pour permettre la navigation retour depuis la modale.
+ */
 function listInterventions(store, { requesterRole, includeArchived = false }) {
   store.ensureDataReaderRole(requesterRole);
-  const rows = includeArchived
-    ? store.db.prepare("SELECT * FROM intervention_entries ORDER BY datetime(request_date || 'T' || request_time) DESC, id DESC").all()
-    : store.db
-        .prepare(
-          "SELECT * FROM intervention_entries WHERE archived_at IS NULL ORDER BY datetime(request_date || 'T' || request_time) DESC, id DESC"
-        )
-        .all();
+  const baseSql = `
+    SELECT i.*,
+      (SELECT r.id FROM ronde_entries r WHERE r.origin_intervention_id = i.id LIMIT 1) AS linked_ronde_id,
+      (SELECT g.id FROM gardiennage_entries g WHERE g.intervention_id = i.id LIMIT 1) AS linked_gardiennage_id
+    FROM intervention_entries i
+    ${includeArchived ? "" : "WHERE i.archived_at IS NULL"}
+    ORDER BY datetime(i.request_date || 'T' || i.request_time) DESC, i.id DESC`;
+  const rows = store.db.prepare(baseSql).all();
   return rows.map((row) => mapInterventionRow(row));
 }
 

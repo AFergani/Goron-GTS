@@ -35,6 +35,10 @@ export type InterventionEntry = {
   archivedAt: string | null;
   /** Valeurs des champs complémentaires configurés pour l'export Word (clé → texte). */
   exportExtraValues: Record<string, string>;
+  /** ID de la ronde liée (lookup inversé depuis `ronde_entries.origin_intervention_id`). */
+  linkedRondeId: string | null;
+  /** ID du gardiennage lié (lookup inversé depuis `gardiennage_entries.intervention_id`). */
+  linkedGardiennageId: string | null;
   syncState?: "PENDING_QUEUE";
 };
 

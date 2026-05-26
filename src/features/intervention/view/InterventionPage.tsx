@@ -34,6 +34,10 @@ type InterventionPageProps = {
   /** Id intervention à ouvrir (navigation depuis une ronde liée). */
   focusInterventionId?: string | null;
   onFocusInterventionConsumed?: () => void;
+  /** Navigation retour vers une ronde liée. */
+  onNavigateToLinkedRonde?: (rondeId: string) => void;
+  /** Navigation retour vers un gardiennage lié. */
+  onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
 };
 
 function makeRondeId() {
@@ -57,7 +61,9 @@ export function InterventionPage({
   canAccessGardiennage = false,
   onToast,
   focusInterventionId,
-  onFocusInterventionConsumed
+  onFocusInterventionConsumed,
+  onNavigateToLinkedRonde,
+  onNavigateToLinkedGardiennage
 }: InterventionPageProps) {
   const filters = useTableFilters();
   const [statusFilter, setStatusFilterRaw] = useState("");
@@ -379,6 +385,8 @@ export function InterventionPage({
           setLinkedInterventionForGardiennage(liveActiveEntry);
           setLinkedGardiennageOpen(true);
         }}
+        onNavigateToLinkedRonde={onNavigateToLinkedRonde}
+        onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
       />
 
       <RondeRequestModal

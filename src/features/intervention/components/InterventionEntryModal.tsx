@@ -85,6 +85,10 @@ type InterventionEntryModalProps = {
   /** Accès page Gardiennage : affiche le bouton de création d'un gardiennage lié. */
   canOpenLinkedGardiennage?: boolean;
   onOpenLinkedGardiennage?: () => void;
+  /** Navigation vers la ronde liée existante (retour inversé). */
+  onNavigateToLinkedRonde?: (rondeId: string) => void;
+  /** Navigation vers le gardiennage lié existant (retour inversé). */
+  onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
 };
 
 function formatNowDate() {
@@ -158,7 +162,9 @@ export function InterventionEntryModal({
   canOpenLinkedRonde,
   onOpenLinkedRonde,
   canOpenLinkedGardiennage,
-  onOpenLinkedGardiennage
+  onOpenLinkedGardiennage,
+  onNavigateToLinkedRonde,
+  onNavigateToLinkedGardiennage
 }: InterventionEntryModalProps) {
   const [siteId, setSiteId] = useState("");
   const [requestReason, setRequestReason] = useState("");
@@ -550,9 +556,39 @@ export function InterventionEntryModal({
               <h3 className="mc-modal-title">
                 {isFacturationMode ? "Facturation intervention" : "Édition intervention"}
               </h3>
-              <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
-                ×
-              </button>
+              <div className="row-actions">
+                {entry?.linkedRondeId && onNavigateToLinkedRonde && (
+                  <button
+                    type="button"
+                    className="btn-light"
+                    title="Ouvrir la ronde liée"
+                    aria-label="Ronde liée"
+                    onClick={() => {
+                      onNavigateToLinkedRonde(entry.linkedRondeId!);
+                      onClose();
+                    }}
+                  >
+                    Ronde liée
+                  </button>
+                )}
+                {entry?.linkedGardiennageId && onNavigateToLinkedGardiennage && (
+                  <button
+                    type="button"
+                    className="btn-light"
+                    title="Ouvrir le gardiennage lié"
+                    aria-label="Gardiennage lié"
+                    onClick={() => {
+                      onNavigateToLinkedGardiennage(entry.linkedGardiennageId!);
+                      onClose();
+                    }}
+                  >
+                    Gardiennage lié
+                  </button>
+                )}
+                <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
+                  ×
+                </button>
+              </div>
             </header>
           )}
         <div className="mc-field-section mc-field-section-tight">
