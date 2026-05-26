@@ -186,6 +186,7 @@ export function buildEffectivePlanningSnapshot(input: BuildPlanningSnapshotInput
     validFromTime: "00:00",
     validToDate: recurringBounds.validToDate,
     validToTime: recurringBounds.validToTime,
+    userValidToDate: toDate,
     isContinuous: false,
     lines: input.planningLines
   };

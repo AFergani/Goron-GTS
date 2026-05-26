@@ -44,7 +44,6 @@ import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
-import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
 export type GardiennageModalMode = "create" | "edit";
 
@@ -268,7 +267,7 @@ export function GardiennageEntryModal({
       validFromTime: isPonctuel
         ? (firstLine?.startTime || entry.startTime || "")
         : (snap?.validFromTime || entry.startTime || ""),
-      validToDate: h24OpenEnded ? "" : (snap?.validToDate || entry.recurrenceEndDate || entry.recurrenceStartDate),
+      validToDate: h24OpenEnded ? "" : (snap?.userValidToDate || snap?.validToDate || entry.recurrenceEndDate || entry.recurrenceStartDate),
       validToTime: isPonctuel
         ? (firstLine?.endTime || entry.endTime || "")
         : (h24OpenEnded ? "" : (snap?.validToTime || entry.endTime || "")),
@@ -689,29 +688,18 @@ export function GardiennageEntryModal({
 
               {/* PLANIFICATION */}
               <CreateFormSection title="Planification">
-                <div className="gardiennage-planning-toggles">
-                  <ToggleSwitch
-                    label="Planification libre"
-                    checked={planningMode === "recurring"}
+                <label className="mc-field" style={{ maxWidth: 260 }}>
+                  <span>Type de planification</span>
+                  <select
+                    value={planningMode}
                     disabled={isSaving || isAnnule || isReadOnlyByRole}
-                    labelFirst
-                    onChange={(next) => next && applyPlanningMode("recurring")}
-                  />
-                  <ToggleSwitch
-                    label="Journée unique"
-                    checked={planningMode === "ponctuel"}
-                    disabled={isSaving || isAnnule || isReadOnlyByRole}
-                    labelFirst
-                    onChange={(next) => next && applyPlanningMode("ponctuel")}
-                  />
-                  <ToggleSwitch
-                    label="H24"
-                    checked={planningMode === "h24"}
-                    disabled={isSaving || isAnnule || isReadOnlyByRole}
-                    labelFirst
-                    onChange={(next) => next && applyPlanningMode("h24")}
-                  />
-                </div>
+                    onChange={(e) => applyPlanningMode(e.target.value as GardiennagePlanningFormMode)}
+                  >
+                    <option value="recurring">Planification libre</option>
+                    <option value="ponctuel">Journée unique</option>
+                    <option value="h24">H24</option>
+                  </select>
+                </label>
 
                 {planningMode === "ponctuel" && (
                   <div className="gardiennage-planning-validity">

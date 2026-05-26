@@ -34,6 +34,8 @@ export type GardiennagePlanningSnapshotV1 = {
   validFromTime: string;
   validToDate: string;
   validToTime: string;
+  /** Date de fin saisie par l'utilisateur, avant extension pour créneaux nocturnes. */
+  userValidToDate?: string;
   isContinuous: boolean;
   /** H24 sans date de fin : prestation jusqu'à nouvel ordre (horizon glissant prolongé par le backend). */
   isOpenEnded?: boolean;

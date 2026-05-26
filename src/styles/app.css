@@ -845,9 +845,9 @@ th {
 
 .audit-filters {
   margin: 10px 0 12px;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   align-items: end;
 }
 
@@ -868,7 +868,7 @@ th {
 .audit-filter-actions {
   display: inline-flex;
   gap: 8px;
-  justify-self: end;
+  margin-left: auto;
   align-self: end;
 }
 
@@ -951,9 +951,9 @@ th {
   border-color: rgba(255, 215, 143, 0.46);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
   .audit-filters {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    flex-direction: column;
   }
 }
 
@@ -1373,7 +1373,6 @@ th {
 }
 
 @media (max-width: 720px) {
-  .audit-filters,
   .main-log-filters {
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
@@ -4055,20 +4054,6 @@ fieldset.ronde-planned-weekdays {
 }
 
 /* Modale gardiennage — toggles planification sur une ligne */
-.gardiennage-planning-toggles {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.gardiennage-planning-toggles .toggle-switch {
-  width: auto;
-  flex: 0 0 auto;
-}
-
 .gardiennage-planning-row {
   display: flex;
   align-items: center;
