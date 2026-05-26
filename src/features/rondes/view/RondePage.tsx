@@ -117,6 +117,9 @@ type RondePageProps = {
   requesterUsername: string;
   onToast?: (message: string) => void;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
+  /** Id ronde à ouvrir (navigation depuis une intervention liée). */
+  focusRondeId?: string | null;
+  onFocusRondeConsumed?: () => void;
   onUpsertRondePlannedProfile?: (payload: RondePlannedProfilePayload) => void | Promise<void>;
   onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<void>;
   onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<void>;
@@ -129,6 +132,8 @@ export function RondePage({
   requesterUsername,
   onToast,
   onNavigateToLinkedIntervention,
+  focusRondeId,
+  onFocusRondeConsumed,
   onUpsertRondePlannedProfile,
   onDeleteRondePlannedProfile,
   onSetRondePlannedProfilePlanningEnd
@@ -189,6 +194,26 @@ export function RondePage({
 
   const ronde = useRondePresenter({ requesterRole, requesterUsername, onToast });
   const references = useRondeReferenceData(requesterRole, requesterUsername, onToast);
+
+  /* ── Deep-link : ouverture automatique d'une ronde depuis une intervention liée ── */
+  useEffect(() => {
+    if (!focusRondeId) return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await ronde.loadEntries(true);
+      if (cancelled) return;
+      const found = rows.find((e) => e.id === focusRondeId);
+      if (found) {
+        setActiveEntry(found);
+        setModalMode("edit");
+        setModalOpen(true);
+      } else {
+        onToast?.("Ronde liée introuvable dans la liste.");
+      }
+      onFocusRondeConsumed?.();
+    })();
+    return () => { cancelled = true; };
+  }, [focusRondeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const familyOptions = useMemo(
     () =>

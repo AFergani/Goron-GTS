@@ -44,7 +44,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
   };
 
   const loadEntries = useCallback(
-    async (silent?: boolean) => {
+    async (silent?: boolean): Promise<RondeEntry[]> => {
       try {
         if (!silent) setLoading(true);
         const rows = await gtsApiClient.listRondes({ requesterRole });
@@ -63,8 +63,10 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
           setEntries(merged);
           return nextPending;
         });
+        return rows;
       } catch (error) {
         notify(error instanceof Error ? error.message : "Impossible de charger les rondes.");
+        return [];
       } finally {
         if (!silent) setLoading(false);
       }

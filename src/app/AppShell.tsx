@@ -87,6 +87,10 @@ export function AppShell() {
   const [themeReadyForSessionSave, setThemeReadyForSessionSave] = useState(false);
   /** Deep-link ronde → intervention : ouvre la modale intervention ciblée. */
   const [focusInterventionIdFromRonde, setFocusInterventionIdFromRonde] = useState<string | null>(null);
+  /** Deep-link intervention → ronde : ouvre la modale ronde ciblée. */
+  const [focusRondeIdFromIntervention, setFocusRondeIdFromIntervention] = useState<string | null>(null);
+  /** Deep-link intervention → gardiennage : ouvre la modale gardiennage ciblée. */
+  const [focusGardiennageIdFromIntervention, setFocusGardiennageIdFromIntervention] = useState<string | null>(null);
   const [writerStatus, setWriterStatus] = useState<WriterStatus | null>(null);
   const [writerQueueStats, setWriterQueueStats] = useState<WriterQueueStats | null>(null);
   const [showCloseAppModal, setShowCloseAppModal] = useState(false);
@@ -136,20 +140,21 @@ export function AppShell() {
     setActivePage("intervention");
   };
 
-  /** Bascule vers Rondes (sélection de ligne ciblée à brancher sur `RondePage` si besoin). */
-  const navigateToLinkedRonde = (_rondeId: string) => {
+  const navigateToLinkedRonde = (rondeId: string) => {
     if (!userPageAccess.rondes) {
       notifyToast("Accès à la page Rondes non autorisé.");
       return;
     }
+    setFocusRondeIdFromIntervention(rondeId);
     setActivePage("rondes");
   };
 
-  const navigateToLinkedGardiennage = (_gardiennageId: string) => {
+  const navigateToLinkedGardiennage = (gardiennageId: string) => {
     if (!userPageAccess.gardiennage) {
       notifyToast("Accès à la page Gardiennage non autorisé.");
       return;
     }
+    setFocusGardiennageIdFromIntervention(gardiennageId);
     setActivePage("gardiennage");
   };
 
@@ -749,6 +754,8 @@ export function AppShell() {
             onToast={notifyToast}
             onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
             onNavigateToLinkedRonde={userPageAccess.rondes ? navigateToLinkedRonde : undefined}
+            focusGardiennageId={focusGardiennageIdFromIntervention}
+            onFocusGardiennageConsumed={() => setFocusGardiennageIdFromIntervention(null)}
           />
         )}
         {activePage === "rondes" && userPageAccess.rondes && (
@@ -757,6 +764,8 @@ export function AppShell() {
             requesterUsername={session.user.username}
             onToast={notifyToast}
             onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
+            focusRondeId={focusRondeIdFromIntervention}
+            onFocusRondeConsumed={() => setFocusRondeIdFromIntervention(null)}
             onUpsertRondePlannedProfile={(payload) => void settings.onUpsertRondePlannedProfile(payload)}
             onDeleteRondePlannedProfile={(id, reason) => void settings.onDeleteRondePlannedProfile(id, reason)}
             onSetRondePlannedProfilePlanningEnd={(id, planningEndDate, reason) =>

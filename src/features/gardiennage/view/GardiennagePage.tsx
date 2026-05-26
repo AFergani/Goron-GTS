@@ -31,6 +31,9 @@ type GardiennagePageProps = {
   onToast?: (message: string) => void;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
+  /** Id gardiennage à ouvrir (navigation depuis une intervention liée). */
+  focusGardiennageId?: string | null;
+  onFocusGardiennageConsumed?: () => void;
 };
 
 /** Retourne la date locale au format YYYY-MM-DD (sans décalage UTC). */
@@ -60,7 +63,9 @@ export function GardiennagePage({
   requesterUsername,
   onToast,
   onNavigateToLinkedIntervention,
-  onNavigateToLinkedRonde
+  onNavigateToLinkedRonde,
+  focusGardiennageId,
+  onFocusGardiennageConsumed
 }: GardiennagePageProps) {
 
   const presenter = useGardiennagePresenter({ requesterRole, requesterUsername, onToast });
@@ -98,6 +103,26 @@ export function GardiennagePage({
   const [deleteTarget, setDeleteTarget] = useState<GardiennageEntry | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  /* ── Deep-link : ouverture automatique d'un gardiennage depuis une intervention liée ── */
+  useEffect(() => {
+    if (!focusGardiennageId) return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await presenter.loadEntries(true);
+      if (cancelled) return;
+      const found = rows.find((e) => e.id === focusGardiennageId);
+      if (found) {
+        setActiveEntry(found);
+        setModalMode("edit");
+        setModalOpen(true);
+      } else {
+        onToast?.("Gardiennage lié introuvable dans la liste.");
+      }
+      onFocusGardiennageConsumed?.();
+    })();
+    return () => { cancelled = true; };
+  }, [focusGardiennageId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Entrées du jour sélectionné (exclut ANNULE et CLOTURE) ── */
   const duJourEntries = useMemo(() => {
