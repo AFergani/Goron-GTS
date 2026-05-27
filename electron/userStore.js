@@ -190,8 +190,12 @@ class UserStore {
     });
   }
 
-  deactivateUser({ requesterRole, requesterUsername, username }) {
-    return authUsersDomain.deactivateUser(this, { requesterRole, requesterUsername, username, role: ROLE });
+  deactivateUser({ requesterRole, requesterUsername, username, reason }) {
+    return authUsersDomain.deactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
+  }
+
+  reactivateUser({ requesterRole, requesterUsername, username, reason }) {
+    return authUsersDomain.reactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
   }
 
   unlockUser({ requesterRole, requesterUsername, username }) {

@@ -4,7 +4,7 @@
  * Orchestration IPC via `gtsApiClient`. ~1400 lignes — découpage futur si besoin.
  */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type ArchiveStatus, type DatabaseItem } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState, DataTab, SettingsTab } from "../model/settings.types";
@@ -115,6 +115,17 @@ export function useSettingsPresenter({
     pageAccess: { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: false, gardiennage: true }
   });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(defaultConfirmDialog);
+  const [confirmReason, setConfirmReason] = useState("");
+  const confirmReasonRef = useRef("");
+  useEffect(() => {
+    if (!confirmDialog.isOpen) return;
+    setConfirmDialog((prev) => ({ ...prev, confirmDisabled: confirmReason.trim().length === 0 }));
+  }, [confirmDialog.isOpen, confirmReason]);
+
+  const setConfirmReasonValue = useCallback((value: string) => {
+    confirmReasonRef.current = value;
+    setConfirmReason(value);
+  }, []);
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [dbPath, setDbPath] = useState<string>("");
   const [dbWritable, setDbWritable] = useState<boolean>(false);
@@ -1274,28 +1285,87 @@ export function useSettingsPresenter({
     [session, onError, onToast, onCredentialsReady, loadUsers]
   );
 
-  const onDeleteUser = (username: string) => {
+  const onDeactivateUser = (user: User) => {
     if (!session || !canManageUsers) return;
+    setConfirmReasonValue("");
     setConfirmDialog({
       isOpen: true,
-      title: "Confirmer la suppression",
-      message: `Supprimer (désactiver) l'utilisateur ${username} ?`,
-      confirmLabel: "Supprimer",
+      title: "Confirmer la désactivation",
+      message: `Désactiver l'utilisateur ${user.fullName} ?`,
+      confirmLabel: "Désactiver",
       confirmClassName: "btn-danger",
+      confirmDisabled: true,
+      children: createElement(
+        "label",
+        { className: "mc-field" },
+        createElement("span", null, "Motif (obligatoire)"),
+        createElement("textarea", {
+          className: "mc-textarea",
+          onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
+          rows: 2,
+          placeholder: "Ex: départ de l'utilisateur, suspension temporaire",
+          autoFocus: true
+        })
+      ),
       onConfirm: async () => {
         onError("");
         onInfo("");
         onCredentialsReady(null);
+        const reasonToSend = confirmReasonRef.current.trim();
         try {
           await gtsApiClient.deactivateUser({
             requesterRole: session.user.role,
             requesterUsername: session.user.username,
-            username
+            username: user.username,
+            reason: reasonToSend
           });
-          onInfo(`Utilisateur ${username} désactivé.`);
+          onInfo(`Utilisateur ${user.fullName} désactivé.`);
           await loadUsers();
         } catch (err) {
-          onError(getErrorMessage(err, "Erreur de suppression."));
+          onError(getErrorMessage(err, "Erreur de désactivation."));
+        }
+      }
+    });
+  };
+
+  const onReactivateUser = (user: User) => {
+    if (!session || !canManageUsers) return;
+    setConfirmReasonValue("");
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirmer la réactivation",
+      message: `Réactiver l'utilisateur ${user.fullName} ?`,
+      confirmLabel: "Réactiver",
+      confirmClassName: "btn-light",
+      confirmDisabled: true,
+      children: createElement(
+        "label",
+        { className: "mc-field" },
+        createElement("span", null, "Motif (obligatoire)"),
+        createElement("textarea", {
+          className: "mc-textarea",
+          onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
+          rows: 2,
+          placeholder: "Ex: retour d'absence, compte réhabilité",
+          autoFocus: true
+        })
+      ),
+      onConfirm: async () => {
+        onError("");
+        onInfo("");
+        onCredentialsReady(null);
+        const reasonToSend = confirmReasonRef.current.trim();
+        try {
+          await gtsApiClient.reactivateUser({
+            requesterRole: session.user.role,
+            requesterUsername: session.user.username,
+            username: user.username,
+            reason: reasonToSend
+          });
+          onInfo(`Utilisateur ${user.fullName} réactivé.`);
+          await loadUsers();
+        } catch (err) {
+          onError(getErrorMessage(err, "Erreur de réactivation."));
         }
       }
     });
@@ -1322,12 +1392,18 @@ export function useSettingsPresenter({
     await gtsApiClient.quitApp();
   };
 
-  const closeConfirmDialog = () => setConfirmDialog(defaultConfirmDialog);
+  const closeConfirmDialog = () => {
+    setConfirmDialog(defaultConfirmDialog);
+    setConfirmReasonValue("");
+  };
   const handleConfirmDialog = async () => {
     const action = confirmDialog.onConfirm;
-    closeConfirmDialog();
     if (!action) return;
-    await action();
+    try {
+      await action();
+    } finally {
+      closeConfirmDialog();
+    }
   };
 
   const resetSettingsState = () => {
@@ -1385,7 +1461,8 @@ export function useSettingsPresenter({
     setCreateForm,
     onCreateUser,
     onOpenEditUser,
-    onDeleteUser,
+    onDeactivateUser,
+    onReactivateUser,
     onUnlockUser,
     loadUsers,
     loadAuditLogs,

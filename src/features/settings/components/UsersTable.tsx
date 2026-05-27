@@ -4,13 +4,14 @@
 
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
-import { KeyRound, LockOpen, Pencil, UserX } from "lucide-react";
+import { KeyRound, LockOpen, Pencil, UserCheck, UserX } from "lucide-react";
 import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
 
 type UsersTableProps = {
   users: User[];
   activeUsernames: string[];
-  onDeleteUser: (username: string) => void;
+  onDeactivateUser: (user: User) => void;
+  onReactivateUser: (user: User) => void;
   onEditUser: (user: User) => void;
   onUnlockUser: (username: string) => void;
   /** Réinitialisation MDP rapide (superviseur ou administrateurs selon hiérarchie). */
@@ -23,7 +24,8 @@ type UsersTableProps = {
 export function UsersTable({
   users,
   activeUsernames,
-  onDeleteUser,
+  onDeactivateUser,
+  onReactivateUser,
   onEditUser,
   onUnlockUser,
   onRequestPasswordReset,
@@ -145,7 +147,7 @@ export function UsersTable({
                           className="btn-danger action-icon-btn"
                           title="Désactiver"
                           aria-label="Désactiver"
-                          onClick={() => onDeleteUser(u.username)}
+                          onClick={() => onDeactivateUser(u)}
                         >
                           <UserX size={14} />
                         </button>
@@ -162,6 +164,18 @@ export function UsersTable({
                         ) : null}
                       </>
                     )}
+                  </div>
+                )}
+                {u.role !== "DEV" && !u.isActive && !passwordDesk && (
+                  <div className="row-actions">
+                    <button
+                      className="btn-light action-icon-btn"
+                      title="Réactiver"
+                      aria-label="Réactiver"
+                      onClick={() => onReactivateUser(u)}
+                    >
+                      <UserCheck size={14} />
+                    </button>
                   </div>
                 )}
               </td>

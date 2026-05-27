@@ -267,6 +267,13 @@ declare global {
         requesterRole: Role;
         requesterUsername: string;
         username: string;
+        reason: string;
+      }) => Promise<{ success: boolean }>;
+      reactivateUser: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        username: string;
+        reason: string;
       }) => Promise<{ success: boolean }>;
       // --- Audit et préférences ---
       listAuditLogs: (payload: {

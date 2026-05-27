@@ -2,6 +2,7 @@
  * Types UI Paramètres : onglets, formulaire utilisateur, état modale de confirmation.
  */
 
+import type { ReactNode } from "react";
 import type { AnomalyTypeRef, AuditLog, HolidayRef, IntervenantRef, ManagerProfile, Role, SiteRef, User } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "variables" | "database" | "audit";
@@ -37,5 +38,8 @@ export type ConfirmDialogState = {
   message: string;
   confirmLabel: string;
   confirmClassName?: string;
+  confirmDisabled?: boolean;
+  cancelLabel?: string;
+  children?: ReactNode;
   onConfirm: null | (() => void | Promise<void>);
 };

@@ -72,6 +72,7 @@ function registerDomainIpcHandlers(deps) {
   registerStorePassthrough("users:create", "createUser");
   registerStorePassthrough("users:updateProfile", "updateUserProfile");
   registerStorePassthrough("users:deactivate", "deactivateUser");
+  registerStorePassthrough("users:reactivate", "reactivateUser");
   registerStorePassthrough("users:unlock", "unlockUser");
 
   /**

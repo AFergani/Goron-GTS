@@ -360,8 +360,17 @@ export const gtsApiClient = {
     requesterRole: Role;
     requesterUsername: string;
     username: string;
+    reason: string;
   }): Promise<{ success: boolean }> {
     return window.gtsApi.deactivateUser(withSession(payload));
+  },
+  reactivateUser(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    username: string;
+    reason: string;
+  }): Promise<{ success: boolean }> {
+    return window.gtsApi.reactivateUser(withSession(payload));
   },
   listAuditLogs(payload: { requesterRole: Role; requesterUsername: string; limit?: number }): Promise<AuditLog[]> {
     return window.gtsApi.listAuditLogs(withSession(payload));

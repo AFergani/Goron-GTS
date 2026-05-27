@@ -667,7 +667,8 @@ export function AppShell() {
             onChooseDbPath={settings.onChooseDbPath}
             onOpenWriterLogFolder={() => void settings.onOpenWriterLogFolder()}
             onExportAuditLogs={settings.onExportAuditLogs}
-            onDeleteUser={settings.onDeleteUser}
+            onDeactivateUser={settings.onDeactivateUser}
+            onReactivateUser={settings.onReactivateUser}
             onUnlockUser={(username) => void settings.onUnlockUser(username)}
             onRequestPasswordReset={(user) => void settings.onRequestPasswordReset(user)}
             onOpenEditUser={settings.onOpenEditUser}
@@ -785,9 +786,13 @@ export function AppShell() {
           message={settings.confirmDialog.message}
           confirmLabel={settings.confirmDialog.confirmLabel}
           confirmClassName={settings.confirmDialog.confirmClassName}
+          confirmDisabled={Boolean(settings.confirmDialog.confirmDisabled)}
+          cancelLabel={settings.confirmDialog.cancelLabel}
           onCancel={settings.closeConfirmDialog}
           onConfirm={() => void settings.handleConfirmDialog()}
-        />
+        >
+          {settings.confirmDialog.children}
+        </ConfirmModal>
         {exitChoiceModal}
         <CredentialShareModal
           isOpen={Boolean(credentialsToShare)}

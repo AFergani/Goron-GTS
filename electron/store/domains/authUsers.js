@@ -116,6 +116,87 @@ function normalizePageAccess(pageAccess, role) {
 }
 
 /**
+ * Prépare une projection métier utilisateur pour l'audit, sans identifiant technique.
+ *
+ * @param {object} user
+ * @returns {{fullName: string, role: string, managerProfile: string|null, pageAccess: object, isActive: boolean, isLocked: boolean, mustChangePassword: boolean}}
+ */
+function toUserAuditSnapshot(user) {
+  const sanitized = sanitizeUser(user);
+  return {
+    fullName: sanitized.fullName,
+    role: sanitized.role,
+    managerProfile: sanitized.managerProfile || null,
+    pageAccess: sanitized.pageAccess,
+    isActive: Boolean(sanitized.isActive),
+    isLocked: Boolean(sanitized.isLocked),
+    mustChangePassword: Boolean(sanitized.mustChangePassword)
+  };
+}
+
+/**
+ * Détermine si un compte a des données métier liées (au-delà de la ligne `users` elle-même).
+ *
+ * Règle d'exploitation :
+ * - si aucune donnée n'est liée au compte (hors profil utilisateur), une désactivation peut être une suppression physique ;
+ * - sinon on conserve la ligne et on passe `is_active = 0` pour permettre une réactivation ultérieure.
+ *
+ * @param {import('../userStore')} store
+ * @param {string} username
+ * @returns {{ hasRelated: boolean, related: Record<string, boolean> }}
+ */
+function getUserRelatedUsage(store, username) {
+  const u = normalizeUsername(username);
+  const hasAudit =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM audit_logs WHERE actor_username = ? OR target_username = ? LIMIT 1")
+        .get(u, u)
+    );
+  const hasCreatedOrUpdatedUsers =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM users WHERE (created_by = ? OR updated_by = ?) AND username <> ? LIMIT 1")
+        .get(u, u, u)
+    );
+  const hasFransorClosures =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM fransor_closures WHERE created_by = ? OR updated_by = ? LIMIT 1")
+        .get(u, u)
+    );
+  const hasFransorAccompagnements =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM fransor_accompagnements WHERE created_by = ? OR updated_by = ? LIMIT 1")
+        .get(u, u)
+    );
+  const hasPendingSites =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM intervention_site_pending WHERE created_by = ? LIMIT 1")
+        .get(u)
+    );
+  const hasPendingIntervenants =
+    Boolean(
+      store.db
+        .prepare("SELECT 1 FROM intervention_intervenant_pending WHERE created_by = ? LIMIT 1")
+        .get(u)
+    );
+
+  const related = {
+    audit: hasAudit,
+    users: hasCreatedOrUpdatedUsers,
+    fransorClosures: hasFransorClosures,
+    fransorAccompagnements: hasFransorAccompagnements,
+    interventionPendingSites: hasPendingSites,
+    interventionPendingIntervenants: hasPendingIntervenants
+  };
+  const hasRelated = Object.values(related).some(Boolean);
+  return { hasRelated, related };
+}
+
+/**
  * Journal des actions, gestion des comptes : DEV, ou RESPONSABLE avec profil métier
  * directeur de station / responsable de station uniquement (pas superviseur, pas profil vide).
  * Toujours dérivé de la base (requesterUsername), jamais du rôle déclaré par le client.
@@ -525,10 +606,12 @@ function createUser(store, { requesterRole, requesterUsername, username, fullNam
     targetUsername: loginIdentifier,
     details: {
       created: {
-        username: loginIdentifier,
+        fullName: normalizedFullName,
         role,
         managerProfile: normalizedManagerProfile,
-        pageAccess: normalizedPageAccess
+        pageAccess: normalizedPageAccess,
+        isActive: true,
+        mustChangePassword: true
       }
     }
   });
@@ -541,7 +624,7 @@ function createUser(store, { requesterRole, requesterUsername, username, fullNam
  * @param {import('../userStore')} store
  * @returns {{ success: true }}
  */
-function deactivateUser(store, { requesterRole, requesterUsername, username, role }) {
+function deactivateUser(store, { requesterRole, requesterUsername, username, role, reason }) {
   const normalizedUsername = normalizeUsername(username);
   ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:deactivate");
   const user = store.db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 1").get(normalizedUsername);
@@ -551,6 +634,27 @@ function deactivateUser(store, { requesterRole, requesterUsername, username, rol
   if (user.role === role.DEV) {
     store.fail("users:deactivate", "Le compte Admin ne peut pas etre supprime.", "USER_PROTECTED");
   }
+  const normalizedReason = String(reason || "").trim() || "Désactivation demandée depuis la gestion des utilisateurs.";
+  const beforeAudit = toUserAuditSnapshot(user);
+  const usage = getUserRelatedUsage(store, normalizedUsername);
+
+  // Suppression physique si aucune donnée liée (hors profil).
+  if (!usage.hasRelated) {
+    store.db.prepare("DELETE FROM users WHERE username = ?").run(normalizedUsername);
+    store.logAudit({
+      actorUsername: requesterUsername,
+      action: "USER_DELETE_HARD",
+      targetUsername: normalizedUsername,
+      details: {
+        reason: normalizedReason,
+        relatedUsage: usage.related,
+        deleted: beforeAudit
+      }
+    });
+    return { success: true, mode: "hard_delete" };
+  }
+
+  // Sinon, désactivation réversible (conservation en base).
   store.db
     .prepare(
       `UPDATE users
@@ -558,7 +662,60 @@ function deactivateUser(store, { requesterRole, requesterUsername, username, rol
        WHERE username = ?`
     )
     .run(requesterUsername, new Date().toISOString(), normalizedUsername);
-  store.logAudit({ actorUsername: requesterUsername, action: "USER_DEACTIVATE", targetUsername: normalizedUsername });
+  const afterAudit = { ...beforeAudit, isActive: false };
+  store.logAudit({
+    actorUsername: requesterUsername,
+    action: "USER_DEACTIVATE",
+    targetUsername: normalizedUsername,
+    details: {
+      reason: normalizedReason,
+      relatedUsage: usage.related,
+      before: beforeAudit,
+      after: afterAudit
+    }
+  });
+  return { success: true, mode: "deactivated" };
+}
+
+/**
+ * Réactive un compte précédemment désactivé (`is_active = 1`), avec motif obligatoire.
+ *
+ * @param {import('../userStore')} store
+ * @returns {{ success: true }}
+ */
+function reactivateUser(store, { requesterRole, requesterUsername, username, role, reason }) {
+  const normalizedUsername = normalizeUsername(username);
+  ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:reactivate");
+  const user = store.db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 0").get(normalizedUsername);
+  if (!user) {
+    store.fail("users:reactivate", "Utilisateur introuvable ou déjà actif.", "AUTH_USER_NOT_FOUND", { username: normalizedUsername });
+  }
+  if (user.role === role.DEV) {
+    store.fail("users:reactivate", "Le compte Admin ne peut pas etre modifie.", "USER_PROTECTED");
+  }
+  const normalizedReason = String(reason || "").trim();
+  if (!normalizedReason) {
+    store.fail("users:reactivate", "Le motif de réactivation est obligatoire.", "USER_REASON_REQUIRED");
+  }
+  const beforeAudit = toUserAuditSnapshot(user);
+  store.db
+    .prepare(
+      `UPDATE users
+       SET is_active = 1, updated_by = ?, updated_at = ?
+       WHERE username = ?`
+    )
+    .run(requesterUsername, new Date().toISOString(), normalizedUsername);
+  const afterAudit = { ...beforeAudit, isActive: true };
+  store.logAudit({
+    actorUsername: requesterUsername,
+    action: "USER_REACTIVATE",
+    targetUsername: normalizedUsername,
+    details: {
+      reason: normalizedReason,
+      before: beforeAudit,
+      after: afterAudit
+    }
+  });
   return { success: true };
 }
 
@@ -756,6 +913,7 @@ module.exports = {
   createUser,
   deactivateUser,
   updateUserProfile,
+  reactivateUser,
   unlockUser,
   ensureDevUser,
   ensureStationAdminAccess

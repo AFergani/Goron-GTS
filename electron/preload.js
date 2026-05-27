@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
   createUser: (payload) => ipcRenderer.invoke("users:create", payload),
   updateUserProfile: (payload) => ipcRenderer.invoke("users:updateProfile", payload),
   deactivateUser: (payload) => ipcRenderer.invoke("users:deactivate", payload),
+  reactivateUser: (payload) => ipcRenderer.invoke("users:reactivate", payload),
   unlockUser: (payload) => ipcRenderer.invoke("users:unlock", payload),
   getActiveSessions: (payload) => ipcRenderer.invoke("users:getActiveSessions", payload),
   setAdminCode: (payload) => ipcRenderer.invoke("auth:setAdminCode", payload),

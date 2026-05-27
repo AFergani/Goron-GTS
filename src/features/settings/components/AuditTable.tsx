@@ -223,6 +223,56 @@ function formatOldValuesTooltip(log: AuditLog) {
     }
     return undefined;
   }
+  if (log.action === "USER_CREATE") {
+    const created = (detailsAny.created || {}) as Record<string, unknown>;
+    return [
+      "Création utilisateur",
+      `Nom affiché: ${String(created.fullName || "-")}`,
+      `Rôle: ${String(created.role || "-")}`,
+      `Profil responsable: ${String(created.managerProfile || "-")}`,
+      `Actif: ${toYesNo(created.isActive)}`,
+      `Mot de passe à changer: ${toYesNo(created.mustChangePassword)}`
+    ].join("\n");
+  }
+  if (log.action === "USER_UPDATE_PROFILE") {
+    const before = (detailsAny.before || {}) as Record<string, unknown>;
+    const after = (detailsAny.after || {}) as Record<string, unknown>;
+    return [
+      "Modification utilisateur (avant => après)",
+      `Nom affiché: ${String(before.fullName || "-")} => ${String(after.fullName || "-")}`,
+      `Rôle: ${String(before.role || "-")} => ${String(after.role || "-")}`,
+      `Profil responsable: ${String(before.managerProfile || "-")} => ${String(after.managerProfile || "-")}`,
+      `Mot de passe à changer: ${toYesNo(before.mustChangePassword)} => ${toYesNo(after.mustChangePassword)}`
+    ].join("\n");
+  }
+  if (log.action === "USER_DEACTIVATE") {
+    const before = (detailsAny.before || {}) as Record<string, unknown>;
+    const after = (detailsAny.after || {}) as Record<string, unknown>;
+    return [
+      "Désactivation utilisateur",
+      `Nom affiché: ${String(before.fullName || "-")}`,
+      `Actif: ${toYesNo(before.isActive)} => ${toYesNo(after.isActive)}`,
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
+  if (log.action === "USER_REACTIVATE") {
+    const before = (detailsAny.before || {}) as Record<string, unknown>;
+    const after = (detailsAny.after || {}) as Record<string, unknown>;
+    return [
+      "Réactivation utilisateur",
+      `Nom affiché: ${String(before.fullName || "-")}`,
+      `Actif: ${toYesNo(before.isActive)} => ${toYesNo(after.isActive)}`,
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
+  if (log.action === "USER_DELETE_HARD") {
+    const deleted = (detailsAny.deleted || {}) as Record<string, unknown>;
+    return [
+      "Désactivation définitive (suppression physique)",
+      `Nom affiché: ${String(deleted.fullName || "-")}`,
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
   if (log.action.endsWith("_CREATE")) {
     const created = detailsAny.created || detailsAny;
     return ["Données créées", JSON.stringify(created || {})].join("\n");
