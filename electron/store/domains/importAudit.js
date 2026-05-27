@@ -1,8 +1,8 @@
 /**
  * Audit et rapport fichier des imports en masse (sites, intervenants).
  *
- * Conforme aux règles projet : un log agrégé par lot (`DATA_IMPORT_BATCH_RESULT`),
- * un log par ligne en échec sans PII brute dans `audit_logs` (`DATA_IMPORT_BATCH_ROW_ERROR`),
+ * Conforme aux règles projet : un log agrégé des réussites (`DATA_IMPORT_BATCH_RESULT`)
+ * et un log agrégé des erreurs (`DATA_IMPORT_BATCH_ERROR_SUMMARY`) par fichier importé.
  * détail terrain optionnel dans `logs/Import_error.txt` à côté de la base.
  */
 
@@ -129,7 +129,9 @@ function appendImportErrorFile({ dbPath, actor, target, fileName, errorEntries }
 }
 
 /**
- * Journalise le résultat d'un import en masse et les erreurs ligne par ligne.
+ * Journalise le résultat d'un import en masse avec au plus 2 lignes d'audit par fichier:
+ * - une ligne récap des réussites,
+ * - une ligne récap des erreurs (si au moins une erreur).
  *
  * @param {import('../userStore')} store
  * @param {object} payload
@@ -159,7 +161,7 @@ function logBulkImportAudit(store, payload) {
   store.logAudit({
     actorUsername: actor,
     action: "DATA_IMPORT_BATCH_RESULT",
-    status: failed > 0 ? "ERROR" : "SUCCESS",
+    status: "SUCCESS",
     details: {
       target: String(target || ""),
       fileName: String(fileName || ""),
@@ -168,18 +170,23 @@ function logBulkImportAudit(store, payload) {
       failed: Number(failed) || 0
     }
   });
-  for (const entry of errorEntries) {
-    // Pas de données brutes de la ligne (PII potentiels) dans le log d'audit.
-    // Seuls l'index, le site identifiant et le motif sont conservés.
+  const normalizedErrorEntries = Array.isArray(errorEntries) ? errorEntries : [];
+  if ((Number(failed) || 0) > 0) {
+    const topErrors = normalizedErrorEntries.slice(0, 20).map((entry) => ({
+      rowIndex: Number(entry?.rowIndex) || 0,
+      message: String(entry?.message || "Erreur inconnue")
+    }));
     store.logAudit({
       actorUsername: actor,
-      action: "DATA_IMPORT_BATCH_ROW_ERROR",
+      action: "DATA_IMPORT_BATCH_ERROR_SUMMARY",
       status: "ERROR",
       details: {
         target: String(target || ""),
-        rowIndex: Number(entry?.rowIndex) || 0,
-        site: String(entry?.row?.site || entry?.row?.Site || entry?.row?.CODE_SITE || ""),
-        message: String(entry?.message || "Erreur inconnue")
+        fileName: String(fileName || ""),
+        total: Number(total) || 0,
+        failed: Number(failed) || 0,
+        errorCount: normalizedErrorEntries.length,
+        topErrors
       }
     });
   }
@@ -189,7 +196,7 @@ function logBulkImportAudit(store, payload) {
       actor,
       target,
       fileName,
-      errorEntries
+      errorEntries: normalizedErrorEntries
     });
   } catch (error) {
     store.logError({

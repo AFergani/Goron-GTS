@@ -75,6 +75,17 @@ type DataManagementPanelProps = {
 };
 
 const PAGE_SIZE = 200;
+const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
+  sites: "",
+  intervenants: "",
+  types: "",
+  rondeMotifs: "",
+  holidays: "",
+  documentTemplates: "",
+  fransorResponsables: "",
+  interventionPendingSites: "",
+  interventionPendingIntervenants: ""
+};
 
 function normalizeHeader(value: string) {
   return value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -227,7 +238,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [editingFransorResponsableName, setEditingFransorResponsableName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQueryByTab, setSearchQueryByTab] = useState<Record<DataTab, string>>(EMPTY_SEARCH_BY_TAB);
   const [siteParcFilter, setSiteParcFilter] = useState("");
   const [siteFamilleFilter, setSiteFamilleFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -235,6 +246,13 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [deleteReasonValue, setDeleteReasonValue] = useState("");
   const [onConfirmDeleteReason, setOnConfirmDeleteReason] = useState<((reason: string) => void | Promise<void>) | null>(null);
   const [blockedActionMessage, setBlockedActionMessage] = useState("");
+  const searchQuery = searchQueryByTab[props.activeDataTab] || "";
+  const setActiveSearchQuery = (value: string) => {
+    setSearchQueryByTab((previous) => ({
+      ...previous,
+      [props.activeDataTab]: value
+    }));
+  };
 
   type SingleImportOutcome =
     | { ok: true; fileName: string; success: number; failed: number; total: number }
@@ -608,11 +626,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           siteFamilleOptions={siteFamilleOptions}
           importColumnsHint={importColumnsHint}
           isImporting={isImporting}
-          onSearchQueryChange={setSearchQuery}
+          onSearchQueryChange={setActiveSearchQuery}
           onSiteParcFilterChange={setSiteParcFilter}
           onSiteFamilleFilterChange={setSiteFamilleFilter}
           onResetSearch={() => {
-            setSearchQuery("");
+            setActiveSearchQuery("");
             setSiteParcFilter("");
             setSiteFamilleFilter("");
           }}

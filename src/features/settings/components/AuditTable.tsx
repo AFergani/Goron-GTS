@@ -81,6 +81,105 @@ function toDisplayResponsable(name: unknown, id: unknown) {
   return cleanId;
 }
 
+function formatDetailValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "Oui" : "Non";
+  if (Array.isArray(value)) return value.length ? value.map((item) => formatDetailValue(item)).join(", ") : "-";
+  if (typeof value === "object") return "[objet]";
+  return String(value);
+}
+
+function toFrenchDetailKey(key: string): string {
+  const normalized = String(key || "").trim();
+  const map: Record<string, string> = {
+    id: "Identifiant",
+    code: "Code",
+    name: "Nom",
+    label: "Libellé",
+    fullName: "Nom affiché",
+    username: "Identifiant interne",
+    role: "Rôle",
+    managerProfile: "Profil responsable",
+    isActive: "Actif",
+    isLocked: "Verrouillé",
+    mustChangePassword: "Mot de passe à changer",
+    reason: "Motif",
+    dateIso: "Date",
+    date: "Date",
+    startDate: "Date début",
+    endDate: "Date fin",
+    mode: "Mode",
+    colorHex: "Couleur",
+    parc: "Parc",
+    famille: "Famille",
+    address: "Adresse",
+    target: "Cible",
+    fileName: "Fichier",
+    total: "Total",
+    success: "Succès",
+    failed: "Erreurs",
+    errorCount: "Nombre d'erreurs",
+    rowIndex: "Ligne",
+    message: "Message",
+    details: "Détails",
+    before: "Avant",
+    after: "Après",
+    deleted: "Supprimé",
+    created: "Créé",
+    period: "Période",
+    pageAccess: "Accès pages",
+    mainCourante: "Main courante",
+    fransor: "Fransor",
+    intervention: "Intervention",
+    rondes: "Rondes",
+    settings: "Paramètres",
+    gardiennage: "Gardiennage",
+    requiresFreeText: "Texte libre obligatoire",
+    ouvertureDone: "Ouverture effectuée",
+    fermetureDone: "Fermeture effectuée",
+    responsableId: "Responsable (ID)",
+    responsableName: "Responsable",
+    status: "Statut",
+    topErrors: "Principales erreurs",
+    relatedUsage: "Utilisations liées"
+  };
+  const parts = normalized.split(".");
+  const translated = parts.map((part) => map[part] || part);
+  return translated.join(" > ");
+}
+
+function flattenDetails(value: unknown, parentKey = ""): Array<{ key: string; value: string }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return parentKey ? [{ key: parentKey, value: formatDetailValue(value) }] : [];
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.flatMap(([key, nestedValue]) => {
+    const nextKey = parentKey ? `${parentKey}.${key}` : key;
+    if (nestedValue && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
+      return flattenDetails(nestedValue, nextKey);
+    }
+    return [{ key: nextKey, value: formatDetailValue(nestedValue) }];
+  });
+}
+
+function formatDetailsAsLines(value: unknown): string[] {
+  const lines = flattenDetails(value).map((entry) => `${toFrenchDetailKey(entry.key)}: ${entry.value}`);
+  return lines.length ? lines : ["-"];
+}
+
+function getAuditActionText(log: AuditLog): string {
+  const baseLabel = stripAuditFamilyPrefix(formatAuditActionLabelOrUnknown(log.action));
+  const details = (log.details || {}) as { fileName?: unknown };
+  if (log.action === "DATA_IMPORT_BATCH_RESULT" || log.action === "DATA_IMPORT_BATCH_ERROR_SUMMARY") {
+    const fileName = String(details.fileName || "").trim();
+    if (fileName) {
+      const suffix = log.action === "DATA_IMPORT_BATCH_RESULT" ? "résumé des réussites" : "résumé des erreurs";
+      return `Import en masse: ${fileName} — ${suffix}`;
+    }
+  }
+  return baseLabel;
+}
+
 function formatOldValuesTooltip(log: AuditLog) {
   const detailsAny = (log.details || {}) as Record<string, unknown>;
   const historyBefore = Array.isArray(detailsAny.historyBefore)
@@ -93,31 +192,12 @@ function formatOldValuesTooltip(log: AuditLog) {
           ...historyBefore.map((entry, index) => {
             const when = String(entry.changedAt || "-");
             const who = String(entry.changedBy || "-");
-            const snapshot = entry.snapshot ? JSON.stringify(entry.snapshot) : "{}";
+            const snapshot = formatDetailsAsLines(entry.snapshot).join(" | ");
             return `${index + 1}) ${when} par ${who}: ${snapshot}`;
           })
         ].join("\n")
       : "";
 
-  if (log.action === "DATA_IMPORT_BATCH_ROW_ERROR") {
-    const details = (log.details || {}) as {
-      target?: unknown;
-      rowIndex?: unknown;
-      message?: unknown;
-      row?: Record<string, unknown> | null;
-    };
-    const row = details.row || {};
-    const siteCode = String(row["Code site"] || row.code || row.siteCode || "-");
-    const siteName = String(row.Site || row.name || row.siteName || "-");
-    return [
-      "Détails erreur import",
-      `Cible: ${String(details.target || "-")}`,
-      `Ligne: ${String(details.rowIndex ?? "-")}`,
-      `Message: ${String(details.message || "Erreur inconnue")}`,
-      `Code site: ${siteCode}`,
-      `Site: ${siteName}`
-    ].join("\n");
-  }
   if (log.action === "DATA_IMPORT_BATCH_RESULT") {
     const details = (log.details || {}) as {
       target?: unknown;
@@ -133,6 +213,28 @@ function formatOldValuesTooltip(log: AuditLog) {
       `Total: ${String(details.total ?? 0)}`,
       `Succès: ${String(details.success ?? 0)}`,
       `Erreurs: ${String(details.failed ?? 0)}`
+    ].join("\n");
+  }
+  if (log.action === "DATA_IMPORT_BATCH_ERROR_SUMMARY") {
+    const details = (log.details || {}) as {
+      target?: unknown;
+      fileName?: unknown;
+      total?: unknown;
+      failed?: unknown;
+      errorCount?: unknown;
+      topErrors?: Array<{ rowIndex?: unknown; message?: unknown }>;
+    };
+    const topErrors = Array.isArray(details.topErrors) ? details.topErrors : [];
+    const topLines = topErrors
+      .slice(0, 8)
+      .map((entry) => `- ligne ${String(entry.rowIndex ?? "-")}: ${String(entry.message || "Erreur inconnue")}`);
+    return [
+      "Résumé des erreurs import",
+      `Cible: ${String(details.target || "-")}`,
+      `Fichier: ${String(details.fileName || "-")}`,
+      `Total: ${String(details.total ?? 0)}`,
+      `Erreurs: ${String(details.failed ?? details.errorCount ?? 0)}`,
+      ...(topLines.length ? ["Top erreurs:", ...topLines] : [])
     ].join("\n");
   }
   if (log.action.startsWith("INTERVENTION_")) {
@@ -275,12 +377,12 @@ function formatOldValuesTooltip(log: AuditLog) {
   }
   if (log.action.endsWith("_CREATE")) {
     const created = detailsAny.created || detailsAny;
-    return ["Données créées", JSON.stringify(created || {})].join("\n");
+    return ["Données créées", ...formatDetailsAsLines(created)].join("\n");
   }
   if (log.action.endsWith("_DELETE")) {
     const deleted = detailsAny.deleted || {};
     const reason = String(detailsAny.reason || "-");
-    return ["Données supprimées", JSON.stringify(deleted), `Motif: ${reason}`].join("\n");
+    return ["Données supprimées", ...formatDetailsAsLines(deleted), `Motif: ${reason}`].join("\n");
   }
   if (log.action !== "DATA_SITE_UPDATE" && log.action !== "DATA_INTERVENANT_UPDATE" && log.action !== "DATA_TYPE_UPDATE") {
     if (!historyText) return undefined;
@@ -352,8 +454,7 @@ export function AuditTable({ logs }: { logs: AuditLog[] }) {
             </td>
             <td title={formatOldValuesTooltip(log)}>
               {(() => {
-                const label = formatAuditActionLabelOrUnknown(log.action);
-                return <span className="audit-action-text">{stripAuditFamilyPrefix(label)}</span>;
+                return <span className="audit-action-text">{getAuditActionText(log)}</span>;
               })()}
             </td>
             <td>
