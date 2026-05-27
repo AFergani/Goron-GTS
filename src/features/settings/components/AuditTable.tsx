@@ -249,6 +249,21 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Motif: ${String(after.cancellationReason || details.cancellationReason || "-")}`
       ].join("\n");
     }
+    if (log.action === "INTERVENTION_CLOSE") {
+      return [
+        "Détails clôture intervention",
+        `Statut avant: ${String(before.status || "-")}`,
+        `Statut après: ${String(after.status || "-")}`,
+        `Clôturée le: ${String(after.closedAt || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "INTERVENTION_REOPEN") {
+      return [
+        "Détails réouverture intervention",
+        `Statut avant: ${String(before.status || "-")}`,
+        `Statut après: ${String(after.status || "-")}`
+      ].join("\n");
+    }
     if (log.action === "INTERVENTION_BILLING_UPDATE") {
       return [
         "Détails facturation intervention",
@@ -276,6 +291,17 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Heure demande: ${String(after.requestTime || details.requestTime || "-")}`,
         `Prestataire: ${String(after.intervenantName || details.intervenantName || "-")}`,
         `N° bon: ${String(after.workOrderNumber || details.workOrderNumber || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "INTERVENTION_CREATE_IDEMPOTENT") {
+      const existing = (details.existing || {}) as Record<string, unknown>;
+      return [
+        "Création idempotente (doublon évité)",
+        `Site: ${String(existing.siteDisplay || "-")}`,
+        `Date demande: ${String(existing.requestDate || "-")}`,
+        `Heure demande: ${String(existing.requestTime || "-")}`,
+        `Prestataire: ${String(existing.intervenantName || "-")}`,
+        `Statut conservé: ${String(existing.status || "-")}`
       ].join("\n");
     }
     if (log.action === "INTERVENTION_SITE_PENDING_RESOLVE" || log.action === "INTERVENTION_INTERVENANT_PENDING_RESOLVE") {
@@ -321,6 +347,103 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Responsable: ${toDisplayResponsable(details.responsableName, details.responsableId)}`,
         `Ouverture: ${toYesNo(next.ouvertureDone ?? details.ouvertureDone)}`,
         `Fermeture: ${toYesNo(next.fermetureDone ?? details.fermetureDone)}`
+      ].join("\n");
+    }
+    return undefined;
+  }
+  if (log.action.startsWith("RONDE_")) {
+    const details = (log.details || {}) as Record<string, unknown>;
+    const before = (details.before || {}) as Record<string, unknown>;
+    const after = (details.after || {}) as Record<string, unknown>;
+    if (log.action === "RONDE_CREATE") {
+      const created = (details.created || {}) as Record<string, unknown>;
+      return [
+        "Détails création ronde",
+        `Source: ${String(created.source || "-")}`,
+        `Site: ${String(created.siteDisplay || "-")}`,
+        `Date demande: ${String(created.requestDate || "-")}`,
+        `Motif: ${String(created.motifLabel || "-")}`,
+        `Prestataire: ${String(created.intervenantName || "-")}`,
+        `Statut: ${String(created.status || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_CREATE_IDEMPOTENT") {
+      const existing = (details.existing || {}) as Record<string, unknown>;
+      return [
+        "Création idempotente (doublon évité)",
+        `Source: ${String(existing.source || "-")}`,
+        `Site: ${String(existing.siteDisplay || "-")}`,
+        `Date demande: ${String(existing.requestDate || "-")}`,
+        `Motif: ${String(existing.motifLabel || "-")}`,
+        `Prestataire: ${String(existing.intervenantName || "-")}`,
+        `Statut conservé: ${String(existing.status || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_UPDATE") {
+      return [
+        "Détails mise à jour ronde",
+        `Site: ${String(before.siteDisplay || "-")} => ${String(after.siteDisplay || "-")}`,
+        `Date demande: ${String(before.requestDate || "-")} => ${String(after.requestDate || "-")}`,
+        `Motif: ${String(before.motifLabel || "-")} => ${String(after.motifLabel || "-")}`,
+        `Prestataire: ${String(before.intervenantName || "-")} => ${String(after.intervenantName || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_CANCEL") {
+      return [
+        "Détails annulation ronde",
+        `Statut avant: ${String(before.status || "-")}`,
+        `Statut après: ${String(after.status || "-")}`,
+        `Motif: ${String(after.cancellationReason || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_CLOSE") {
+      return [
+        "Détails clôture ronde",
+        `Statut avant: ${String(before.status || "-")}`,
+        `Statut après: ${String(after.status || "-")}`,
+        `Clôturée le: ${String(after.closedAt || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_REOPEN") {
+      return [
+        "Détails réouverture ronde",
+        `Statut avant: ${String(before.status || "-")}`,
+        `Statut après: ${String(after.status || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_BATCH_CREATE") {
+      const preview = (details.preview || {}) as Record<string, unknown>;
+      return [
+        "Création en lot de rondes",
+        `Lot: ${String(details.batchId || "-")}`,
+        `Total créé: ${String(details.total || "-")}`,
+        `Site: ${String(preview.siteDisplay || "-")}`,
+        `Date demande: ${String(preview.requestDate || "-")}`,
+        `Motif: ${String(preview.motifLabel || "-")}`,
+        `Prestataire: ${String(preview.intervenantName || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_BATCH_UPDATE") {
+      return [
+        "Mise à jour en lot de rondes",
+        `Nombre de fiches: ${String(details.count || "-")}`,
+        `Synchronisation snapshot: ${toYesNo(details.planningSnapshotSynced)}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_BATCH_CANCEL") {
+      return [
+        "Annulation en lot de rondes",
+        `Annulées: ${String(details.cancelledCount || "0")}`,
+        `Ignorées: ${String(details.skippedCount || "0")}`,
+        `Motif: ${String(details.reason || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "RONDE_BATCH_DELETE") {
+      return [
+        "Suppression en lot de rondes",
+        `Supprimées: ${String(details.deletedCount || "0")}`,
+        `Préservées (clôturées): ${String(details.preservedClosedCount || "0")}`,
+        `Motif: ${String(details.reason || "-")}`
       ].join("\n");
     }
     return undefined;

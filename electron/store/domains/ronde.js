@@ -421,6 +421,22 @@ function createRonde(store, payload) {
 
   const existing = store.db.prepare("SELECT * FROM ronde_entries WHERE id = ?").get(id);
   if (existing) {
+    const existingMapped = mapRondeRow(selectRondeWithMotif(store, id));
+    store.logAudit({
+      actorUsername: requesterUsername || "unknown",
+      action: "RONDE_CREATE_IDEMPOTENT",
+      details: {
+        id,
+        existing: {
+          source: existingMapped.source,
+          siteDisplay: existingMapped.siteDisplay,
+          requestDate: existingMapped.requestDate,
+          motifLabel: existingMapped.motifTypeLabel,
+          intervenantName: existingMapped.intervenantName,
+          status: existingMapped.status
+        }
+      }
+    });
     return mapRondeRow(selectRondeWithMotif(store, id));
   }
 
@@ -734,8 +750,16 @@ function setRondeStatus(store, { requesterRole, requesterUsername, id, expectedU
       nextStatus === "ANNULE" ? "RONDE_CANCEL" : nextStatus === "CLOTURE" ? "RONDE_CLOSE" : "RONDE_REOPEN",
     details: {
       id,
-      before: { status: row.status, cancellationReason: row.cancellation_reason || "" },
-      after: { status: nextStatus, cancellationReason: nextStatus === "ANNULE" ? reason : "" }
+      before: {
+        status: row.status,
+        cancellationReason: row.cancellation_reason || "",
+        closedAt: row.closed_at || ""
+      },
+      after: {
+        status: nextStatus,
+        cancellationReason: nextStatus === "ANNULE" ? reason : "",
+        closedAt: nextStatus === "EN_COURS" ? "" : now
+      }
     }
   });
 

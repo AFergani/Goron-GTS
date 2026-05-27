@@ -329,6 +329,22 @@ function createInterventionEntry(store, payload) {
   });
   const existing = store.db.prepare("SELECT * FROM intervention_entries WHERE id = ?").get(id);
   if (existing) {
+    const existingMapped = mapInterventionRow(existing);
+    store.logAudit({
+      actorUsername: requesterUsername || "unknown",
+      action: "INTERVENTION_CREATE_IDEMPOTENT",
+      details: {
+        id,
+        existing: {
+          siteDisplay: existingMapped.siteDisplay,
+          requestReason: existingMapped.requestReason,
+          requestDate: existingMapped.requestDate,
+          requestTime: existingMapped.requestTime,
+          intervenantName: existingMapped.intervenantName,
+          status: existingMapped.status
+        }
+      }
+    });
     return mapInterventionRow(existing);
   }
   const now = new Date().toISOString();
@@ -551,11 +567,13 @@ function setInterventionStatus(store, { requesterRole, requesterUsername, id, ex
       id,
       before: {
         status: row.status,
-        cancellationReason: row.cancellation_reason || ""
+        cancellationReason: row.cancellation_reason || "",
+        closedAt: row.closed_at || ""
       },
       after: {
         status: nextStatus,
-        cancellationReason: nextStatus === "ANNULE" ? reason : ""
+        cancellationReason: nextStatus === "ANNULE" ? reason : "",
+        closedAt: nextStatus === "EN_COURS" ? "" : now
       }
     }
   });
@@ -571,15 +589,24 @@ function setInterventionBillingStatus(store, { requesterRole, requesterUsername,
   if (!row) {
     store.fail("intervention:billing", "Intervention introuvable.", "INTERVENTION_NOT_FOUND");
   }
+  if (row.archived_at) {
+    store.fail("intervention:billing", "Intervention archivée non modifiable.", "INTERVENTION_ARCHIVED_READONLY");
+  }
+  if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
+    store.fail("intervention:billing", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
+  }
   const next = billingStatus === "NON_FACTURABLE" ? "NON_FACTURABLE" : "FACTURABLE";
   const cleanReason = String(reason || "").trim();
   if (next === "NON_FACTURABLE" && !cleanReason) {
     store.fail("intervention:billing", "Une justification est obligatoire pour passer en non facturable.", "INTERVENTION_BILLING_REASON_REQUIRED");
   }
   const now = new Date().toISOString();
-  store.db
-    .prepare("UPDATE intervention_entries SET billing_status = ?, billing_reason = ?, updated_at = ? WHERE id = ?")
-    .run(next, next === "NON_FACTURABLE" ? cleanReason : null, now, id);
+  const result = store.db
+    .prepare("UPDATE intervention_entries SET billing_status = ?, billing_reason = ?, updated_at = ? WHERE id = ? AND updated_at = ?")
+    .run(next, next === "NON_FACTURABLE" ? cleanReason : null, now, id, expectedUpdatedAt);
+  if (result.changes === 0) {
+    store.fail("intervention:billing", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
+  }
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "INTERVENTION_BILLING_UPDATE",
