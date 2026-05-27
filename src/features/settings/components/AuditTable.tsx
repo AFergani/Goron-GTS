@@ -13,6 +13,7 @@ function resolveAuditFamily(action: string, label: string) {
   if (action.startsWith("MAIN_COURANTE_")) return "Main courante";
   if (action.startsWith("INTERVENTION_")) return "Intervention";
   if (action.startsWith("RONDE_")) return "Rondes";
+  if (action.startsWith("GARDIENNAGE_")) return "Gardiennage";
   if (action.startsWith("FRANSOR_")) return "Fransor";
   if (action.startsWith("DATA_")) return "Référentiels";
   if (action.startsWith("USER_") || action.startsWith("USERS_") || action.startsWith("AUTH_")) return "Utilisateurs";
@@ -330,13 +331,20 @@ function formatOldValuesTooltip(log: AuditLog) {
     const before = details.before as Record<string, unknown> | undefined;
     const after = details.after as Record<string, unknown> | undefined;
     if (log.action === "FRANSOR_CLOSURE_DELETE" || log.action === "FRANSOR_CLOSURE_CREATE" || log.action === "FRANSOR_CLOSURE_UPDATE") {
+      const modeValue = details.mode || after?.mode || before?.mode;
       return [
         "Détails exception",
         `Du: ${String(period?.startDate || "-")}`,
         `Au: ${String(period?.endDate || "-")}`,
-        `Type: ${toModeLabel(details.mode || after?.mode)}`,
-        `Motif: ${String(details.label || after?.label || "-")}`,
-        `Motif suppression: ${String(details.reason || "-")}`
+        `Type: ${toModeLabel(modeValue)}`,
+        `Libellé: ${String(details.label || after?.label || "-")}`,
+        ...(log.action === "FRANSOR_CLOSURE_UPDATE"
+          ? [`Avant: ${String(before?.label || "-")} (${toModeLabel(before?.mode)})`]
+          : []),
+        ...(log.action === "FRANSOR_CLOSURE_UPDATE"
+          ? [`Après: ${String(after?.label || "-")} (${toModeLabel(after?.mode)})`]
+          : []),
+        ...(log.action === "FRANSOR_CLOSURE_DELETE" ? [`Motif suppression: ${String(details.reason || "-")}`] : [])
       ].join("\n");
     }
     if (log.action === "FRANSOR_ENTRY_CREATE" || log.action === "FRANSOR_ENTRY_UPDATE") {
@@ -345,8 +353,114 @@ function formatOldValuesTooltip(log: AuditLog) {
         "Détails saisie",
         `Date: ${String(details.date || "-")}`,
         `Responsable: ${toDisplayResponsable(details.responsableName, details.responsableId)}`,
-        `Ouverture: ${toYesNo(next.ouvertureDone ?? details.ouvertureDone)}`,
-        `Fermeture: ${toYesNo(next.fermetureDone ?? details.fermetureDone)}`
+        ...(log.action === "FRANSOR_ENTRY_UPDATE"
+          ? [
+              `Ouverture: ${toYesNo(before?.ouvertureDone)} => ${toYesNo(next.ouvertureDone ?? details.ouvertureDone)}`,
+              `Fermeture: ${toYesNo(before?.fermetureDone)} => ${toYesNo(next.fermetureDone ?? details.fermetureDone)}`
+            ]
+          : [
+              `Ouverture: ${toYesNo(next.ouvertureDone ?? details.ouvertureDone)}`,
+              `Fermeture: ${toYesNo(next.fermetureDone ?? details.fermetureDone)}`
+            ])
+      ].join("\n");
+    }
+    if (log.action === "FRANSOR_RESPONSABLE_CREATE") {
+      return [
+        "Détails création responsable",
+        `Nom: ${String(details.name || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "FRANSOR_RESPONSABLE_UPDATE") {
+      return [
+        "Détails modification responsable",
+        `Nom: ${String(before?.name || "-")} => ${String(after?.name || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "FRANSOR_RESPONSABLE_DELETE") {
+      const deleted = (details.deleted || {}) as Record<string, unknown>;
+      return [
+        "Détails suppression responsable",
+        `Nom: ${String(deleted.name || "-")}`,
+        `Motif: ${String(details.reason || "-")}`
+      ].join("\n");
+    }
+    return undefined;
+  }
+  if (log.action.startsWith("GARDIENNAGE_")) {
+    const details = (log.details || {}) as Record<string, unknown>;
+    const before = (details.before || {}) as Record<string, unknown>;
+    const after = (details.after || {}) as Record<string, unknown>;
+    if (log.action === "GARDIENNAGE_CREATE") {
+      const created = (details.created || {}) as Record<string, unknown>;
+      return [
+        "Détails création gardiennage",
+        `Site: ${String(created.siteDisplay || "-")}`,
+        `Horaires: ${String(created.startTime || "-")} - ${String(created.endTime || "-")}`,
+        `Période: ${String(created.recurrenceStartDate || "-")} -> ${String(created.recurrenceEndDate || "-")}`,
+        `Ponctuel: ${toYesNo(created.isPonctuel)}`,
+        `Prestataire: ${String(created.intervenantName || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_BATCH_CREATE") {
+      const preview = (details.preview || {}) as Record<string, unknown>;
+      return [
+        "Création en lot gardiennage",
+        `Lot: ${String(details.batchId || "-")}`,
+        `Total créé: ${String(details.total || "-")}`,
+        `Site: ${String(preview.siteDisplay || "-")}`,
+        `Horaires: ${String(preview.startTime || "-")} - ${String(preview.endTime || "-")}`,
+        `Prestataire: ${String(preview.intervenantName || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_UPDATE") {
+      return [
+        "Détails mise à jour gardiennage",
+        `Site: ${String(before.siteDisplay || "-")} => ${String(after.siteDisplay || "-")}`,
+        `Horaires: ${String(before.startTime || "-")} - ${String(before.endTime || "-")} => ${String(after.startTime || "-")} - ${String(after.endTime || "-")}`,
+        `Période: ${String(before.recurrenceStartDate || "-")} -> ${String(before.recurrenceEndDate || "-")} => ${String(after.recurrenceStartDate || "-")} -> ${String(after.recurrenceEndDate || "-")}`,
+        `Prestataire: ${String(before.intervenantName || "-")} => ${String(after.intervenantName || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_BATCH_CANCEL") {
+      return [
+        "Annulation en lot gardiennage",
+        `Lot: ${String(details.batchId || "-")}`,
+        `Annulées: ${String(details.cancelledCount || "0")}`,
+        `Préservées (clôturées): ${String(details.preservedClosedCount || "0")}`,
+        `Motif: ${String(details.reason || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_DELETE" || log.action === "GARDIENNAGE_BATCH_DELETE") {
+      return [
+        log.action === "GARDIENNAGE_BATCH_DELETE" ? "Suppression en lot gardiennage" : "Suppression gardiennage",
+        `Supprimées: ${String(details.deletedCount || "1")}`,
+        `Préservées (clôturées): ${String(details.preservedClosedCount || "0")}`,
+        `Motif: ${String(details.reason || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_STATUS_ANNULE") {
+      return [
+        "Annulation gardiennage",
+        `Statut: ${String(details.before || "-")} => ${String(details.after || "-")}`,
+        `Motif: ${String(details.cancellationReason || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_STATUS_CLOTURE") {
+      return [
+        "Clôture gardiennage",
+        `Site: ${String(details.siteDisplay || "-")}`,
+        `Date clôture: ${String(details.closeDate || "-")}`,
+        `Compte rendu: ${String(details.closureReport || "-")}`,
+        `Horaires réels: ${String(details.actualStartTime || "-")} - ${String(details.actualEndTime || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "GARDIENNAGE_REOPEN") {
+      const beforeDetails = (details.before || {}) as Record<string, unknown>;
+      const afterDetails = (details.after || {}) as Record<string, unknown>;
+      return [
+        "Réouverture gardiennage",
+        `Statut: ${String(beforeDetails.status || "-")} => ${String(afterDetails.status || "-")}`,
+        `Motif annulation: ${String(beforeDetails.cancellationReason || "-")} => ${String(afterDetails.cancellationReason || "-")}`
       ].join("\n");
     }
     return undefined;

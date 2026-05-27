@@ -225,6 +225,21 @@ function filterSlotsPreservingClosed(generatedSlots, closedRows) {
   return generatedSlots.filter((slot) => !closedRows.some((row) => slotConflictsWithClosedRow(slot, row)));
 }
 
+function toGardiennageAuditSnapshot(row) {
+  return {
+    siteDisplay: String(row.siteDisplay || "").trim(),
+    startTime: String(row.startTime || "").trim(),
+    endTime: String(row.endTime || "").trim(),
+    recurrenceStartDate: String(row.recurrenceStartDate || "").trim(),
+    recurrenceEndDate: String(row.recurrenceEndDate || "").trim(),
+    isPonctuel: Boolean(row.isPonctuel),
+    intervenantName: String(row.intervenantName || "").trim(),
+    status: String(row.status || "").trim(),
+    linkedInterventionId: row.linkedInterventionId || null,
+    linkedRondeId: row.linkedRondeId || null
+  };
+}
+
 function normalizePlanningSnapshot(payload) {
   const snap = payload.planningSnapshot;
   if (!snap || Number(snap.version) !== 1) return null;
@@ -425,6 +440,16 @@ function createGardiennage(store, payload) {
         validTo: planningSnapshot.validToDate,
         isContinuous: Boolean(planningSnapshot.isContinuous),
         linesCount: Array.isArray(planningSnapshot.lines) ? planningSnapshot.lines.length : 0,
+        preview: {
+          siteDisplay: String(payload.siteDisplay || "").trim(),
+          startTime: generatedSlots[0]?.startTime || "",
+          endTime: generatedSlots[0]?.endTime || "",
+          recurrenceStartDate: generatedSlots[0]?.startDate || "",
+          recurrenceEndDate: planningSnapshot.isOpenEnded ? "" : (generatedSlots[0]?.endDate || ""),
+          isPonctuel: isPonctuelPlanningSnapshot(planningSnapshot),
+          intervenantName: String(payload.intervenantName || "").trim(),
+          status: "PLANIFIE"
+        },
         linkedInterventionId: payload.linkedInterventionId || null,
         linkedRondeId: payload.linkedRondeId || null
       }
@@ -436,9 +461,19 @@ function createGardiennage(store, payload) {
       status: "SUCCESS",
       details: {
         id,
-        siteDisplay: payload.siteDisplay,
-        startTime, endTime, crossesMidnight,
-        recurrenceStartDate, recurrenceEndDate, isPonctuel,
+        created: {
+          siteDisplay: String(payload.siteDisplay || "").trim(),
+          startTime,
+          endTime,
+          crossesMidnight,
+          recurrenceStartDate,
+          recurrenceEndDate,
+          isPonctuel,
+          intervenantName: String(payload.intervenantName || "").trim(),
+          status: "PLANIFIE",
+          linkedInterventionId: payload.linkedInterventionId || null,
+          linkedRondeId: payload.linkedRondeId || null
+        },
         linkedInterventionId: payload.linkedInterventionId || null,
         linkedRondeId: payload.linkedRondeId || null
       }
@@ -548,11 +583,20 @@ function updateGardiennage(store, payload) {
       status: "SUCCESS",
       details: {
         id: returnId,
-        before: { siteDisplay: existing.site_display, startTime: existing.start_time, endTime: existing.end_time },
+        before: toGardiennageAuditSnapshot(mapRow(existing)),
         after: {
-          siteDisplay: payload.siteDisplay,
-          startTime,
-          endTime,
+          ...toGardiennageAuditSnapshot({
+            siteDisplay: payload.siteDisplay,
+            startTime,
+            endTime,
+            recurrenceStartDate,
+            recurrenceEndDate,
+            isPonctuel,
+            intervenantName: payload.intervenantName,
+            status: existing.status,
+            linkedInterventionId: payload.linkedInterventionId || null,
+            linkedRondeId: payload.linkedRondeId || null
+          }),
           planner: { batchId: existingBatchId, generated: true, inserted: slotsToInsert.length, preservedClosed: closedRows.length }
         }
       }
@@ -591,11 +635,20 @@ function updateGardiennage(store, payload) {
     status: "SUCCESS",
     details: {
       id,
-      before: { siteDisplay: existing.site_display, startTime: existing.start_time, endTime: existing.end_time },
+      before: toGardiennageAuditSnapshot(mapRow(existing)),
       after: {
-        siteDisplay: payload.siteDisplay,
-        startTime,
-        endTime,
+        ...toGardiennageAuditSnapshot({
+          siteDisplay: payload.siteDisplay,
+          startTime,
+          endTime,
+          recurrenceStartDate,
+          recurrenceEndDate,
+          isPonctuel,
+          intervenantName: payload.intervenantName,
+          status: existing.status,
+          linkedInterventionId: payload.linkedInterventionId || null,
+          linkedRondeId: payload.linkedRondeId || null
+        }),
         planner: planningSnapshot ? { batchId: existingBatchId, generated: true } : { generated: false }
       }
     }
