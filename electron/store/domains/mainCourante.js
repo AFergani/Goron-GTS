@@ -85,10 +85,20 @@ function createMainCouranteEntry(store, { requesterRole, requesterUsername, id, 
   }
   const existing = store.db.prepare("SELECT * FROM main_courante_entries WHERE id = ?").get(id);
   if (existing) {
+    const existingMapped = mapMainCouranteRow(existing);
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "MAIN_COURANTE_CREATE_IDEMPOTENT",
-      details: { id }
+      details: {
+        id,
+        existing: {
+          operatorName: existingMapped.operatorName,
+          siteDisplay: existingMapped.siteDisplay,
+          anomalyTypeLabel: existingMapped.anomalyTypeLabel,
+          information: existingMapped.information,
+          status: existingMapped.status
+        }
+      }
     });
     return mapMainCouranteRow(existing);
   }
@@ -115,7 +125,16 @@ function createMainCouranteEntry(store, { requesterRole, requesterUsername, id, 
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "MAIN_COURANTE_CREATE",
-    details: { id }
+    details: {
+      id,
+      created: {
+        operatorName: cleanOperator,
+        siteDisplay: String(siteDisplay || "").trim(),
+        anomalyTypeLabel: String(anomalyTypeLabel || "").trim(),
+        information: cleanInfo,
+        status: "EN_ATTENTE"
+      }
+    }
   });
   const row = store.db.prepare("SELECT * FROM main_courante_entries WHERE id = ?").get(id);
   return mapMainCouranteRow(row);

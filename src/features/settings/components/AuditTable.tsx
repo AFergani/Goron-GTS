@@ -448,6 +448,73 @@ function formatOldValuesTooltip(log: AuditLog) {
     }
     return undefined;
   }
+  if (log.action.startsWith("MAIN_COURANTE_")) {
+    const details = (log.details || {}) as Record<string, unknown>;
+    const before = (details.before || {}) as Record<string, unknown>;
+    const after = (details.after || {}) as Record<string, unknown>;
+    if (log.action === "MAIN_COURANTE_CREATE") {
+      const created = (details.created || {}) as Record<string, unknown>;
+      return [
+        "Détails création information",
+        `Opérateur: ${String(created.operatorName || "-")}`,
+        `Site: ${String(created.siteDisplay || "-")}`,
+        `Type d'anomalie: ${String(created.anomalyTypeLabel || "-")}`,
+        `Information: ${String(created.information || "-")}`,
+        `Statut: ${String(created.status || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_CREATE_IDEMPOTENT") {
+      const existing = (details.existing || {}) as Record<string, unknown>;
+      return [
+        "Création idempotente (doublon évité)",
+        `Opérateur: ${String(existing.operatorName || "-")}`,
+        `Site: ${String(existing.siteDisplay || "-")}`,
+        `Type d'anomalie: ${String(existing.anomalyTypeLabel || "-")}`,
+        `Information: ${String(existing.information || "-")}`,
+        `Statut conservé: ${String(existing.status || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_UPDATE_OPERATOR") {
+      return [
+        "Modification opérateur",
+        `Site: ${String(before.siteDisplay || "-")} => ${String(after.siteDisplay || "-")}`,
+        `Type d'anomalie: ${String(before.anomalyTypeLabel || "-")} => ${String(after.anomalyTypeLabel || "-")}`,
+        `Information: ${String(before.information || "-")} => ${String(after.information || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_MANAGER_SUIVRE" || log.action === "MAIN_COURANTE_MANAGER_CLOTURE") {
+      return [
+        "Action manager",
+        `Décision: ${String(details.decision || "-")}`,
+        `Statut: ${String(before.status || "-")} => ${String(after.status || "-")}`,
+        `Responsable: ${String(after.managerName || "-")}`,
+        `Prise en compte: ${String(after.priseEnCompteAt || "-")}`,
+        `Clôture: ${String(after.closedAt || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_MANAGER_REOPEN") {
+      return [
+        "Réouverture information",
+        `Statut: ${String(before.status || "-")} => ${String(after.status || "-")}`,
+        `Responsable: ${String(after.managerName || "-")}`,
+        `Clôture: ${String(before.closedAt || "-")} => ${String(after.closedAt || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_ARCHIVE_BATCH") {
+      return [
+        "Archivage automatique",
+        `Nombre archivées: ${String(details.archivedCount || "-")}`,
+        `Délai (jours): ${String(details.delayDays || "-")}`
+      ].join("\n");
+    }
+    if (log.action === "MAIN_COURANTE_ARCHIVE_SKIP_WRITER_UNAVAILABLE") {
+      return [
+        "Archivage reporté",
+        `Raison: ${String(details.reason || "writer indisponible")}`
+      ].join("\n");
+    }
+    return undefined;
+  }
   if (log.action === "USER_CREATE") {
     const created = (detailsAny.created || {}) as Record<string, unknown>;
     return [
