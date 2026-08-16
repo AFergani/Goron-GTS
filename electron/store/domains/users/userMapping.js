@@ -1,0 +1,88 @@
+/**
+ * Projections des lignes PostgreSQL `users` vers les objets métier.
+ *
+ * Utilisé par le domaine d'authentification pour normaliser les accès aux pages
+ * et produire des instantanés d'audit sans mot de passe.
+ *
+ * @module electron/store/domains/users/userMapping
+ */
+
+/**
+ * Applique les accès aux pages par défaut selon le rôle.
+ * Opérateur : Paramètres off. Responsable (et autres) : toutes les vues on, y compris Paramètres.
+ *
+ * @param {object|null|undefined} pageAccess
+ * @param {string} role
+ * @returns {object}
+ */
+function normalizePageAccess(pageAccess, role) {
+  const defaults =
+    role === "OPERATEUR"
+      ? { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: false, gardiennage: true }
+      : { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: true, gardiennage: true };
+  return {
+    mainCourante: pageAccess?.mainCourante ?? defaults.mainCourante,
+    fransor: pageAccess?.fransor ?? defaults.fransor,
+    intervention: pageAccess?.intervention ?? defaults.intervention,
+    rondes: pageAccess?.rondes ?? defaults.rondes,
+    settings: pageAccess?.settings ?? defaults.settings,
+    gardiennage: pageAccess?.gardiennage ?? defaults.gardiennage
+  };
+}
+
+/**
+ * Mappe une ligne `users` vers l'objet exposé au renderer.
+ *
+ * @param {object} user
+ * @returns {object}
+ */
+function sanitizeUser(user) {
+  let parsedPageAccess = null;
+  try {
+    parsedPageAccess = user.page_access_json ? JSON.parse(user.page_access_json) : null;
+  } catch {
+    parsedPageAccess = null;
+  }
+  const pageAccess = normalizePageAccess(parsedPageAccess, user.role);
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name,
+    role: user.role,
+    managerProfile: user.manager_profile || null,
+    pageAccess,
+    mustChangePassword: Boolean(Number(user.must_change_password)),
+    isActive: Boolean(Number(user.is_active)),
+    isLocked: Boolean(Number(user.is_locked)),
+    failedLoginAttempts: Number(user.failed_login_attempts || 0),
+    createdBy: user.created_by,
+    createdAt: user.created_at,
+    updatedBy: user.updated_by || undefined,
+    updatedAt: user.updated_at || undefined
+  };
+}
+
+/**
+ * Prépare une projection métier sans identifiant technique pour l'audit.
+ *
+ * @param {object} user
+ * @returns {object}
+ */
+function toUserAuditSnapshot(user) {
+  const sanitized = sanitizeUser(user);
+  return {
+    fullName: sanitized.fullName,
+    role: sanitized.role,
+    managerProfile: sanitized.managerProfile || null,
+    pageAccess: sanitized.pageAccess,
+    isActive: sanitized.isActive,
+    isLocked: sanitized.isLocked,
+    mustChangePassword: sanitized.mustChangePassword
+  };
+}
+
+module.exports = {
+  normalizePageAccess,
+  sanitizeUser,
+  toUserAuditSnapshot
+};

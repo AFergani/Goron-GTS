@@ -6,15 +6,17 @@
  * Appelé une fois au démarrage du processus principal via `registerAuthIpcHandlers` dans `main.js`.
  */
 
+const os = require("os");
+
 /**
  * Enregistre les handlers IPC liés à la connexion, déconnexion et code admin.
  *
  * @param {object} deps - Dépendances fournies par `main.js`.
  * @param {(channel: string, handler: Function) => void} deps.handleIpc - IPC sans session obligatoire.
  * @param {(channel: string, handler: Function) => void} deps.handleIpcAuth - IPC avec contexte authentifié (`requesterRole`, etc.).
- * @param {() => void} deps.ensureStore - Lance une erreur si la base n'est pas configurée.
+ * @param {() => void} deps.ensureStore - Lance une erreur si le store applicatif n'est pas initialisé.
  * @param {() => import('../userStore')} deps.getUserStore - Instance store courante.
- * @param {(dbPath: string, username: string) => string} deps.createSession - Crée un jeton de session après login.
+ * @param {(scope: string|null, username: string) => string} deps.createSession - Crée un jeton de session après login.
  * @param {(sessionToken?: string) => void} deps.revokeSession - Invalide le jeton à la déconnexion.
  * @param {import('path')} deps.path - Chemins sous `userData`.
  * @param {import('electron').App} deps.app - Accès `getPath('userData')`.
@@ -37,16 +39,25 @@ function registerAuthIpcHandlers(deps) {
   } = deps;
 
   /**
-   * Canal `auth:login` — authentification par nom affiché / mot de passe, émission d'un `sessionToken`.
+   * Canal `auth:login` — authentification + jeton local + présence PostgreSQL multi-postes.
    *
    * @param {object} payload - Transmis à `userStore.login` (nom affiché, mot de passe).
    * @returns {Promise<object>} Résultat login enrichi de `sessionToken`.
    */
-  handleIpc("auth:login", (payload) => {
+  handleIpc("auth:login", async (payload) => {
     ensureStore();
     const userStore = getUserStore();
-    const result = userStore.login(payload);
-    const sessionToken = createSession(userStore.dbPath, result.user.username);
+    const result = await userStore.login(payload);
+    const sessionToken = createSession(null, result.user.username);
+    try {
+      await userStore.upsertUserPresence({
+        username: result.user.username,
+        sessionToken,
+        hostname: os.hostname()
+      });
+    } catch {
+      // Présence rattrapée par le heartbeat si PG flap.
+    }
     return { ...result, sessionToken };
   });
 
@@ -103,14 +114,21 @@ function registerAuthIpcHandlers(deps) {
   });
 
   /**
-   * Canal `auth:logout` — révoque le jeton de session côté main process.
+   * Canal `auth:logout` — révoque le jeton et efface la présence multi-postes.
    *
    * @param {object} [payload]
    * @param {string} [payload.sessionToken] - Jeton à invalider.
    * @returns {Promise<{ success: true }>}
    */
-  handleIpc("auth:logout", (payload) => {
-    revokeSession(payload?.sessionToken);
+  handleIpc("auth:logout", async (payload) => {
+    const token = payload?.sessionToken;
+    try {
+      ensureStore();
+      await getUserStore().clearUserPresence({ sessionToken: token });
+    } catch {
+      // ignore
+    }
+    revokeSession(token);
     return { success: true };
   });
 }

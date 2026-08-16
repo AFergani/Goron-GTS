@@ -74,7 +74,7 @@ export function HelpSettingsOperatorsTopic() {
             </ul>
           </li>
           <li>
-            <strong>Rôle technique et profil :</strong>
+            <strong>Rôle technique et profil métier :</strong>
             <ul className="help-center-list help-center-list--nested">
               <li>
                 <strong>Opérateur :</strong> pour les agents de saisie et de consultation terrain.
@@ -123,18 +123,27 @@ export function HelpSettingsOperatorsTopic() {
       </div>
 
       <div className="help-center-card">
-        <h3 className="help-center-card-title">📋 Indicateurs visuels de la liste</h3>
+        <h3 className="help-center-card-title">📋 Lecture de la liste utilisateurs</h3>
+        <p className="muted">La liste affiche les colonnes suivantes :</p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Pastille verte :</strong> indique que l&apos;utilisateur est actuellement connecté et actif sur l&apos;application.
+            <strong>Connexion :</strong> pastille dédiée, toujours visible. <strong>Verte</strong> = utilisateur connecté (tous postes) ;{" "}
+            <strong>grise</strong> = déconnecté.
           </li>
           <li>
-            <strong>Statut :</strong> affiche l&apos;état du compte : <em>Actif</em>, <em>Désactivé</em> ou <em>Bloqué</em>. Utilisez les filtres en
-            haut de liste pour trier l&apos;affichage.
+            <strong>Nom :</strong> nom affiché de l&apos;agent dans l&apos;application.
           </li>
           <li>
-            <strong>Traçabilité :</strong> les colonnes <strong>Dernière mise à jour</strong> et <strong>Par</strong> vous indiquent précisément quel
-            responsable a modifié le compte pour la dernière fois et à quelle date.
+            <strong>Profile :</strong> combine le rôle et le profil métier au format <em>Rôle (Profil)</em>, par exemple{" "}
+            <em>Responsable (Directeur de station)</em>. S&apos;il n&apos;y a pas de profil métier, seul le rôle est affiché (sans parenthèses).
+          </li>
+          <li>
+            <strong>Statut :</strong> état du compte : <em>Actif</em>, <em>Désactivé</em> ou <em>Bloqué</em>. Utilisez les filtres{" "}
+            <strong>Actifs</strong> / <strong>Désactivés</strong> / <strong>Tous</strong> en haut de liste pour trier l&apos;affichage.
+          </li>
+          <li>
+            <strong>Traçabilité :</strong> les colonnes <strong>Dernière mise à jour</strong> et <strong>Par</strong> indiquent quel responsable a
+            modifié le compte pour la dernière fois et à quelle date.
           </li>
         </ul>
       </div>

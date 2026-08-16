@@ -1,8 +1,8 @@
 /**
  * Gestion des sessions applicatives côté processus principal Electron.
  *
- * Jetons opaques en mémoire (`Map`), liés à une base SQLite active et un utilisateur.
- * Une seule session active par couple (base, utilisateur) ; invalidation si la base change.
+ * Jetons opaques en mémoire (`Map`), liés au scope applicatif PostgreSQL et à un utilisateur.
+ * Une seule session active par utilisateur sur le poste.
  * TTL 13 h (aligné sur les vacations de 12 h).
  *
  * En développement non packagé : persistance chiffrée optionnelle (`safeStorage` / DPAPI)
@@ -18,7 +18,10 @@ const path = require("path");
 /** Durée de vie d'une session : 13 h (cohérent avec les vacations de 12 h). */
 const SESSION_TTL_MS = 13 * 60 * 60 * 1000;
 
-/** Jetons de session → contexte minimal (invalidés si la base active change). */
+/** Scope unique des sessions (plus de bascule fichier `.db`). */
+const SESSION_SCOPE = "postgres";
+
+/** Jetons de session → contexte minimal (`dbPath` conserve le nom de champ historique = scope). */
 const sessions = new Map();
 
 /**
@@ -165,19 +168,18 @@ function loadPersistedSessions() {
 /**
  * Ouvre une session après authentification réussie.
  *
- * Révoque d'abord les autres jetons du même utilisateur sur la même base, puis émet un nouveau token.
+ * Révoque d'abord les autres jetons du même utilisateur, puis émet un nouveau token.
  *
- * @param {string} dbPath - Chemin de la base SQLite courante.
+ * @param {string} [_scope] - Ignoré (compat) ; le scope est toujours `postgres`.
  * @param {string} username - Login validé.
  * @returns {string} Jeton hexadécimal (64 caractères).
  */
-function createSession(dbPath, username) {
+function createSession(_scope, username) {
   const token = crypto.randomBytes(32).toString("hex");
-  const normalizedDbPath = normalizeDbPath(dbPath);
   const normalizedUsername = normalizeUsername(username);
-  revokeSessionsForUser(normalizedDbPath, normalizedUsername);
+  revokeSessionsForUser(SESSION_SCOPE, normalizedUsername);
   sessions.set(token, {
-    dbPath: normalizedDbPath,
+    dbPath: SESSION_SCOPE,
     username: normalizedUsername,
     createdAt: Date.now()
   });
@@ -186,36 +188,30 @@ function createSession(dbPath, username) {
 }
 
 /**
- * Valide le jeton contre la base courante et retourne le profil utilisateur actif.
+ * Valide le jeton et retourne le profil utilisateur actif (cache PG / `getCachedUserRow`).
  *
  * @param {string|null|undefined} token - Jeton transmis par le renderer.
- * @param {import('../userStore')} userStore - Store lié à la base active (`dbPath`, `db`).
+ * @param {import('../userStore')} userStore - Store applicatif.
  * @returns {null|{ expired: true }|{ username: string, role: string, managerProfile: string|null }}
- *   `null` si jeton absent, inconnu, base différente ou compte inactif ;
+ *   `null` si jeton absent, inconnu ou compte inactif ;
  *   `{ expired: true }` si le TTL de 13 h est dépassé.
  */
 function validateSession(token, userStore) {
   if (!token || typeof token !== "string") return null;
+  if (!userStore) return null;
   const rec = sessions.get(token);
-  if (!rec || !userStore?.dbPath) return null;
+  if (!rec) return null;
   if (Date.now() - rec.createdAt >= SESSION_TTL_MS) {
     sessions.delete(token);
     persistToDisk();
     return { expired: true };
   }
-  if (path.normalize(rec.dbPath) !== path.normalize(userStore.dbPath)) {
+  if (normalizeDbPath(rec.dbPath) !== normalizeDbPath(SESSION_SCOPE)) {
     sessions.delete(token);
     persistToDisk();
     return null;
   }
-  const row = userStore.db
-    .prepare(
-      `SELECT username, role, manager_profile
-       FROM users
-       WHERE lower(username) = ? AND is_active = 1
-       LIMIT 1`
-    )
-    .get(rec.username);
+  const row = typeof userStore.getCachedUserRow === "function" ? userStore.getCachedUserRow(rec.username) : null;
   if (!row) {
     sessions.delete(token);
     persistToDisk();
@@ -268,6 +264,7 @@ function getActiveUsernames() {
 }
 
 module.exports = {
+  SESSION_SCOPE,
   createSession,
   validateSession,
   revokeSession,

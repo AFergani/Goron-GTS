@@ -107,7 +107,6 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
                 <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
                   <span className="mc-status-badge__dot" aria-hidden />
                   <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
-                  {entry.syncState ? <span className="mc-status-badge__queued">En attente DB</span> : null}
                 </span>
               </td>
               <td>

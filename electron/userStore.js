@@ -1,49 +1,50 @@
 /**
- * Orchestrateur d'accès base SQLite pour Goron-GTS.
+ * Orchestrateur d'accès données pour Goron-GTS (PostgreSQL only).
  *
- * `UserStore` ouvre la base, applique les schémas (`store/core/schema*`), expose les méthodes
- * métier appelées par IPC (`main.js`) et le worker writer. Chaque méthode publique délègue
- * vers `store/domains/*` ou `store/core/*` — pas de règle métier volumineuse ici (règle projet).
- *
- * Instance unique par chemin de base, recréée lors d'un changement de DB active.
+ * `UserStore` n'ouvre plus de fichier SQLite (`store.db`) : la persistance métier
+ * passe exclusivement par le pool PostgreSQL (`attachPostgresAuditLab` / `referentialsPersistence`).
+ * Chaque méthode publique délègue vers `store/domains/*` ou `store/core/*` —
+ * pas de règle métier volumineuse ici. Appelants principaux : IPC (`main.js`).
  *
  * @module electron/userStore
  */
 
-const { DatabaseSync } = require("node:sqlite");
 const { resolveAdminAccess } = require("./store/core/bootstrap");
 const { AppError, failWithLog } = require("./store/core/errors");
-const { writeErrorLog } = require("./store/core/errorLogs");
-const { writeAudit } = require("./store/core/audit");
-const entityHistoryCore = require("./store/core/entityHistory");
-const schemaBaseCore = require("./store/core/schemaBase");
-const schemaBusinessDataCore = require("./store/core/schemaBusinessData");
-const schemaGardiennageCore = require("./store/core/schemaGardiennage");
-const schemaRondeCore = require("./store/core/schemaRonde");
-const schemaUsersSitesCore = require("./store/core/schemaUsersSites");
 const {
   ensureDataManagerRole: ensureDataManagerRoleRbac,
   ensureDataDeleteRole: ensureDataDeleteRoleRbac,
   ensureDataReaderRole: ensureDataReaderRoleRbac
 } = require("./store/core/rbac");
-const archiveDomain = require("./store/domains/archive");
-const auditLogsDomain = require("./store/domains/auditLogs");
-const authUsersDomain = require("./store/domains/authUsers");
-const dbHealthDomain = require("./store/domains/dbHealth");
-const formVariablesDomain = require("./store/domains/formVariables");
+const {
+  tryOpenPostgresLabPersistence,
+  createAuditPersistenceRouter
+} = require("./store/persistence");
+const {
+  resolvePostgresEventLogPath: resolvePostgresEventLogPathHelper
+} = require("./store/persistence/postgresEventLog");
+const {
+  auditLogs: auditLogsDomain,
+  techErrorLogs: techErrorLogsDomain
+} = require("./store/domains/journals");
+const authUsersDomain = require("./store/domains/users/authUsers");
+const userPreferencesDomain = require("./store/domains/users/userPreferences");
+const presenceDomain = require("./store/domains/users/presence");
+const {
+  referentials: referentialsDomain,
+  holidays: holidaysDomain,
+  rondeMotifTypes: rondeMotifTypesDomain,
+  importAudit: importAuditDomain,
+  formVariables: formVariablesDomain,
+  templateAssignments: templateAssignmentsDomain
+} = require("./store/domains/data");
 const fransorDomain = require("./store/domains/fransor");
-const gardiennageDomain = require("./store/domains/gardiennage");
-const holidaysDomain = require("./store/domains/holidays");
-const importAuditDomain = require("./store/domains/importAudit");
-const interventionDomain = require("./store/domains/intervention");
-const interventionWordExtraFieldsDomain = require("./store/domains/interventionWordExtraFields");
 const mainCouranteDomain = require("./store/domains/mainCourante");
+const dbHealthDomain = require("./store/domains/dbHealth");
+const gardiennageDomain = require("./store/domains/gardiennage");
+const interventionDomain = require("./store/domains/intervention");
 const rondeDomain = require("./store/domains/ronde");
-const rondeMotifTypesDomain = require("./store/domains/rondeMotifTypes");
-const rondePlannedProfilesDomain = require("./store/domains/rondePlannedProfiles");
-const referentialsDomain = require("./store/domains/referentials");
-const templateAssignmentsDomain = require("./store/domains/templateAssignments");
-const userPreferencesDomain = require("./store/domains/userPreferences");
+const rondePlannedProfilesDomain = require("./store/domains/ronde/plannedProfiles");
 
 /** Rôles applicatifs transmis aux domaines et au RBAC (`store/core/rbac`). */
 const ROLE = {
@@ -53,40 +54,299 @@ const ROLE = {
 };
 
 /**
- * Façade SQLite : schéma, audit, erreurs et délégation vers les domaines métier.
+ * Façade données PostgreSQL : audit, caches et délégation vers les domaines métier.
+ * Aucun pont SQLite (`this.db` / `this.persistence`) — brancher PG via `attachPostgresAuditLab`.
  */
 class UserStore {
   /**
-   * @param {string} dbPath - Chemin du fichier `.db` actif.
-   * @param {{ isPackaged?: boolean }} [options] - Résolution du code admin DEV (`bootstrap`).
+   * @param {{ isPackaged?: boolean, userDataPath?: string }} [options]
    */
-  constructor(dbPath, options = {}) {
-    this.dbPath = dbPath;
+  constructor(options = {}) {
     const adminAccess = resolveAdminAccess(options);
     this.devMasterCode = adminAccess.devMasterCode;
     this.adminAccessSourcePath = adminAccess.adminAccessSourcePath;
     this.adminAccessEnabled = adminAccess.adminAccessEnabled;
-    this.db = new DatabaseSync(this.dbPath);
-    this.ensureSchema();
-    this.ensureDevUser();
+
+    /** @type {string|null} Ancien chemin SQLite — conservé à null (plus de pont store.db). */
+    this.dbPath = null;
+    /** @type {null} Plus de DatabaseSync. */
+    this.db = null;
+    /** @type {null} Plus d'adaptateur SQLite sync. */
+    this.persistence = null;
+
+    /** @type {import('./store/persistence/persistenceContract').PersistenceAdapter|null} */
+    this.postgresPersistence = null;
+
+    /** Routeur audit_logs (PostgreSQL only ; skip soft si PG down). */
+    this.auditRouter = createAuditPersistenceRouter({
+      postgresPersistence: null
+    });
+
+    /**
+     * Persistance référentiels + jours fériés : PostgreSQL only (null tant que PG non attaché / injoignable).
+     * @type {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
+     */
+    this.referentialsPersistence = null;
+
+    /**
+     * Cache des dates fériées (ISO) pour planification sync (rondes / gardiennage).
+     * @type {string[]|null}
+     */
+    this._holidayDateIsosCache = null;
+
+    /**
+     * Cache motifs ronde (id → motif) pour le domaine rondes encore sync.
+     * @type {Map<string, object>|null}
+     */
+    this._rondeMotifTypesByIdCache = null;
+
+    /**
+     * Cache responsables Fransor actifs (id → { id, name }).
+     * @type {Map<string, { id: string, name: string }>|null}
+     */
+    this._fransorResponsablesByIdCache = null;
+
+    /**
+     * Cache comptes utilisateurs (username → ligne) pour session / RBAC sync.
+     * @type {Map<string, object>|null}
+     */
+    this._usersByUsernameCache = null;
+
+    /** File sérialisée des écritures audit (callers sync sans await). */
+    this._auditWriteChain = Promise.resolve();
+
+    /** Promesse de branchement PG labo (démarrage / bascule). */
+    this._pgAttachPromise = null;
+
+    /** Chemin local du journal d'événements PG (perte / retour connexion). */
+    this._postgresEventLogPath = resolvePostgresEventLogPathHelper(options.userDataPath);
+
+    // Compte admin DEV : créé côté PostgreSQL dans `attachPostgresAuditLab`.
   }
 
-  /** Crée ou migre les tables (ordre : base → ronde → users/sites → données → gardiennage). */
-  ensureSchema() {
-    schemaBaseCore.ensureBaseSchema(this);
-    schemaRondeCore.ensureRondeSchema(this);
-    schemaUsersSitesCore.ensureUsersSitesSchema(this, { roles: ROLE });
-    schemaBusinessDataCore.ensureBusinessDataSchema(this);
-    schemaGardiennageCore.ensureGardiennageSchema(this);
+  /**
+   * Adaptateur actif pour `audit_logs` (PostgreSQL uniquement ; `null` si injoignable).
+   *
+   * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
+   */
+  getAuditPersistence() {
+    return this.auditRouter.getActive();
   }
 
-  ensureDevUser() {
-    authUsersDomain.ensureDevUser(this, { roles: ROLE });
+  /**
+   * Adaptateur pour sites / intervenants / types / jours fériés / motifs,
+   * Fransor, main courante, interventions, gardiennage, rondes (profils inclus),
+   * variables / modèles Word et comptes (PostgreSQL only ; `null` si injoignable).
+   *
+   * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
+   */
+  getReferentialsPersistence() {
+    return this.referentialsPersistence;
   }
 
-  /** Journal technique (`error_logs`) — distinct de l'audit métier. */
-  logError({ source, code, messageFr, details }) {
-    writeErrorLog(this, { source, code, messageFr, details });
+  /**
+   * Adaptateur PostgreSQL pour `users` (même pool labo que les référentiels).
+   *
+   * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
+   */
+  getUsersPersistence() {
+    return this.referentialsPersistence;
+  }
+
+  /**
+   * Refuse l'accès Gestion des données (référentiels PG) si PostgreSQL n'est pas joignable.
+   *
+   * @returns {void}
+   */
+  assertPostgresAvailableForReferentials() {
+    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+      return;
+    }
+    this.fail(
+      "data:referentials",
+      "Base PostgreSQL inaccessible. Les référentiels Paramètres et les domaines métier migrés (Fransor, main courante, interventions, gardiennage, rondes) ne peuvent pas être consultés ni modifiés tant que le serveur n'est pas disponible.",
+      "PG_UNAVAILABLE"
+    );
+  }
+
+  /**
+   * Refuse auth / comptes / préférences si PostgreSQL n'est pas joignable.
+   *
+   * @returns {void}
+   */
+  assertPostgresAvailableForUsers() {
+    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+      return;
+    }
+    this.fail(
+      "users",
+      "Base PostgreSQL inaccessible. La gestion des comptes et la connexion sont indisponibles tant que le serveur n'est pas disponible.",
+      "PG_UNAVAILABLE"
+    );
+  }
+
+  /**
+   * Branche le pool PostgreSQL labo : audit_logs + référentiels + jours fériés (PG only).
+   * No-op si Docker/PG injoignable — référentiels / audit PG restent indisponibles.
+   *
+   * @param {{ forceReconnect?: boolean }} [options] - Si true, ferme l'ancien pool (panne Docker) avant de rouvrir.
+   * @returns {Promise<{ attached: boolean, engine: "postgres"|"none" }>}
+   */
+  async attachPostgresAuditLab(options = {}) {
+    const forceReconnect = Boolean(options.forceReconnect);
+    if (forceReconnect && this.postgresPersistence) {
+      try {
+        await this.postgresPersistence.close();
+      } catch {
+        // Pool déjà mort après docker stop : ignorer.
+      }
+      this.postgresPersistence = null;
+      this.referentialsPersistence = null;
+    }
+
+    const pg = await tryOpenPostgresLabPersistence({
+      onIdleClientError: () => {
+        // Panne idle (docker stop, etc.) : bascule badge / référentiels sans boîte Windows.
+        this.setAuditPostgresReachable(false);
+      }
+    });
+    if (!pg) {
+      this.postgresPersistence = null;
+      this.referentialsPersistence = null;
+      this.auditRouter = createAuditPersistenceRouter({
+        postgresPersistence: null
+      });
+      return { attached: false, engine: "none" };
+    }
+    this.postgresPersistence = pg;
+    this.referentialsPersistence = pg;
+    this.auditRouter = createAuditPersistenceRouter({
+      postgresPersistence: pg
+    });
+    try {
+      await holidaysDomain.refreshHolidayDateIsosCache(this);
+      await rondeMotifTypesDomain.refreshRondeMotifTypesCache(this);
+      await fransorDomain.refreshFransorResponsablesCache(this);
+      await authUsersDomain.ensureDevUser(this, { roles: ROLE });
+      await authUsersDomain.refreshUsersCache(this);
+    } catch (error) {
+      void this.logError({
+        source: "users:migrate",
+        code: "USERS_PG_BOOTSTRAP_FAILED",
+        messageFr: "Initialisation des comptes PostgreSQL impossible après branchement labo.",
+        details: { reason: error instanceof Error ? error.message : String(error || "") }
+      });
+    }
+    return { attached: true, engine: this.auditRouter.getEngine() };
+  }
+
+  /**
+   * Met à jour la joignabilité PG pour audit + référentiels (badge / sonde labo).
+   * À la reconnexion (false → true) : nouveau pool (l'ancien est souvent mort après `docker stop`).
+   * La journalisation perte/reconnexion est faite par `postgresLabMonitor` uniquement.
+   *
+   * @param {boolean} reachable
+   * @returns {void}
+   */
+  setAuditPostgresReachable(reachable) {
+    const wasReachable =
+      this.auditRouter && typeof this.auditRouter.getEngine === "function"
+        ? this.auditRouter.getEngine() === "postgres"
+        : false;
+
+    if (!reachable) {
+      if (this.auditRouter && typeof this.auditRouter.setPostgresReachable === "function") {
+        this.auditRouter.setPostgresReachable(false);
+      }
+      this.referentialsPersistence = null;
+      return;
+    }
+
+    if (wasReachable) {
+      if (this.auditRouter && typeof this.auditRouter.setPostgresReachable === "function") {
+        this.auditRouter.setPostgresReachable(true);
+      }
+      if (this.postgresPersistence && this.postgresPersistence.isOpen()) {
+        this.referentialsPersistence = this.postgresPersistence;
+      }
+      return;
+    }
+
+    // Sortie de panne : reconnecter le pool puis resynchroniser le one-shot labo si besoin.
+    void this.attachPostgresAuditLab({ forceReconnect: true }).catch((error) => {
+      void this.logError({
+        source: "audit:migrate",
+        code: "AUDIT_PG_COPY_FAILED",
+        messageFr: "Reconnecter PostgreSQL après panne impossible.",
+        details: { reason: error instanceof Error ? error.message : String(error || "") }
+      });
+    });
+  }
+
+  /**
+   * Ouverture async recommandée : instance PG-only (branchement via `attachPostgresAuditLab`).
+   *
+   * @param {{ isPackaged?: boolean, userDataPath?: string }} [options]
+   * @returns {Promise<UserStore>}
+   */
+  static async open(options = {}) {
+    return new UserStore(options);
+  }
+
+  /**
+   * Ferme le pool PostgreSQL (arrêt propre / bascule).
+   *
+   * @returns {Promise<void>}
+   */
+  async close() {
+    if (this.postgresPersistence && typeof this.postgresPersistence.close === "function") {
+      try {
+        await this.postgresPersistence.close();
+      } catch {
+        // ignore
+      }
+      this.postgresPersistence = null;
+    }
+    this.referentialsPersistence = null;
+  }
+
+  /**
+   * Chemin du journal local des événements PostgreSQL (`gts-pg-events.log`).
+   *
+   * @returns {string}
+   */
+  resolvePostgresEventLogPath() {
+    return this._postgresEventLogPath;
+  }
+
+  /**
+   * Garantit le compte technique Admin (DEV) côté PostgreSQL.
+   *
+   * @returns {Promise<void>}
+   */
+  async ensureDevUser() {
+    return authUsersDomain.ensureDevUser(this, { roles: ROLE });
+  }
+
+  /**
+   * Compte actif depuis le cache PG (sessions IPC / contrôles sync).
+   *
+   * @param {string} username
+   * @returns {object|null}
+   */
+  getCachedUserRow(username) {
+    return authUsersDomain.getCachedUserRow(this, username);
+  }
+
+  /**
+   * Journal technique — no-op (plus de table SQLite `error_logs`).
+   * Conservé pour que `failWithLog` / callers sync restent stables.
+   *
+   * @param {object} _entry
+   * @returns {Promise<void>}
+   */
+  logError(_entry) {
+    return Promise.resolve();
   }
 
   /** Lève une `AppError` après log (messages utilisateur en français). */
@@ -94,17 +354,29 @@ class UserStore {
     failWithLog(this, source, userMessage, code, details);
   }
 
-  /** Écriture dans `audit_logs` (actions métier sensibles). */
+  /**
+   * Écriture dans `audit_logs` (PostgreSQL only ; no-op soft si PG indisponible).
+   * File sérialisée : safe depuis un domaine sync sans `await`.
+   *
+   * @param {object} entry
+   * @returns {Promise<void>}
+   */
   logAudit({ actorUsername, action, targetUsername = null, status = "SUCCESS", details = null }) {
-    writeAudit(this.db, { actorUsername, action, targetUsername, status, details });
-  }
-
-  getEntityChangeHistory(entityType, entityId, limit = 3) {
-    return entityHistoryCore.getEntityChangeHistory(this, entityType, entityId, limit);
-  }
-
-  recordEntityChange({ entityType, entityId, changedBy, snapshot }) {
-    return entityHistoryCore.recordEntityChange(this, { entityType, entityId, changedBy, snapshot });
+    const payload = { actorUsername, action, targetUsername, status, details };
+    const job = () =>
+      this.auditRouter.write(payload).catch((error) => {
+        void this.logError({
+          source: "audit:write",
+          code: "AUDIT_WRITE_FAILED",
+          messageFr: "Échec d'écriture du journal d'actions.",
+          details: {
+            action: String(action || ""),
+            reason: error instanceof Error ? error.message : String(error || "")
+          }
+        });
+      });
+    this._auditWriteChain = this._auditWriteChain.then(job, job);
+    return this._auditWriteChain;
   }
 
   logBulkImportAudit({
@@ -129,6 +401,18 @@ class UserStore {
     });
   }
 
+  /**
+   * Attend la fin du branchement PostgreSQL labo (démarrage / bascule DB).
+   *
+   * @returns {Promise<{ attached?: boolean, engine?: string }|void>}
+   */
+  async whenPostgresReady() {
+    if (this._pgAttachPromise) {
+      return this._pgAttachPromise;
+    }
+    return undefined;
+  }
+
   // --- Authentification et comptes (`authUsers`) ---
 
   isFullNamePasswordPairUsedByAnotherUser(fullName, rawPassword, excludedUserId = null) {
@@ -151,19 +435,23 @@ class UserStore {
     return authUsersDomain.sanitizeUser(user);
   }
 
-  login({ username, password }) {
+  async login({ username, password }) {
+    await this.whenPostgresReady();
     return authUsersDomain.login(this, { username, password, role: ROLE });
   }
 
-  completeFirstLogin({ username, temporaryPassword, newPassword }) {
+  async completeFirstLogin({ username, temporaryPassword, newPassword }) {
+    await this.whenPostgresReady();
     return authUsersDomain.completeFirstLogin(this, { username, temporaryPassword, newPassword });
   }
 
-  listUsers({ requesterRole, requesterUsername }) {
+  async listUsers({ requesterRole, requesterUsername }) {
+    await this.whenPostgresReady();
     return authUsersDomain.listUsers(this, { requesterRole, requesterUsername, role: ROLE });
   }
 
-  createUser({ requesterRole, requesterUsername, username, fullName, role, managerProfile, pageAccess }) {
+  async createUser({ requesterRole, requesterUsername, username, fullName, role, managerProfile, pageAccess }) {
+    await this.whenPostgresReady();
     return authUsersDomain.createUser(this, {
       requesterRole,
       requesterUsername,
@@ -176,7 +464,8 @@ class UserStore {
     });
   }
 
-  updateUserProfile({ requesterRole, requesterUsername, username, fullName, newRole, managerProfile, pageAccess, mustResetPassword }) {
+  async updateUserProfile({ requesterRole, requesterUsername, username, fullName, newRole, managerProfile, pageAccess, mustResetPassword }) {
+    await this.whenPostgresReady();
     return authUsersDomain.updateUserProfile(this, {
       requesterRole,
       requesterUsername,
@@ -190,15 +479,18 @@ class UserStore {
     });
   }
 
-  deactivateUser({ requesterRole, requesterUsername, username, reason }) {
+  async deactivateUser({ requesterRole, requesterUsername, username, reason }) {
+    await this.whenPostgresReady();
     return authUsersDomain.deactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
   }
 
-  reactivateUser({ requesterRole, requesterUsername, username, reason }) {
+  async reactivateUser({ requesterRole, requesterUsername, username, reason }) {
+    await this.whenPostgresReady();
     return authUsersDomain.reactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
   }
 
-  unlockUser({ requesterRole, requesterUsername, username }) {
+  async unlockUser({ requesterRole, requesterUsername, username }) {
+    await this.whenPostgresReady();
     return authUsersDomain.unlockUser(this, { requesterRole, requesterUsername, username, role: ROLE });
   }
 
@@ -208,19 +500,72 @@ class UserStore {
     return dbHealthDomain.getDbHealth(this);
   }
 
-  listAuditLogs({ requesterRole, requesterUsername, limit = 200 }) {
+  async listAuditLogs({ requesterRole, requesterUsername, limit = 200 }) {
     return auditLogsDomain.listAuditLogs(this, { requesterRole, requesterUsername, limit, role: ROLE });
   }
 
-  getAuditMetadata({ requesterRole, requesterUsername }) {
+  async getAuditMetadata({ requesterRole, requesterUsername }) {
     return auditLogsDomain.getAuditMetadata(this, { requesterRole, requesterUsername, role: ROLE });
   }
 
-  getUserPreferences({ requesterRole, requesterUsername }) {
+  /**
+   * Journal technique (`error_logs`) — transitions PG, échecs métier loggés, etc.
+   * Réservé Admin / Responsable de station / Directeur de station.
+   */
+  async listTechErrorLogs({ requesterRole, requesterUsername, limit = 200 }) {
+    return techErrorLogsDomain.listTechErrorLogs(this, { requesterRole, requesterUsername, limit, role: ROLE });
+  }
+
+  /**
+   * Enregistre / rafraîchit la présence multi-postes (PostgreSQL).
+   *
+   * @param {{ username: string, sessionToken: string, hostname?: string|null }} payload
+   * @returns {Promise<{ written: boolean }>}
+   */
+  async upsertUserPresence(payload) {
+    return presenceDomain.upsertPresence(this, payload);
+  }
+
+  /**
+   * Heartbeat présence (même écriture que upsert).
+   *
+   * @param {{ requesterUsername: string, sessionToken: string, hostname?: string|null }} payload
+   * @returns {Promise<{ written: boolean }>}
+   */
+  async touchUserPresence({ requesterUsername, sessionToken, hostname = null }) {
+    return presenceDomain.upsertPresence(this, {
+      username: requesterUsername,
+      sessionToken,
+      hostname
+    });
+  }
+
+  /**
+   * Efface la présence (logout).
+   *
+   * @param {{ sessionToken?: string|null, username?: string|null }} payload
+   * @returns {Promise<{ cleared: boolean }>}
+   */
+  async clearUserPresence(payload) {
+    return presenceDomain.clearPresence(this, payload);
+  }
+
+  /**
+   * Usernames techniques présents sur le LAN (TTL présence PG).
+   *
+   * @returns {Promise<string[]>}
+   */
+  async listActivePresenceUsernames() {
+    return presenceDomain.listActivePresenceUsernames(this);
+  }
+
+  async getUserPreferences({ requesterRole, requesterUsername }) {
+    await this.whenPostgresReady();
     return userPreferencesDomain.getUserPreferences(this, { requesterRole, requesterUsername });
   }
 
-  setUserPreferences({ requesterRole, requesterUsername, themeMode }) {
+  async setUserPreferences({ requesterRole, requesterUsername, themeMode }) {
+    await this.whenPostgresReady();
     return userPreferencesDomain.setUserPreferences(this, { requesterRole, requesterUsername, themeMode });
   }
 
@@ -239,11 +584,13 @@ class UserStore {
     ensureDataReaderRoleRbac(requesterRole, this.fail.bind(this), ROLE);
   }
 
-  listSites({ requesterRole }) {
+  // --- Référentiels (async via PostgreSQL / referentialsPersistence) ---
+
+  async listSites({ requesterRole }) {
     return referentialsDomain.listSites(this, { requesterRole });
   }
 
-  createSite({ requesterRole, requesterUsername, code, name, address, parc, famille, auditMode = "single" }) {
+  async createSite({ requesterRole, requesterUsername, code, name, address, parc, famille, auditMode = "single" }) {
     return referentialsDomain.createSite(this, {
       requesterRole,
       requesterUsername,
@@ -256,7 +603,7 @@ class UserStore {
     });
   }
 
-  updateSite({ requesterRole, requesterUsername, id, code, name, address, parc, famille, auditMode = "single" }) {
+  async updateSite({ requesterRole, requesterUsername, id, code, name, address, parc, famille, auditMode = "single" }) {
     return referentialsDomain.updateSite(this, {
       requesterRole,
       requesterUsername,
@@ -270,263 +617,127 @@ class UserStore {
     });
   }
 
-  deleteSite({ requesterRole, requesterUsername, id, reason }) {
+  async deleteSite({ requesterRole, requesterUsername, id, reason }) {
     return referentialsDomain.deleteSite(this, { requesterRole, requesterUsername, id, reason });
   }
 
-  listIntervenants({ requesterRole }) {
+  async listIntervenants({ requesterRole }) {
     return referentialsDomain.listIntervenants(this, { requesterRole });
   }
 
-  createIntervenant({ requesterRole, requesterUsername, name, auditMode = "single" }) {
+  async createIntervenant({ requesterRole, requesterUsername, name, auditMode = "single" }) {
     return referentialsDomain.createIntervenant(this, { requesterRole, requesterUsername, name, auditMode });
   }
 
-  updateIntervenant({ requesterRole, requesterUsername, id, name, auditMode = "single" }) {
+  async updateIntervenant({ requesterRole, requesterUsername, id, name, auditMode = "single" }) {
     return referentialsDomain.updateIntervenant(this, { requesterRole, requesterUsername, id, name, auditMode });
   }
 
-  deleteIntervenant({ requesterRole, requesterUsername, id, reason }) {
+  async deleteIntervenant({ requesterRole, requesterUsername, id, reason }) {
     return referentialsDomain.deleteIntervenant(this, { requesterRole, requesterUsername, id, reason });
   }
 
-  listAnomalyTypes({ requesterRole }) {
+  async listAnomalyTypes({ requesterRole }) {
     return referentialsDomain.listAnomalyTypes(this, { requesterRole });
   }
 
-  createAnomalyType({ requesterRole, requesterUsername, label, colorHex, auditMode = "single" }) {
+  async createAnomalyType({ requesterRole, requesterUsername, label, colorHex, auditMode = "single" }) {
     return referentialsDomain.createAnomalyType(this, { requesterRole, requesterUsername, label, colorHex, auditMode });
   }
 
-  updateAnomalyType({ requesterRole, requesterUsername, id, label, colorHex, auditMode = "single" }) {
+  async updateAnomalyType({ requesterRole, requesterUsername, id, label, colorHex, auditMode = "single" }) {
     return referentialsDomain.updateAnomalyType(this, { requesterRole, requesterUsername, id, label, colorHex, auditMode });
   }
 
-  deleteAnomalyType({ requesterRole, requesterUsername, id, reason }) {
+  async deleteAnomalyType({ requesterRole, requesterUsername, id, reason }) {
     return referentialsDomain.deleteAnomalyType(this, { requesterRole, requesterUsername, id, reason });
   }
 
-  // --- Fransor ---
+  // --- Fransor (PostgreSQL only, dossier domains/fransor) ---
 
-  listFransorResponsables({ requesterRole }) {
+  async listFransorResponsables({ requesterRole }) {
+    await this.whenPostgresReady();
     return fransorDomain.listFransorResponsables(this, { requesterRole });
   }
 
-  createFransorResponsable({ requesterRole, requesterUsername, name }) {
+  async createFransorResponsable({ requesterRole, requesterUsername, name }) {
+    await this.whenPostgresReady();
     return fransorDomain.createFransorResponsable(this, { requesterRole, requesterUsername, name });
   }
 
-  updateFransorResponsable({ requesterRole, requesterUsername, id, name }) {
-    return fransorDomain.updateFransorResponsable(this, { requesterRole, requesterUsername, id, name });
+  async updateFransorResponsable({ requesterRole, requesterUsername, id, name }) {
+    await this.whenPostgresReady();
+    return fransorDomain.updateFransorResponsable(this, {
+      requesterRole,
+      requesterUsername,
+      id,
+      name
+    });
   }
 
-  deleteFransorResponsable({ requesterRole, requesterUsername, id, reason }) {
-    return fransorDomain.deleteFransorResponsable(this, { requesterRole, requesterUsername, id, reason });
+  async deleteFransorResponsable({ requesterRole, requesterUsername, id, reason }) {
+    await this.whenPostgresReady();
+    return fransorDomain.deleteFransorResponsable(this, {
+      requesterRole,
+      requesterUsername,
+      id,
+      reason
+    });
   }
 
-  listFransorClosures({ requesterRole, month }) {
+  async listFransorClosures({ requesterRole, month }) {
+    await this.whenPostgresReady();
     return fransorDomain.listFransorClosures(this, { requesterRole, month });
   }
 
-  upsertFransorClosure({ id, requesterRole, requesterUsername, startDate, endDate, label, mode = "CLOSED" }) {
-    return fransorDomain.upsertFransorClosure(this, { id, requesterRole, requesterUsername, startDate, endDate, label, mode });
+  async upsertFransorClosure({ id, requesterRole, requesterUsername, startDate, endDate, label, mode = "CLOSED" }) {
+    await this.whenPostgresReady();
+    return fransorDomain.upsertFransorClosure(this, {
+      id,
+      requesterRole,
+      requesterUsername,
+      startDate,
+      endDate,
+      label,
+      mode
+    });
   }
 
-  deleteFransorClosure({ requesterRole, requesterUsername, id, reason }) {
+  async deleteFransorClosure({ requesterRole, requesterUsername, id, reason }) {
+    await this.whenPostgresReady();
     return fransorDomain.deleteFransorClosure(this, { requesterRole, requesterUsername, id, reason });
   }
 
-  listFransorEntriesByMonth({ requesterRole, month }) {
+  async listFransorEntriesByMonth({ requesterRole, month }) {
+    await this.whenPostgresReady();
     return fransorDomain.listFransorEntriesByMonth(this, { requesterRole, month });
   }
 
-  upsertFransorEntry({ requesterRole, requesterUsername, date, responsableId, ouvertureDone, fermetureDone }) {
-    return fransorDomain.upsertFransorEntry(this, { requesterRole, requesterUsername, date, responsableId, ouvertureDone, fermetureDone });
+  async upsertFransorEntry({ requesterRole, requesterUsername, date, responsableId, ouvertureDone, fermetureDone }) {
+    await this.whenPostgresReady();
+    return fransorDomain.upsertFransorEntry(this, {
+      requesterRole,
+      requesterUsername,
+      date,
+      responsableId,
+      ouvertureDone,
+      fermetureDone
+    });
   }
 
-  listFransorMonthlyRecap({ requesterRole, month }) {
+  async listFransorMonthlyRecap({ requesterRole, month }) {
+    await this.whenPostgresReady();
     return fransorDomain.listFransorMonthlyRecap(this, { requesterRole, month });
   }
 
-  // --- Main courante ---
+  // --- Main courante (PostgreSQL only, dossier domains/mainCourante) ---
 
-  listMainCouranteEntries({ requesterRole }) {
+  async listMainCouranteEntries({ requesterRole }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.listMainCouranteEntries(this, { requesterRole });
   }
 
-  // --- Interventions ---
-
-  listInterventions({ requesterRole }) {
-    return interventionDomain.listInterventions(this, { requesterRole });
-  }
-
-  getInterventionOpenCount({ requesterRole }) {
-    return interventionDomain.getInterventionOpenCount(this, { requesterRole });
-  }
-
-  createInterventionEntry(payload) {
-    return interventionDomain.createInterventionEntry(this, payload);
-  }
-
-  updateInterventionEntry(payload) {
-    return interventionDomain.updateInterventionEntry(this, payload);
-  }
-
-  setInterventionStatus(payload) {
-    return interventionDomain.setInterventionStatus(this, payload);
-  }
-
-  setInterventionBillingStatus(payload) {
-    return interventionDomain.setInterventionBillingStatus(this, { ...payload, role: ROLE });
-  }
-
-  listPendingInterventionSites({ requesterRole }) {
-    return interventionDomain.listPendingInterventionSites(this, { requesterRole });
-  }
-
-  createPendingInterventionSite(payload) {
-    return interventionDomain.createPendingInterventionSite(this, payload);
-  }
-
-  listPendingInterventionIntervenants({ requesterRole }) {
-    return interventionDomain.listPendingInterventionIntervenants(this, { requesterRole });
-  }
-
-  createPendingInterventionIntervenant(payload) {
-    return interventionDomain.createPendingInterventionIntervenant(this, payload);
-  }
-
-  resolvePendingInterventionSite(payload) {
-    return interventionDomain.resolvePendingInterventionSite(this, payload);
-  }
-
-  resolvePendingInterventionIntervenant(payload) {
-    return interventionDomain.resolvePendingInterventionIntervenant(this, payload);
-  }
-
-  deletePendingInterventionSite(payload) {
-    return interventionDomain.deletePendingInterventionSite(this, payload);
-  }
-
-  deletePendingInterventionIntervenant(payload) {
-    return interventionDomain.deletePendingInterventionIntervenant(this, payload);
-  }
-
-  // --- Rondes ---
-
-  listRondes({ requesterRole }) {
-    return rondeDomain.listRondes(this, { requesterRole });
-  }
-
-  autoCloseExpiredExceptionalRondes(options) {
-    return rondeDomain.autoCloseExpiredExceptionalRondes(this, options);
-  }
-
-  createRondeEntry(payload) {
-    return rondeDomain.createRonde(this, payload);
-  }
-
-  updateRondeEntry(payload) {
-    return rondeDomain.updateRonde(this, payload);
-  }
-
-  setRondeStatus(payload) {
-    return rondeDomain.setRondeStatus(this, payload);
-  }
-
-  updateRondeBatchSharedFields(payload) {
-    return rondeDomain.updateRondeBatchSharedFields(this, payload);
-  }
-
-  bulkCancelRondeBatch(payload) {
-    return rondeDomain.bulkCancelRondeBatch(this, payload);
-  }
-
-  bulkDeleteRondeBatch(payload) {
-    return rondeDomain.bulkDeleteRondeBatch(this, payload);
-  }
-
-  listRondeMotifTypes({ requesterRole }) {
-    return rondeMotifTypesDomain.listRondeMotifTypes(this, { requesterRole });
-  }
-
-  createRondeMotifType(payload) {
-    return rondeMotifTypesDomain.createRondeMotifType(this, payload);
-  }
-
-  updateRondeMotifType(payload) {
-    return rondeMotifTypesDomain.updateRondeMotifType(this, payload);
-  }
-
-  deleteRondeMotifType(payload) {
-    return rondeMotifTypesDomain.deleteRondeMotifType(this, payload);
-  }
-
-  listRondePlannedProfiles(payload) {
-    return rondePlannedProfilesDomain.listRondePlannedProfiles(this, payload);
-  }
-
-  upsertRondePlannedProfile(payload) {
-    return rondePlannedProfilesDomain.upsertRondePlannedProfile(this, payload);
-  }
-
-  deleteRondePlannedProfile(payload) {
-    return rondePlannedProfilesDomain.deleteRondePlannedProfile(this, payload);
-  }
-
-  setRondePlannedProfilePlanningEnd(payload) {
-    return rondePlannedProfilesDomain.setRondePlannedProfilePlanningEnd(this, payload);
-  }
-
-  setRondePlannedProfileValidated(payload) {
-    return rondePlannedProfilesDomain.setRondePlannedProfileValidated(this, payload);
-  }
-
-  listHolidays(payload) {
-    return holidaysDomain.listHolidays(this, payload);
-  }
-
-  createHoliday(payload) {
-    return holidaysDomain.createHoliday(this, payload);
-  }
-
-  updateHoliday(payload) {
-    return holidaysDomain.updateHoliday(this, payload);
-  }
-
-  deleteHoliday(payload) {
-    return holidaysDomain.deleteHoliday(this, payload);
-  }
-
-  listInterventionWordExtraFields(payload) {
-    return interventionWordExtraFieldsDomain.listInterventionWordExtraFields(this, payload);
-  }
-
-  listFormVariables(payload) {
-    return formVariablesDomain.listFormVariables(this, payload);
-  }
-
-  saveFormVariables(payload) {
-    return formVariablesDomain.saveFormVariables(this, payload);
-  }
-
-  listTemplateAssignments(payload) {
-    return templateAssignmentsDomain.listTemplateAssignments(this, payload);
-  }
-
-  upsertTemplateAssignment(payload) {
-    return templateAssignmentsDomain.upsertTemplateAssignment(this, payload);
-  }
-
-  deleteTemplateAssignment(payload) {
-    return templateAssignmentsDomain.deleteTemplateAssignment(this, payload);
-  }
-
-  resolveTemplateFileForContext(payload) {
-    return templateAssignmentsDomain.resolveTemplateFileForContext(this, payload);
-  }
-
-  createMainCouranteEntry({
+  async createMainCouranteEntry({
     requesterRole,
     requesterUsername,
     id,
@@ -537,6 +748,7 @@ class UserStore {
     anomalyTypeLabel,
     information
   }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.createMainCouranteEntry(this, {
       requesterRole,
       requesterUsername,
@@ -550,7 +762,7 @@ class UserStore {
     });
   }
 
-  updateMainCouranteEntryOperator({
+  async updateMainCouranteEntryOperator({
     requesterRole,
     requesterUsername,
     id,
@@ -562,6 +774,7 @@ class UserStore {
     information,
     requesterFullName
   }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.updateMainCouranteEntryOperator(this, {
       requesterRole,
       requesterUsername,
@@ -576,7 +789,16 @@ class UserStore {
     });
   }
 
-  applyMainCouranteManagerAction({ requesterRole, requesterUsername, id, expectedUpdatedAt, managerName, managerObservation, decision }) {
+  async applyMainCouranteManagerAction({
+    requesterRole,
+    requesterUsername,
+    id,
+    expectedUpdatedAt,
+    managerName,
+    managerObservation,
+    decision
+  }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.applyMainCouranteManagerAction(this, {
       requesterRole,
       requesterUsername,
@@ -589,7 +811,8 @@ class UserStore {
     });
   }
 
-  reopenMainCouranteEntry({ requesterRole, requesterUsername, id, expectedUpdatedAt, managerName }) {
+  async reopenMainCouranteEntry({ requesterRole, requesterUsername, id, expectedUpdatedAt, managerName }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.reopenMainCouranteEntry(this, {
       requesterRole,
       requesterUsername,
@@ -600,11 +823,13 @@ class UserStore {
     });
   }
 
-  getMainCouranteUnconsultedCount({ requesterRole }) {
+  async getMainCouranteUnconsultedCount({ requesterRole }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.getMainCouranteUnconsultedCount(this, { requesterRole, role: ROLE });
   }
 
-  markMainCouranteEntryConsulted({ requesterRole, requesterUsername, id }) {
+  async markMainCouranteEntryConsulted({ requesterRole, requesterUsername, id }) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.markMainCouranteEntryConsulted(this, {
       requesterRole,
       requesterUsername,
@@ -613,49 +838,267 @@ class UserStore {
     });
   }
 
-  hasMainCouranteEntry(id) {
+  async hasMainCouranteEntry(id) {
+    await this.whenPostgresReady();
     return mainCouranteDomain.hasMainCouranteEntry(this, id);
   }
 
-  archiveMainCouranteClosedEntries({ requesterUsername, delayDays = 10 }) {
-    return archiveDomain.archiveMainCouranteClosedEntries(this, { requesterUsername, delayDays });
+  // --- Interventions (PostgreSQL only, dossier domains/intervention) ---
+
+  async listInterventions({ requesterRole }) {
+    await this.whenPostgresReady();
+    return interventionDomain.listInterventions(this, { requesterRole });
   }
 
-  // --- Gardiennage ---
+  async getInterventionOpenCount({ requesterRole }) {
+    await this.whenPostgresReady();
+    return interventionDomain.getInterventionOpenCount(this, { requesterRole });
+  }
 
-  listGardiennages({ requesterRole }) {
+  async createInterventionEntry(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.createInterventionEntry(this, payload);
+  }
+
+  async updateInterventionEntry(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.updateInterventionEntry(this, payload);
+  }
+
+  async setInterventionStatus(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.setInterventionStatus(this, payload);
+  }
+
+  async setInterventionBillingStatus(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.setInterventionBillingStatus(this, { ...payload, role: ROLE });
+  }
+
+  async listPendingInterventionSites({ requesterRole }) {
+    await this.whenPostgresReady();
+    return interventionDomain.listPendingInterventionSites(this, { requesterRole });
+  }
+
+  async createPendingInterventionSite(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.createPendingInterventionSite(this, payload);
+  }
+
+  async listPendingInterventionIntervenants({ requesterRole }) {
+    await this.whenPostgresReady();
+    return interventionDomain.listPendingInterventionIntervenants(this, { requesterRole });
+  }
+
+  async createPendingInterventionIntervenant(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.createPendingInterventionIntervenant(this, payload);
+  }
+
+  async resolvePendingInterventionSite(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.resolvePendingInterventionSite(this, payload);
+  }
+
+  async resolvePendingInterventionIntervenant(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.resolvePendingInterventionIntervenant(this, payload);
+  }
+
+  async deletePendingInterventionSite(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.deletePendingInterventionSite(this, payload);
+  }
+
+  async deletePendingInterventionIntervenant(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.deletePendingInterventionIntervenant(this, payload);
+  }
+
+  async listInterventionWordExtraFields(payload) {
+    await this.whenPostgresReady();
+    return interventionDomain.listInterventionWordExtraFields(this, payload);
+  }
+
+  // --- Rondes (PostgreSQL only, dossier domains/ronde) ---
+
+  async listRondes({ requesterRole }) {
+    await this.whenPostgresReady();
+    return rondeDomain.listRondes(this, { requesterRole });
+  }
+
+  async autoCloseExpiredExceptionalRondes(options) {
+    await this.whenPostgresReady();
+    return rondeDomain.autoCloseExpiredExceptionalRondes(this, options);
+  }
+
+  async createRondeEntry(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.createRonde(this, payload);
+  }
+
+  async updateRondeEntry(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.updateRonde(this, payload);
+  }
+
+  async setRondeStatus(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.setRondeStatus(this, payload);
+  }
+
+  async updateRondeBatchSharedFields(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.updateRondeBatchSharedFields(this, payload);
+  }
+
+  async bulkCancelRondeBatch(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.bulkCancelRondeBatch(this, payload);
+  }
+
+  async bulkDeleteRondeBatch(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.bulkDeleteRondeBatch(this, payload);
+  }
+
+  listRondeMotifTypes({ requesterRole }) {
+    return rondeMotifTypesDomain.listRondeMotifTypes(this, { requesterRole });
+  }
+
+  async createRondeMotifType(payload) {
+    await this.whenPostgresReady();
+    return rondeMotifTypesDomain.createRondeMotifType(this, payload);
+  }
+
+  async updateRondeMotifType(payload) {
+    await this.whenPostgresReady();
+    return rondeMotifTypesDomain.updateRondeMotifType(this, payload);
+  }
+
+  async deleteRondeMotifType(payload) {
+    await this.whenPostgresReady();
+    return rondeMotifTypesDomain.deleteRondeMotifType(this, payload);
+  }
+
+  async listRondePlannedProfiles(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.listRondePlannedProfiles(this, payload);
+  }
+
+  async upsertRondePlannedProfile(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.upsertRondePlannedProfile(this, payload);
+  }
+
+  async deleteRondePlannedProfile(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.deleteRondePlannedProfile(this, payload);
+  }
+
+  async setRondePlannedProfilePlanningEnd(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.setRondePlannedProfilePlanningEnd(this, payload);
+  }
+
+  async setRondePlannedProfileValidated(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.setRondePlannedProfileValidated(this, payload);
+  }
+
+  listHolidays(payload) {
+    return holidaysDomain.listHolidays(this, payload);
+  }
+
+  async createHoliday(payload) {
+    await this.whenPostgresReady();
+    return holidaysDomain.createHoliday(this, payload);
+  }
+
+  async updateHoliday(payload) {
+    await this.whenPostgresReady();
+    return holidaysDomain.updateHoliday(this, payload);
+  }
+
+  async deleteHoliday(payload) {
+    await this.whenPostgresReady();
+    return holidaysDomain.deleteHoliday(this, payload);
+  }
+
+  async listFormVariables(payload) {
+    await this.whenPostgresReady();
+    return formVariablesDomain.listFormVariables(this, payload);
+  }
+
+  async saveFormVariables(payload) {
+    await this.whenPostgresReady();
+    return formVariablesDomain.saveFormVariables(this, payload);
+  }
+
+  async listTemplateAssignments(payload) {
+    await this.whenPostgresReady();
+    return templateAssignmentsDomain.listTemplateAssignments(this, payload);
+  }
+
+  async upsertTemplateAssignment(payload) {
+    await this.whenPostgresReady();
+    return templateAssignmentsDomain.upsertTemplateAssignment(this, payload);
+  }
+
+  async deleteTemplateAssignment(payload) {
+    await this.whenPostgresReady();
+    return templateAssignmentsDomain.deleteTemplateAssignment(this, payload);
+  }
+
+  async resolveTemplateFileForContext(payload) {
+    await this.whenPostgresReady();
+    return templateAssignmentsDomain.resolveTemplateFileForContext(this, payload);
+  }
+
+  // --- Gardiennage (PostgreSQL only, dossier domains/gardiennage) ---
+
+  async listGardiennages({ requesterRole }) {
+    await this.whenPostgresReady();
     return gardiennageDomain.listGardiennages(this, { requesterRole });
   }
 
-  extendOpenEndedGardiennageHorizons(options) {
+  async extendOpenEndedGardiennageHorizons(options) {
+    await this.whenPostgresReady();
     return gardiennageDomain.extendOpenEndedGardiennageHorizons(this, options);
   }
 
-  autoCloseExpiredGardiennages(options) {
+  async autoCloseExpiredGardiennages(options) {
+    await this.whenPostgresReady();
     return gardiennageDomain.autoCloseExpiredGardiennageEntries(this, options);
   }
 
-  createGardiennage(payload) {
+  async createGardiennage(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.createGardiennage(this, payload);
   }
 
-  updateGardiennage(payload) {
+  async updateGardiennage(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.updateGardiennage(this, payload);
   }
 
-  setGardiennageStatus(payload) {
+  async setGardiennageStatus(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.setGardiennageStatus(this, payload);
   }
 
-  closeGardiennage(payload) {
+  async closeGardiennage(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.closeGardiennage(this, payload);
   }
 
-  reopenGardiennage(payload) {
+  async reopenGardiennage(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.reopenGardiennage(this, payload);
   }
 
-  deleteGardiennage(payload) {
+  async deleteGardiennage(payload) {
+    await this.whenPostgresReady();
     return gardiennageDomain.deleteGardiennage(this, payload);
   }
 }

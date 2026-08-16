@@ -1,4 +1,4 @@
-/** Rubrique d’accueil : sidebar, navigation, accessibilité, états writer. */
+/** Rubrique d’accueil : sidebar, navigation, accessibilité, badge DB. */
 export function HelpWelcomeTopic() {
   return (
     <article className="help-center-article">
@@ -102,42 +102,35 @@ export function HelpWelcomeTopic() {
       </div>
 
       <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">🩺 Indicateurs techniques et synchronisation</h3>
+        <h3 className="help-center-card-title">🩺 Indicateurs techniques</h3>
         <p className="muted">
-          Placées au bas de la sidebar, trois pastilles de couleur résument la santé de votre poste et de sa connectivité réseau. Elles disposent
-          toutes d&apos;une description textuelle complète au survol et via des balises d&apos;accessibilité (<code>aria-label</code>) :
+          Placée au bas de la sidebar, la pastille <strong>DB</strong> résume la disponibilité de PostgreSQL depuis votre poste. Elle dispose d&apos;une
+          description textuelle au survol et via des balises d&apos;accessibilité (<code>aria-label</code>) :
         </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>DB (base de données) :</strong> indique si la base de données SQLite partagée est accessible en écriture depuis votre poste (
-            <em>accessible / inaccessible</em>).
+            <strong>DB accessible :</strong> le serveur PostgreSQL répond et les écritures métier peuvent être enregistrées.
           </li>
           <li>
-            <strong>Master :</strong> indique la disponibilité sur le réseau local du poste de synchronisation principal (<em>writer Master</em>).
-          </li>
-          <li>
-            <strong>Backup :</strong> indique la disponibilité du poste de synchronisation de secours (<em>writer Backup</em>).
+            <strong>DB inaccessible :</strong> coupure réseau ou service PostgreSQL indisponible — l&apos;enregistrement est impossible jusqu&apos;au
+            retour du service. Vos saisies à l&apos;écran ne sont pas effacées automatiquement.
           </li>
         </ul>
-        <h4 className="help-center-subsection-title">Code couleur et file d&apos;attente</h4>
+        <h4 className="help-center-subsection-title">Code couleur</h4>
         <ul className="muted help-center-list">
           <li>
-            <strong>Vert :</strong> état nominal et favorable.
+            <strong>Vert :</strong> base joignable.
           </li>
           <li>
-            <strong>Rouge :</strong> dysfonctionnement ou coupure réseau.
+            <strong>Rouge :</strong> base injoignable.
           </li>
           <li>
-            <strong>Neutre :</strong> état inconnu (en cours de détection).
-          </li>
-          <li>
-            <strong>Indicateur « Queue » :</strong> chiffre indiquant le nombre d&apos;écritures en attente de synchronisation vers le serveur.
+            <strong>Neutre :</strong> état en cours de détection.
           </li>
         </ul>
         <div className="help-center-callout help-center-callout--warn" role="note">
-          <strong>Mode dégradé :</strong> en cas de voyants rouges ou de file d&apos;attente (<em>Queue</em>) élevée, vos saisies restent généralement
-          conservées localement sur le poste pour éviter les pertes de données. En cas de blocage prolongé, consultez l&apos;aide{" "}
-          <em>Gestion base de données</em> et vérifiez le <em>Journal des actions</em>.
+          <strong>Indisponibilité :</strong> en cas de voyant rouge, vérifiez le serveur PostgreSQL et le réseau local, puis consultez l&apos;aide{" "}
+          <em>Gestion base de données</em> et le <em>Journal des actions</em> / logs techniques si besoin.
         </div>
       </div>
 
@@ -183,8 +176,8 @@ export function HelpWelcomeTopic() {
           </li>
           <li>
             <strong>Double codage des données :</strong> les informations importantes ne reposent <strong>jamais uniquement sur la couleur</strong>.
-            L&apos;état des pastilles techniques et le nombre d&apos;alertes sont systématiquement doublés par du texte accessible (via le survol, les
-            lecteurs d&apos;écran et la ligne textuelle <em>Queue</em>).
+            L&apos;état des pastilles techniques et le nombre d&apos;alertes sont systématiquement doublés par du texte accessible (via le survol et les
+            lecteurs d&apos;écran).
           </li>
           <li>
             <strong>Structure sémantique :</strong> pour les utilisateurs de lecteurs d&apos;écran, le bloc de navigation centrale est explicitement

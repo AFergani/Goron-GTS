@@ -39,7 +39,6 @@ export type InterventionEntry = {
   linkedRondeId: string | null;
   /** ID du gardiennage lié (lookup inversé depuis `gardiennage_entries.intervention_id`). */
   linkedGardiennageId: string | null;
-  syncState?: "PENDING_QUEUE";
 };
 
 export type InterventionSavePayload = {

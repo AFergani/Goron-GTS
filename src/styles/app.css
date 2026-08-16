@@ -54,6 +54,35 @@
   max-width: 420px;
 }
 
+.postgres-bootstrap-panel.login-panel {
+  max-width: 560px;
+}
+
+.login-submit-busy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-spinner {
+  animation: login-spin 0.85s linear infinite;
+}
+
+.login-status {
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+@keyframes login-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .form {
   display: grid;
   gap: 12px;
@@ -279,16 +308,6 @@
   border-color: rgba(240, 112, 112, 0.58);
 }
 
-.writer-status-alert {
-  border: 1px solid rgba(255, 192, 105, 0.65);
-  border-radius: 999px;
-  padding: 6px 10px;
-  text-align: center;
-  font-size: 12px;
-  color: #ffd296;
-  background: rgba(133, 73, 0, 0.34);
-}
-
 .user-badge {
   background: #17345e;
   border: 1px solid #2f568a;
@@ -299,6 +318,43 @@
   color: #e9f1fb;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* Colonne présence multi-postes (liste utilisateurs) */
+.users-table__col-presence {
+  width: 5.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.user-presence-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  vertical-align: middle;
+}
+
+.user-presence-dot--online {
+  background: #22c55e;
+  border-color: rgba(134, 227, 168, 0.75);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+}
+
+.user-presence-dot--offline {
+  background: #6b7280;
+  border-color: rgba(156, 163, 175, 0.55);
+}
+
+[data-theme="light"] .user-presence-dot--online {
+  background: #16a34a;
+  border-color: rgba(22, 163, 74, 0.55);
+}
+
+[data-theme="light"] .user-presence-dot--offline {
+  background: #9ca3af;
+  border-color: rgba(107, 114, 128, 0.45);
 }
 
 .sidebar-today {
@@ -344,54 +400,30 @@
   line-height: 1;
 }
 
-.sidebar-writer-health {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 8px;
-  width: 100%;
+/** Pastille discrète état PostgreSQL (à gauche des icônes footer). */
+.sidebar-db-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  margin-right: 2px;
+  border: 1px solid transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
-.writer-health-chip {
-  border: 1px solid;
-  border-radius: 999px;
-  padding: 4px 6px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 600;
-  background: #17345e;
-  min-width: 0;
-  white-space: nowrap;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sidebar-db-dot.ok {
+  background: #3dba8a;
+  border-color: rgba(134, 227, 200, 0.7);
 }
 
-.writer-health-chip.ok {
-  color: #86e3c8;
-  background: rgba(15, 97, 72, 0.26);
-  border-color: rgba(98, 224, 184, 0.55);
+.sidebar-db-dot.ko {
+  background: #d45454;
+  border-color: rgba(255, 179, 179, 0.65);
 }
 
-.writer-health-chip.ko {
-  color: #ffb3b3;
-  background: rgba(156, 31, 31, 0.24);
-  border-color: rgba(240, 112, 112, 0.58);
-}
-
-.writer-health-chip.unknown {
-  color: #cde0ff;
-  background: rgba(23, 52, 94, 0.7);
-  border-color: rgba(159, 188, 230, 0.45);
-}
-
-.writer-queue-counter {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #cde0ff;
-  text-align: center;
-  line-height: 1.25;
-  overflow-wrap: break-word;
+.sidebar-db-dot.unknown {
+  background: #6b849e;
+  border-color: rgba(205, 224, 255, 0.35);
 }
 
 /* Style aligné sur les sous-onglets (.tab) : fond discret, indicateur actif à droite */
@@ -685,6 +717,71 @@ th {
   margin-bottom: 14px;
 }
 
+/* Panne PostgreSQL : overlay non dismissible + cadre rouge clignotant */
+.modal-overlay--pg-offline {
+  z-index: 1200;
+  background: rgba(12, 8, 10, 0.72);
+  cursor: default;
+}
+
+.pg-offline-modal {
+  max-width: 540px;
+  border: 2px solid #d45454;
+  background: color-mix(in srgb, var(--panel, #1a2230) 88%, #5a1820);
+  box-shadow: 0 0 0 1px rgba(212, 84, 84, 0.35), 0 16px 48px rgba(0, 0, 0, 0.45);
+  animation: pg-offline-pulse 1.35s ease-in-out infinite;
+}
+
+.pg-offline-modal h3 {
+  color: #ffb4b4;
+  margin-top: 0;
+}
+
+.pg-offline-modal__message {
+  color: var(--text, #e8eef8);
+  margin-bottom: 10px;
+}
+
+.pg-offline-modal__hint {
+  margin-bottom: 16px;
+}
+
+.pg-offline-modal__actions {
+  justify-content: flex-end;
+}
+
+@keyframes pg-offline-pulse {
+  0%,
+  100% {
+    border-color: #d45454;
+    box-shadow: 0 0 0 1px rgba(212, 84, 84, 0.35), 0 16px 48px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 3px rgba(255, 90, 90, 0.55), 0 16px 48px rgba(120, 20, 30, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-offline-modal {
+    animation: none;
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 2px rgba(255, 90, 90, 0.5), 0 16px 48px rgba(0, 0, 0, 0.45);
+  }
+}
+
+[data-theme="light"] .pg-offline-modal {
+  background: color-mix(in srgb, #fff 86%, #f8d0d0);
+}
+
+[data-theme="light"] .pg-offline-modal h3 {
+  color: #a11f1f;
+}
+
+[data-theme="light"] .modal-overlay--pg-offline {
+  background: rgba(40, 20, 24, 0.45);
+}
+
 .app-exit-choice-modal {
   max-width: min(720px, calc(100vw - 32px));
 }
@@ -791,6 +888,13 @@ th {
   flex-wrap: wrap;
 }
 
+.db-section-title {
+  margin: 18px 0 6px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
 .credential-card {
   background: rgba(41, 201, 154, 0.1);
   border: 1px solid rgba(41, 201, 154, 0.28);
@@ -877,6 +981,59 @@ th {
   align-items: center;
 }
 
+/* Journal d'actions / logs techniques : colonnes stables (pas de décalage à l'ouverture du détail). */
+.audit-logs-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.audit-logs-table .audit-col-date {
+  width: 13rem;
+}
+
+.audit-logs-table .audit-col-actor {
+  width: 7rem;
+}
+
+.audit-logs-table .audit-col-family {
+  width: 7.25rem;
+}
+
+.audit-logs-table .audit-col-data {
+  width: auto;
+}
+
+.audit-logs-table .audit-col-status {
+  width: 3.25rem;
+}
+
+.audit-logs-table--tech .audit-col-family {
+  width: 7.5rem;
+}
+
+.audit-logs-table th,
+.audit-logs-table td {
+  vertical-align: top;
+}
+
+.audit-logs-table .audit-cell-date,
+.audit-logs-table .audit-cell-actor,
+.audit-logs-table .audit-cell-family {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audit-logs-table .audit-cell-status {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.audit-logs-table .audit-cell-data {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .audit-page-badge {
   display: inline-flex;
   align-items: center;
@@ -916,8 +1073,98 @@ th {
   border-color: rgba(201, 212, 229, 0.42);
 }
 
+.audit-page-badge--postgres {
+  color: #9ec5ff;
+  background: rgba(49, 99, 180, 0.28);
+  border-color: rgba(158, 197, 255, 0.45);
+}
+
 .audit-action-text {
   color: var(--text);
+}
+
+.audit-import-details {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 52rem;
+  white-space: normal;
+}
+
+.audit-action-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.audit-action-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.audit-action-main--import {
+  align-items: flex-start;
+}
+
+.audit-voir-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(158, 197, 255, 0.45);
+  background: rgba(31, 95, 207, 0.18);
+  color: #9ec5ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.audit-voir-detail-btn:hover {
+  background: rgba(31, 95, 207, 0.28);
+}
+
+.audit-voir-detail-btn:focus-visible {
+  outline: 2px solid rgba(158, 197, 255, 0.8);
+  outline-offset: 2px;
+}
+
+[data-theme="light"] .audit-voir-detail-btn {
+  color: #1f4f9c;
+  border-color: rgba(49, 99, 180, 0.35);
+  background: rgba(49, 99, 180, 0.1);
+}
+
+.audit-import-error-list {
+  margin: 0 0 0 30px;
+  padding: 6px 10px;
+  list-style: disc;
+  border-radius: 8px;
+  border: 1px solid rgba(240, 112, 112, 0.35);
+  background: rgba(156, 31, 31, 0.12);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.audit-import-error-list li + li {
+  margin-top: 4px;
+}
+
+.audit-import-error-row {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+[data-theme="light"] .audit-import-error-list {
+  border-color: rgba(152, 31, 31, 0.28);
+  background: rgba(152, 31, 31, 0.06);
 }
 
 .audit-status-check {
@@ -1072,6 +1319,12 @@ th {
   color: #3b567b;
   background: rgba(113, 136, 170, 0.16);
   border-color: rgba(88, 112, 146, 0.34);
+}
+
+[data-theme="light"] .audit-page-badge--postgres {
+  color: #1f4f9c;
+  background: rgba(49, 99, 180, 0.14);
+  border-color: rgba(49, 99, 180, 0.32);
 }
 
 [data-theme="light"] .audit-status-check--ok {
@@ -3884,14 +4137,6 @@ fieldset.ronde-planned-weekdays {
   .data-form-row {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
-
-  .sidebar-writer-health {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .writer-health-chip {
-    min-width: 0;
-  }
 }
 
 @media (max-width: 1080px) {
@@ -4448,10 +4693,6 @@ fieldset.ronde-planned-weekdays {
   .sidebar-footer-inline {
     justify-content: flex-start;
     flex-wrap: wrap;
-  }
-
-  .writer-health-chip {
-    white-space: normal;
   }
 
   .main-log-stats {

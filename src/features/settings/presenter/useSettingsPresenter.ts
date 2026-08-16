@@ -1,13 +1,14 @@
 /**
- * Presenter Paramètres : utilisateurs, RBAC, référentiels, BDD, archives, audit, writer.
+ * Presenter Paramètres : utilisateurs, RBAC, référentiels, BDD PostgreSQL, audit.
  *
  * Orchestration IPC via `gtsApiClient`. ~1400 lignes — découpage futur si besoin.
  */
 
 import { FormEvent, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
-import { gtsApiClient, type ArchiveStatus, type DatabaseItem } from "../../../infrastructure/api/gtsApiClient";
+import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState, DataTab, SettingsTab } from "../model/settings.types";
+import { getDefaultPageAccessByRole } from "../model/settings.types";
 import type { AnomalyTypeRef, AuditLog, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef, User } from "../../../types";
 import type { PendingInterventionSite } from "../../intervention/model/intervention.types";
 import type { PendingInterventionIntervenant } from "../../intervention/model/intervention.types";
@@ -17,22 +18,12 @@ import type {
   RondePlannedProfileRef
 } from "../../rondes/model/rondePlanned.types";
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
-import type { WriterConfigDraft } from "../components/WriterConfigGeneratorPanel";
+import type { PostgresBusyPhase, PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
 
 function getErrorMessage(err: unknown, fallback: string) {
   if (!(err instanceof Error)) return fallback;
   return err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim() || fallback;
-}
-
-function formatArchiveReason(reason?: string) {
-  const normalized = String(reason || "").trim().toLowerCase();
-  if (!normalized) return "Archivage refusé.";
-  if (normalized === "db_not_configured") return "Archivage refusé : aucune base active n'est configurée.";
-  if (normalized === "already_on_current_quarter") return "Archivage refusé : le trimestre courant est déjà archivé.";
-  if (normalized === "q1_keeps_primary_db") return "Archivage refusé : le trimestre courant conserve la base principale.";
-  if (normalized === "queue_smb_unavailable") return "Archivage refusé : file SMB indisponible.";
-  return `Archivage refusé : ${reason}`;
 }
 
 const defaultConfirmDialog: ConfirmDialogState = {
@@ -65,29 +56,26 @@ function canEditPageAccess(session: Session) {
   return role === "RESPONSABLE" && (managerProfile === "DIRECTEUR_STATION" || managerProfile === "RESPONSABLE_STATION");
 }
 
-function getDefaultPageAccessByRole(role: "RESPONSABLE" | "OPERATEUR") {
-  if (role === "RESPONSABLE") {
-    return { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: true, gardiennage: true };
-  }
-  return { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: false, gardiennage: true };
-}
-
 export function useSettingsPresenter({
   session,
   onError,
   onInfo,
   onToast,
-  onCredentialsReady
+  onCredentialsReady,
+  onSessionUserPatch
 }: {
   session: Session;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
   onToast: (message: string) => void;
   onCredentialsReady: (value: { username: string; temporaryPassword: string } | null) => void;
+  /** Met à jour le badge sidebar si l'utilisateur connecté modifie son propre nom affiché. */
+  onSessionUserPatch?: (patch: Partial<Session["user"]>) => void;
 }) {
   const [users, setUsers] = useState<User[]>([]);
   const [activeUsernames, setActiveUsernames] = useState<string[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [techErrorLogs, setTechErrorLogs] = useState<TechErrorLog[]>([]);
   const [auditMetadata, setAuditMetadata] = useState<{ firstOccurredAt: string | null; lastOccurredAt: string | null; total: number }>({
     firstOccurredAt: null,
     lastOccurredAt: null,
@@ -112,7 +100,7 @@ export function useSettingsPresenter({
     role: "OPERATEUR",
     managerProfile: "SUPERVISEUR",
     mustResetPassword: false,
-    pageAccess: { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: false, gardiennage: true }
+    pageAccess: getDefaultPageAccessByRole("OPERATEUR")
   });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(defaultConfirmDialog);
   const [confirmReason, setConfirmReason] = useState("");
@@ -126,28 +114,25 @@ export function useSettingsPresenter({
     confirmReasonRef.current = value;
     setConfirmReason(value);
   }, []);
-  const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
-  const [dbPath, setDbPath] = useState<string>("");
   const [dbWritable, setDbWritable] = useState<boolean>(false);
-  const [databaseItems, setDatabaseItems] = useState<DatabaseItem[]>([]);
-  const [activeDatabasePath, setActiveDatabasePath] = useState<string | null>(null);
-  const [archiveStatus, setArchiveStatus] = useState<ArchiveStatus | null>(null);
-  const [writerConfigDraft, setWriterConfigDraft] = useState<WriterConfigDraft>({
-    serviceSubnet: "192.168.111.0/24",
-    heartbeatIntervalMs: 3000,
-    writerTimeoutMs: 15000,
-    retryIntervalMs: 5000,
-    master: { hostname: "", host: "", port: 4711, whoami: "" },
-    backup: { hostname: "", host: "", port: 4811, whoami: "" }
+  const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
+  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>({
+    host: "127.0.0.1",
+    port: 5432,
+    database: "goron_gts",
+    user: "goron_gts_app",
+    password: ""
   });
-
+  const [postgresTestResult, setPostgresTestResult] = useState<PostgresTestResult | null>(null);
+  const [postgresBusyPhase, setPostgresBusyPhase] = useState<PostgresBusyPhase>("idle");
+  const postgresBusy = postgresBusyPhase !== "idle";
   const resetUserForm = useCallback(() => {
     setCreateForm({
       username: "",
       role: "OPERATEUR",
       managerProfile: "SUPERVISEUR",
       mustResetPassword: false,
-      pageAccess: { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: false, gardiennage: true }
+      pageAccess: getDefaultPageAccessByRole("OPERATEUR")
     });
   }, []);
 
@@ -162,21 +147,6 @@ export function useSettingsPresenter({
     return role === "RESPONSABLE" || role === "DEV";
   }, [session]);
   const canManageData = useMemo(() => Boolean(session), [session]);
-  const hasArchiveSourceActive = useMemo(() => Boolean(archiveStatus?.archiveSession?.active), [archiveStatus]);
-  const archiveOpenedBy = useMemo(() => archiveStatus?.archiveSession?.openedBy || null, [archiveStatus]);
-
-  useEffect(() => {
-    const initDbConfig = async () => {
-      try {
-        const cfg = await gtsApiClient.getDbConfig();
-        setDbConfigured(cfg.configured);
-        setDbPath(cfg.dbPath || "");
-      } catch {
-        setDbConfigured(false);
-      }
-    };
-    void initDbConfig();
-  }, []);
 
   useEffect(() => {
     const loadDbHealth = async () => {
@@ -194,200 +164,101 @@ export function useSettingsPresenter({
     return () => clearInterval(timer);
   }, []);
 
-  const onChooseDbPath = useCallback(async () => {
-    onError("");
+  const loadPostgresConfig = useCallback(async () => {
+    if (!session || !canFullStationAdminUsers(session)) return;
     try {
-      const result = await gtsApiClient.chooseDbPath();
-      setDbConfigured(result.configured);
-      setDbPath(result.dbPath || "");
-      const health = await gtsApiClient.getDbHealth();
-      setDbWritable(Boolean(health.configured && health.writable));
-      try {
-        const dbList = await gtsApiClient.listDatabases();
-        setDatabaseItems(dbList.items);
-        setActiveDatabasePath(dbList.activeDbPath);
-        if (dbList.archiveSession) {
-          setArchiveStatus((prev) => (prev ? { ...prev, archiveSession: dbList.archiveSession } : prev));
-        }
-      } catch {
-        // Ignore refresh error after choosing DB.
-      }
-      if (!result.canceled && result.configured) {
-        onToast("Emplacement de base de données enregistré.");
+      const cfg = await gtsApiClient.getPostgresConfig();
+      setPostgresConfig(cfg);
+      setPostgresDraft({
+        host: cfg.host,
+        port: cfg.port,
+        database: cfg.database,
+        user: cfg.user,
+        password: ""
+      });
+    } catch (err) {
+      onError(getErrorMessage(err, "Impossible de charger la configuration PostgreSQL."));
+    }
+  }, [onError, session]);
+
+  const onSavePostgresConfig = useCallback(async () => {
+    if (!session || postgresBusyPhase !== "idle") return;
+    onError("");
+    setPostgresBusyPhase("saving");
+    setPostgresTestResult(null);
+    try {
+      const result = await gtsApiClient.savePostgresConfig({
+        requesterRole: session.user.role,
+        requesterUsername: session.user.username,
+        host: postgresDraft.host,
+        port: postgresDraft.port,
+        database: postgresDraft.database,
+        user: postgresDraft.user,
+        password: postgresDraft.password
+      });
+      setPostgresConfig(result.config);
+      setPostgresDraft((prev) => ({ ...prev, password: "" }));
+      if (result.reconnect?.reachable) {
+        onToast("Configuration PostgreSQL enregistrée. Connexion OK.");
+      } else {
+        onToast(
+          `Configuration enregistrée, mais reconnexion incomplète${result.reconnect?.error ? ` : ${result.reconnect.error}` : "."}`
+        );
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible de sélectionner la base de données."));
+      onError(getErrorMessage(err, "Impossible d'enregistrer la configuration PostgreSQL."));
+    } finally {
+      setPostgresBusyPhase("idle");
     }
-  }, [onError, onToast]);
+  }, [onError, onToast, postgresBusyPhase, postgresDraft, session]);
 
-  const loadDatabaseList = useCallback(async () => {
+  const onTestPostgresConfig = useCallback(async () => {
+    if (!session || postgresBusyPhase !== "idle") return;
     onError("");
+    setPostgresBusyPhase("testing");
     try {
-      const dbList = await gtsApiClient.listDatabases();
-      setDatabaseItems(dbList.items);
-      setActiveDatabasePath(dbList.activeDbPath);
-      if (dbList.archiveSession) {
-        setArchiveStatus((prev) => ({
-          ...(prev || {
-            lastLogicalRunAt: null,
-            lastLogicalResult: null,
-            lastQuarterRotationAt: null,
-            lastQuarterFrom: null,
-            lastQuarterTo: null,
-            lastError: null,
-            pendingJobs: 0,
-            delayDays: 10,
-            schedulerIntervalMs: 0,
-            quarterKey: "",
-            dbPath: dbList.activeDbPath || null
-          }),
-          archiveSession: dbList.archiveSession,
-          dbPath: dbList.activeDbPath || null
-        }));
-      }
-      if (dbList.activeDbPath) {
-        setDbPath(dbList.activeDbPath);
+      const result = await gtsApiClient.testPostgresConfig({
+        requesterRole: session.user.role,
+        requesterUsername: session.user.username,
+        host: postgresDraft.host,
+        port: postgresDraft.port,
+        database: postgresDraft.database,
+        user: postgresDraft.user,
+        password: postgresDraft.password
+      });
+      setPostgresTestResult(result);
+      if (result.reachable) {
+        onToast("Test PostgreSQL réussi.");
+      } else {
+        onError(result.error || "Connexion PostgreSQL impossible.");
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des bases de données."));
+      onError(getErrorMessage(err, "Échec du test PostgreSQL."));
+    } finally {
+      setPostgresBusyPhase("idle");
     }
-  }, [onError]);
+  }, [onError, onToast, postgresBusyPhase, postgresDraft, session]);
 
-  const loadArchiveStatus = useCallback(async () => {
+  const onReconnectPostgres = useCallback(async () => {
+    if (!session || postgresBusyPhase !== "idle") return;
     onError("");
+    setPostgresBusyPhase("reconnecting");
     try {
-      const status = await gtsApiClient.getArchiveStatus();
-      setArchiveStatus(status);
-    } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement du statut d'archivage."));
-    }
-  }, [onError]);
-
-  const onSwitchDatabase = useCallback(
-    async (nextDbPath: string) => {
-      if (!session) return;
-      onError("");
-      try {
-        const switchResult = await gtsApiClient.switchDatabase({
-          dbPath: nextDbPath,
-          requesterRole: session.user.role,
-          requesterUsername: session.user.username
-        });
-        const [cfg, health] = await Promise.all([gtsApiClient.getDbConfig(), gtsApiClient.getDbHealth()]);
-        setDbConfigured(cfg.configured);
-        setDbPath(cfg.dbPath || "");
-        setDbWritable(Boolean(health.configured && health.writable));
-        await Promise.all([loadDatabaseList(), loadArchiveStatus()]);
-        if (switchResult.restoredFromArchive) {
-          onToast(
-            `Archive restaurée en base active. Source: ${switchResult.sourceDbPath || nextDbPath} -> Active: ${cfg.dbPath || "inconnue"}`
-          );
-        } else {
-          onToast(`Base active changée : ${cfg.dbPath || "inconnue"}`);
-        }
-      } catch (err) {
-        onError(getErrorMessage(err, "Impossible de basculer vers cette base."));
-      }
-    },
-    [loadArchiveStatus, loadDatabaseList, onError, onToast, session]
-  );
-
-  const onRunArchiveNow = useCallback(async () => {
-    if (!session) return;
-    onError("");
-    try {
-      const result = await gtsApiClient.runArchiveNow({
+      const result = await gtsApiClient.reconnectPostgres({
         requesterRole: session.user.role,
         requesterUsername: session.user.username
       });
-      if (result.skipped) {
-        onError(formatArchiveReason(result.reason));
-        return;
-      }
-      if (result.queued) {
-        onToast("Archivage mis en file d'attente.");
+      if (result.reachable) {
+        onToast("PostgreSQL reconnecté.");
       } else {
-        const rotation = result.rotation as { rotated?: boolean; reason?: string } | undefined;
-        if (rotation && rotation.rotated === false) {
-          onToast(`Archivage exécuté : ${formatArchiveReason(rotation.reason).replace("Archivage refusé : ", "")}`);
-        } else {
-          onToast("Archivage lancé.");
-        }
+        onError(result.error || "Reconnexion PostgreSQL impossible.");
       }
-      await loadArchiveStatus();
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible de lancer l'archivage."));
+      onError(getErrorMessage(err, "Reconnexion PostgreSQL impossible."));
+    } finally {
+      setPostgresBusyPhase("idle");
     }
-  }, [loadArchiveStatus, onError, onToast, session]);
-
-  const onRestoreLocalActiveDb = useCallback(async () => {
-    if (!dbPath) {
-      onError("Base active locale introuvable.");
-      return;
-    }
-    await onSwitchDatabase(dbPath);
-  }, [dbPath, onError, onSwitchDatabase]);
-
-  useEffect(() => {
-    void loadDatabaseList();
-  }, [loadDatabaseList]);
-
-  useEffect(() => {
-    void loadArchiveStatus();
-  }, [loadArchiveStatus]);
-
-  const onOpenWriterLogFolder = useCallback(async () => {
-    onError("");
-    try {
-      const result = await gtsApiClient.openWriterLogFolder();
-      if (!result.success) {
-        onError(result.error || "Impossible d'ouvrir le dossier des logs writer.");
-        return;
-      }
-      onToast("Dossier des logs writer ouvert.");
-    } catch (err) {
-      onError(getErrorMessage(err, "Impossible d'ouvrir le dossier des logs writer."));
-    }
-  }, [onError, onToast]);
-
-  const onPrefillWriterNode = useCallback(
-    async (target: "master" | "backup") => {
-      onError("");
-      try {
-        const local = await gtsApiClient.getLocalNodeIdentity();
-        setWriterConfigDraft((prev) => ({
-          ...prev,
-          [target]: {
-            ...prev[target],
-            hostname: local.hostname,
-            host: local.host,
-            whoami: local.whoami
-          }
-        }));
-        onToast(`Champs ${target === "master" ? "Master" : "Backup"} préremplis avec le poste local.`);
-      } catch (err) {
-        onError(getErrorMessage(err, "Impossible de lire les informations du poste local."));
-      }
-    },
-    [onError, onToast]
-  );
-
-  const onGenerateWriterConfig = useCallback(async () => {
-    onError("");
-    try {
-      const result = await gtsApiClient.generateWriterConfig({
-        ...writerConfigDraft,
-        defaultProfile: "production",
-        forceIPv4: true,
-        failoverEnabled: true
-      });
-      if (result.canceled) return;
-      onToast(`Configuration writer générée: ${result.filePath || "chemin inconnu"}`);
-      await loadDatabaseList();
-    } catch (err) {
-      onError(getErrorMessage(err, "Impossible de générer la configuration writer."));
-    }
-  }, [loadDatabaseList, onError, onToast, writerConfigDraft]);
+  }, [onError, onToast, postgresBusyPhase, session]);
 
   const loadUsers = useCallback(async () => {
     if (!session) return;
@@ -457,6 +328,20 @@ export function useSettingsPresenter({
       setAuditMetadata(metadata);
     } catch (err) {
       onError(getErrorMessage(err, "Erreur de chargement du journal."));
+    }
+  }, [onError, session]);
+
+  const loadTechErrorLogs = useCallback(async () => {
+    if (!session) return;
+    try {
+      const rows = await gtsApiClient.listTechErrorLogs({
+        requesterRole: session.user.role,
+        requesterUsername: session.user.username,
+        limit: 500
+      });
+      setTechErrorLogs(rows);
+    } catch (err) {
+      onError(getErrorMessage(err, "Erreur de chargement des logs techniques."));
     }
   }, [onError, session]);
 
@@ -601,28 +486,25 @@ export function useSettingsPresenter({
     }
 
     if (activeSettingsTab === "database") {
-      void loadDatabaseList();
-      void loadArchiveStatus();
-      const timer = setInterval(() => {
-        void loadDatabaseList();
-        void loadArchiveStatus();
-      }, refreshMs);
-      return () => clearInterval(timer);
+      void loadPostgresConfig();
+      return;
     }
 
     if (activeSettingsTab === "audit") {
       if (!canManageUsers) return;
       void loadAuditLogs();
+      void loadTechErrorLogs();
       const timer = setInterval(() => {
         void loadAuditLogs();
+        void loadTechErrorLogs();
       }, refreshMs);
       return () => clearInterval(timer);
     }
   }, [
     activeSettingsTab,
-    loadArchiveStatus,
     loadAuditLogs,
-    loadDatabaseList,
+    loadTechErrorLogs,
+    loadPostgresConfig,
     loadDataSection,
     loadUsers,
     session,
@@ -677,6 +559,17 @@ export function useSettingsPresenter({
           mustResetPassword: createForm.mustResetPassword
         });
         onToast("Utilisateur modifié.");
+        if (
+          editingTechnicalUsername === session.user.username &&
+          typeof onSessionUserPatch === "function"
+        ) {
+          onSessionUserPatch({
+            fullName: result.fullName || createForm.username,
+            role: createForm.role,
+            managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
+            pageAccess: payloadPageAccess
+          });
+        }
         if (result.temporaryPassword) {
           onCredentialsReady({ username: createForm.username, temporaryPassword: result.temporaryPassword });
         }
@@ -1426,16 +1319,15 @@ export function useSettingsPresenter({
     setConfirmDialog(defaultConfirmDialog);
     setActiveSettingsTab("operators");
     setActiveDataTab("sites");
-    setDatabaseItems([]);
-    setActiveDatabasePath(null);
-    setArchiveStatus(null);
     onCredentialsReady(null);
+    setTechErrorLogs([]);
   };
 
   return {
     users,
     activeUsernames,
     auditLogs,
+    techErrorLogs,
     auditMetadata,
     sites,
     intervenants,
@@ -1466,6 +1358,7 @@ export function useSettingsPresenter({
     onUnlockUser,
     loadUsers,
     loadAuditLogs,
+    loadTechErrorLogs,
     onExportAuditLogs,
     loadDataSection,
     canManageUsers,
@@ -1477,25 +1370,17 @@ export function useSettingsPresenter({
     confirmDialog,
     closeConfirmDialog,
     handleConfirmDialog,
-    onChooseDbPath,
-    onOpenWriterLogFolder,
-    writerConfigDraft,
-    setWriterConfigDraft,
-    onPrefillWriterNode,
-    onGenerateWriterConfig,
-    dbConfigured,
-    dbPath,
+    postgresConfig,
+    postgresDraft,
+    setPostgresDraft,
+    postgresTestResult,
+    postgresBusy,
+    postgresBusyPhase,
+    onSavePostgresConfig,
+    onTestPostgresConfig,
+    onReconnectPostgres,
+    loadPostgresConfig,
     dbWritable,
-    databaseItems,
-    activeDatabasePath,
-    archiveStatus,
-    hasArchiveSourceActive,
-    archiveOpenedBy,
-    loadDatabaseList,
-    loadArchiveStatus,
-    onSwitchDatabase,
-    onRunArchiveNow,
-    onRestoreLocalActiveDb,
     onQuitApp,
     onMinimizeApp,
     onQuitAppNow,

@@ -1,23 +1,26 @@
 /**
- * Page Paramètres : onglets opérateurs, données, modèles, variables, BDD, journal d’actions.
+ * Page Paramètres : onglets opérateurs, données, modèles, variables, BDD, journal
+ * (actions métier + logs techniques).
  *
- * Filtres audit paginés, droits station (directeur / superviseur). Pas d’affichage d’identifiants techniques en liste.
+ * Filtres audit paginés, droits station (directeur / responsable de station / Admin).
+ * Pas d’affichage d’identifiants techniques en liste.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
-import { CircleHelp, Download, FolderOpen, RotateCcw } from "lucide-react";
+import { CircleHelp, Download, RotateCcw } from "lucide-react";
 import { AuditTable } from "../components/AuditTable";
+import { TechErrorLogsTable } from "../components/TechErrorLogsTable";
 import { CreateUserModal } from "../components/CreateUserModal";
 import { DataManagementPanel } from "../components/DataManagementPanel";
 import { TemplatesManagementPanel } from "../components/TemplatesManagementPanel";
 import { VariablesManagementPanel } from "../components/VariablesManagementPanel";
-import { WriterConfigGeneratorPanel, type WriterConfigDraft } from "../components/WriterConfigGeneratorPanel";
+import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import type { Role } from "../../../types";
 import type { DataTab, SettingsTab } from "../model/settings.types";
-import type { ArchiveStatus, DatabaseItem } from "../../../infrastructure/api/gtsApiClient";
+import type { PublicPostgresConfig, PostgresTestResult, TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type {
   AnomalyTypeRef,
   AuditLog,
@@ -70,6 +73,7 @@ type SettingsPageProps = {
   users: User[];
   activeUsernames: string[];
   auditLogs: AuditLog[];
+  techErrorLogs: TechErrorLog[];
   auditMetadata: { firstOccurredAt: string | null; lastOccurredAt: string | null; total: number };
   sites: SiteRef[];
   intervenants: IntervenantRef[];
@@ -80,19 +84,16 @@ type SettingsPageProps = {
   fransorResponsables: FransorResponsableRef[];
   interventionPendingSites: PendingInterventionSite[];
   interventionPendingIntervenants: PendingInterventionIntervenant[];
-  databaseItems: DatabaseItem[];
-  archiveStatus: ArchiveStatus | null;
-  dbPath: string;
   currentUsername: string;
-  hasArchiveSourceActive: boolean;
-  archiveOpenedBy: string | null;
-  writerConfigDraft: WriterConfigDraft;
+  postgresConfig: PublicPostgresConfig | null;
+  postgresDraft: PostgresConfigDraft;
+  postgresTestResult: PostgresTestResult | null;
+  postgresBusy: boolean;
+  postgresBusyPhase: PostgresBusyPhase;
   onTabChange: (next: SettingsTab) => void;
   activeDataTab: DataTab;
   onDataTabChange: (next: DataTab) => void;
   onOpenCreate: () => void;
-  onChooseDbPath: () => void;
-  onOpenWriterLogFolder: () => void;
   onExportAuditLogs: (logs?: AuditLog[]) => void;
   onDeactivateUser: (user: User) => void;
   onReactivateUser: (user: User) => void;
@@ -134,14 +135,10 @@ type SettingsPageProps = {
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onNotify: (message: string) => void;
-  onRefreshDatabases: () => void;
-  onSwitchDatabase: (dbPath: string) => void;
-  onRefreshArchiveStatus: () => void;
-  onRunArchiveNow: () => void;
-  onRestoreLocalActiveDb: () => void;
-  onWriterConfigDraftChange: (next: WriterConfigDraft) => void;
-  onPrefillWriterNode: (target: "master" | "backup") => void;
-  onGenerateWriterConfig: () => void;
+  onPostgresDraftChange: (next: PostgresConfigDraft) => void;
+  onSavePostgresConfig: () => void;
+  onTestPostgresConfig: () => void;
+  onReconnectPostgres: () => void;
   onOpenHelpTopic: (topicId: HelpTopicId) => void;
   showCreateModal: boolean;
   onCloseCreateModal: () => void;
@@ -166,7 +163,6 @@ type SettingsPageProps = {
 
 export function SettingsPage(props: SettingsPageProps) {
   const [userFilter, setUserFilter] = useState<"active" | "inactive" | "all">("active");
-  const [showUserHelpModal, setShowUserHelpModal] = useState(false);
   const [auditActorFilter, setAuditActorFilter] = useState("all");
   const [auditFamilyFilter, setAuditFamilyFilter] = useState("all");
   const [auditStatusFilter, setAuditStatusFilter] = useState("all");
@@ -174,6 +170,7 @@ export function SettingsPage(props: SettingsPageProps) {
   const [auditDateFrom, setAuditDateFrom] = useState("");
   const [auditDateTo, setAuditDateTo] = useState("");
   const [auditPage, setAuditPage] = useState(1);
+  const [auditJournalSubTab, setAuditJournalSubTab] = useState<"actions" | "tech">("actions");
 
   const filteredUsers = useMemo(() => {
     if (userFilter === "all") return props.users;
@@ -283,9 +280,9 @@ export function SettingsPage(props: SettingsPageProps) {
                 <button
                   type="button"
                   className="btn-light action-icon-btn"
-                  title="Comment ça marche"
-                  aria-label="Comment ça marche"
-                  onClick={() => setShowUserHelpModal(true)}
+                  title="Aide — gestion opérateur"
+                  aria-label="Aide — gestion opérateur"
+                  onClick={() => props.onOpenHelpTopic("settings-operators")}
                 >
                   <CircleHelp size={14} />
                 </button>
@@ -326,55 +323,6 @@ export function SettingsPage(props: SettingsPageProps) {
               onUnlockUser={props.onUnlockUser}
               onRequestPasswordReset={props.onRequestPasswordReset}
             />
-            {showUserHelpModal && (
-              <div className="modal-overlay" onClick={() => setShowUserHelpModal(false)}>
-                <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
-                  <div className="row">
-                    <h3>Comment créer un utilisateur</h3>
-                  </div>
-                  <p className="muted">
-                    Cette modale explique le flux complet pour créer un utilisateur et lui attribuer le bon profil métier.
-                  </p>
-                  <h4>Étapes de création (A à Z)</h4>
-                  <ol className="muted">
-                    <li>Clique sur le bouton <strong>Créer</strong> dans la section « Liste des utilisateurs ».</li>
-                    <li>Renseigne le <strong>Nom affiché</strong> (nom visible dans l’application).</li>
-                    <li>
-                      Choisis le <strong>Rôle technique</strong> :
-                      <br />- <strong>Opérateur</strong> : saisie/consultation selon droits.
-                      <br />- <strong>Responsable</strong> : fonctions de pilotage selon profil.
-                    </li>
-                    <li>
-                      Si le rôle est <strong>Responsable</strong>, sélectionne le <strong>Profil métier</strong> :
-                      <br />- <strong>Superviseur</strong>
-                      <br />- <strong>Responsable de station</strong>
-                      <br />- <strong>Directeur de station</strong>
-                    </li>
-                    <li>
-                      Configure les <strong>vues autorisées</strong> (si ton propre profil te donne ce droit), puis valide avec
-                      <strong> Créer l&apos;utilisateur</strong>.
-                    </li>
-                    <li>
-                      Le système génère un <strong>mot de passe temporaire</strong> : communique-le à l’utilisateur pour sa première connexion.
-                    </li>
-                    <li>
-                      À la première connexion, l’utilisateur doit définir son mot de passe personnel.
-                    </li>
-                  </ol>
-                  <h4>Modification d’un utilisateur existant</h4>
-                  <ul className="muted">
-                    <li>Utilise le bouton <strong>Modifier</strong> sur la ligne concernée.</li>
-                    <li>Tu peux changer le nom, le rôle, le profil métier et les accès pages (selon droits).</li>
-                    <li>Tu peux aussi cocher la demande de réinitialisation de mot de passe.</li>
-                  </ul>
-                  <div className="row-actions modal-actions">
-                    <button type="button" className="btn-light" onClick={() => setShowUserHelpModal(false)}>
-                      Fermer
-                    </button>
-                  </div>
-                </section>
-              </div>
-            )}
           </section>
         </>
       )}
@@ -424,6 +372,32 @@ export function SettingsPage(props: SettingsPageProps) {
 
       {activeTab === "audit" && props.canManageUsers && (
         <section className="panel">
+          <div className="row">
+            <h3>Journal</h3>
+            <div className="user-filter-bar" role="tablist" aria-label="Type de journal">
+              <button
+                type="button"
+                className={auditJournalSubTab === "actions" ? "tab active" : "tab"}
+                role="tab"
+                aria-selected={auditJournalSubTab === "actions"}
+                onClick={() => setAuditJournalSubTab("actions")}
+              >
+                Actions métier
+              </button>
+              <button
+                type="button"
+                className={auditJournalSubTab === "tech" ? "tab active" : "tab"}
+                role="tab"
+                aria-selected={auditJournalSubTab === "tech"}
+                onClick={() => setAuditJournalSubTab("tech")}
+              >
+                Logs techniques
+              </button>
+            </div>
+          </div>
+
+          {auditJournalSubTab === "actions" ? (
+            <>
           <div className="row">
             <h3>Journal des actions</h3>
             <span className="muted">
@@ -491,15 +465,6 @@ export function SettingsPage(props: SettingsPageProps) {
               <button
                 type="button"
                 className="btn-light action-icon-btn audit-reset-icon-btn"
-                title="Ouvrir le dossier des logs writer"
-                aria-label="Ouvrir le dossier des logs writer"
-                onClick={props.onOpenWriterLogFolder}
-              >
-                <FolderOpen size={14} />
-              </button>
-              <button
-                type="button"
-                className="btn-light action-icon-btn audit-reset-icon-btn"
                 title="Exporter le journal en Excel"
                 aria-label="Exporter le journal en Excel"
                 onClick={() => props.onExportAuditLogs(filteredAuditLogs)}
@@ -549,6 +514,17 @@ export function SettingsPage(props: SettingsPageProps) {
               </button>
             </div>
           </div>
+            </>
+          ) : (
+            <>
+              <p className="muted">
+                Événements techniques (ex. perte / reconnexion PostgreSQL labo). Hors actions métier.
+                {" "}
+                ({props.techErrorLogs.length} entrée(s) chargée(s))
+              </p>
+              <TechErrorLogsTable logs={props.techErrorLogs} />
+            </>
+          )}
         </section>
       )}
 
@@ -628,83 +604,25 @@ export function SettingsPage(props: SettingsPageProps) {
               >
                 <CircleHelp size={14} />
               </button>
-              <button className="btn-light" onClick={props.onRefreshDatabases}>
-                Rafraîchir les bases
-              </button>
-              <button className="btn-light" onClick={props.onRefreshArchiveStatus}>
-                Rafraîchir l&apos;archivage
-              </button>
-              <button onClick={props.onRunArchiveNow}>Lancer archivage maintenant</button>
             </div>
           </div>
-          <div className="db-box">
-            <span className="muted">DB active: {props.dbPath || "Non configurée"}</span>
-            {props.hasArchiveSourceActive && props.archiveOpenedBy ? (
-              <span className="muted">Base de données ouverte sur : {props.archiveOpenedBy}</span>
-            ) : null}
-            <button className="btn-light" onClick={props.onChooseDbPath}>
-              Changer emplacement DB
-            </button>
-          </div>
-          <div className="db-box">
-            <span className="muted">
-              Dernier archivage:{" "}
-              {props.archiveStatus?.lastLogicalRunAt ? new Date(props.archiveStatus.lastLogicalRunAt).toLocaleString("fr-FR") : "Jamais"}
-            </span>
-            <span className="muted">Jobs en file d&apos;attente: {props.archiveStatus?.pendingJobs ?? 0}</span>
-            <span className="muted">Dernière erreur: {props.archiveStatus?.lastError || "-"}</span>
-          </div>
-          <div className="table-scroll-x">
-            <table className="data-table-fixed data-table-sites">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Chemin</th>
-                  <th>Dernière modification</th>
-                  <th>Statut</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {props.databaseItems.map((item) => (
-                  <tr key={item.path}>
-                    <td>{item.name}</td>
-                    <td>{item.path}</td>
-                    <td>{new Date(item.lastModifiedAt).toLocaleString("fr-FR")}</td>
-                    <td>{item.isActive ? "Active" : item.isSourceActive ? "Archive source active" : "Archive consultable"}</td>
-                    <td>
-                      {item.isSourceActive && props.hasArchiveSourceActive && props.archiveOpenedBy === props.currentUsername ? (
-                        <button className="btn-light" onClick={props.onRestoreLocalActiveDb}>
-                          Revenir à la base active locale
-                        </button>
-                      ) : item.isActive || item.isSourceActive ? (
-                        <span className="muted">Utilisée</span>
-                      ) : props.hasArchiveSourceActive && props.archiveOpenedBy !== props.currentUsername ? (
-                        <span className="muted">Lecture seule</span>
-                      ) : (
-                        <button className="btn-light" onClick={() => props.onSwitchDatabase(item.path)}>
-                          Basculer sur cette base
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {!props.databaseItems.length && (
-                  <tr>
-                    <td colSpan={5} className="muted">
-                      Aucune base détectée.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <WriterConfigGeneratorPanel
-            draft={props.writerConfigDraft}
-            onChange={props.onWriterConfigDraftChange}
-            onPrefillNode={props.onPrefillWriterNode}
-            onGenerate={props.onGenerateWriterConfig}
-          />
+
+          {props.canManageUsers ? (
+            <PostgresConnectionPanel
+              config={props.postgresConfig}
+              draft={props.postgresDraft}
+              onDraftChange={props.onPostgresDraftChange}
+              onSave={props.onSavePostgresConfig}
+              onTest={props.onTestPostgresConfig}
+              onReconnect={props.onReconnectPostgres}
+              testResult={props.postgresTestResult}
+              busyPhase={props.postgresBusyPhase}
+            />
+          ) : (
+            <p className="muted">
+              La configuration PostgreSQL est réservée au directeur de station, responsable de station ou profil Admin.
+            </p>
+          )}
         </section>
       )}
 

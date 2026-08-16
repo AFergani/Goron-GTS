@@ -7,6 +7,7 @@
 
 import type { FormEvent } from "react";
 import type { PasswordUpdateFormState } from "../model/auth.types";
+import { PasswordInput } from "../../common/components/PasswordInput";
 import logoGts from "../../../assets/logo-gts.png";
 
 type FirstLoginModalProps = {
@@ -42,20 +43,22 @@ export function FirstLoginModal({
         <form onSubmit={onSubmit} className="form">
           <label title="6 caractères minimum, sans contrainte de complexité">
             Nouveau mot de passe
-            <input
-              type="password"
+            <PasswordInput
               value={form.newPassword}
-              onChange={(e) => onChange({ ...form, newPassword: e.target.value })}
+              onChange={(newPassword) => onChange({ ...form, newPassword })}
               required
+              autoComplete="new-password"
+              aria-label="Nouveau mot de passe"
             />
           </label>
           <label>
             Confirmer le mot de passe
-            <input
-              type="password"
+            <PasswordInput
               value={form.confirmPassword}
-              onChange={(e) => onChange({ ...form, confirmPassword: e.target.value })}
+              onChange={(confirmPassword) => onChange({ ...form, confirmPassword })}
               required
+              autoComplete="new-password"
+              aria-label="Confirmer le mot de passe"
             />
           </label>
           <div className="validation-box">

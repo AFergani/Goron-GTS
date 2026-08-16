@@ -46,57 +46,42 @@ import type { GardiennageEntry, GardiennageSavePayload } from "../../features/ga
 
 export type DbConfig = { configured: boolean; dbPath: string | null; isDev?: boolean };
 export type DbHealth = { configured: boolean; writable: boolean };
-export type WriterQueueStats = { available: boolean; incoming: number; processing: number; ack: number };
-export type WriterNodeIdentity = { hostname: string; host: string; whoami: string };
-export type WriterStatus = {
-  enabled: boolean;
-  role: "master" | "backup" | "client" | "disabled";
-  transportMode?: "http" | "smb_queue" | string;
-  configPath: string | null;
-  sharedRoot?: string | null;
-  policy: string | null;
-  masterHost: string | null;
-  masterPort: number | null;
-  backupHost: string | null;
-  backupPort: number | null;
-  failoverEnabled: boolean;
-  connectivity: {
-    masterReachable: boolean | null;
-    backupReachable: boolean | null;
-  };
-  alertActive: boolean;
-  localHostname: string;
-  localWhoami: string;
-  writerLogDir?: string;
-  writerLogFile?: string;
+export type TechErrorLog = {
+  occurredAt: string;
+  source: string;
+  code: string;
+  codeLabel: string;
+  messageFr: string;
+  details: Record<string, unknown> | null;
 };
-export type ArchiveStatus = {
-  lastLogicalRunAt: string | null;
-  lastLogicalResult: unknown;
-  lastQuarterRotationAt: string | null;
-  lastQuarterFrom: string | null;
-  lastQuarterTo: string | null;
-  lastError: string | null;
-  pendingJobs: number;
-  lastArchiveBatchAt?: string | null;
-  archiveSession?: {
-    active: boolean;
-    openedBy: string | null;
-    openedAt: string | null;
-    sourceDbPath: string | null;
-    activeDbPath: string | null;
-  } | null;
-  delayDays: number;
-  schedulerIntervalMs: number;
-  quarterKey: string;
-  dbPath: string | null;
+export type PostgresLabHealth = {
+  reachable: boolean;
+  engine: "postgres";
+  host: string;
+  port: number;
+  database: string;
+  error: string | null;
+  checkedAt: string;
+  /** Transition détectée par la sonde (perte / reconnexion) — absent si non fourni. */
+  transition?: "none" | "lost" | "restored" | "unavailable_at_start";
 };
-export type DatabaseItem = {
-  path: string;
-  name: string;
-  isActive: boolean;
-  isSourceActive?: boolean;
-  lastModifiedAt: string;
+export type PublicPostgresConfig = {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  hasPassword: boolean;
+  source: "env" | "encrypted" | "defaults";
+  encryptionAvailable: boolean;
+  envOverridesActive: boolean;
+};
+export type PostgresTestResult = {
+  reachable: boolean;
+  host: string;
+  port: number;
+  database: string;
+  error: string | null;
+  checkedAt: string;
 };
 
 let gtsSessionToken: string | null = null;
@@ -154,62 +139,10 @@ export const gtsApiClient = {
   getDbConfig(): Promise<DbConfig> {
     return window.gtsApi.getDbConfig(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
   },
-  getArchiveStatus(): Promise<ArchiveStatus> {
-    return window.gtsApi.getArchiveStatus(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
-  },
-  listDatabases(): Promise<{
-    activeDbPath: string | null;
-    sourceDbPath?: string | null;
-    archiveSession?: ArchiveStatus["archiveSession"];
-    items: DatabaseItem[];
-  }> {
-    return window.gtsApi.listDatabases(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
-  },
-  switchDatabase(payload: { dbPath: string; requesterRole: Role; requesterUsername: string }): Promise<{
-    success: boolean;
-    activeDbPath: string;
-    sourceDbPath?: string;
-    restoredFromArchive?: boolean;
-  }> {
-    return window.gtsApi.switchDatabase(withSession(payload));
-  },
-  runArchiveNow(payload: { requesterRole: Role; requesterUsername: string }): Promise<{
-    rotation?: unknown;
-    logical?: unknown;
-    queued?: boolean;
-    requestId?: string;
-    skipped?: boolean;
-    reason?: string;
-  }> {
-    return window.gtsApi.runArchiveNow(withSession(payload));
-  },
-  getWriterStatus(): Promise<WriterStatus> {
-    return auth(() => window.gtsApi.getWriterStatus(withSessionOnly()));
-  },
-  getWriterQueueStats(): Promise<WriterQueueStats> {
-    return auth(() => window.gtsApi.getWriterQueueStats(withSessionOnly()));
-  },
   setDevToolsEnabled(enabled: boolean): Promise<{ success: boolean; enabled: boolean }> {
     return window.gtsApi.setDevToolsEnabled(
       gtsSessionToken ? { enabled, sessionToken: gtsSessionToken } : { enabled }
     );
-  },
-  getLocalNodeIdentity(): Promise<WriterNodeIdentity> {
-    return window.gtsApi.getLocalNodeIdentity(withSessionOnly());
-  },
-  generateWriterConfig(payload: {
-    defaultProfile?: "production" | "development";
-    serviceSubnet?: string;
-    forceIPv4?: boolean;
-    failoverEnabled?: boolean;
-    heartbeatIntervalMs?: number;
-    writerTimeoutMs?: number;
-    retryIntervalMs?: number;
-    outputPath?: string;
-    master: { hostname: string; host: string; port: number; whoami: string };
-    backup: { hostname: string; host: string; port: number; whoami: string };
-  }): Promise<{ success: boolean; canceled: boolean; filePath: string | null }> {
-    return window.gtsApi.generateWriterConfig(withSession(payload));
   },
   getDocumentTemplate(templateName: string): Promise<{ found: boolean; dataBase64: string | null; sourcePath: string | null }> {
     return window.gtsApi.getDocumentTemplate(withSession({ templateName }));
@@ -291,11 +224,70 @@ export const gtsApiClient = {
   openTemplatesFolder(): Promise<{ success: boolean; path: string | null; error: string | null }> {
     return window.gtsApi.openTemplatesFolder(withSessionOnly());
   },
-  openWriterLogFolder(): Promise<{ success: boolean; path: string; error: string | null }> {
-    return window.gtsApi.openWriterLogFolder(withSessionOnly());
-  },
   getDbHealth(): Promise<DbHealth> {
     return window.gtsApi.getDbHealth(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
+  },
+  /** Badge : PostgreSQL joignable ? */
+  getPostgresLabHealth(): Promise<PostgresLabHealth> {
+    return window.gtsApi.getPostgresLabHealth(withSessionOnly());
+  },
+  /** Premier paramétrage PG (sans session) — avant login si aucune config connue. */
+  getPostgresBootstrapStatus(): Promise<{ needsSetup: boolean; config: PublicPostgresConfig }> {
+    return window.gtsApi.getPostgresBootstrapStatus();
+  },
+  savePostgresBootstrapConfig(payload: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password?: string;
+  }): Promise<{
+    success: boolean;
+    config: PublicPostgresConfig;
+    reconnect: { success: boolean; reachable: boolean; error: string | null };
+  }> {
+    return window.gtsApi.savePostgresBootstrapConfig(payload);
+  },
+  testPostgresBootstrapConfig(payload: {
+    host?: string;
+    port?: number;
+    database?: string;
+    user?: string;
+    password?: string;
+  }): Promise<PostgresTestResult> {
+    return window.gtsApi.testPostgresBootstrapConfig(payload);
+  },
+  getPostgresConfig(): Promise<PublicPostgresConfig> {
+    return auth(() => window.gtsApi.getPostgresConfig(withSessionOnly()));
+  },
+  savePostgresConfig(payload: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password?: string;
+    requesterRole: Role;
+    requesterUsername: string;
+  }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: { success: boolean; reachable: boolean; error: string | null } }> {
+    return auth(() => window.gtsApi.savePostgresConfig(withSession(payload)));
+  },
+  testPostgresConfig(payload: {
+    host?: string;
+    port?: number;
+    database?: string;
+    user?: string;
+    password?: string;
+    requesterRole: Role;
+    requesterUsername: string;
+  }): Promise<PostgresTestResult> {
+    return auth(() => window.gtsApi.testPostgresConfig(withSession(payload)));
+  },
+  reconnectPostgres(payload: { requesterRole: Role; requesterUsername: string }): Promise<{
+    success: boolean;
+    reachable: boolean;
+    error: string | null;
+  }> {
+    return auth(() => window.gtsApi.reconnectPostgres(withSession(payload)));
   },
   quitApp(): Promise<{ success: boolean }> {
     // Pas de session requise (écran de connexion, croix fenêtre) : action locale.
@@ -303,10 +295,6 @@ export const gtsApiClient = {
   },
   minimizeApp(): Promise<{ success: boolean }> {
     return window.gtsApi.minimizeApp();
-  },
-  /** Utilise le jeton IPC courant (mis à jour à la connexion) pour éviter une closure obsolète dans les presenters. */
-  chooseDbPath(): Promise<{ configured: boolean; dbPath: string | null; canceled: boolean }> {
-    return window.gtsApi.chooseDbPath(gtsSessionToken ?? null);
   },
   login(payload: LoginPayload): Promise<{ user: User; sessionToken: string }> {
     return window.gtsApi.login(payload);
@@ -326,6 +314,10 @@ export const gtsApiClient = {
   },
   getActiveSessions(): Promise<{ activeUsernames: string[] }> {
     return auth(() => window.gtsApi.getActiveSessions(withSession({})));
+  },
+  /** Heartbeat présence multi-postes (PostgreSQL). */
+  touchPresence(): Promise<{ written: boolean }> {
+    return auth(() => window.gtsApi.touchPresence(withSession({})));
   },
   setAdminCode(payload: { requesterRole: Role; requesterUsername: string; code: string }): Promise<{ success: boolean }> {
     return auth(() => window.gtsApi.setAdminCode(withSession(payload)));
@@ -353,7 +345,7 @@ export const gtsApiClient = {
     managerProfile: ManagerProfile | null;
     pageAccess: PageAccess;
     mustResetPassword: boolean;
-  }): Promise<{ success: boolean; temporaryPassword: string | null }> {
+  }): Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }> {
     return window.gtsApi.updateUserProfile(withSession(payload));
   },
   deactivateUser(payload: {
@@ -381,6 +373,13 @@ export const gtsApiClient = {
     total: number;
   }> {
     return window.gtsApi.getAuditMetadata(withSession(payload));
+  },
+  listTechErrorLogs(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    limit?: number;
+  }): Promise<TechErrorLog[]> {
+    return window.gtsApi.listTechErrorLogs(withSession(payload));
   },
   logBulkImportAudit(payload: {
     requesterRole: Role;

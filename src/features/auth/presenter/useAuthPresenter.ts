@@ -38,6 +38,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
     newPassword: "",
     confirmPassword: ""
   });
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const isPasswordLongEnough = passwordUpdateForm.newPassword.length >= 6;
   const isPasswordConfirmed = useMemo(
@@ -47,7 +48,9 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
 
   const onLogin = async (e: FormEvent) => {
     e.preventDefault();
+    if (isLoggingIn) return;
     onError("");
+    setIsLoggingIn(true);
     try {
       const result = await gtsApiClient.login(loginForm);
       if (result.user.mustChangePassword) {
@@ -65,6 +68,8 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
         return;
       }
       onError(getErrorMessage(err, "Erreur de connexion."));
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -109,6 +114,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
     loginForm,
     setLoginForm,
     onLogin,
+    isLoggingIn,
     showPasswordUpdateModal,
     showLockedDialog,
     setShowLockedDialog,

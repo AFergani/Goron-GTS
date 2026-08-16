@@ -1,9 +1,10 @@
 /**
- * Icône de zone de notification (tray) pour les postes writer Master ou Backup.
- * Permet de masquer la fenêtre principale tout en gardant l'application active (minimize → hide + tray).
+ * Icône de zone de notification (tray) — optionnelle, désactivée en V1 PostgreSQL.
  *
- * Instancié dans `main.js` ; utilisé par `windowService.js`, `writerRuntime.js` (refresh après bascule rôle)
- * et `ipcSystemHandlers.js` (`system:minimizeApp`).
+ * Le mode « rester en arrière-plan » (Master/Backup writer) n'existe plus :
+ * `shouldEnableTrayBackgroundMode` renvoie toujours `false`.
+ *
+ * Instancié dans `main.js` ; utilisé par `windowService.js` et `ipcSystemHandlers.js` (`system:minimizeApp`).
  */
 
 const { resolveAppIconPath } = require("./resolveAppIconPath");
@@ -17,9 +18,8 @@ const { resolveAppIconPath } = require("./resolveAppIconPath");
  * @param {typeof import('electron').Tray} deps.Tray - Constructeur icône tray.
  * @param {typeof import('electron').Menu} deps.Menu - Menu contextuel tray.
  * @param {string} deps.iconDirname - Répertoire des assets (`__dirname` de main).
- * @param {() => object} deps.getWriterRuntime - Rôle writer courant (`master` | `backup` | `client`).
  * @param {() => import('electron').BrowserWindow|null} deps.getMainWindow - Fenêtre principale à afficher/masquer.
- * @param {(value: boolean) => void} deps.setIsAppQuitting - Flag pour quitter proprement (évite minimize→tray au shutdown).
+ * @param {(value: boolean) => void} deps.setIsAppQuitting - Flag pour quitter proprement.
  * @returns {{
  *   shouldEnableTrayBackgroundMode: () => boolean,
  *   ensureAppTray: () => import('electron').Tray,
@@ -28,19 +28,16 @@ const { resolveAppIconPath } = require("./resolveAppIconPath");
  * }}
  */
 function createTrayService(deps) {
-  const { path, app, Tray, Menu, iconDirname, getWriterRuntime, getMainWindow, setIsAppQuitting } = deps;
+  const { path, app, Tray, Menu, iconDirname, getMainWindow, setIsAppQuitting } = deps;
   let appTray = null;
 
   /**
-   * Indique si le mode « application en arrière-plan via tray » doit être actif.
-   *
-   * Uniquement lorsque le writer est activé et que le poste est Master ou Backup (pas les clients).
+   * Mode tray arrière-plan : désactivé (plus de writer Master/Backup).
    *
    * @returns {boolean}
    */
   function shouldEnableTrayBackgroundMode() {
-    const writerRuntime = getWriterRuntime();
-    return writerRuntime.enabled && (writerRuntime.role === "master" || writerRuntime.role === "backup");
+    return false;
   }
 
   /**
@@ -70,17 +67,13 @@ function createTrayService(deps) {
   }
 
   /**
-   * Met à jour l'infobulle et le menu contextuel selon le rôle writer (Master / Backup / Client).
+   * Met à jour l'infobulle et le menu contextuel.
    *
-   * Entrées : « Ouvrir Goron GTS », « Quitter » (pose `isAppQuitting` avant `app.quit()`).
-   *
-   * @returns {void} No-op si le tray n'a pas encore été créé.
+   * @returns {void}
    */
   function refreshTrayMenu() {
     if (!appTray) return;
-    const writerRuntime = getWriterRuntime();
-    const roleLabel = writerRuntime.role === "master" ? "Master" : writerRuntime.role === "backup" ? "Backup" : "Client";
-    appTray.setToolTip(`Goron GTS - Writer ${roleLabel}`);
+    appTray.setToolTip("Goron GTS");
     const menu = Menu.buildFromTemplate([
       {
         label: "Ouvrir Goron GTS",
@@ -104,8 +97,6 @@ function createTrayService(deps) {
 
   /**
    * Active ou désactive le tray selon `shouldEnableTrayBackgroundMode`.
-   *
-   * Si le mode n'est plus requis (ex. client writer), détruit l'icône tray existante.
    *
    * @returns {void}
    */

@@ -2,6 +2,8 @@
  * Tableau journal d’actions (libellés référencés, détails avant/après, dates fr-FR).
  */
 
+import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { AuditLog } from "../../../types";
 import { formatAuditActionLabelOrUnknown } from "../model/auditActionLabels";
 
@@ -173,12 +175,191 @@ function getAuditActionText(log: AuditLog): string {
   const details = (log.details || {}) as { fileName?: unknown };
   if (log.action === "DATA_IMPORT_BATCH_RESULT" || log.action === "DATA_IMPORT_BATCH_ERROR_SUMMARY") {
     const fileName = String(details.fileName || "").trim();
-    if (fileName) {
-      const suffix = log.action === "DATA_IMPORT_BATCH_RESULT" ? "résumé des réussites" : "résumé des erreurs";
-      return `Import en masse: ${fileName} — ${suffix}`;
-    }
+    if (fileName) return `Import en masse: ${fileName}`;
   }
   return baseLabel;
+}
+
+type ImportBatchErrorEntry = {
+  rowIndex: number;
+  message: string;
+  /** Contenu utile de la ligne refusée (ex. code + nom site). */
+  rowSummary?: string;
+};
+
+type ImportBatchDetails = {
+  target: string;
+  fileName: string;
+  total: number;
+  success: number;
+  failed: number;
+  topErrors: ImportBatchErrorEntry[];
+};
+
+/**
+ * Lit une entrée d'erreur d'import depuis les détails d'audit.
+ *
+ * @param {{ rowIndex?: unknown; message?: unknown; rowSummary?: unknown }} entry
+ * @returns {ImportBatchErrorEntry}
+ */
+function mapImportErrorEntry(entry: {
+  rowIndex?: unknown;
+  message?: unknown;
+  rowSummary?: unknown;
+}): ImportBatchErrorEntry {
+  const rowSummary = String(entry?.rowSummary || "").trim();
+  return {
+    rowIndex: Number(entry?.rowIndex) || 0,
+    message: String(entry?.message || "Erreur inconnue").trim(),
+    ...(rowSummary ? { rowSummary } : {})
+  };
+}
+
+type AuditDisplayRow =
+  | { kind: "single"; key: string; log: AuditLog }
+  | {
+      kind: "import";
+      key: string;
+      occurredAt: string;
+      actorUsername: string;
+      resultLog: AuditLog;
+      errorLog: AuditLog | null;
+      batch: ImportBatchDetails;
+    };
+
+function readImportBatchFromLogs(resultLog: AuditLog, errorLog: AuditLog | null): ImportBatchDetails {
+  const resultDetails = (resultLog.details || {}) as {
+    target?: unknown;
+    fileName?: unknown;
+    total?: unknown;
+    success?: unknown;
+    failed?: unknown;
+  };
+  const errorDetails = (errorLog?.details || {}) as {
+    topErrors?: Array<{ rowIndex?: unknown; message?: unknown; rowSummary?: unknown }>;
+    failed?: unknown;
+    errorCount?: unknown;
+  };
+  const topErrors = Array.isArray(errorDetails.topErrors)
+    ? errorDetails.topErrors.map((entry) => mapImportErrorEntry(entry))
+    : [];
+  return {
+    target: String(resultDetails.target || ""),
+    fileName: String(resultDetails.fileName || "").trim() || "fichier",
+    total: Number(resultDetails.total) || 0,
+    success: Number(resultDetails.success) || 0,
+    failed: Number(resultDetails.failed ?? errorDetails.failed ?? errorDetails.errorCount) || 0,
+    topErrors
+  };
+}
+
+function getImportPairKey(log: AuditLog): string {
+  const details = (log.details || {}) as { fileName?: unknown; target?: unknown };
+  return `${String(log.actorUsername || "")}|${String(details.target || "")}|${String(details.fileName || "")}`;
+}
+
+/**
+ * Regroupe résultat + résumé d'erreurs d'un même import en une seule ligne d'affichage.
+ * Les écritures audit restent 2 lignes en base (règle projet) ; seule l'UI est fusionnée.
+ */
+function buildAuditDisplayRows(logs: AuditLog[]): AuditDisplayRow[] {
+  const consumed = new Set<number>();
+  const rows: AuditDisplayRow[] = [];
+
+  for (let i = 0; i < logs.length; i += 1) {
+    if (consumed.has(i)) continue;
+    const log = logs[i];
+    const isImportResult = log.action === "DATA_IMPORT_BATCH_RESULT";
+    const isImportError = log.action === "DATA_IMPORT_BATCH_ERROR_SUMMARY";
+
+    if (!isImportResult && !isImportError) {
+      rows.push({ kind: "single", key: `single-${log.occurredAt}-${i}`, log });
+      continue;
+    }
+
+    const pairKey = getImportPairKey(log);
+    let resultIdx = isImportResult ? i : -1;
+    let errorIdx = isImportError ? i : -1;
+
+    for (let j = 0; j < logs.length; j += 1) {
+      if (j === i || consumed.has(j)) continue;
+      const other = logs[j];
+      if (getImportPairKey(other) !== pairKey) continue;
+      if (isImportResult && other.action === "DATA_IMPORT_BATCH_ERROR_SUMMARY") {
+        errorIdx = j;
+        break;
+      }
+      if (isImportError && other.action === "DATA_IMPORT_BATCH_RESULT") {
+        resultIdx = j;
+        break;
+      }
+    }
+
+    if (resultIdx < 0) {
+      // Entrée erreurs orpheline : afficher quand même une ligne synthétique.
+      const orphan = logs[i];
+      const details = (orphan.details || {}) as {
+        target?: unknown;
+        fileName?: unknown;
+        total?: unknown;
+        failed?: unknown;
+        errorCount?: unknown;
+        topErrors?: Array<{ rowIndex?: unknown; message?: unknown; rowSummary?: unknown }>;
+      };
+      const topErrors = Array.isArray(details.topErrors)
+        ? details.topErrors.map((entry) => mapImportErrorEntry(entry))
+        : [];
+      const failed = Number(details.failed ?? details.errorCount) || topErrors.length;
+      rows.push({
+        kind: "import",
+        key: `import-orphan-${orphan.occurredAt}-${i}`,
+        occurredAt: orphan.occurredAt,
+        actorUsername: orphan.actorUsername,
+        resultLog: orphan,
+        errorLog: orphan,
+        batch: {
+          target: String(details.target || ""),
+          fileName: String(details.fileName || "").trim() || "fichier",
+          total: Number(details.total) || failed,
+          success: 0,
+          failed,
+          topErrors
+        }
+      });
+      consumed.add(i);
+      continue;
+    }
+
+    const resultLog = logs[resultIdx];
+    const errorLog = errorIdx >= 0 ? logs[errorIdx] : null;
+    consumed.add(resultIdx);
+    if (errorIdx >= 0) consumed.add(errorIdx);
+
+    rows.push({
+      kind: "import",
+      key: `import-${resultLog.occurredAt}-${resultIdx}`,
+      occurredAt: resultLog.occurredAt,
+      actorUsername: resultLog.actorUsername,
+      resultLog,
+      errorLog,
+      batch: readImportBatchFromLogs(resultLog, errorLog)
+    });
+  }
+
+  return rows;
+}
+
+/** Vert = tout OK ; orange = partiel ; rouge = tout refusé. */
+function getImportBatchStatusTone(batch: ImportBatchDetails): "ok" | "warn" | "error" {
+  if (batch.failed <= 0) return "ok";
+  if (batch.success > 0) return "warn";
+  return "error";
+}
+
+function getImportBatchStatusLabel(tone: "ok" | "warn" | "error"): string {
+  if (tone === "ok") return "Tout est bon";
+  if (tone === "warn") return "Ajustement / contrôle à faire — certaines créations ont été refusées";
+  return "Tout a été refusé";
 }
 
 function formatOldValuesTooltip(log: AuditLog) {
@@ -223,19 +404,22 @@ function formatOldValuesTooltip(log: AuditLog) {
       total?: unknown;
       failed?: unknown;
       errorCount?: unknown;
-      topErrors?: Array<{ rowIndex?: unknown; message?: unknown }>;
+      topErrors?: Array<{ rowIndex?: unknown; message?: unknown; rowSummary?: unknown }>;
     };
     const topErrors = Array.isArray(details.topErrors) ? details.topErrors : [];
-    const topLines = topErrors
-      .slice(0, 8)
-      .map((entry) => `- ligne ${String(entry.rowIndex ?? "-")}: ${String(entry.message || "Erreur inconnue")}`);
+    const topLines = topErrors.slice(0, 20).flatMap((entry) => {
+      const mapped = mapImportErrorEntry(entry);
+      const lines = [`- ligne ${mapped.rowIndex || "-"}: ${mapped.message}`];
+      if (mapped.rowSummary) lines.push(`  contenu refusé: ${mapped.rowSummary}`);
+      return lines;
+    });
     return [
       "Résumé des erreurs import",
       `Cible: ${String(details.target || "-")}`,
       `Fichier: ${String(details.fileName || "-")}`,
       `Total: ${String(details.total ?? 0)}`,
       `Erreurs: ${String(details.failed ?? details.errorCount ?? 0)}`,
-      ...(topLines.length ? ["Top erreurs:", ...topLines] : [])
+      ...(topLines.length ? ["Détail des erreurs:", ...topLines] : ["Aucune erreur détaillée enregistrée dans ce log."])
     ].join("\n");
   }
   if (log.action.startsWith("INTERVENTION_")) {
@@ -624,7 +808,7 @@ function formatOldValuesTooltip(log: AuditLog) {
     if (log.action === "MAIN_COURANTE_ARCHIVE_SKIP_WRITER_UNAVAILABLE") {
       return [
         "Archivage reporté",
-        `Raison: ${String(details.reason || "writer indisponible")}`
+        `Raison: ${String(details.reason || "base indisponible")}`
       ].join("\n");
     }
     return undefined;
@@ -728,8 +912,22 @@ function formatOldValuesTooltip(log: AuditLog) {
 }
 
 export function AuditTable({ logs }: { logs: AuditLog[] }) {
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const displayRows = buildAuditDisplayRows(logs);
+
+  const toggleExpanded = (key: string) => {
+    setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   return (
-    <table>
+    <table className="audit-logs-table">
+      <colgroup>
+        <col className="audit-col-date" />
+        <col className="audit-col-actor" />
+        <col className="audit-col-family" />
+        <col className="audit-col-data" />
+        <col className="audit-col-status" />
+      </colgroup>
       <thead>
         <tr>
           <th>Date</th>
@@ -740,44 +938,117 @@ export function AuditTable({ logs }: { logs: AuditLog[] }) {
         </tr>
       </thead>
       <tbody>
-        {logs.map((log, idx) => (
-          <tr key={`${log.occurredAt}-${idx}`}>
-            <td>{new Date(log.occurredAt).toLocaleString("fr-FR")}</td>
-            <td title={buildActorTooltip(log)}>{log.actorUsername}</td>
-            <td>
-              {(() => {
-                const label = formatAuditActionLabelOrUnknown(log.action);
-                const family = resolveAuditFamily(log.action, label);
-                const tone = auditFamilyBadgeTone(family);
-                return (
+        {displayRows.map((row) => {
+          if (row.kind === "import") {
+            const expanded = Boolean(expandedKeys[row.key]);
+            const canShowDetail = row.batch.failed > 0 && row.batch.topErrors.length > 0;
+            const tone = getImportBatchStatusTone(row.batch);
+            const statusLabel = getImportBatchStatusLabel(tone);
+            const statusIcon = tone === "error" ? "!" : tone === "warn" ? "…" : "✓";
+            const summary = `Total ${row.batch.total} · Succès ${row.batch.success} · Erreurs ${row.batch.failed}`;
+
+            return (
+              <tr key={row.key}>
+                <td className="audit-cell-date">{new Date(row.occurredAt).toLocaleString("fr-FR")}</td>
+                <td className="audit-cell-actor">{row.actorUsername}</td>
+                <td className="audit-cell-family">
                   <span className="audit-family-cell">
-                    <span className={`audit-page-badge audit-page-badge--${tone}`}>{family}</span>
+                    <span className="audit-page-badge audit-page-badge--data">Référentiels</span>
                   </span>
-                );
-              })()}
-            </td>
-            <td title={formatOldValuesTooltip(log)}>
-              {(() => {
-                return <span className="audit-action-text">{getAuditActionText(log)}</span>;
-              })()}
-            </td>
-            <td>
-              {(() => {
-                const tone = getAuditStatusTone(log.status);
-                const icon = tone === "error" ? "!" : tone === "warn" ? "…" : "✓";
-                return (
+                </td>
+                <td className="audit-cell-data">
+                  <div className="audit-action-cell">
+                    <div className="audit-action-main audit-action-main--import">
+                      <span className="audit-action-text">
+                        Import en masse: {row.batch.fileName}
+                        {canShowDetail ? (
+                          <button
+                            type="button"
+                            className="audit-voir-detail-btn"
+                            title={expanded ? "Masquer le détail des erreurs" : "Voir le détail des erreurs"}
+                            aria-label={expanded ? "Masquer le détail des erreurs" : "Voir le détail des erreurs"}
+                            aria-expanded={expanded}
+                            onClick={() => toggleExpanded(row.key)}
+                          >
+                            {expanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+                            <span>Voir détail</span>
+                          </button>
+                        ) : null}
+                        <br />
+                        <span className="muted audit-import-details">{summary}</span>
+                      </span>
+                    </div>
+                    {expanded && canShowDetail ? (
+                      <ul className="audit-import-error-list">
+                        {row.batch.topErrors.map((entry, lineIdx) => (
+                          <li key={`${row.key}-err-${lineIdx}`}>
+                            <div>
+                              Ligne {entry.rowIndex || "?"} : {entry.message}
+                            </div>
+                            {entry.rowSummary ? (
+                              <div className="audit-import-error-row muted">
+                                Contenu refusé : {entry.rowSummary}
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="audit-cell-status">
                   <span
                     className={`audit-status-check audit-status-check--${tone}`}
-                    title={formatAuditStatus(log.status)}
-                    aria-label={formatAuditStatus(log.status)}
+                    title={statusLabel}
+                    aria-label={statusLabel}
                   >
-                    {icon}
+                    {statusIcon}
                   </span>
-                );
-              })()}
-            </td>
-          </tr>
-        ))}
+                </td>
+              </tr>
+            );
+          }
+
+          const log = row.log;
+          return (
+            <tr key={row.key}>
+              <td className="audit-cell-date">{new Date(log.occurredAt).toLocaleString("fr-FR")}</td>
+              <td className="audit-cell-actor" title={buildActorTooltip(log)}>
+                {log.actorUsername}
+              </td>
+              <td className="audit-cell-family">
+                {(() => {
+                  const label = formatAuditActionLabelOrUnknown(log.action);
+                  const family = resolveAuditFamily(log.action, label);
+                  const badgeTone = auditFamilyBadgeTone(family);
+                  return (
+                    <span className="audit-family-cell">
+                      <span className={`audit-page-badge audit-page-badge--${badgeTone}`}>{family}</span>
+                    </span>
+                  );
+                })()}
+              </td>
+              <td className="audit-cell-data" title={formatOldValuesTooltip(log)}>
+                <span className="audit-action-text">{getAuditActionText(log)}</span>
+              </td>
+              <td className="audit-cell-status">
+                {(() => {
+                  const tone = getAuditStatusTone(log.status);
+                  const icon = tone === "error" ? "!" : tone === "warn" ? "…" : "✓";
+                  return (
+                    <span
+                      className={`audit-status-check audit-status-check--${tone}`}
+                      title={formatAuditStatus(log.status)}
+                      aria-label={formatAuditStatus(log.status)}
+                    >
+                      {icon}
+                    </span>
+                  );
+                })()}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

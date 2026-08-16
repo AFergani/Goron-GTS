@@ -185,49 +185,6 @@
   box-sizing: border-box;
 }
 
-/* Glossaire « Configuration writer » : même logique que WriterConfigGeneratorPanel, avec espacement augmenté */
-.help-center-article .writer-config-help-glossary {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(11rem, 34%) 1fr;
-  column-gap: 22px;
-  row-gap: 18px;
-  margin: 6px 0 0;
-}
-
-.help-center-article .writer-config-help-glossary dt {
-  margin: 0;
-  padding-top: 2px;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--text);
-  align-self: start;
-}
-
-.help-center-article .writer-config-help-glossary dd {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.62;
-  color: var(--text-2);
-}
-
-@media (max-width: 560px) {
-  .help-center-article .writer-config-help-glossary {
-    grid-template-columns: 1fr;
-    row-gap: 6px;
-  }
-
-  .help-center-article .writer-config-help-glossary dd {
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .help-center-article .writer-config-help-glossary dd:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-}
-
 .help-center-content-title {
   margin: 0 0 14px;
   font-size: 1.35rem;

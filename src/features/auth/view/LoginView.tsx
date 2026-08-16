@@ -1,37 +1,39 @@
 /**
  * Écran de connexion Goron-GTS (affiché sans session active dans `AppShell`).
  *
- * Vue contrôlée : formulaire nom affiché / mot de passe, choix initial de la base
- * si non configurée, dialogue compte bloqué. Handlers fournis par `useAuthPresenter`
- * et `useSettingsPresenter` (chemin DB).
+ * Vue contrôlée : formulaire nom affiché / mot de passe. La persistance métier
+ * repose sur PostgreSQL (bootstrap connexion serveur avant cet écran si besoin).
+ * Handlers : `useAuthPresenter`.
  */
 
 import type { FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import type { LoginFormState } from "../model/auth.types";
+import { PasswordInput } from "../../common/components/PasswordInput";
 import logoGts from "../../../assets/logo-gts.png";
 
 type LoginViewProps = {
   loginForm: LoginFormState;
-  /** `null` tant que la config DB n'est pas chargée ; `false` impose le choix du fichier .db */
-  dbConfigured: boolean | null;
   error: string;
   showLockedDialog: boolean;
+  /** Empêche les doubles soumissions pendant l'attente PostgreSQL / auth. */
+  isLoggingIn: boolean;
   onCloseLockedDialog: () => void;
-  onChooseDbPath: () => void;
   onLogin: (e: FormEvent) => void;
   onChange: (next: LoginFormState) => void;
 };
 
 export function LoginView({
   loginForm,
-  dbConfigured,
   error,
   showLockedDialog,
+  isLoggingIn,
   onCloseLockedDialog,
-  onChooseDbPath,
   onLogin,
   onChange
 }: LoginViewProps) {
+  const formDisabled = isLoggingIn;
+
   return (
     <main className="auth-page">
       {showLockedDialog && (
@@ -42,7 +44,8 @@ export function LoginView({
               Votre compte a été bloqué après trop de tentatives de connexion échouées.
             </p>
             <p className="muted">
-              Contactez votre responsable ou le directeur de station pour qu'il réinitialise votre accès depuis la gestion des utilisateurs.
+              Contactez votre responsable ou le directeur de station pour qu&apos;il réinitialise votre accès depuis la
+              gestion des utilisateurs.
             </p>
             <div className="row-actions modal-actions">
               <button type="button" onClick={onCloseLockedDialog}>
@@ -52,16 +55,7 @@ export function LoginView({
           </section>
         </div>
       )}
-      {dbConfigured === false && (
-        <section className="panel login-panel">
-          <h3>Configuration base de données</h3>
-          <p className="muted">Sélectionnez le fichier de base de données (.db) avant toute connexion.</p>
-          <button type="button" onClick={onChooseDbPath}>
-            Choisir l'emplacement de la DB
-          </button>
-        </section>
-      )}
-      <section className="panel login-panel">
+      <section className="panel login-panel" aria-busy={isLoggingIn}>
         <div className="logo-slot">
           <img src={logoGts} alt="Logo GTS" className="logo-image" />
         </div>
@@ -69,22 +63,42 @@ export function LoginView({
         <form onSubmit={onLogin} className="form">
           <label>
             Nom affiché
-            <input value={loginForm.username} onChange={(e) => onChange({ ...loginForm, username: e.target.value })} required />
+            <input
+              value={loginForm.username}
+              onChange={(e) => onChange({ ...loginForm, username: e.target.value })}
+              required
+              disabled={formDisabled}
+              autoComplete="username"
+            />
           </label>
           <label>
             Mot de passe
-            <input
-              type="password"
+            <PasswordInput
               value={loginForm.password}
-              onChange={(e) => onChange({ ...loginForm, password: e.target.value })}
+              onChange={(password) => onChange({ ...loginForm, password })}
               required
+              disabled={formDisabled}
+              autoComplete="current-password"
+              aria-label="Mot de passe"
             />
           </label>
-          <button type="submit" disabled={dbConfigured !== true}>
-            Connexion
+          <button type="submit" disabled={formDisabled} aria-busy={isLoggingIn}>
+            {isLoggingIn ? (
+              <span className="login-submit-busy">
+                <Loader2 size={16} className="login-spinner" aria-hidden />
+                Connexion en cours…
+              </span>
+            ) : (
+              "Connexion"
+            )}
           </button>
         </form>
-        {error && <p className="error">{error}</p>}
+        {isLoggingIn ? (
+          <p className="muted login-status" role="status">
+            Vérification de l&apos;identité et accès à la base…
+          </p>
+        ) : null}
+        {error && !isLoggingIn ? <p className="error">{error}</p> : null}
       </section>
     </main>
   );

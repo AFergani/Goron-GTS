@@ -1,7 +1,7 @@
 /**
  * Presenter Interventions : liste, statistiques, CRUD, statuts et facturation.
  *
- * Polling ~20 s, gestion `PENDING_QUEUE`, compteurs pour le bandeau de la page.
+ * Polling ~20 s, compteurs pour le bandeau de la page. Persistance PostgreSQL.
  * Utilisé par : `InterventionPage`.
  */
 
@@ -26,7 +26,6 @@ type UseInterventionPresenterOptions = {
 export function useInterventionPresenter({ requesterRole, requesterUsername, onToast }: UseInterventionPresenterOptions) {
   const [entries, setEntries] = useState<InterventionEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pendingQueueEntries, setPendingQueueEntries] = useState<Record<string, InterventionEntry>>({});
 
   const notify = (message: string) => {
     onToast?.(message);
@@ -37,21 +36,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
       try {
         if (!silent) setLoading(true);
         const rows = await gtsApiClient.listInterventions({ requesterRole });
-        setPendingQueueEntries((currentPending) => {
-          const nextPending = { ...currentPending };
-          for (const row of rows) {
-            if (!nextPending[row.id]) continue;
-            delete nextPending[row.id];
-          }
-          const merged = [...rows];
-          for (const pendingRow of Object.values(nextPending)) {
-            if (!merged.some((row) => row.id === pendingRow.id)) {
-              merged.unshift(pendingRow);
-            }
-          }
-          setEntries(merged);
-          return nextPending;
-        });
+        setEntries(rows);
         return rows;
       } catch (error) {
         notify(error instanceof Error ? error.message : "Impossible de charger les interventions.");
@@ -84,18 +69,12 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
 
   const createEntry = async (payload: InterventionSavePayload) => {
     try {
-      const created = await gtsApiClient.createInterventionEntry({
+      await gtsApiClient.createInterventionEntry({
         requesterRole,
         requesterUsername,
         id: makeInterventionId(),
         ...payload
       });
-      if ((created as InterventionEntry).syncState === "PENDING_QUEUE") {
-        const pendingEntry = created as InterventionEntry;
-        setPendingQueueEntries((current) => ({ ...current, [pendingEntry.id]: pendingEntry }));
-        setEntries((current) => [pendingEntry, ...current.filter((row) => row.id !== pendingEntry.id)]);
-        notify("Intervention en attente de validation DB.");
-      }
       await loadEntries(true);
       return true;
     } catch (error) {
@@ -113,17 +92,6 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
         expectedUpdatedAt,
         ...payload
       });
-      if ((updated as InterventionEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as InterventionEntry), id, syncState: "PENDING_QUEUE" } as InterventionEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.id === id ? { ...entry, ...(updated as Partial<InterventionEntry>), syncState: "PENDING_QUEUE" } : entry
-          )
-        );
-      }
       await loadEntries(true);
       return updated;
     } catch (error) {
@@ -146,12 +114,6 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
         expectedUpdatedAt,
         status,
         cancellationReason
-      });
-      setPendingQueueEntries((current) => {
-        if (!current[id]) return current;
-        const next = { ...current };
-        delete next[id];
-        return next;
       });
       await loadEntries(true);
       return true;

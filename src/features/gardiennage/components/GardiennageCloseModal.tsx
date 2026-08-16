@@ -2,7 +2,7 @@
  * Modale de clôture d’un gardiennage (horaires effectifs, n° bon, compte rendu).
  *
  * Liens optionnels vers intervention / ronde liées. Réinitialise le formulaire à l’ouverture
- * (`[isOpen, entry?.id]`). Soumission via callback parent (audit + writer côté API).
+ * (`[isOpen, entry?.id]`). Soumission via callback parent (audit côté API).
  */
 
 import { useState, useEffect } from "react";

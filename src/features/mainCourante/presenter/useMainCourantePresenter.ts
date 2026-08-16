@@ -1,7 +1,7 @@
 /**
  * Presenter main courante : liste, stats, création opérateur, édition, actions responsable.
  *
- * Polling ~20 s, file `PENDING_QUEUE`, alerte writer indisponible à la création.
+ * Polling ~20 s. Persistance PostgreSQL (passthrough IPC).
  * Utilisé par : `MainCourantePage` (badge sidebar alimenté par AppShell via API séparée).
  */
 
@@ -31,7 +31,6 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
   const { requesterRole, requesterUsername, onToast } = options;
   const [entries, setEntries] = useState<MainCouranteEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pendingQueueEntries, setPendingQueueEntries] = useState<Record<string, MainCouranteEntry>>({});
 
   const notify = (msg: string) => {
     onToast?.(msg);
@@ -42,21 +41,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       try {
         if (!silent) setLoading(true);
         const list = await gtsApiClient.listMainCouranteEntries({ requesterRole });
-        setPendingQueueEntries((currentPending) => {
-          const nextPending = { ...currentPending };
-          for (const row of list) {
-            if (!nextPending[row.id]) continue;
-            delete nextPending[row.id];
-          }
-          const merged = [...list];
-          for (const pendingRow of Object.values(nextPending)) {
-            if (!merged.some((row) => row.id === pendingRow.id)) {
-              merged.unshift(pendingRow);
-            }
-          }
-          setEntries(merged);
-          return nextPending;
-        });
+        setEntries(list);
       } catch (e) {
         notify(e instanceof Error ? e.message : "Impossible de charger la main courante.");
       } finally {
@@ -85,9 +70,8 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
 
   const createEntry = async (payload: MainCouranteCreatePayload): Promise<boolean> => {
     try {
-      const writerStatus = await gtsApiClient.getWriterStatus();
       const id = makeEntryId();
-      const created = await gtsApiClient.createMainCouranteEntry({
+      await gtsApiClient.createMainCouranteEntry({
         requesterRole,
         requesterUsername,
         id,
@@ -98,18 +82,6 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         anomalyTypeLabel: payload.anomalyTypeLabel,
         information: payload.information
       });
-      if ((created as MainCouranteEntry).syncState === "PENDING_QUEUE") {
-        const pendingEntry = created as MainCouranteEntry;
-        setPendingQueueEntries((current) => ({ ...current, [pendingEntry.id]: pendingEntry }));
-        setEntries((current) => [pendingEntry, ...current.filter((row) => row.id !== pendingEntry.id)]);
-      }
-      if (
-        writerStatus.role === "client" &&
-        writerStatus.connectivity.masterReachable === false &&
-        writerStatus.connectivity.backupReachable === false
-      ) {
-        notify("Attention: services writer inaccessibles, entrée placée en file d'attente.");
-      }
       await loadEntries(true);
       return true;
     } catch (e) {
@@ -124,7 +96,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
     expectedUpdatedAt: string
   ): Promise<boolean> => {
     try {
-      const updated = await gtsApiClient.updateMainCouranteEntryOperator({
+      await gtsApiClient.updateMainCouranteEntryOperator({
         requesterRole,
         requesterUsername,
         id,
@@ -136,17 +108,6 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         anomalyTypeLabel: payload.anomalyTypeLabel,
         information: payload.information
       });
-      if ((updated as MainCouranteEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as MainCouranteEntry), id, syncState: "PENDING_QUEUE" } as MainCouranteEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.id === id ? { ...entry, ...(updated as Partial<MainCouranteEntry>), syncState: "PENDING_QUEUE" } : entry
-          )
-        );
-      }
       await loadEntries(true);
       return true;
     } catch (e) {
@@ -170,7 +131,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
     }
   ): Promise<boolean> => {
     try {
-      const updated = await gtsApiClient.applyMainCouranteManagerAction({
+      await gtsApiClient.applyMainCouranteManagerAction({
         requesterRole,
         requesterUsername,
         id,
@@ -179,17 +140,6 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         managerObservation,
         decision
       });
-      if ((updated as MainCouranteEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as MainCouranteEntry), id, syncState: "PENDING_QUEUE" } as MainCouranteEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.id === id ? { ...entry, ...(updated as Partial<MainCouranteEntry>), syncState: "PENDING_QUEUE" } : entry
-          )
-        );
-      }
       await loadEntries(true);
       return true;
     } catch (e) {
@@ -203,24 +153,13 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
     { managerName, expectedUpdatedAt }: { managerName: string; expectedUpdatedAt: string }
   ): Promise<boolean> => {
     try {
-      const updated = await gtsApiClient.reopenMainCouranteEntry({
+      await gtsApiClient.reopenMainCouranteEntry({
         requesterRole,
         requesterUsername,
         id,
         expectedUpdatedAt,
         managerName
       });
-      if ((updated as MainCouranteEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as MainCouranteEntry), id, syncState: "PENDING_QUEUE" } as MainCouranteEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.id === id ? { ...entry, ...(updated as Partial<MainCouranteEntry>), syncState: "PENDING_QUEUE" } : entry
-          )
-        );
-      }
       await loadEntries(true);
       return true;
     } catch (e) {

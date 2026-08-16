@@ -41,7 +41,7 @@ export function HelpSettingsAuditTopic() {
                 </td>
                 <td>
                   <strong>Consultation et exploitation complètes :</strong> accès total aux filtres de recherche, à la pagination, à l&apos;export Excel
-                  et au bouton d&apos;ouverture des logs techniques du service <em>writer</em>.
+                  et au journal des logs techniques applicatifs.
                 </td>
               </tr>
               <tr>
@@ -170,10 +170,6 @@ export function HelpSettingsAuditTopic() {
         <h4 className="help-center-subsection-title">Boutons d&apos;action (à droite des filtres)</h4>
         <ul className="muted help-center-list">
           <li>
-            <strong>Ouvrir le dossier des logs writer</strong> : accès direct aux fichiers textes de diagnostic du service de synchronisation réseau
-            (TCP).
-          </li>
-          <li>
             <strong>Exporter le journal en Excel</strong> : génère un fichier <code>.xlsx</code> de l&apos;intégralité des lignes correspondant à vos
             filtres actifs (et pas seulement de la page visible). L&apos;export intègre les colonnes de base ainsi qu&apos;un champ de détails structurés
             pour vos analyses approfondies.
@@ -195,7 +191,7 @@ export function HelpSettingsAuditTopic() {
       </div>
 
       <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">🛠️ Distinction : journal applicatif vs logs writer</h3>
+        <h3 className="help-center-card-title">🛠️ Distinction : journal métier vs logs techniques</h3>
         <p className="muted">
           Il est important de ne pas confondre ces deux sources de traçabilité lors d&apos;un diagnostic :
         </p>
@@ -204,13 +200,13 @@ export function HelpSettingsAuditTopic() {
             <strong>Le journal des actions (cet écran) :</strong> trace le comportement métier des utilisateurs (qui a cliqué, modifié ou supprimé quoi).
           </li>
           <li>
-            <strong>Les logs writer (fichiers textes) :</strong> documentent la tuyauterie technique et réseau du service d&apos;écriture (connexions TCP
-            entre postes, bascules Master / Backup, gestion de la file d&apos;attente SMB).
+            <strong>Les logs techniques :</strong> documentent les erreurs applicatives (connexion PostgreSQL, exceptions métier, diagnostics
+            support) dans l&apos;onglet dédié.
           </li>
         </ul>
         <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>En cas d&apos;incident réseau ou de problème de synchronisation</strong> entre les postes de la station, croisez systématiquement ces
-          deux sources d&apos;informations.
+          <strong>En cas d&apos;indisponibilité de la base</strong> (badge DB rouge), croisez le journal métier et les logs techniques pour confirmer
+          la coupure et le moment du retour de service.
         </div>
       </div>
 

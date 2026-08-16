@@ -1,10 +1,8 @@
 /**
- * Presenter gardiennage : liste, CRUD, statuts, clôture, file d’attente writer.
+ * Presenter gardiennage : liste, CRUD, statuts, clôture.
  *
- * Polling silencieux ~20 s pour resynchroniser les entrées. Gère `PENDING_QUEUE` en mémoire
- * jusqu’à confirmation serveur. Messages utilisateur via `onToast`.
- *
- * Utilisé par : `GardiennagePage`.
+ * Polling silencieux ~20 s pour resynchroniser les entrées. Persistance PostgreSQL.
+ * Messages utilisateur via `onToast`. Utilisé par : `GardiennagePage`.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -28,7 +26,6 @@ type UseGardiennagePresenterOptions = {
 export function useGardiennagePresenter({ requesterRole, requesterUsername, onToast }: UseGardiennagePresenterOptions) {
   const [entries, setEntries] = useState<GardiennageEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pendingQueueEntries, setPendingQueueEntries] = useState<Record<string, GardiennageEntry>>({});
 
   const notify = (message: string) => onToast?.(message);
 
@@ -37,21 +34,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       try {
         if (!silent) setLoading(true);
         const rows = await gtsApiClient.listGardiennages({ requesterRole });
-        setPendingQueueEntries((currentPending) => {
-          const nextPending = { ...currentPending };
-          for (const row of rows) {
-            if (!nextPending[row.id]) continue;
-            delete nextPending[row.id];
-          }
-          const merged = [...rows];
-          for (const pendingRow of Object.values(nextPending)) {
-            if (!merged.some((row) => row.id === pendingRow.id)) {
-              merged.unshift(pendingRow);
-            }
-          }
-          setEntries(merged);
-          return nextPending;
-        });
+        setEntries(rows);
         return rows;
       } catch (error) {
         notify(error instanceof Error ? error.message : "Impossible de charger les gardiennages.");
@@ -76,18 +59,12 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
 
   const createEntry = async (payload: GardiennageSavePayload) => {
     try {
-      const created = await gtsApiClient.createGardiennage({
+      await gtsApiClient.createGardiennage({
         requesterRole,
         requesterUsername,
         id: makeGardiennageId(),
         ...payload
       });
-      if ((created as GardiennageEntry).syncState === "PENDING_QUEUE") {
-        const pendingEntry = created as GardiennageEntry;
-        setPendingQueueEntries((current) => ({ ...current, [pendingEntry.id]: pendingEntry }));
-        setEntries((current) => [pendingEntry, ...current.filter((row) => row.id !== pendingEntry.id)]);
-        notify("Gardiennage en attente de validation DB.");
-      }
       await loadEntries(true);
       return true;
     } catch (error) {
@@ -105,17 +82,6 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
         expectedUpdatedAt,
         ...payload
       });
-      if ((updated as GardiennageEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as GardiennageEntry), id, syncState: "PENDING_QUEUE" } as GardiennageEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.id === id ? { ...entry, ...(updated as Partial<GardiennageEntry>), syncState: "PENDING_QUEUE" } : entry
-          )
-        );
-      }
       await loadEntries(true);
       return updated;
     } catch (error) {

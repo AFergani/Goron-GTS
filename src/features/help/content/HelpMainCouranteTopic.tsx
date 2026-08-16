@@ -101,11 +101,11 @@ export function HelpMainCouranteTopic() {
           <li>
             <strong>Clôturé :</strong> le traitement est terminé. La fiche est figée et consultable en historique.
           </li>
-          <li>
-            En <strong>mode dégradé</strong> (writer indisponible), une ligne peut afficher <strong>En attente DB</strong> : la saisie est conservée
-            et synchronisée dès que le writer reprend.
-          </li>
         </ul>
+        <div className="help-center-callout help-center-callout--warn" role="note">
+          Si le badge <strong>DB</strong> indique une base inaccessible, l&apos;enregistrement est refusé jusqu&apos;au retour de PostgreSQL : la saisie
+          à l&apos;écran n&apos;est pas effacée automatiquement.
+        </div>
       </div>
 
       <div className="help-center-card">

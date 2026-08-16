@@ -37,7 +37,15 @@ class AppError extends Error {
  * @throws {AppError} Toujours levée après écriture du log.
  */
 function failWithLog(store, source, userMessage, code, details = {}) {
-  store.logError({ source, code, messageFr: userMessage, details });
+  try {
+    const maybePromise = store.logError({ source, code, messageFr: userMessage, details });
+    // Sur SQLite async wrappé, l'INSERT s'exécute avant le premier yield.
+    if (maybePromise && typeof maybePromise.then === "function") {
+      maybePromise.catch(() => {});
+    }
+  } catch {
+    // Le journal technique ne doit jamais masquer l'erreur métier.
+  }
   throw new AppError(userMessage, code, details);
 }
 

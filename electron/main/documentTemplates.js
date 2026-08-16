@@ -4,6 +4,7 @@
  *
  * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js` et `gtsApiClient`
  * (Paramètres données, exports main courante / intervention / rondes / gardiennage / Fransor).
+ * Plus de dépendance à un fichier base SQLite : les racines `data/` viennent de `getDataRootCandidates`.
  */
 
 /**
@@ -15,9 +16,7 @@
  * @param {import('electron').Dialog} deps.dialog - Sélecteur de fichier pour install / upsert scopé.
  * @param {string} deps.appDirname - Répertoire du bundle Electron (`__dirname` de main).
  * @param {string} deps.processCwd - Répertoire de travail courant (candidat `dist/templates` en dev).
- * @param {() => string[]} deps.getDataRootCandidates - Racines données Goron (multi-poste).
- * @param {() => string|null} deps.resolveDbPath - Base active pour déduire `dataRoot` via layout SQLite.
- * @param {(dbPath: string) => object} deps.getDbStorageLayoutFromPath - Dossiers `Activedb` / `Archives` / racine.
+ * @param {() => string[]} deps.getDataRootCandidates - Racines données Goron (cwd / portable / userData).
  * @param {() => void} deps.ensureStore - Vérifie que `UserStore` est initialisé (écritures / RBAC).
  * @param {() => import('../userStore')} deps.getUserStore - Store pour audit et assignations de modèles.
  * @returns {{
@@ -36,8 +35,6 @@ function createDocumentTemplatesService(deps) {
     appDirname,
     processCwd,
     getDataRootCandidates,
-    resolveDbPath,
-    getDbStorageLayoutFromPath,
     ensureStore,
     getUserStore
   } = deps;
@@ -148,17 +145,18 @@ function createDocumentTemplatesService(deps) {
 
   /**
    * Retourne (et crée si besoin) le dossier `{dataRoot}/templates` writable du poste.
+   * Utilise la première racine de `getDataRootCandidates` (plus de fichier `.db`).
    *
    * @returns {string} Chemin absolu du répertoire templates.
-   * @throws {Error} Si aucune base n'est configurée (`resolveDbPath` vide).
+   * @throws {Error} Si aucune racine données n'est disponible.
    */
   function resolveWritableTemplatesDirectory() {
-    const dbPath = resolveDbPath();
-    if (!dbPath) {
-      throw new Error("Base de données non configurée.");
+    const roots = getDataRootCandidates();
+    const dataRoot = roots[0];
+    if (!dataRoot) {
+      throw new Error("Aucun dossier de données disponible pour les modèles documentaires.");
     }
-    const layout = getDbStorageLayoutFromPath(dbPath);
-    const dir = path.join(layout.dataRoot, "templates");
+    const dir = path.join(dataRoot, "templates");
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -324,7 +322,7 @@ function createDocumentTemplatesService(deps) {
     const fileName = scopedTemplateFileName(flowKind, scopeKind, normalizedLabel);
     const dest = path.join(templatesDir, fileName);
     fs.copyFileSync(src, dest);
-    const assignment = userStore.upsertTemplateAssignment({
+    const assignment = await userStore.upsertTemplateAssignment({
       requesterRole,
       requesterUsername,
       flowKind,

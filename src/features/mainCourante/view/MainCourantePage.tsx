@@ -1,6 +1,7 @@
 /**
  * Page Main courante : journal filtré, persistance filtres localStorage, exports Excel/Word.
  *
+ * Filtre État par défaut : « Ouverts » (En attente + En cours) — Clôturé masqué tant qu'on ne le demande pas.
  * Compteurs statuts, modale unique (create/edit/manager/view). Responsable vs opérateur
  * pour les actions disponibles sur une ligne.
  */
@@ -43,7 +44,8 @@ type MainCourantePageProps = {
 export function MainCourantePage({ operatorName, requesterUsername, requesterRole, onToast }: MainCourantePageProps) {
   const filters = useTableFilters();
   const [typeFilter, setTypeFilterRaw] = useState("");
-  const [statusFilter, setStatusFilterRaw] = useState("");
+  /** Défaut « ouverts » : En attente + En cours (Clôturé masqué tant qu'on ne le demande pas). */
+  const [statusFilter, setStatusFilterRaw] = useState("OPEN");
   const [operatorFilter, setOperatorFilterRaw] = useState("all");
   const [managerFilter, setManagerFilterRaw] = useState("all");
   const [filtersHydrated, setFiltersHydrated] = useState(false);
@@ -113,7 +115,12 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
           (entry.managerObservation || "").toLowerCase().includes(q) ||
           (entry.managerName || "").toLowerCase().includes(q);
         const typeOk = !typeFilter || entry.anomalyTypeId === typeFilter;
-        const statusOk = !statusFilter || entry.status === statusFilter;
+        const statusOk =
+          !statusFilter || statusFilter === "TOUS"
+            ? true
+            : statusFilter === "OPEN"
+              ? entry.status === "EN_ATTENTE" || entry.status === "EN_COURS"
+              : entry.status === statusFilter;
         return textOk && typeOk && statusOk;
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -193,7 +200,11 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
       filters.setDateFrom(typeof parsed.dateFrom === "string" ? parsed.dateFrom : "");
       filters.setDateTo(typeof parsed.dateTo === "string" ? parsed.dateTo : "");
       setTypeFilterRaw(typeof parsed.typeFilter === "string" ? parsed.typeFilter : "");
-      setStatusFilterRaw(typeof parsed.statusFilter === "string" ? parsed.statusFilter : "");
+      {
+        const savedStatus = typeof parsed.statusFilter === "string" ? parsed.statusFilter : "OPEN";
+        // Ancien défaut « Tous » (`""`) → ouverts (En attente + En cours).
+        setStatusFilterRaw(savedStatus === "" ? "OPEN" : savedStatus);
+      }
       setOperatorFilterRaw(typeof parsed.operatorFilter === "string" ? parsed.operatorFilter : "all");
       setManagerFilterRaw(typeof parsed.managerFilter === "string" ? parsed.managerFilter : "all");
       if (typeof parsed.pageSize === "number" && Number.isFinite(parsed.pageSize)) {
@@ -267,7 +278,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
             setOperatorFilter("all");
             setManagerFilter("all");
             setTypeFilter("");
-            setStatusFilter("");
+            setStatusFilter("OPEN");
           }}
         >
           <label>
@@ -307,7 +318,8 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
           <label>
             État
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">Tous</option>
+              <option value="OPEN">Ouverts (en attente + en cours)</option>
+              <option value="TOUS">Tous</option>
               <option value="EN_ATTENTE">En attente</option>
               <option value="EN_COURS">En cours</option>
               <option value="CLOTURE">Clôturé</option>

@@ -59,7 +59,6 @@ export type RondeEntry = {
   requestBatchId: string | null;
   /** Pour regroupement uniquement ; ne pas afficher tel quel dans l’UI utilisateur. */
   requestPlanningSnapshotJson: string | null;
-  syncState?: "PENDING_QUEUE";
 };
 
 export type RondeSavePayload = {

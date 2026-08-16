@@ -36,6 +36,7 @@ data/
 *.db-shm
 *.zip
 *.sql
+!electron/store/persistence/migrations/*.sql
 
 # Fichiers temporaires Office
 ~$*

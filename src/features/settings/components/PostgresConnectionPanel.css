@@ -1,0 +1,99 @@
+/* Panneau connexion PostgreSQL (Paramètres → Base de données). */
+
+.postgres-config-panel {
+  margin: 18px 0 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surf);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.postgres-config-panel h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.postgres-config-lead {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.postgres-config-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 13px;
+}
+
+.postgres-config-warn {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+
+.postgres-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.postgres-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.postgres-config-field--wide {
+  grid-column: 1 / -1;
+}
+
+.postgres-config-field input {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.postgres-config-password-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.postgres-config-password-row input {
+  flex: 1;
+}
+
+.postgres-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.postgres-config-result {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.postgres-config-result.ok {
+  color: var(--ok, #1f7a3f);
+}
+
+.postgres-config-result.ko {
+  color: var(--danger, #c0392b);
+}
+
+@media (max-width: 720px) {
+  .postgres-config-grid {
+    grid-template-columns: 1fr;
+  }
+}

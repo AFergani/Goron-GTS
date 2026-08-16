@@ -1,5 +1,5 @@
 /**
- * Coque applicative Goron-GTS : authentification, sidebar, navigation métier et indicateurs writer.
+ * Coque applicative Goron-GTS : authentification, sidebar, navigation métier et badge DB (PostgreSQL).
  *
  * Montée sous `SessionProvider` dans `App.tsx`. Orchestre les pages features (main courante,
  * interventions, rondes, gardiennage, Fransor, paramètres) selon `pageAccess` du compte connecté.
@@ -10,8 +10,10 @@ import { Moon, Power, Settings, Sun } from "lucide-react";
 import logoGts from "../assets/logo-gts.png";
 import { useSession } from "./session/SessionProvider";
 import { useAuthPresenter } from "../features/auth/presenter/useAuthPresenter";
+import { usePostgresBootstrapPresenter } from "../features/auth/presenter/usePostgresBootstrapPresenter";
 import { FirstLoginModal } from "../features/auth/view/FirstLoginModal";
 import { LoginView } from "../features/auth/view/LoginView";
+import { PostgresBootstrapView } from "../features/auth/view/PostgresBootstrapView";
 import { useSettingsPresenter } from "../features/settings/presenter/useSettingsPresenter";
 import { SettingsPage } from "../features/settings/view/SettingsPage";
 import { MainCourantePage } from "../features/mainCourante/view/MainCourantePage";
@@ -20,11 +22,12 @@ import { InterventionPage } from "../features/intervention/view/InterventionPage
 import { RondePage } from "../features/rondes/view/RondePage";
 import { GardiennagePage } from "../features/gardiennage/view/GardiennagePage";
 import { ConfirmModal } from "../features/common/components/ConfirmModal";
+import { PgOfflineBlockingModal } from "../features/common/components/PgOfflineBlockingModal";
 import { Toast } from "../features/common/components/Toast";
 import { CredentialShareModal } from "../features/common/components/CredentialShareModal";
 import { useGlobalDraggableModals } from "../features/common/hooks/useGlobalDraggableModals";
 import { gtsApiClient } from "../infrastructure/api/gtsApiClient";
-import type { WriterQueueStats, WriterStatus } from "../infrastructure/api/gtsApiClient";
+import type { PostgresLabHealth } from "../infrastructure/api/gtsApiClient";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
@@ -59,7 +62,7 @@ function formatSidebarDateTime(date: Date): string {
 }
 
 /**
- * Racine UI après connexion : layout sidebar + contenu, badges, thème et santé writer.
+ * Racine UI après connexion : layout sidebar + contenu, badges, thème et santé DB (PostgreSQL).
  */
 export function AppShell() {
   useGlobalDraggableModals();
@@ -91,17 +94,14 @@ export function AppShell() {
   const [focusRondeIdFromIntervention, setFocusRondeIdFromIntervention] = useState<string | null>(null);
   /** Deep-link intervention → gardiennage : ouvre la modale gardiennage ciblée. */
   const [focusGardiennageIdFromIntervention, setFocusGardiennageIdFromIntervention] = useState<string | null>(null);
-  const [writerStatus, setWriterStatus] = useState<WriterStatus | null>(null);
-  const [writerQueueStats, setWriterQueueStats] = useState<WriterQueueStats | null>(null);
+  const [postgresLabHealth, setPostgresLabHealth] = useState<PostgresLabHealth | null>(null);
+  const previousPostgresReachableRef = useRef<boolean | null>(null);
+  const [showPgUnavailableModal, setShowPgUnavailableModal] = useState(false);
   const [showCloseAppModal, setShowCloseAppModal] = useState(false);
   const [helpCenterOpen, setHelpCenterOpen] = useState(false);
   const [helpCenterInitialTopic, setHelpCenterInitialTopic] = useState<HelpTopicId | null>(null);
   const [now, setNow] = useState(() => new Date());
   const todayLabel = formatSidebarDateTime(now);
-  const writerQueueTotal =
-    writerQueueStats && writerQueueStats.available
-      ? writerQueueStats.incoming + writerQueueStats.processing + writerQueueStats.ack
-      : null;
   const isManager = session?.user.role === "RESPONSABLE" || session?.user.role === "DEV";
   const userPageAccess = useMemo(() => {
     if (session?.user.role === "DEV") {
@@ -124,11 +124,6 @@ export function AppShell() {
     if (isOk === true) return "ok";
     if (isOk === false) return "ko";
     return "unknown";
-  };
-  const getStatusTitle = (label: string, isOk: boolean | null) => {
-    if (isOk === true) return `${label}: accessible`;
-    if (isOk === false) return `${label}: inaccessible`;
-    return `${label}: état inconnu`;
   };
 
   const navigateToLinkedIntervention = (interventionId: string) => {
@@ -173,12 +168,27 @@ export function AppShell() {
     onToast: notifyToast
   });
 
+  const pgBootstrap = usePostgresBootstrapPresenter({
+    onError: setError,
+    onToast: notifyToast
+  });
+
   const settings = useSettingsPresenter({
     session,
     onError: setError,
     onInfo: setInfo,
     onToast: notifyToast,
-    onCredentialsReady: setCredentialsToShare
+    onCredentialsReady: setCredentialsToShare,
+    onSessionUserPatch: (patch) => {
+      if (!session) return;
+      setSession({
+        ...session,
+        user: {
+          ...session.user,
+          ...patch
+        }
+      });
+    }
   });
 
   const openHelpCenter = useCallback((topicId?: HelpTopicId | null) => {
@@ -291,24 +301,53 @@ export function AppShell() {
 
   useEffect(() => {
     if (!session) {
-      setWriterStatus(null);
-      setWriterQueueStats(null);
+      setPostgresLabHealth(null);
+      previousPostgresReachableRef.current = null;
+      setShowPgUnavailableModal(false);
       return;
     }
-    const loadWriterStatus = async () => {
+    const loadDbHealth = async () => {
       try {
-        const [status, queueStats] = await Promise.all([gtsApiClient.getWriterStatus(), gtsApiClient.getWriterQueueStats()]);
-        setWriterStatus(status);
-        setWriterQueueStats(queueStats);
+        const pgHealth = await gtsApiClient.getPostgresLabHealth();
+        setPostgresLabHealth(pgHealth);
+
+        const previous = previousPostgresReachableRef.current;
+        const reachable = Boolean(pgHealth?.reachable);
+        // Modale bloquante synchronisée sur l'état réel (non fermable manuellement).
+        setShowPgUnavailableModal(!reachable);
+        if (!reachable) {
+          setError("");
+        }
+        if (previous === true && reachable === false) {
+          notifyToast(
+            "Base de données inaccessible. Les pages métier et le journal d'actions sont indisponibles jusqu'au retour du serveur.",
+            "error"
+          );
+        } else if (previous === false && reachable === true) {
+          notifyToast("Base de données de nouveau accessible.");
+        }
+        previousPostgresReachableRef.current = reachable;
       } catch {
-        setWriterStatus(null);
-        setWriterQueueStats(null);
+        setPostgresLabHealth(null);
       }
     };
-    void loadWriterStatus();
+    void loadDbHealth();
     const timer = setInterval(() => {
-      void loadWriterStatus();
+      void loadDbHealth();
     }, 5000);
+    return () => clearInterval(timer);
+  }, [session, notifyToast]);
+
+  /** Présence multi-postes : heartbeat PG pour le badge « connecté » partagé. */
+  useEffect(() => {
+    if (!session) return;
+    const beat = () => {
+      void gtsApiClient.touchPresence().catch(() => {
+        // Ignore si PG down : la modale offline couvre déjà ce cas.
+      });
+    };
+    beat();
+    const timer = setInterval(beat, 20000);
     return () => clearInterval(timer);
   }, [session]);
 
@@ -401,15 +440,49 @@ export function AppShell() {
     ) : null;
 
   if (!session) {
+    if (!pgBootstrap.statusLoaded) {
+      return (
+        <>
+          <main className="auth-page" aria-busy="true">
+            <section className="panel login-panel">
+              <p className="muted" role="status">
+                Vérification de la connexion PostgreSQL…
+              </p>
+            </section>
+          </main>
+          {exitChoiceModal}
+          <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+        </>
+      );
+    }
+
+    if (pgBootstrap.needsSetup) {
+      return (
+        <>
+          <PostgresBootstrapView
+            config={pgBootstrap.postgresConfig}
+            draft={pgBootstrap.postgresDraft}
+            onDraftChange={pgBootstrap.setPostgresDraft}
+            onSave={pgBootstrap.onSavePostgresBootstrap}
+            onTest={pgBootstrap.onTestPostgresBootstrap}
+            testResult={pgBootstrap.postgresTestResult}
+            busyPhase={pgBootstrap.busyPhase}
+            error={error}
+          />
+          {exitChoiceModal}
+          <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+        </>
+      );
+    }
+
     return (
       <>
         <LoginView
           loginForm={auth.loginForm}
-          dbConfigured={settings.dbConfigured}
           error={error}
           showLockedDialog={auth.showLockedDialog}
+          isLoggingIn={auth.isLoggingIn}
           onCloseLockedDialog={() => auth.setShowLockedDialog(false)}
-          onChooseDbPath={settings.onChooseDbPath}
           onLogin={auth.onLogin}
           onChange={auth.setLoginForm}
         />
@@ -499,67 +572,19 @@ export function AppShell() {
         </nav>
         </div>
         <div className="sidebar-bottom">
-        <div className="sidebar-writer-health">
-          <div
-            className={`writer-health-chip ${settings.dbWritable ? "ok" : "ko"}`}
-            title={getStatusTitle("DB", settings.dbWritable)}
-            aria-label={getStatusTitle("DB", settings.dbWritable)}
-          >
-            DB
-          </div>
-          <div
-            className={`writer-health-chip ${getStatusTone(
-              writerStatus?.role === "master"
-                ? true
-                : writerStatus?.role === "backup"
-                  ? writerStatus?.connectivity.masterReachable ?? null
-                  : writerStatus?.connectivity.masterReachable ?? null
-            )}`}
-            title={getStatusTitle(
-              "Master",
-              writerStatus?.role === "master"
-                ? true
-                : writerStatus?.role === "backup"
-                  ? writerStatus?.connectivity.masterReachable ?? null
-                  : writerStatus?.connectivity.masterReachable ?? null
-            )}
-            aria-label={getStatusTitle(
-              "Master",
-              writerStatus?.role === "master"
-                ? true
-                : writerStatus?.role === "backup"
-                  ? writerStatus?.connectivity.masterReachable ?? null
-                  : writerStatus?.connectivity.masterReachable ?? null
-            )}
-          >
-            Master
-          </div>
-          <div
-            className={`writer-health-chip ${getStatusTone(
-              writerStatus?.role === "backup"
-                ? true
-                : writerStatus?.connectivity.backupReachable ?? null
-            )}`}
-            title={getStatusTitle(
-              "Backup",
-              writerStatus?.role === "backup"
-                ? true
-                : writerStatus?.connectivity.backupReachable ?? null
-            )}
-            aria-label={getStatusTitle(
-              "Backup",
-              writerStatus?.role === "backup"
-                ? true
-                : writerStatus?.connectivity.backupReachable ?? null
-            )}
-          >
-            Backup
-          </div>
-        </div>
-        <div className="writer-queue-counter" title="Nombre total d'entrées en attente de validation writer">
-          Queue: {writerQueueTotal ?? "--"}
-        </div>
         <div className="sidebar-footer-inline" aria-label="Actions rapides">
+          <span
+            className={`sidebar-db-dot ${getStatusTone(postgresLabHealth?.reachable ?? null)}`}
+            title={
+              postgresLabHealth?.reachable
+                ? `Base accessible (${postgresLabHealth.host}:${postgresLabHealth.port}/${postgresLabHealth.database})`
+                : `Base inaccessible${postgresLabHealth?.error ? ` — ${postgresLabHealth.error}` : ""}`
+            }
+            aria-label={
+              postgresLabHealth?.reachable ? "Base de données accessible" : "Base de données inaccessible"
+            }
+            role="status"
+          />
           <button
             type="button"
             title="Centre d'aide"
@@ -628,7 +653,7 @@ export function AppShell() {
           </h1>
         </header>
 
-        {error && <p className="error">{error}</p>}
+        {error && !showPgUnavailableModal ? <p className="error">{error}</p> : null}
         {info && <p className="info">{info}</p>}
 
         {activePage === "settings" && userPageAccess.settings && (
@@ -644,6 +669,7 @@ export function AppShell() {
             users={settings.users}
             activeUsernames={settings.activeUsernames}
             auditLogs={settings.auditLogs}
+            techErrorLogs={settings.techErrorLogs}
             auditMetadata={settings.auditMetadata}
             sites={settings.sites}
             intervenants={settings.intervenants}
@@ -654,18 +680,11 @@ export function AppShell() {
             fransorResponsables={settings.fransorResponsables}
             interventionPendingSites={settings.interventionPendingSites}
             interventionPendingIntervenants={settings.interventionPendingIntervenants}
-            databaseItems={settings.databaseItems}
-            archiveStatus={settings.archiveStatus}
-            dbPath={settings.dbPath}
             currentUsername={session.user.username}
-            hasArchiveSourceActive={settings.hasArchiveSourceActive}
-            archiveOpenedBy={settings.archiveOpenedBy}
             onTabChange={settings.setActiveSettingsTab}
             activeDataTab={settings.activeDataTab}
             onDataTabChange={settings.setActiveDataTab}
             onOpenCreate={settings.onOpenCreateUserModal}
-            onChooseDbPath={settings.onChooseDbPath}
-            onOpenWriterLogFolder={() => void settings.onOpenWriterLogFolder()}
             onExportAuditLogs={settings.onExportAuditLogs}
             onDeactivateUser={settings.onDeactivateUser}
             onReactivateUser={settings.onReactivateUser}
@@ -700,15 +719,15 @@ export function AppShell() {
             onDeletePendingSiteSubmission={(payload) => settings.onDeletePendingSiteSubmission(payload)}
             onDeletePendingIntervenantSubmission={(payload) => settings.onDeletePendingIntervenantSubmission(payload)}
             onNotify={notifyToast}
-            onRefreshDatabases={() => void settings.loadDatabaseList()}
-            onSwitchDatabase={(dbPath) => void settings.onSwitchDatabase(dbPath)}
-            onRefreshArchiveStatus={() => void settings.loadArchiveStatus()}
-            onRunArchiveNow={() => void settings.onRunArchiveNow()}
-            onRestoreLocalActiveDb={() => void settings.onRestoreLocalActiveDb()}
-            writerConfigDraft={settings.writerConfigDraft}
-            onWriterConfigDraftChange={settings.setWriterConfigDraft}
-            onPrefillWriterNode={(target) => void settings.onPrefillWriterNode(target)}
-            onGenerateWriterConfig={() => void settings.onGenerateWriterConfig()}
+            postgresConfig={settings.postgresConfig}
+            postgresDraft={settings.postgresDraft}
+            postgresTestResult={settings.postgresTestResult}
+            postgresBusy={settings.postgresBusy}
+            postgresBusyPhase={settings.postgresBusyPhase}
+            onPostgresDraftChange={settings.setPostgresDraft}
+            onSavePostgresConfig={() => void settings.onSavePostgresConfig()}
+            onTestPostgresConfig={() => void settings.onTestPostgresConfig()}
+            onReconnectPostgres={() => void settings.onReconnectPostgres()}
             onOpenHelpTopic={openHelpCenter}
             showCreateModal={settings.showCreateModal}
             onCloseCreateModal={() => settings.setShowCreateModal(false)}
@@ -779,6 +798,10 @@ export function AppShell() {
           onClose={() => setHelpCenterOpen(false)}
           access={helpAccess}
           initialTopicId={helpCenterInitialTopic}
+        />
+        <PgOfflineBlockingModal
+          isOpen={showPgUnavailableModal}
+          onQuitApp={() => void settings.onQuitAppNow()}
         />
         <ConfirmModal
           isOpen={settings.confirmDialog.isOpen}

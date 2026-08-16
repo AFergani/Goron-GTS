@@ -14,17 +14,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("gtsApi", {
-  // --- Système : base, archivage, writer, modèles Word, fenêtre ---
+  // --- Système : boot PG / mode dev, modèles Word, fenêtre ---
   getDbConfig: (payload) => ipcRenderer.invoke("system:getDbConfig", payload),
-  listDatabases: (payload) => ipcRenderer.invoke("system:listDatabases", payload),
-  switchDatabase: (payload) => ipcRenderer.invoke("system:switchDatabase", payload),
-  getArchiveStatus: (payload) => ipcRenderer.invoke("system:getArchiveStatus", payload),
-  runArchiveNow: (payload) => ipcRenderer.invoke("system:runArchiveNow", payload),
-  getWriterStatus: (payload) => ipcRenderer.invoke("system:getWriterStatus", payload),
-  getWriterQueueStats: (payload) => ipcRenderer.invoke("system:getWriterQueueStats", payload),
   setDevToolsEnabled: (payload) => ipcRenderer.invoke("system:setDevToolsEnabled", payload),
-  getLocalNodeIdentity: (payload) => ipcRenderer.invoke("system:getLocalNodeIdentity", payload),
-  generateWriterConfig: (payload) => ipcRenderer.invoke("system:generateWriterConfig", payload),
   getDocumentTemplate: (payload) => ipcRenderer.invoke("system:getDocumentTemplate", payload),
   listDocumentTemplates: (payload) => ipcRenderer.invoke("system:listDocumentTemplates", payload),
   installDocumentTemplateCopy: (payload) => ipcRenderer.invoke("system:installDocumentTemplateCopy", payload),
@@ -33,8 +25,15 @@ contextBridge.exposeInMainWorld("gtsApi", {
   deleteTemplateAssignment: (payload) => ipcRenderer.invoke("system:deleteTemplateAssignment", payload),
   resolveTemplateFileForContext: (payload) => ipcRenderer.invoke("system:resolveTemplateFileForContext", payload),
   openTemplatesFolder: (payload) => ipcRenderer.invoke("system:openTemplatesFolder", payload),
-  openWriterLogFolder: (payload) => ipcRenderer.invoke("system:openWriterLogFolder", payload),
   getDbHealth: (payload) => ipcRenderer.invoke("system:getDbHealth", payload),
+  getPostgresLabHealth: (payload) => ipcRenderer.invoke("system:getPostgresLabHealth", payload),
+  getPostgresBootstrapStatus: (payload) => ipcRenderer.invoke("system:getPostgresBootstrapStatus", payload),
+  savePostgresBootstrapConfig: (payload) => ipcRenderer.invoke("system:savePostgresBootstrapConfig", payload),
+  testPostgresBootstrapConfig: (payload) => ipcRenderer.invoke("system:testPostgresBootstrapConfig", payload),
+  getPostgresConfig: (payload) => ipcRenderer.invoke("system:getPostgresConfig", payload),
+  savePostgresConfig: (payload) => ipcRenderer.invoke("system:savePostgresConfig", payload),
+  testPostgresConfig: (payload) => ipcRenderer.invoke("system:testPostgresConfig", payload),
+  reconnectPostgres: (payload) => ipcRenderer.invoke("system:reconnectPostgres", payload),
   quitApp: (payload) => ipcRenderer.invoke("system:quitApp", payload),
   minimizeApp: (payload) => ipcRenderer.invoke("system:minimizeApp", payload),
 
@@ -51,9 +50,6 @@ contextBridge.exposeInMainWorld("gtsApi", {
     return () => ipcRenderer.removeListener(channel, listener);
   },
 
-  /** Choix du fichier base au premier lancement ; `sessionToken` optionnel. */
-  chooseDbPath: (sessionToken) => ipcRenderer.invoke("system:chooseDbPath", sessionToken ? { sessionToken } : undefined),
-
   // --- Authentification et comptes ---
   login: (payload) => ipcRenderer.invoke("auth:login", payload),
   getAdminAccessStatus: () => ipcRenderer.invoke("auth:getAdminAccessStatus"),
@@ -66,11 +62,13 @@ contextBridge.exposeInMainWorld("gtsApi", {
   reactivateUser: (payload) => ipcRenderer.invoke("users:reactivate", payload),
   unlockUser: (payload) => ipcRenderer.invoke("users:unlock", payload),
   getActiveSessions: (payload) => ipcRenderer.invoke("users:getActiveSessions", payload),
+  touchPresence: (payload) => ipcRenderer.invoke("users:touchPresence", payload),
   setAdminCode: (payload) => ipcRenderer.invoke("auth:setAdminCode", payload),
 
   // --- Audit et préférences ---
   listAuditLogs: (payload) => ipcRenderer.invoke("audit:list", payload),
   getAuditMetadata: (payload) => ipcRenderer.invoke("audit:metadata", payload),
+  listTechErrorLogs: (payload) => ipcRenderer.invoke("techLogs:list", payload),
   logBulkImportAudit: (payload) => ipcRenderer.invoke("audit:bulkImport", payload),
   getUserPreferences: (payload) => ipcRenderer.invoke("preferences:get", payload),
   setUserPreferences: (payload) => ipcRenderer.invoke("preferences:set", payload),

@@ -94,15 +94,14 @@ function statusLabel(status: MainCouranteStatus) {
   return "Clôturé";
 }
 
-function MainCouranteStatusBadge({ status, syncState }: { status: MainCouranteStatus; syncState?: "PENDING_QUEUE" }) {
+function MainCouranteStatusBadge({ status }: { status: MainCouranteStatus }) {
   const label = statusLabel(status);
   const variant =
     status === "EN_ATTENTE" ? "en-attente" : status === "EN_COURS" ? "en-cours" : "cloture";
   return (
-    <span className={`mc-status-badge mc-status-badge--${variant}`} title={syncState ? `${label} - En file d'attente writer` : label}>
+    <span className={`mc-status-badge mc-status-badge--${variant}`} title={label}>
       <span className="mc-status-badge__dot" aria-hidden />
       <span className="mc-status-badge__label">{label}</span>
-      {syncState ? <span className="mc-status-badge__queued">En attente DB</span> : null}
     </span>
   );
 }
@@ -224,7 +223,7 @@ export function MainCouranteTable({
             <td className="mc-col-information mc-cell-wrap">{entry.information}</td>
             <td className="mc-col-observation mc-cell-wrap">{entry.managerObservation || "—"}</td>
             <td className="mc-col-status">
-              <MainCouranteStatusBadge status={entry.status} syncState={entry.syncState} />
+              <MainCouranteStatusBadge status={entry.status} />
             </td>
             <td className="mc-col-actions">
               <div className="row-actions mc-row-actions-wrap">

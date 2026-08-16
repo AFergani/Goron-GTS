@@ -1,6 +1,6 @@
 /**
  * Initialisation transverse du `UserStore` : résolution du code d'accès administrateur (profil DEV)
- * avant ouverture de la base SQLite.
+ * avant branchement PostgreSQL.
  *
  * Délègue la lecture des fichiers à `adminAccess.js` ; ne crée pas la connexion base.
  */

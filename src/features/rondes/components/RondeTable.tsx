@@ -1,5 +1,5 @@
 /**
- * Tableau des fiches ronde (tri, statuts, actions icônes, file d’attente writer).
+ * Tableau des fiches ronde (tri, statuts, actions icônes).
  */
 
 import { Check, Eye, FileText } from "lucide-react";
@@ -154,7 +154,6 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
                 <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
                   <span className="mc-status-badge__dot" aria-hidden />
                   <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
-                  {entry.syncState ? <span className="mc-status-badge__queued">En attente DB</span> : null}
                 </span>
               </td>
               <td>

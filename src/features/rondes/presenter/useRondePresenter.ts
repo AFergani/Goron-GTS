@@ -1,7 +1,8 @@
 /**
- * Presenter rondes : liste, CRUD, statuts, lots exceptionnels, file PENDING_QUEUE.
+ * Presenter rondes : liste, CRUD, statuts, lots exceptionnels.
  *
- * Polling ~20 s. Utilisé par `RondePage` (onglets urgence, planifié, gestion profils déléguée AppShell).
+ * Polling ~20 s. Persistance PostgreSQL. Utilisé par `RondePage`
+ * (onglets urgence, planifié, gestion profils déléguée AppShell).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,7 +38,6 @@ type UseRondePresenterOptions = {
 export function useRondePresenter({ requesterRole, requesterUsername, onToast }: UseRondePresenterOptions) {
   const [entries, setEntries] = useState<RondeEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pendingQueueEntries, setPendingQueueEntries] = useState<Record<string, RondeEntry>>({});
 
   const notify = (message: string) => {
     onToast?.(message);
@@ -48,21 +48,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       try {
         if (!silent) setLoading(true);
         const rows = await gtsApiClient.listRondes({ requesterRole });
-        setPendingQueueEntries((currentPending) => {
-          const nextPending = { ...currentPending };
-          for (const row of rows) {
-            if (!nextPending[row.id]) continue;
-            delete nextPending[row.id];
-          }
-          const merged = [...rows];
-          for (const pendingRow of Object.values(nextPending)) {
-            if (!merged.some((row) => row.id === pendingRow.id)) {
-              merged.unshift(pendingRow);
-            }
-          }
-          setEntries(merged);
-          return nextPending;
-        });
+        setEntries(rows);
         return rows;
       } catch (error) {
         notify(error instanceof Error ? error.message : "Impossible de charger les rondes.");
@@ -120,7 +106,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
         requestBatchId,
         ...savePayload
       } = payload;
-      const created = await gtsApiClient.createRondeEntry({
+      await gtsApiClient.createRondeEntry({
         requesterRole,
         requesterUsername,
         id: makeRondeId(),
@@ -137,12 +123,6 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
           ? { cancellationReason: String(cancellationReason ?? "").trim() }
           : {})
       });
-      if ((created as RondeEntry).syncState === "PENDING_QUEUE") {
-        const pendingEntry = created as RondeEntry;
-        setPendingQueueEntries((current) => ({ ...current, [pendingEntry.id]: pendingEntry }));
-        setEntries((current) => [pendingEntry, ...current.filter((row) => row.id !== pendingEntry.id)]);
-        notify("Ronde en attente de validation DB.");
-      }
       await loadEntries(true);
       return true;
     } catch (error) {
@@ -160,15 +140,6 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
         expectedUpdatedAt,
         ...payload
       });
-      if ((updated as RondeEntry).syncState === "PENDING_QUEUE") {
-        setPendingQueueEntries((current) => ({
-          ...current,
-          [id]: { ...(current[id] || {}), ...(updated as RondeEntry), id, syncState: "PENDING_QUEUE" } as RondeEntry
-        }));
-        setEntries((current) =>
-          current.map((entry) => (entry.id === id ? { ...entry, ...(updated as Partial<RondeEntry>), syncState: "PENDING_QUEUE" } : entry))
-        );
-      }
       await loadEntries(true);
       return updated;
     } catch (error) {
@@ -191,12 +162,6 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
         expectedUpdatedAt,
         status,
         cancellationReason
-      });
-      setPendingQueueEntries((current) => {
-        if (!current[id]) return current;
-        const next = { ...current };
-        delete next[id];
-        return next;
       });
       await loadEntries(true);
       return true;

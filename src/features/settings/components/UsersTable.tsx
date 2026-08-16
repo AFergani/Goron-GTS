@@ -41,12 +41,19 @@ export function UsersTable({
     return "Opérateur";
   }
 
-  function formatManagerProfile(user: User) {
-    if (user.role !== "RESPONSABLE") return "-";
+  function formatManagerProfile(user: User): string | null {
+    if (user.role !== "RESPONSABLE") return null;
     if (user.managerProfile === "SUPERVISEUR") return "Superviseur";
     if (user.managerProfile === "RESPONSABLE_STATION") return "Responsable de station";
     if (user.managerProfile === "DIRECTEUR_STATION") return "Directeur de station";
-    return "-";
+    return null;
+  }
+
+  /** Affiche « Rôle (Profil) » ; sans profil, uniquement le rôle (pas de parenthèses vides). */
+  function formatRoleAndProfile(user: User) {
+    const role = formatRole(user.role);
+    const profile = formatManagerProfile(user);
+    return profile ? `${role} (${profile})` : role;
   }
 
   function canActOnUser(target: User): boolean {
@@ -54,12 +61,14 @@ export function UsersTable({
   }
 
   return (
-    <table>
+    <table className="users-table">
       <thead>
         <tr>
+          <th scope="col" className="users-table__col-presence" title="Connexion multi-postes">
+            Connexion
+          </th>
           <th>Nom</th>
-          <th>Rôle</th>
-          <th>Profil</th>
+          <th>Profile</th>
           <th>Statut</th>
           <th>Désactivé le</th>
           <th>Dernière mise à jour</th>
@@ -69,24 +78,21 @@ export function UsersTable({
       </thead>
       <tbody>
         {users.map((u) => {
-          const isOnline = u.isActive && activeSet.has(u.fullName.toLowerCase());
+          // Sessions = username technique ; présence partagée via PostgreSQL.
+          const isOnline = u.isActive && activeSet.has(String(u.username || "").toLowerCase());
           const canAct = canActOnUser(u);
           return (
             <tr key={u.id}>
-              <td>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  {isOnline && (
-                    <span
-                      title="Connecté"
-                      aria-label="Connecté"
-                      style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0, display: "inline-block" }}
-                    />
-                  )}
-                  {u.fullName}
-                </span>
+              <td className="users-table__col-presence">
+                <span
+                  className={`user-presence-dot ${isOnline ? "user-presence-dot--online" : "user-presence-dot--offline"}`}
+                  title={isOnline ? "Connecté (tous postes)" : "Déconnecté"}
+                  aria-label={isOnline ? "Connecté" : "Déconnecté"}
+                  role="img"
+                />
               </td>
-              <td>{formatRole(u.role)}</td>
-              <td>{formatManagerProfile(u)}</td>
+              <td>{u.fullName}</td>
+              <td>{formatRoleAndProfile(u)}</td>
               <td>
                 {u.isLocked ? (
                   <span className="badge badge-danger" title={`Bloqué après ${u.failedLoginAttempts} tentatives`}>

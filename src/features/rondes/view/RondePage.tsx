@@ -1,7 +1,7 @@
 /**
  * Page Rondes : onglets urgence, planifié, gestion profils ; orchestration presenter + référentiels.
  *
- * Filtres tableau, modales demande/fiche, exports, état writer. ~860 lignes — découpage futur si besoin.
+ * Filtres tableau, modales demande/fiche, exports. ~860 lignes — découpage futur si besoin.
  */
 
 import { useEffect, useMemo, useState } from "react";

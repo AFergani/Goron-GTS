@@ -3,7 +3,7 @@
  */
 
 import type { FormEvent } from "react";
-import type { CreateUserFormState } from "../model/settings.types";
+import { getDefaultPageAccessByRole, type CreateUserFormState } from "../model/settings.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 
 type CreateUserModalProps = {
@@ -48,7 +48,14 @@ export function CreateUserModal({
             Rôle technique
             <select
               value={form.role}
-              onChange={(e) => onChange({ ...form, role: e.target.value as "RESPONSABLE" | "OPERATEUR" })}
+              onChange={(e) => {
+                const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
+                onChange({
+                  ...form,
+                  role,
+                  pageAccess: getDefaultPageAccessByRole(role)
+                });
+              }}
             >
               <option value="OPERATEUR">Opérateur</option>
               <option value="RESPONSABLE">Responsable</option>

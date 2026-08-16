@@ -1,6 +1,6 @@
 {
   "name": "goron-gts",
-  "version": "1.0.67",
+  "version": "1.0.69",
   "description": "Application de gestion des tableurs GTS",
   "main": "electron/main.js",
   "scripts": {
@@ -20,8 +20,7 @@
     "release:portable:minor": "node scripts/release-portable.js minor",
     "release:portable:major": "node scripts/release-portable.js major",
     "release:portable:nobump": "node scripts/release-portable.js --no-bump",
-    "release:portable:fullclean": "node scripts/release-portable.js patch --reinstall-deps",
-    "db:recreate": "node scripts/recreate-db.js"
+    "release:portable:fullclean": "node scripts/release-portable.js patch --reinstall-deps"
   },
   "keywords": [],
   "author": "",
@@ -32,12 +31,14 @@
     "docxtemplater": "^3.68.5",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.8.0",
+    "pg": "^8.23.0",
     "pizzip": "^3.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
   },
   "devDependencies": {
+    "@types/pg": "^8.21.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

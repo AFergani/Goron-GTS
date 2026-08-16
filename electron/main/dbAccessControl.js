@@ -1,16 +1,16 @@
 /**
- * Contrôles d'accès RBAC liés à la base SQLite et aux opérations sensibles (archives, bascule de base).
- * Interroge la table `users` du store actif ; replis à `false` / `null` si la BDD n'est pas prête.
+ * Contrôles d'accès RBAC liés à la base et aux opérations sensibles (archives, bascule de base).
+ * Lit le cache utilisateurs PostgreSQL (`getCachedUserRow`) ; replis à `false` / `null` si indisponible.
  *
  * Instancié tôt dans `main.js` (`createDbAccessControlService`) et réinjecté dans `databaseAdmin.js`
  * ainsi que `ipcSystemHandlers.js` (archivage manuel, paramètres base).
  */
 
 /**
- * Fabrique les vérifications de droits basées sur le rôle et le profil manager en base.
+ * Fabrique les vérifications de droits basées sur le rôle et le profil manager.
  *
  * @param {object} deps
- * @param {() => import('../userStore')|null} deps.getUserStore - Store SQLite courant ; `null` ou sans `db` si non configuré.
+ * @param {() => import('../userStore')|null} deps.getUserStore - Store courant.
  * @returns {{
  *   getActiveUserRole: (username: string) => string|null,
  *   canManageArchiveSession: (requesterUsername: string) => boolean,
@@ -22,55 +22,38 @@ function createDbAccessControlService(deps) {
   const { getUserStore } = deps;
 
   /**
-   * Retourne le rôle applicatif (`DEV`, `RESPONSABLE`, `OPERATEUR`, etc.) d'un utilisateur actif.
-   *
-   * Utilisé notamment par `databaseAdmin.switchActiveDatabase` pour autoriser un `DEV` à lever
-   * le verrou d'une session archive ouverte par un autre compte.
-   *
-   * @param {string} username - Identifiant de connexion (comparaison insensible à la casse).
-   * @returns {string|null} Valeur de `users.role` ou `null` si utilisateur inconnu, inactif ou BDD absente.
+   * @param {string} username
+   * @returns {object|null}
    */
-  function getActiveUserRole(username) {
+  function getActiveUserRow(username) {
     const userStore = getUserStore();
-    if (!userStore?.db) return null;
-    const row = userStore.db
-      .prepare("SELECT role FROM users WHERE lower(username) = ? AND is_active = 1 LIMIT 1")
-      .get(String(username || "").trim().toLowerCase());
-    return row?.role || null;
+    if (!userStore || typeof userStore.getCachedUserRow !== "function") return null;
+    return userStore.getCachedUserRow(username);
   }
 
   /**
-   * Indique si l'utilisateur peut ouvrir une base depuis le dossier Archives (session archive).
-   *
-   * Plus permissif que `canManageDatabase` : tout compte `RESPONSABLE` ou `DEV` actif suffit,
-   * sans filtre sur `manager_profile`.
-   *
-   * @param {string} requesterUsername - Demandeur de la bascule archive.
-   * @returns {boolean} `true` si rôle `RESPONSABLE` ou `DEV` ; sinon `false` (y compris BDD non prête).
+   * @param {string} username
+   * @returns {string|null}
+   */
+  function getActiveUserRole(username) {
+    return getActiveUserRow(username)?.role || null;
+  }
+
+  /**
+   * @param {string} requesterUsername
+   * @returns {boolean}
    */
   function canManageArchiveSession(requesterUsername) {
-    const userStore = getUserStore();
-    if (!userStore?.db) return false;
-    const row = userStore.db
-      .prepare("SELECT role FROM users WHERE lower(username) = ? AND is_active = 1 LIMIT 1")
-      .get(String(requesterUsername || "").trim().toLowerCase());
+    const row = getActiveUserRow(requesterUsername);
     return Boolean(row && (row.role === "RESPONSABLE" || row.role === "DEV"));
   }
 
   /**
-   * Indique si l'utilisateur peut lancer un archivage manuel depuis Paramètres (`system:runArchiveNow`).
-   *
-   * Règles : `DEV` toujours autorisé ; sinon `RESPONSABLE` avec `manager_profile` directeur ou responsable de station.
-   *
-   * @param {string} requesterUsername - Utilisateur authentifié côté IPC.
+   * @param {string} requesterUsername
    * @returns {boolean}
    */
   function canRunArchiveManually(requesterUsername) {
-    const userStore = getUserStore();
-    if (!userStore?.db) return false;
-    const row = userStore.db
-      .prepare("SELECT role, manager_profile FROM users WHERE lower(username) = ? AND is_active = 1 LIMIT 1")
-      .get(String(requesterUsername || "").trim().toLowerCase());
+    const row = getActiveUserRow(requesterUsername);
     if (!row) return false;
     if (row.role === "DEV") return true;
     if (row.role !== "RESPONSABLE") return false;
@@ -78,23 +61,11 @@ function createDbAccessControlService(deps) {
   }
 
   /**
-   * Indique si l'utilisateur peut changer la base active (`system:switchDatabase` / Paramètres données).
-   *
-   * Mêmes critères que `canRunArchiveManually` : directeur ou responsable de station, ou profil `DEV`.
-   *
-   * @param {string} requesterUsername - Utilisateur authentifié.
+   * @param {string} requesterUsername
    * @returns {boolean}
    */
   function canManageDatabase(requesterUsername) {
-    const userStore = getUserStore();
-    if (!userStore?.db) return false;
-    const row = userStore.db
-      .prepare("SELECT role, manager_profile FROM users WHERE lower(username) = ? AND is_active = 1 LIMIT 1")
-      .get(String(requesterUsername || "").trim().toLowerCase());
-    if (!row) return false;
-    if (row.role === "DEV") return true;
-    if (row.role !== "RESPONSABLE") return false;
-    return row.manager_profile === "DIRECTEUR_STATION" || row.manager_profile === "RESPONSABLE_STATION";
+    return canRunArchiveManually(requesterUsername);
   }
 
   return {

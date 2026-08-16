@@ -30,7 +30,6 @@ export type MainCouranteEntry = {
   priseEnCompteAt?: string;
   closedAt?: string;
   archivedAt?: string;
-  syncState?: "PENDING_QUEUE";
 };
 
 export type MainCouranteSavePayload = {

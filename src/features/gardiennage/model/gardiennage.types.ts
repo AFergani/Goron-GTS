@@ -3,7 +3,6 @@
  *
  * Snapshot de planification versionné (`GardiennagePlanningSnapshotV1`) : lignes horaires,
  * récurrence, mode continu H24. Statuts PLANIFIE → ACTIF → CLOTURE / ANNULE.
- * `syncState: PENDING_QUEUE` si écriture différée (writer indisponible).
  */
 
 export type GardiennageStatus = "PLANIFIE" | "ACTIF" | "CLOTURE" | "ANNULE";
@@ -75,7 +74,6 @@ export type GardiennageEntry = {
   planningSnapshot?: GardiennagePlanningSnapshotV1 | null;
   planningSlotStart?: string;
   planningSlotEnd?: string;
-  syncState?: "PENDING_QUEUE";
 };
 
 /** Création / mise à jour (planification optionnelle pour lots générés). */

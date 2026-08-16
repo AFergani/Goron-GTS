@@ -56,95 +56,9 @@ declare global {
   interface Window {
     /** Pont preload Electron ; signatures des appels `ipcRenderer.invoke`. */
     gtsApi: {
-      // --- Système : base, archivage, writer, modèles Word, fenêtre ---
+      // --- Système : boot PG / mode dev, modèles Word, fenêtre ---
       getDbConfig: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; dbPath: string | null; isDev?: boolean }>;
-      listDatabases: (payload?: { sessionToken?: string | null }) => Promise<{
-        activeDbPath: string | null;
-        sourceDbPath?: string | null;
-        archiveSession?: {
-          active: boolean;
-          openedBy: string | null;
-          openedAt: string | null;
-          sourceDbPath: string | null;
-          activeDbPath: string | null;
-        } | null;
-        items: Array<{
-          path: string;
-          name: string;
-          isActive: boolean;
-          isSourceActive?: boolean;
-          lastModifiedAt: string;
-        }>;
-      }>;
-      switchDatabase: (payload: { dbPath: string; requesterRole: Role; requesterUsername: string }) => Promise<{
-        success: boolean;
-        activeDbPath: string;
-        sourceDbPath?: string;
-        restoredFromArchive?: boolean;
-      }>;
-      getArchiveStatus: (payload?: { sessionToken?: string | null }) => Promise<{
-        lastLogicalRunAt: string | null;
-        lastLogicalResult: unknown;
-        lastQuarterRotationAt: string | null;
-        lastQuarterFrom: string | null;
-        lastQuarterTo: string | null;
-        lastError: string | null;
-        pendingJobs: number;
-        lastArchiveBatchAt?: string | null;
-        archiveSession?: {
-          active: boolean;
-          openedBy: string | null;
-          openedAt: string | null;
-          sourceDbPath: string | null;
-          activeDbPath: string | null;
-        } | null;
-        delayDays: number;
-        schedulerIntervalMs: number;
-        quarterKey: string;
-        dbPath: string | null;
-      }>;
-      runArchiveNow: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-      }) => Promise<{ rotation?: unknown; logical?: unknown; queued?: boolean; requestId?: string }>;
-      getWriterStatus: (payload?: { sessionToken?: string | null }) => Promise<{
-        enabled: boolean;
-        role: "master" | "backup" | "client" | "disabled";
-        transportMode?: "http" | "smb_queue" | string;
-        configPath: string | null;
-        sharedRoot?: string | null;
-        policy: string | null;
-        masterHost: string | null;
-        masterPort: number | null;
-        backupHost: string | null;
-        backupPort: number | null;
-        failoverEnabled: boolean;
-        connectivity: {
-          masterReachable: boolean | null;
-          backupReachable: boolean | null;
-        };
-        alertActive: boolean;
-        localHostname: string;
-        localWhoami: string;
-        writerLogDir?: string;
-        writerLogFile?: string;
-      }>;
-      getWriterQueueStats: (payload: { sessionToken: string }) => Promise<{ available: boolean; incoming: number; processing: number; ack: number }>;
       setDevToolsEnabled: (payload: { enabled: boolean; sessionToken?: string | null }) => Promise<{ success: boolean; enabled: boolean }>;
-      getLocalNodeIdentity: (payload: { sessionToken: string }) => Promise<{ hostname: string; host: string; whoami: string }>;
-      generateWriterConfig: (payload: {
-        sessionToken: string;
-        defaultProfile?: "production" | "development";
-        serviceSubnet?: string;
-        forceIPv4?: boolean;
-        failoverEnabled?: boolean;
-        heartbeatIntervalMs?: number;
-        writerTimeoutMs?: number;
-        retryIntervalMs?: number;
-        outputPath?: string;
-        master: { hostname: string; host: string; port: number; whoami: string };
-        backup: { hostname: string; host: string; port: number; whoami: string };
-      }) => Promise<{ success: boolean; canceled: boolean; filePath: string | null }>;
       getDocumentTemplate: (payload: {
         templateName: string;
       }) => Promise<{ found: boolean; dataBase64: string | null; sourcePath: string | null }>;
@@ -224,12 +138,122 @@ declare global {
       openTemplatesFolder: (payload: {
         sessionToken: string;
       }) => Promise<{ success: boolean; path: string | null; error: string | null }>;
-      openWriterLogFolder: (payload: { sessionToken: string }) => Promise<{ success: boolean; path: string; error: string | null }>;
       getDbHealth: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; writable: boolean }>;
+      getPostgresLabHealth: (payload?: { sessionToken?: string | null }) => Promise<{
+        reachable: boolean;
+        engine: "postgres";
+        host: string;
+        port: number;
+        database: string;
+        error: string | null;
+        checkedAt: string;
+        transition?: "none" | "lost" | "restored" | "unavailable_at_start";
+      }>;
+      getPostgresBootstrapStatus: (payload?: Record<string, never>) => Promise<{
+        needsSetup: boolean;
+        config: {
+          host: string;
+          port: number;
+          database: string;
+          user: string;
+          hasPassword: boolean;
+          source: "env" | "encrypted" | "defaults";
+          encryptionAvailable: boolean;
+          envOverridesActive: boolean;
+        };
+      }>;
+      savePostgresBootstrapConfig: (payload: {
+        host: string;
+        port: number;
+        database: string;
+        user: string;
+        password?: string;
+      }) => Promise<{
+        success: boolean;
+        config: {
+          host: string;
+          port: number;
+          database: string;
+          user: string;
+          hasPassword: boolean;
+          source: "env" | "encrypted" | "defaults";
+          encryptionAvailable: boolean;
+          envOverridesActive: boolean;
+        };
+        reconnect: { success: boolean; reachable: boolean; error: string | null };
+      }>;
+      testPostgresBootstrapConfig: (payload: {
+        host?: string;
+        port?: number;
+        database?: string;
+        user?: string;
+        password?: string;
+      }) => Promise<{
+        reachable: boolean;
+        host: string;
+        port: number;
+        database: string;
+        error: string | null;
+        checkedAt: string;
+      }>;
+      getPostgresConfig: (payload: { sessionToken: string }) => Promise<{
+        host: string;
+        port: number;
+        database: string;
+        user: string;
+        hasPassword: boolean;
+        source: "env" | "encrypted" | "defaults";
+        encryptionAvailable: boolean;
+        envOverridesActive: boolean;
+      }>;
+      savePostgresConfig: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        host: string;
+        port: number;
+        database: string;
+        user: string;
+        password?: string;
+      }) => Promise<{
+        success: boolean;
+        config: {
+          host: string;
+          port: number;
+          database: string;
+          user: string;
+          hasPassword: boolean;
+          source: "env" | "encrypted" | "defaults";
+          encryptionAvailable: boolean;
+          envOverridesActive: boolean;
+        };
+        reconnect: { success: boolean; reachable: boolean; error: string | null };
+      }>;
+      testPostgresConfig: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        host?: string;
+        port?: number;
+        database?: string;
+        user?: string;
+        password?: string;
+      }) => Promise<{
+        reachable: boolean;
+        host: string;
+        port: number;
+        database: string;
+        error: string | null;
+        checkedAt: string;
+      }>;
+      reconnectPostgres: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{ success: boolean; reachable: boolean; error: string | null }>;
       quitApp: (payload?: { sessionToken?: string | null }) => Promise<{ success: boolean }>;
       minimizeApp: (payload?: { sessionToken?: string | null }) => Promise<{ success: boolean }>;
       subscribeAppExitChoiceRequest: (callback: () => void) => () => void;
-      chooseDbPath: (sessionToken?: string | null) => Promise<{ configured: boolean; dbPath: string | null; canceled: boolean }>;
 
       // --- Authentification et comptes ---
       login: (payload: LoginPayload) => Promise<{ user: User; sessionToken: string }>;
@@ -242,6 +266,7 @@ declare global {
       logout: (payload: { sessionToken: string }) => Promise<{ success: boolean }>;
       unlockUser: (payload: { requesterRole: Role; requesterUsername: string; sessionToken: string; username: string }) => Promise<{ success: boolean }>;
       getActiveSessions: (payload: { sessionToken: string }) => Promise<{ activeUsernames: string[] }>;
+      touchPresence: (payload: { sessionToken: string }) => Promise<{ written: boolean }>;
       setAdminCode: (payload: { requesterRole: Role; requesterUsername: string; sessionToken: string; code: string }) => Promise<{ success: boolean }>;
       listUsers: (payload: { requesterRole: Role; requesterUsername: string }) => Promise<User[]>;
       createUser: (payload: {
@@ -262,7 +287,7 @@ declare global {
         managerProfile: ManagerProfile | null;
         pageAccess: PageAccess;
         mustResetPassword: boolean;
-      }) => Promise<{ success: boolean; temporaryPassword: string | null }>;
+      }) => Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }>;
       deactivateUser: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -285,6 +310,20 @@ declare global {
         requesterRole: Role;
         requesterUsername: string;
       }) => Promise<{ firstOccurredAt: string | null; lastOccurredAt: string | null; total: number }>;
+      listTechErrorLogs: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        limit?: number;
+      }) => Promise<
+        Array<{
+          occurredAt: string;
+          source: string;
+          code: string;
+          codeLabel: string;
+          messageFr: string;
+          details: Record<string, unknown> | null;
+        }>
+      >;
       logBulkImportAudit: (payload: {
         requesterRole: Role;
         requesterUsername: string;

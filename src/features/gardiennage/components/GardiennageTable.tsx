@@ -1,5 +1,5 @@
 /**
- * Tableau des gardiennages (tri colonnes, badges statut, file d’attente DB).
+ * Tableau des gardiennages (tri colonnes, badges statut).
  *
  * Actions : clôturer (si actif/planifié), modifier, export Word (clôturé/annulé), supprimer.
  * Colonne Période optionnelle (onglet Planification).
@@ -159,7 +159,6 @@ export function GardiennageTable({
                   <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
                     <span className="mc-status-badge__dot" aria-hidden />
                     <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
-                    {entry.syncState ? <span className="mc-status-badge__queued">En attente DB</span> : null}
                   </span>
                 </td>
 

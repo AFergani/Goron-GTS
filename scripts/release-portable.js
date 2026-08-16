@@ -189,51 +189,60 @@ function preparePortableReleaseBundle(version, sourceExePath, releaseRootDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(path.join(dataDir, "logs"), { recursive: true });
   copyDirectoryRecursive(path.join(rootDir, "dist", "templates"), templatesDir);
-  const writerConfigPreferred = path.join(rootDir, "Z_Dossier_Perso", "gts_writer-config.json");
-  const writerConfigMisspell = path.join(rootDir, "Z_Dossier_Perso", "gts_wrtier-config.json");
-  const writerConfigLegacy = path.join(rootDir, "Z_Dossier_Perso", "writer-config.v1.json");
-  const deployedWriterConfig = path.join(dataDir, "gts_writer-config.json");
-  const writerConfigSource = fs.existsSync(writerConfigPreferred)
-    ? writerConfigPreferred
-    : fs.existsSync(writerConfigMisspell)
-      ? writerConfigMisspell
-      : fs.existsSync(writerConfigLegacy)
-        ? writerConfigLegacy
-        : null;
-  if (writerConfigSource) {
-    fs.copyFileSync(writerConfigSource, deployedWriterConfig);
-  }
 
   const deployReadmePath = path.join(targetDir, "LISEZ-MOI-DEPLOIEMENT.txt");
   fs.writeFileSync(
     deployReadmePath,
     [
-      "Structure de deploiement Goron GTS (sans installateur)",
+      "Goron GTS — Déploiement portable (sans installateur)",
+      "Version " + version,
       "",
-      "- Racine : executable",
-      "- data/ : base, configuration writer et logs",
+      "=== Architecture ===",
+      "- Chaque poste exécute Goron GTS et se connecte à un serveur PostgreSQL",
+      "  (PC H24 ou VM) sur le LAN. Plus de fichier base .db partagé, plus de writer SMB.",
+      "- Les opérateurs se connectent avec leur profil Goron-GTS (nom affiché / mot de passe).",
+      "- Un compte technique PostgreSQL unique est configuré une fois par poste (écran",
+      "  « Initialisation GTS » au premier lancement, puis Paramètres pour un admin).",
       "",
-      "Exemple:",
+      "=== Contenu du dossier portable ===",
       "  Goron GTS " + version + ".exe",
-      "  data/gts_writer-config.json",
-      "  data/gts.db",
-      "  data/templates/main-courante-template.docx",
-      "  data/logs/writer-transit.log",
+      "  LISEZ-MOI-DEPLOIEMENT.txt   (ce fichier)",
+      "  data/",
+      "    templates/               modèles Word (.docx)",
+      "    logs/                    (réservé)",
       "",
-      "Important:",
-      "- Cette release utilise l executable portable empaquete (electron-builder).",
-      "- Le binaire se decompresse temporairement a l execution (comportement normal).",
+      "=== Premier lancement (chaque poste) ===",
+      "1. Copier ce dossier en local sur le PC (éviter l'exécution depuis un partage SMB).",
+      "2. S'assurer que le serveur PostgreSQL est joignable (port 5432, pare-feu OK).",
+      "3. Lancer l'exécutable.",
+      "4. Si aucune config PG n'est connue : écran « Initialisation GTS »",
+      "   — saisir hôte (ex. 192.168.x.x ou 127.0.0.1), port, base, utilisateur, mot de passe",
+      "   — Tester la connexion, puis Enregistrer.",
+      "5. Se connecter avec un compte Goron-GTS (Admin / profil métier).",
       "",
-      "Raccourcis:",
-      "- Aucun raccourci n'est genere automatiquement dans cette release.",
-      "- Si necessaire, creez un raccourci manuel vers l'executable."
+      "=== Poste serveur PostgreSQL (rappel) ===",
+      "- Service PostgreSQL démarré automatiquement (ou Docker labo).",
+      "- Compte technique (ex. goron_gts_app) + base (ex. goron_gts).",
+      "- Pare-feu : TCP 5432 ouvert vers les postes station uniquement.",
+      "",
+      "=== Panne / badge ===",
+      "- Badge « Base inaccessible » dans l'appli si PostgreSQL est down.",
+      "- Pas d'écriture possible tant que le serveur est injoignable (comportement voulu).",
+      "- Journal local des pertes/reprises PG (par poste) :",
+      "  %APPDATA%\\goron-gts\\gts-pg-events.log",
+      "",
+      "=== Notes techniques ===",
+      "- Cet exécutable portable se décompresse temporairement à l'exécution (normal).",
+      "- Aucun raccourci n'est généré automatiquement ; créez-en un si besoin.",
+      "- Les modèles Word personnalisés : dossier data/templates/ à côté de l'exe",
+      "  (ou selon la racine data du poste)."
     ].join("\n"),
     "utf8"
   );
 
-  console.log(`📦 Bundle dossier prêt: ${targetDir}`);
+  console.log(`📦 Bundle portable prêt: ${targetDir}`);
   console.log(`   - EXE: ${path.basename(targetExe)}`);
-  console.log("   - Data: data/ (db + gts_writer-config.json + logs)");
+  console.log("   - Data: data/ (templates + logs) — métier = PostgreSQL distant");
 }
 
 function prepareInstallerReleaseBundle(version, sourceInstallerPath, releaseRootDir) {
@@ -266,17 +275,29 @@ function prepareFolderReleaseBundle(version, sourceUnpackedExePath, releaseRootD
   fs.writeFileSync(
     readmePath,
     [
-      "Mode dossier (resources a cote de l executable)",
+      "Goron GTS — Mode dossier (exe + resources à côté)",
+      "Version " + version,
       "",
-      "- Cette version contient Goron GTS.exe + le dossier resources.",
-      "- A utiliser en copie locale sur chaque poste.",
-      "- Eviter l'execution directe depuis un partage SMB.",
+      "=== Usage ===",
+      "- Cette version contient Goron GTS.exe + le dossier resources/ (non empaqueté).",
+      "- À utiliser en copie locale sur chaque poste.",
+      "- Éviter l'exécution directe depuis un partage SMB.",
       "",
-      "Contenu attendu:",
+      "=== Contenu attendu ===",
       "  Goron GTS.exe",
+      "  LISEZ-MOI-MODE-DOSSIER.txt",
       "  resources/",
       "  locales/",
-      "  chrome_*.pak"
+      "  chrome_*.pak",
+      "  … (DLL / pak Electron)",
+      "",
+      "=== Base de données ===",
+      "- Le métier est sur PostgreSQL (connexion directe), pas un fichier .db local.",
+      "- Au premier lancement : configurer le serveur PG (écran Initialisation GTS).",
+      "- Procédure détaillée : voir LISEZ-MOI-DEPLOIEMENT.txt du bundle portable.",
+      "",
+      "=== Journal technique local (perte PG) ===",
+      "  %APPDATA%\\goron-gts\\gts-pg-events.log"
     ].join("\n"),
     "utf8"
   );

@@ -107,6 +107,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   DB_ACTIVE_SWITCH: "[Système] Changement manuel de base active",
   DB_ARCHIVE_SESSION_ENTER: "[Système] Ouverture d'une archive en mode édition",
   DB_ARCHIVE_SESSION_EXIT: "[Système] Retour à la base active locale",
+  POSTGRES_CONFIG_SAVE: "[Base de données] Enregistrement de la connexion PostgreSQL",
   GARDIENNAGE_CREATE: "[Gardiennage] Création d'un gardiennage",
   GARDIENNAGE_BATCH_CREATE: "[Gardiennage] Création en lot d'un gardiennage planifié",
   GARDIENNAGE_BATCH_CANCEL: "[Gardiennage] Annulation en lot d'un gardiennage",
