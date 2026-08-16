@@ -1,0 +1,32 @@
+# Goron-GTS — PostgreSQL labo (indépendant du PC fixe)
+# Image officielle postgres:18, identifiants alignés sur les défauts applicatifs
+# (electron/store/persistence/postgresConnectionConfig.js).
+#
+# Démarrage : docker compose up -d
+# Arrêt     : docker compose stop
+# Reset     : docker compose down -v   (efface les données du volume)
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: goron-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: goron_gts
+      POSTGRES_USER: goron_gts_app
+      POSTGRES_PASSWORD: dev_app_secret
+      TZ: Europe/Paris
+    ports:
+      - "5432:5432"
+    # PostgreSQL 18 : monter le parent, pas .../data (layout officiel de l'image).
+    volumes:
+      - goron_pg18_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goron_gts_app -d goron_gts"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  goron_pg18_data:
