@@ -125,30 +125,20 @@ Le **code source** est documenté par des en-têtes **JSDoc** (français) ; conv
 - Accès réseau local au serveur PostgreSQL (port 5432)
 - En développement : Docker `postgres:18` (recommandé, `docker-compose.yml`) ou PostgreSQL natif
 
+**Labo portable (Docker local + `.exe` déjà généré, sans Node)** : **[INSTALLATION.md](INSTALLATION.md)**.
+
 ---
 
 ## Installation et lancement (développement)
 
-Guide **A à Z** (PC portable, Docker indépendant du poste fixe, usage hors ligne) : **[INSTALLATION.md](INSTALLATION.md)**.
-
-Raccourci une fois Git, Node 22 et Docker Desktop installés :
-
-```powershell
-.\scripts\install-labo.ps1
-npm run dev
-```
-
-Équivalent manuel :
-
 ```bash
-docker compose up -d
-npm ci
+npm install
 npm run dev
 ```
 
 Lance l’UI Vite (`5173`) et Electron en parallèle. Deuxième instance locale : `npm run dev:2` (port `5174`).
 
-Prérequis labo typique : conteneur `goron-pg18` joignable sur `127.0.0.1:5432` (base `goron_gts`, utilisateur `goron_gts_app`).
+Prérequis labo typique : conteneur PostgreSQL joignable sur `127.0.0.1:5432` (base `goron_gts`, utilisateur technique labo).
 
 ---
 
