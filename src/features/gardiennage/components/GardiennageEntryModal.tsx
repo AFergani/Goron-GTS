@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import {
   isGardiennageAutoClosureReport,
@@ -44,7 +44,10 @@ import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { TimeInput } from "../../common/components/TimeInput";
 import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
+import type { NotifyToast } from "../../common/model/toast.types";
+import { isGardiennagePreviewSlotClosed } from "../model/gardiennageClosure";
 export type GardiennageModalMode = "create" | "edit";
 
 /** Données pré-remplies lors d'une création depuis un contexte extérieur (ex. intervention liée). */
@@ -65,6 +68,8 @@ type GardiennageEntryModalProps = {
   intervenants: IntervenantRef[];
   holidays?: HolidayRef[];
   requesterRole: Role;
+  /** Fiches du même lot (coches de clôture dans l'aperçu). */
+  batchEntries?: GardiennageEntry[];
   createPreset?: GardiennageCreatePreset | null;
   onClose: () => void;
   onCreate: (payload: GardiennageSavePayload) => Promise<boolean>;
@@ -73,7 +78,7 @@ type GardiennageEntryModalProps = {
   onReopenEntry?: (id: string, expectedUpdatedAt: string) => Promise<boolean>;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
 };
 
 type FormState = {
@@ -160,6 +165,7 @@ export function GardiennageEntryModal({
   intervenants,
   holidays = [],
   requesterRole,
+  batchEntries = [],
   createPreset,
   onClose,
   onCreate,
@@ -489,7 +495,7 @@ export function GardiennageEntryModal({
         let pendingSiteDisplay: string | null = null;
         if (!selectedSite && (pendingCode.trim() || pendingName.trim())) {
           if (!pendingCode.trim() || !pendingName.trim()) {
-            onNotify?.("Pour \"Site introuvable\", renseignez le code et le nom.");
+            onNotify?.("Pour \"Site introuvable\", renseignez le code et le nom.", "warning");
             return;
           }
           pendingSiteDisplay = `${pendingName.trim()} (${pendingCode.trim()})`;
@@ -501,11 +507,11 @@ export function GardiennageEntryModal({
         const finalIntervenantId = selectedIntervenant?.id ?? null;
         const finalIntervenantName = selectedIntervenant?.name || pendingIntervenantName.trim();
         if (!finalSiteId && !finalSiteDisplay) {
-          onNotify?.("Sélectionnez un site ou utilisez le bloc \"Site introuvable\".");
+          onNotify?.("Sélectionnez un site ou utilisez le bloc \"Site introuvable\".", "warning");
           return;
         }
         if (!finalIntervenantId && !finalIntervenantName) {
-          onNotify?.("Sélectionnez un intervenant ou utilisez le bloc \"Intervenant introuvable\".");
+          onNotify?.("Sélectionnez un intervenant ou utilisez le bloc \"Intervenant introuvable\".", "warning");
           return;
         }
         ok = await onCreate(buildPayload({
@@ -716,21 +722,19 @@ export function GardiennageEntryModal({
                     <span className="gardiennage-date-sep">de</span>
                     <label className="gardiennage-time-field">
                       <span className="gardiennage-date-label">Début</span>
-                      <input
-                        type="time"
+                      <TimeInput
                         value={form.validFromTime}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validFromTime: e.target.value }))}
+                        onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
                       />
                     </label>
                     <span className="gardiennage-date-sep">à</span>
                     <label className="gardiennage-time-field">
                       <span className="gardiennage-date-label">Fin</span>
-                      <input
-                        type="time"
+                      <TimeInput
                         value={form.validToTime}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validToTime: e.target.value }))}
+                        onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
                       />
                     </label>
                   </div>
@@ -754,11 +758,10 @@ export function GardiennageEntryModal({
                     </label>
                     <label className="gardiennage-time-field">
                       <span className="gardiennage-date-label">Heure</span>
-                      <input
-                        type="time"
+                      <TimeInput
                         value={form.validFromTime}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validFromTime: e.target.value }))}
+                        onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
                       />
                     </label>
                     <span className="gardiennage-date-sep">au</span>
@@ -782,13 +785,12 @@ export function GardiennageEntryModal({
                     <label className="gardiennage-time-field">
                       <span className="gardiennage-date-label">Heure (optionnelle)</span>
                       <span className="gardiennage-date-input-wrap">
-                        <input
-                          type="time"
+                        <TimeInput
                           className={form.validToTime.trim() ? "" : "gardiennage-date-input--empty"}
                           value={form.validToTime}
                           disabled={isSaving || isAnnule || isReadOnlyByRole}
                           aria-label="Heure de fin (optionnelle)"
-                          onChange={(e) => setForm((f) => ({ ...f, validToTime: e.target.value }))}
+                          onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
                         />
                         {!form.validToTime.trim() ? (
                           <span className="gardiennage-date-placeholder" aria-hidden="true">--:--</span>
@@ -836,8 +838,9 @@ export function GardiennageEntryModal({
                     Couverture continue sur la période indiquée. Laissez la date de fin vide pour une prestation jusqu&apos;à nouvel ordre :
                     le système maintient un horizon glissant de {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours (prolongation automatique lorsque la
                     fin approche à {GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT} jours ou moins, tant que la demande reste planifiée ou active).
-                    L&apos;heure de fin est optionnelle : si elle est vide, elle reprend l&apos;heure de début. Pour combiner H24 et horaires
-                    récurrents, créez deux demandes distinctes.
+                    L&apos;heure de fin est optionnelle : si elle est vide, elle reprend l&apos;heure de début.
+                    Pour clôturer une prestation jusqu&apos;à nouvel ordre : saisissez d&apos;abord une date de fin ici, enregistrez, puis clôturez après cette fin.
+                    Pour combiner H24 et horaires récurrents, créez deux demandes distinctes.
                   </p>
                 )}
                 {!isCreateMode && entry?.planningBatchId && entry.planningSnapshot && !isCloture && !isAnnule && (
@@ -896,25 +899,23 @@ export function GardiennageEntryModal({
                       <div className="gardiennage-horaires-row" style={{ alignItems: "end" }}>
                         <label className="gardiennage-time-field">
                           <span className="gardiennage-date-label">Début</span>
-                          <input
-                            type="time"
+                          <TimeInput
                             value={line.startTime}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({
+                            onChange={(value) => setForm((f) => ({
                               ...f,
-                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, startTime: e.target.value } : it)
+                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, startTime: value } : it)
                             }))}
                           />
                         </label>
                         <label className="gardiennage-time-field">
                           <span className="gardiennage-date-label">Fin</span>
-                          <input
-                            type="time"
+                          <TimeInput
                             value={line.endTime}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({
+                            onChange={(value) => setForm((f) => ({
                               ...f,
-                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, endTime: e.target.value } : it)
+                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, endTime: value } : it)
                             }))}
                           />
                         </label>
@@ -978,13 +979,32 @@ export function GardiennageEntryModal({
                     <> · Horizon glissant : au moins {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours à l&apos;avance (prolongation automatique).</>
                   ) : null}
                 </p>
-                <div style={{ maxHeight: 160, overflow: "auto", border: "1px solid var(--border-color)", borderRadius: 8, padding: 8 }}>
-                  {previewSlots.slice(0, 40).map((slot) => (
-                    <p key={`${slot.lineId}-${slot.startIso}`} className="muted mc-ref-hint" style={{ margin: "0 0 4px 0" }}>
-                      {slot.lineLabel} · {formatIsoFrDateTime(slot.startIso)} → {formatIsoFrDateTime(slot.endIso)}
-                      {slot.crossesMidnight ? " (passage minuit)" : ""}
-                    </p>
-                  ))}
+                <div className="app-scroll-panel gardiennage-planning-preview-panel">
+                  {previewSlots.slice(0, 40).map((slot) => {
+                    const slotClosed = isGardiennagePreviewSlotClosed(slot, batchEntries);
+                    return (
+                      <p
+                        key={`${slot.lineId}-${slot.startIso}`}
+                        className="muted mc-ref-hint gardiennage-planning-preview-row"
+                      >
+                        {slotClosed ? (
+                          <Check
+                            size={14}
+                            className="gardiennage-planning-preview-row__check"
+                            aria-label="Créneau clôturé"
+                            title="Créneau clôturé"
+                          />
+                        ) : (
+                          <span className="gardiennage-planning-preview-row__check-spacer" aria-hidden />
+                        )}
+                        <span>
+                          {slot.lineLabel} · {formatIsoFrDateTime(slot.startIso)} → {formatIsoFrDateTime(slot.endIso)}
+                          {slot.crossesMidnight ? " (passage minuit)" : ""}
+                          {slotClosed ? " · Clôturé" : ""}
+                        </span>
+                      </p>
+                    );
+                  })}
                   {previewSlots.length === 0 && <p className="muted mc-ref-hint" style={{ margin: 0 }}>Aucun créneau généré.</p>}
                   {previewSlots.length > 40 && <p className="muted mc-ref-hint" style={{ margin: "4px 0 0 0" }}>… aperçu limité à 40 lignes.</p>}
                 </div>

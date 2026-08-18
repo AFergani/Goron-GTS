@@ -22,7 +22,8 @@ export function HelpMainCouranteTopic() {
             générés automatiquement.
           </li>
           <li>
-            <strong>Saisie obligatoire :</strong> sélectionnez un <strong>type d&apos;anomalie</strong> et décrivez le fait dans le champ{" "}
+            <strong>Saisie obligatoire :</strong> un <strong>type d&apos;anomalie</strong> est toujours proposé (défaut{" "}
+            <strong>Voir Observation</strong> si vous n&apos;en avez pas créé d&apos;autre) ; décrivez le fait dans le champ{" "}
             <strong>Observation (opérateur)</strong> (ce qui s&apos;est passé, qui a contacté, impact sur le site, etc.).
           </li>
           <li>
@@ -46,7 +47,8 @@ export function HelpMainCouranteTopic() {
           </li>
         </ol>
         <div className="help-center-callout help-center-callout--tip" role="note">
-          Les types d&apos;anomalie sont configurés dans <strong>Paramètres → Gestion des données → Types d&apos;anomalie</strong>.
+          Les types d&apos;anomalie sont configurés dans <strong>Paramètres → Gestion des données → Types d&apos;anomalie</strong>. Le type{" "}
+          <strong>Voir Observation</strong> est toujours présent et ne peut pas être supprimé.
         </div>
       </div>
 

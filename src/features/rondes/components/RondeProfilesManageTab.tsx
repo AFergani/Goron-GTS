@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Plus, StopCircle, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, StopCircle, Trash2, X } from "lucide-react";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
@@ -18,6 +18,8 @@ import { formatLocalDateIso } from "../model/rondeCalendarLocal";
 import { RondeRequestModal } from "./RondeRequestModal";
 import { RondePlannedStopPlanningModal } from "../../settings/components/RondePlannedStopPlanningModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 type RondeProfilesManageTabProps = {
   sites: SiteRef[];
@@ -30,8 +32,13 @@ type RondeProfilesManageTabProps = {
   onReload: () => void | Promise<void>;
   onUpsertRondePlannedProfile: (payload: RondePlannedProfilePayload) => void | Promise<void>;
   onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<void>;
+  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<void>;
+  onReviewRondePlannedProfileCancellationRequest?: (
+    id: string,
+    payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
+  ) => void | Promise<void>;
   onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<void>;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   openProfileRequest?: { id: string; nonce: number } | null;
 };
 
@@ -46,6 +53,8 @@ export function RondeProfilesManageTab({
   onReload,
   onUpsertRondePlannedProfile,
   onDeleteRondePlannedProfile,
+  onRequestRondePlannedProfileCancellation,
+  onReviewRondePlannedProfileCancellationRequest,
   onSetRondePlannedProfilePlanningEnd,
   onNotify,
   openProfileRequest
@@ -55,6 +64,12 @@ export function RondeProfilesManageTab({
   const [editing, setEditing] = useState<RondePlannedProfileRef | null>(null);
   const [stopTarget, setStopTarget] = useState<RondePlannedProfileRef | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RondePlannedProfileRef | null>(null);
+  const [requestTarget, setRequestTarget] = useState<RondePlannedProfileRef | null>(null);
+  const [requestReason, setRequestReason] = useState("");
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<RondePlannedProfileRef | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
@@ -65,6 +80,7 @@ export function RondeProfilesManageTab({
   const setIntervenantFilter = (v: string) => { setIntervenantFilterRaw(v); tableFilters.setCurrentPage(1); };
 
   const canDelete = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
+  const canManageCancellation = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
   const familyOptions = useMemo(
     () =>
@@ -118,7 +134,7 @@ export function RondeProfilesManageTab({
     if (lastConsumedNonce.current === openProfileRequest.nonce) return;
     const target = profiles.find((p) => p.id === openProfileRequest.id) ?? null;
     if (!target) {
-      onNotify?.("Demande liée introuvable (planification).");
+      onNotify?.("Demande liée introuvable (planification).", "error");
       return;
     }
     lastConsumedNonce.current = openProfileRequest.nonce;
@@ -129,48 +145,47 @@ export function RondeProfilesManageTab({
 
   return (
     <>
-      <section className="panel">
-        <TableFiltersBar
-          search={tableFilters.search}
-          onSearchChange={tableFilters.setSearch}
-          dateFrom={tableFilters.dateFrom}
-          onDateFromChange={tableFilters.setDateFrom}
-          dateTo={tableFilters.dateTo}
-          onDateToChange={tableFilters.setDateTo}
-          searchPlaceholder="Profil, site, prestataire…"
-          onReset={() => { tableFilters.reset(); setFamilyFilter(""); setIntervenantFilter(""); }}
-        >
-          <label>
-            Famille
-            <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-              <option value="">Toutes</option>
-              {familyOptions.map((f) => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Prestataire
-            <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-              <option value="">Tous</option>
-              {intervenants.map((i) => (
-                <option key={i.id} value={i.id}>{i.name}</option>
-              ))}
-            </select>
-          </label>
-        </TableFiltersBar>
-      </section>
-
-      {/* Panel tableau */}
       <section className="panel main-courante-table-panel">
-        <div className="main-courante-table-toolbar" style={{ marginBottom: 12 }}>
+        <div className="main-courante-table-toolbar">
           <button
             type="button"
+            className="mc-btn-primary"
             onClick={() => { setModalMode("create"); setEditing(null); setModalOpen(true); }}
           >
-            <Plus size={16} aria-hidden style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
+            <Plus size={16} aria-hidden />
             Planifier une ronde
           </button>
+        </div>
+        <div className="list-panel-filters">
+          <TableFiltersBar
+            search={tableFilters.search}
+            onSearchChange={tableFilters.setSearch}
+            dateFrom={tableFilters.dateFrom}
+            onDateFromChange={tableFilters.setDateFrom}
+            dateTo={tableFilters.dateTo}
+            onDateToChange={tableFilters.setDateTo}
+            searchPlaceholder="Profil, site, prestataire…"
+            onReset={() => { tableFilters.reset(); setFamilyFilter(""); setIntervenantFilter(""); }}
+          >
+            <label>
+              Famille
+              <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
+                <option value="">Toutes</option>
+                {familyOptions.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Prestataire
+              <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
+                <option value="">Tous</option>
+                {intervenants.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
+              </select>
+            </label>
+          </TableFiltersBar>
         </div>
         {error ? <p className="error">{error}</p> : null}
         {loading ? <p className="muted">Chargement…</p> : null}
@@ -196,7 +211,16 @@ export function RondeProfilesManageTab({
                   <tr key={row.id}>
                     <td>
                       <div>{row.label}</div>
-                      {row.siteDisplay ? <div className="muted" style={{ fontSize: "0.82em" }}>{row.siteDisplay}</div> : null}
+                      {row.siteDisplay ? (
+                        <div className="mc-site-wrap" style={{ fontSize: "0.82em" }}>
+                          <SiteDisplayCopyButton
+                            variant="table"
+                            className="mc-site-copy-btn muted"
+                            siteLabel={row.siteDisplay}
+                            onNotify={onNotify}
+                          />
+                        </div>
+                      ) : null}
                     </td>
                     <td>{row.intervenantDisplay ?? "—"}</td>
                     <td>
@@ -209,6 +233,11 @@ export function RondeProfilesManageTab({
                       {summarizeRondePlannedProfile(row)}
                     </td>
                     <td>
+                      {row.cancellationRequestedAt ? (
+                        <div className="muted" style={{ fontSize: "0.8em", marginBottom: 6 }}>
+                          Demande en attente par {row.cancellationRequestedBy || "—"}
+                        </div>
+                      ) : null}
                       <div className="row-actions mc-row-actions-wrap">
                         <button
                           type="button"
@@ -219,7 +248,7 @@ export function RondeProfilesManageTab({
                         >
                           <Pencil size={16} aria-hidden />
                         </button>
-                        {onSetRondePlannedProfilePlanningEnd ? (
+                        {canManageCancellation && onSetRondePlannedProfilePlanningEnd ? (
                           <button
                             type="button"
                             className="action-icon-btn btn-light"
@@ -229,6 +258,39 @@ export function RondeProfilesManageTab({
                           >
                             <StopCircle size={16} aria-hidden />
                           </button>
+                        ) : null}
+                        {!canManageCancellation && onRequestRondePlannedProfileCancellation && !row.cancellationRequestedAt ? (
+                          <button
+                            type="button"
+                            className="action-icon-btn btn-light"
+                            title="Demander l'annulation du flux"
+                            aria-label={`Demander l'annulation du flux ${row.label}`}
+                            onClick={() => { setRequestTarget(row); setRequestReason(""); }}
+                          >
+                            <StopCircle size={16} aria-hidden />
+                          </button>
+                        ) : null}
+                        {canManageCancellation && row.cancellationRequestedAt && onReviewRondePlannedProfileCancellationRequest ? (
+                          <>
+                            <button
+                              type="button"
+                              className="action-icon-btn btn-light"
+                              title="Accepter la demande d'annulation"
+                              aria-label={`Accepter la demande d'annulation ${row.label}`}
+                              onClick={() => setStopTarget(row)}
+                            >
+                              <Check size={16} aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              className="action-icon-btn btn-light"
+                              title="Refuser la demande d'annulation"
+                              aria-label={`Refuser la demande d'annulation ${row.label}`}
+                              onClick={() => { setRejectTarget(row); setRejectReason(""); }}
+                            >
+                              <X size={16} aria-hidden />
+                            </button>
+                          </>
                         ) : null}
                         {canDelete && onDeleteRondePlannedProfile ? (
                           <button
@@ -283,12 +345,123 @@ export function RondeProfilesManageTab({
         defaultEndDate={stopTarget?.planningValidTo || formatLocalDateIso(new Date())}
         onClose={() => setStopTarget(null)}
         onConfirm={async (planningEndDate, reason) => {
-          if (!stopTarget || !onSetRondePlannedProfilePlanningEnd) return;
-          await Promise.resolve(onSetRondePlannedProfilePlanningEnd(stopTarget.id, planningEndDate, reason));
+          if (!stopTarget) return;
+          if (stopTarget.cancellationRequestedAt && onReviewRondePlannedProfileCancellationRequest) {
+            await Promise.resolve(
+              onReviewRondePlannedProfileCancellationRequest(stopTarget.id, {
+                decision: "approve",
+                reviewReason: reason,
+                planningEndDate
+              })
+            );
+          } else if (onSetRondePlannedProfilePlanningEnd) {
+            await Promise.resolve(onSetRondePlannedProfilePlanningEnd(stopTarget.id, planningEndDate, reason));
+          } else {
+            return;
+          }
           setStopTarget(null);
           await onReload();
         }}
       />
+
+      <ConfirmModal
+        isOpen={Boolean(requestTarget)}
+        title="Demander l'annulation du flux"
+        message={
+          requestTarget
+            ? `Profil "${requestTarget.label}" : expliquez pourquoi vous demandez l'arrêt de cette programmation.`
+            : ""
+        }
+        confirmLabel={requestSubmitting ? "Envoi…" : "Envoyer la demande"}
+        confirmDisabled={requestSubmitting || !requestReason.trim()}
+        onCancel={() => { if (!requestSubmitting) setRequestTarget(null); }}
+        onConfirm={async () => {
+          if (!requestTarget || !onRequestRondePlannedProfileCancellation) return;
+          const reason = requestReason.trim();
+          if (!reason) {
+            onNotify?.("Le motif est obligatoire.", "warning");
+            return;
+          }
+          try {
+            setRequestSubmitting(true);
+            await Promise.resolve(onRequestRondePlannedProfileCancellation(requestTarget.id, reason));
+            setRequestTarget(null);
+            setRequestReason("");
+            await onReload();
+          } catch (err) {
+            onNotify?.(err instanceof Error ? err.message : "Demande impossible.", "error");
+          } finally {
+            setRequestSubmitting(false);
+          }
+        }}
+      >
+        <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
+          <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
+            Motif (obligatoire) <span style={{ color: "var(--danger, #e55)" }}>*</span>
+          </span>
+          <textarea
+            className="mc-textarea"
+            value={requestReason}
+            onChange={(e) => setRequestReason(e.target.value)}
+            rows={3}
+            placeholder="Ex. fin de contrat demandée par le client"
+            disabled={requestSubmitting}
+            autoFocus
+          />
+        </label>
+      </ConfirmModal>
+
+      <ConfirmModal
+        isOpen={Boolean(rejectTarget)}
+        title="Refuser la demande d'annulation"
+        message={
+          rejectTarget
+            ? `Profil "${rejectTarget.label}" : indiquez pourquoi la demande est refusée.`
+            : ""
+        }
+        confirmLabel={rejectSubmitting ? "Refus…" : "Refuser la demande"}
+        confirmDisabled={rejectSubmitting || !rejectReason.trim()}
+        onCancel={() => { if (!rejectSubmitting) setRejectTarget(null); }}
+        onConfirm={async () => {
+          if (!rejectTarget || !onReviewRondePlannedProfileCancellationRequest) return;
+          const reviewReason = rejectReason.trim();
+          if (!reviewReason) {
+            onNotify?.("Le motif est obligatoire.", "warning");
+            return;
+          }
+          try {
+            setRejectSubmitting(true);
+            await Promise.resolve(
+              onReviewRondePlannedProfileCancellationRequest(rejectTarget.id, {
+                decision: "reject",
+                reviewReason
+              })
+            );
+            setRejectTarget(null);
+            setRejectReason("");
+            await onReload();
+          } catch (err) {
+            onNotify?.(err instanceof Error ? err.message : "Refus impossible.", "error");
+          } finally {
+            setRejectSubmitting(false);
+          }
+        }}
+      >
+        <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
+          <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
+            Motif (obligatoire) <span style={{ color: "var(--danger, #e55)" }}>*</span>
+          </span>
+          <textarea
+            className="mc-textarea"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={3}
+            placeholder="Ex. arrêt non validé, contrat encore actif"
+            disabled={rejectSubmitting}
+            autoFocus
+          />
+        </label>
+      </ConfirmModal>
 
       <ConfirmModal
         isOpen={Boolean(deleteTarget)}
@@ -306,7 +479,7 @@ export function RondeProfilesManageTab({
           if (!deleteTarget || !onDeleteRondePlannedProfile) return;
           const reason = deleteReason.trim();
           if (!reason) {
-            onNotify?.("Le motif est obligatoire.");
+            onNotify?.("Le motif est obligatoire.", "warning");
             return;
           }
           try {
@@ -318,7 +491,7 @@ export function RondeProfilesManageTab({
             const action = (result as { action?: string } | null)?.action;
             onNotify?.(action === "deactivated" ? "Programmation désactivée (rondes clôturées conservées)." : "Programmation supprimée.");
           } catch (err) {
-            onNotify?.(err instanceof Error ? err.message : "Opération impossible.");
+            onNotify?.(err instanceof Error ? err.message : "Opération impossible.", "error");
           } finally {
             setDeleteSubmitting(false);
           }

@@ -261,7 +261,7 @@ export function VariablesManagementPanel({
   };
 
   return (
-    <section className="panel">
+    <div>
       <div className="row">
         <h3>Gestion des variables</h3>
         <div className="row-actions">
@@ -553,6 +553,6 @@ export function VariablesManagementPanel({
         onCancel={() => setDeleteFieldKey(null)}
         onConfirm={() => void confirmDeleteVariable()}
       />
-    </section>
+    </div>
   );
 }

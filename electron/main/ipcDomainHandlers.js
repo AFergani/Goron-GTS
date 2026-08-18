@@ -107,6 +107,8 @@ function registerDomainIpcHandlers(deps) {
   registerStorePassthrough("data:rondePlannedProfiles:list", "listRondePlannedProfiles");
   registerStorePassthrough("data:rondePlannedProfiles:upsert", "upsertRondePlannedProfile");
   registerStorePassthrough("data:rondePlannedProfiles:delete", "deleteRondePlannedProfile");
+  registerStorePassthrough("data:rondePlannedProfiles:requestCancellation", "requestRondePlannedProfileCancellation");
+  registerStorePassthrough("data:rondePlannedProfiles:reviewCancellation", "reviewRondePlannedProfileCancellationRequest");
   registerStorePassthrough("data:rondePlannedProfiles:setPlanningEnd", "setRondePlannedProfilePlanningEnd");
   registerStorePassthrough("data:rondePlannedProfiles:setValidated", "setRondePlannedProfileValidated");
   registerStorePassthrough("data:interventionWordExtraFields:list", "listInterventionWordExtraFields");
@@ -128,7 +130,9 @@ function registerDomainIpcHandlers(deps) {
   // Main courante (PostgreSQL only — create inclus, plus de cas spécial dans main.js)
   registerStorePassthrough("mainCourante:list", "listMainCouranteEntries");
   registerStorePassthrough("mainCourante:getUnconsultedCount", "getMainCouranteUnconsultedCount");
+  registerStorePassthrough("mainCourante:getOperatorResponseCount", "getMainCouranteOperatorResponseCount");
   registerStorePassthrough("mainCourante:markConsulted", "markMainCouranteEntryConsulted");
+  registerStorePassthrough("mainCourante:markOperatorConsulted", "markMainCouranteEntryConsultedByOperator");
   registerStorePassthrough("mainCourante:create", "createMainCouranteEntry");
   registerStorePassthrough("mainCourante:updateOperator", "updateMainCouranteEntryOperator");
   registerStorePassthrough("mainCourante:applyManager", "applyMainCouranteManagerAction");
@@ -152,6 +156,7 @@ function registerDomainIpcHandlers(deps) {
 
   // Rondes (PostgreSQL only)
   registerStorePassthrough("ronde:list", "listRondes");
+  registerStorePassthrough("ronde:getTodayInProgressCounts", "getRondeTodayInProgressCounts");
   registerStorePassthrough("ronde:create", "createRondeEntry");
   registerStorePassthrough("ronde:update", "updateRondeEntry");
   registerStorePassthrough("ronde:setStatus", "setRondeStatus");
@@ -161,6 +166,7 @@ function registerDomainIpcHandlers(deps) {
 
   // Gardiennage (PostgreSQL only)
   registerStorePassthrough("gardiennage:list", "listGardiennages");
+  registerStorePassthrough("gardiennage:getTodayInProgressCount", "getGardiennageTodayInProgressCount");
   registerStorePassthrough("gardiennage:create", "createGardiennage");
   registerStorePassthrough("gardiennage:update", "updateGardiennage");
   registerStorePassthrough("gardiennage:setStatus", "setGardiennageStatus");

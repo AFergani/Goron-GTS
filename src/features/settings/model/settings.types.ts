@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import type { AnomalyTypeRef, AuditLog, HolidayRef, IntervenantRef, ManagerProfile, Role, SiteRef, User } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "variables" | "database" | "audit";
+/** Sous-onglets de Paramètres → Modèles et variables (l’ancien onglet `variables` est redirigé ici). */
+export type DocumentsTab = "templates" | "variables";
 export type DataTab =
   | "sites"
   | "intervenants"
@@ -64,9 +66,17 @@ export type ConfirmDialogState = {
   isOpen: boolean;
   title: string;
   message: string;
+  /** Message de base (sans alerte de conflit de nom), pour réactivation. */
+  baseMessage?: string;
   confirmLabel: string;
   confirmClassName?: string;
   confirmDisabled?: boolean;
+  /** Exige un motif non vide (désactivation / réactivation). */
+  requireReason?: boolean;
+  /** Exige un nom affiché non vide (réactivation). */
+  requireDisplayName?: boolean;
+  /** Username technique exclu du contrôle d'unicité côté UI. */
+  excludeUsername?: string;
   cancelLabel?: string;
   children?: ReactNode;
   onConfirm: null | (() => void | Promise<void>);

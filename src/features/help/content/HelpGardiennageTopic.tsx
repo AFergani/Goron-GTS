@@ -15,6 +15,8 @@ export function HelpGardiennageTopic() {
       <p className="help-center-lead">
         Chaque créneau planifié génère une <strong>fiche journalière</strong>. Pour assurer la traçabilité des prestations sur le
         terrain, chaque fiche doit idéalement être clôturée en fin de mission.
+        En vue journée comme en liste, un <strong>badge de type</strong> (H24, récurrente nuit/jour, ponctuel nuit/jour)
+        s&apos;affiche avec la <strong>date de création</strong>.
       </p>
 
       <div className="help-center-card help-center-card--accent">
@@ -79,6 +81,7 @@ export function HelpGardiennageTopic() {
                 <td>
                   Présence continue et ininterrompue sur une période donnée. Sans date de fin : prestation jusqu&apos;à nouvel ordre avec
                   horizon glissant (90 jours renouvelés automatiquement tant que la demande reste planifiée ou active).
+                  Pour clôturer, indiquez d&apos;abord une date de fin dans la demande, enregistrez, puis clôturez après cette fin.
                 </td>
                 <td>Surveillance non-stop du lundi 08:00 au vendredi 20:00, ou H24 sans date de fin (prolongation auto).</td>
                 <td>
@@ -146,13 +149,19 @@ export function HelpGardiennageTopic() {
         </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Clôture manuelle :</strong> depuis la <strong>vue journée</strong>, utilisez la coche rapide pour clôturer un créneau,
-            ou ouvrez la fiche et cliquez sur <strong>Clôturer</strong>.
+            <strong>Clôture manuelle :</strong> après la <strong>fin prévue</strong> de la prestation (H24) ou de la nuit (récurrent).
+            Avant cette heure, la coche est désactivée. Depuis la liste ou la vue journée, utilisez la coche rapide,
+            ou ouvrez la fiche. Dans la planification du lot, une coche marque chaque créneau déjà clôturé.
           </li>
           <li>
-            <strong>Clôture automatique :</strong> dès que l&apos;horaire de fin d&apos;un créneau est dépassé, le système clôture
-            automatiquement la fiche avec la mention <strong>Clôture automatique par système</strong> (sans heures effectives ni rapport).
-            Les demandes <strong>H24 sans date de fin</strong> ne sont pas clôturées ainsi : leur horizon est prolongé automatiquement.
+            <strong>H24 jusqu&apos;à nouvel ordre :</strong> ouvrez la demande, saisissez une{" "}
+            <strong>date de fin</strong>, enregistrez, puis clôturez après cette fin. Tant que la date de fin est vide,
+            la coche reste désactivée et il n&apos;y a pas de clôture automatique.
+          </li>
+          <li>
+            <strong>Clôture automatique :</strong> si la fiche n&apos;est pas clôturée manuellement, le système la clôture{" "}
+            <strong>3 jours après la fin prévue</strong>, avec la mention <strong>Clôture automatique par système</strong>
+            (sans heures effectives ni rapport). Les demandes H24 sans date de fin ne sont pas concernées tant que la fin n&apos;est pas posée.
           </li>
           <li>
             <strong>Correction / enrichissement :</strong> si une fiche a été clôturée automatiquement mais nécessite un suivi, cliquez sur{" "}
@@ -167,6 +176,15 @@ export function HelpGardiennageTopic() {
       </div>
 
       <HelpDayListDisplaySection />
+
+      <div className="help-center-card">
+        <h3 className="help-center-card-title">Horaires en vue journée (prestation multi-jours)</h3>
+        <p className="muted">
+          En <strong>affichage journée</strong>, les horaires d&apos;une prestation qui couvre plusieurs jours sont ceux{" "}
+          <strong>de la date affichée</strong> (ex. 15:30→23:59 le premier jour, 00:00→23:59 les jours du milieu, 00:00→heure de fin le dernier jour).
+          L&apos;affichage liste conserve la période et les horaires de la prestation entière.
+        </p>
+      </div>
 
       <div className="help-center-card">
         <h3 className="help-center-card-title">💡 Exemples pratiques</h3>

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import type { Role } from "../../../types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { DOCUMENT_TEMPLATE_HELP } from "./documentTemplateHelpContent";
+import { helpIdToFormTargets, resolveDocumentTemplateHelpBlock } from "./documentTemplateHelpContent";
 import type { FormVariableDef } from "../model/formVariables.types";
 import type { FormTarget } from "../model/formVariables.types";
 
@@ -25,14 +25,6 @@ export function DocumentTemplateHelpModal({
 }: DocumentTemplateHelpModalProps) {
   const [templateCustomRows, setTemplateCustomRows] = useState<Array<{ token: string; description: string }>>([]);
   const [templateCustomLoading, setTemplateCustomLoading] = useState(false);
-
-  function helpIdToFormTargets(value: string): FormTarget[] {
-    if (value === "main-courante") return ["MAIN_COURANTE"];
-    if (value === "intervention") return ["INTERVENTION"];
-    if (value === "gardiennage") return ["GARDIENNAGE"];
-    if (value === "ronde" || value === "custom-docx") return ["RONDE_PLANIFIEE", "RONDE_EXCEPTIONNELLE"];
-    return [];
-  }
 
   useEffect(() => {
     if (!helpId || !requesterRole) {
@@ -73,7 +65,7 @@ export function DocumentTemplateHelpModal({
     };
   }, [helpId, requesterRole]);
 
-  const block = helpId ? DOCUMENT_TEMPLATE_HELP[helpId] : undefined;
+  const block = helpId ? resolveDocumentTemplateHelpBlock(helpId) : undefined;
 
   const displayVariables = useMemo(() => {
     if (!block) return [];

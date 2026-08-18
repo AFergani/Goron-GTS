@@ -8,6 +8,7 @@ import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { InterventionEntry } from "../model/intervention.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 function statusLabel(status: InterventionEntry["status"]) {
   if (status === "CLOTURE") return "Clôturé";
@@ -40,7 +41,7 @@ type InterventionTableProps = {
   onOpen: (entry: InterventionEntry) => void;
   onFollowUp: (entry: InterventionEntry) => void;
   onPrint: (entry: InterventionEntry) => void;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
 };
 
 export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNotify }: InterventionTableProps) {

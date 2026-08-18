@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import type { GardiennageClosePayload, GardiennageEntry } from "../model/gardiennage.types";
+import { TimeInput } from "../../common/components/TimeInput";
 
 type GardiennageCloseModalProps = {
   isOpen: boolean;
@@ -139,21 +140,19 @@ export function GardiennageCloseModal({
           <div className="gardiennage-horaires-row" style={{ marginBottom: 8, marginTop: 8 }}>
             <label className="gardiennage-time-field">
               <span className="gardiennage-date-label">Début effectif</span>
-              <input
-                type="time"
+              <TimeInput
                 value={form.actualStartTime}
                 disabled={isSaving}
-                onChange={(e) => setForm((f) => ({ ...f, actualStartTime: e.target.value }))}
+                onChange={(value) => setForm((f) => ({ ...f, actualStartTime: value }))}
               />
             </label>
             <span className="gardiennage-date-sep">→</span>
             <label className="gardiennage-time-field">
               <span className="gardiennage-date-label">Fin effective</span>
-              <input
-                type="time"
+              <TimeInput
                 value={form.actualEndTime}
                 disabled={isSaving}
-                onChange={(e) => setForm((f) => ({ ...f, actualEndTime: e.target.value }))}
+                onChange={(value) => setForm((f) => ({ ...f, actualEndTime: value }))}
               />
             </label>
             <label className="gardiennage-time-field">

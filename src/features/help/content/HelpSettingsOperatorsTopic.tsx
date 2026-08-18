@@ -119,6 +119,11 @@ export function HelpSettingsOperatorsTopic() {
             <strong>Désactiver (icône utilisateur barré) :</strong> à utiliser en cas de départ d&apos;un collaborateur. Le compte est désactivé
             immédiatement mais <strong>son historique est intégralement conservé</strong> dans la base de données.
           </li>
+          <li>
+            <strong>Réactiver :</strong> demande un motif, <strong>génère un nouveau mot de passe temporaire</strong> (comme à la création ou
+            après réinitialisation) et impose le changement de mot de passe à la prochaine connexion. La modale d&apos;affichage du mot de passe
+            temporaire s&apos;ouvre pour le transmettre à l&apos;agent.
+          </li>
         </ul>
       </div>
 

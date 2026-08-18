@@ -22,6 +22,8 @@ import { PendingIntervenantsDataTab } from "./dataTabs/PendingIntervenantsDataTa
 import { DataSearchImportBar } from "./DataSearchImportBar";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import type { NotifyToast } from "../../common/model/toast.types";
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 import "./DataManagementPanel.css";
 
 type DataManagementPanelProps = {
@@ -71,7 +73,7 @@ type DataManagementPanelProps = {
   onResolvePendingIntervenant: (payload: { pendingId: string; name: string }) => void | Promise<void>;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
-  onNotify: (message: string) => void;
+  onNotify: NotifyToast;
 };
 
 const PAGE_SIZE = 200;
@@ -146,11 +148,7 @@ function sanitizeImportedRows(rows: Record<string, unknown>[]): Record<string, u
 
 /** Retire le bruit IPC Electron pour cause lisible (toast + Import_error.txt). */
 function humanizeImportError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  if (!raw.trim()) return "Erreur inconnue";
-  const segments = raw.split(/\s*Error:\s*/i);
-  const last = segments[segments.length - 1]?.trim();
-  return last || raw;
+  return extractUserFacingErrorMessage(error, "Erreur inconnue");
 }
 
 function parseRows(file: File): Promise<Record<string, unknown>[]> {
@@ -333,23 +331,26 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     }
     const list = Array.from(files);
     setIsImporting(true);
-    const lines: string[] = [];
+    let successRows = 0;
+    let failedRows = 0;
+    let filesFailed = 0;
     try {
       for (let i = 0; i < list.length; i += 1) {
         setImportBatchProgress({ current: i + 1, total: list.length });
         const result = await runSingleFileImport(list[i], target);
         if (result.ok) {
-          lines.push(`${result.fileName}: ${result.success} ligne(s) importée(s), ${result.failed} en échec.`);
+          successRows += result.success;
+          failedRows += result.failed;
         } else {
-          lines.push(`${result.fileName}: échec — ${result.message}`);
+          filesFailed += 1;
         }
       }
       await props.onRefreshImportedData(target);
-      const header =
-        list.length > 1
-          ? `Import terminé (${list.length} fichiers, traitement séquentiel) —`
-          : "Import terminé —";
-      props.onNotify(`${header} ${lines.join(" ")}`);
+      const errorCount = failedRows + filesFailed;
+      const filePart = list.length > 1 ? ` (${list.length} fichiers)` : "";
+      const summary = `Import terminé${filePart} — ${successRows} succès, ${errorCount} erreur${errorCount > 1 ? "s" : ""}.`;
+      const variant = errorCount === 0 ? "success" : successRows > 0 ? "warning" : "error";
+      props.onNotify(summary, variant);
     } finally {
       setIsImporting(false);
       setImportBatchProgress(null);
@@ -556,11 +557,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     } else if (createModalTarget === "holidays") {
       const date = holidayDateIso.trim();
       if (!date) {
-        props.onNotify("La date est obligatoire.");
+        props.onNotify("La date est obligatoire.", "warning");
         return;
       }
       if (holidaysForUi.some((h) => h.dateIso === date)) {
-        props.onNotify("Cette date fériée existe déjà.");
+        props.onNotify("Cette date fériée existe déjà.", "warning");
         return;
       }
       await Promise.resolve(props.onCreateHoliday(date, holidayLabel.trim()));
@@ -707,6 +708,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           }}
           onDeletePendingSiteSubmission={props.onDeletePendingSiteSubmission}
           openDeleteReasonModal={openDeleteReasonModal}
+          onNotify={props.onNotify}
         />
       )}
 
@@ -973,7 +975,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           void (async () => {
             const reason = deleteReasonValue.trim();
             if (!reason) {
-              props.onNotify("Le motif de suppression est obligatoire.");
+              props.onNotify("Le motif de suppression est obligatoire.", "warning");
               return;
             }
             const confirmDelete = onConfirmDeleteReason;
@@ -983,8 +985,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               try {
                 await Promise.resolve(confirmDelete(reason));
               } catch (error) {
-                const message = error instanceof Error ? error.message : "Action impossible.";
-                setBlockedActionMessage(message);
+                setBlockedActionMessage(extractUserFacingErrorMessage(error, "Suppression impossible."));
               }
             }
           })();
@@ -1008,7 +1009,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         <div className="modal-overlay" onClick={() => setBlockedActionMessage("")}>
           <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="row">
-              <h3>Suppression bloquée</h3>
+              <h3>Suppression impossible</h3>
             </div>
             <p className="muted">{blockedActionMessage}</p>
             <div className="row-actions modal-actions">

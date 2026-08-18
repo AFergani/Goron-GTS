@@ -208,6 +208,9 @@ function mapProfileRow(profile, lines) {
     notes: profile.notes || "",
     planningValidFrom: from,
     planningValidTo: to,
+    cancellationRequestReason: profile.cancellation_request_reason || null,
+    cancellationRequestedAt: profile.cancellation_requested_at || null,
+    cancellationRequestedBy: profile.cancellation_requested_by || null,
     isActive: (!from || today >= from) && (!to || today <= to),
     validatedAt: profile.validated_at || null,
     validatedByUsername: profile.validated_by || null,
@@ -218,6 +221,17 @@ function mapProfileRow(profile, lines) {
     createdAt: profile.created_at,
     updatedAt: profile.updated_at
   };
+}
+
+/**
+ * Indique si le rôle peut traiter une annulation de flux contractuel.
+ *
+ * @param {string} requesterRole
+ * @param {{ RESPONSABLE: string, DEV: string }} roles
+ * @returns {boolean}
+ */
+function canManagePlannedProfileCancellation(requesterRole, roles) {
+  return requesterRole === roles.RESPONSABLE || requesterRole === roles.DEV;
 }
 
 /** @param {object} db @param {string|null} id @returns {Promise<object|null>} */
@@ -408,6 +422,61 @@ async function deleteRondePlannedProfile(store, payload) {
 }
 
 /**
+ * Enregistre une demande d'annulation de flux contractuel côté opérateur.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @returns {Promise<object>}
+ */
+async function requestRondePlannedProfileCancellation(store, payload) {
+  store.ensureDataReaderRole(payload.requesterRole);
+  const db = requireRondePersistence(store, "data:rondePlannedProfiles:requestCancellation");
+  const id = String(payload.id || "").trim();
+  const reason = String(payload.reason || "").trim();
+  if (!reason) {
+    store.fail(
+      "data:rondePlannedProfiles:requestCancellation",
+      "Le motif de demande d'annulation est obligatoire.",
+      "DATA_RONDE_PLANNED_CANCEL_REQUEST_REASON_REQUIRED"
+    );
+  }
+  if (canManagePlannedProfileCancellation(payload.requesterRole, payload.role)) {
+    store.fail(
+      "data:rondePlannedProfiles:requestCancellation",
+      "Un responsable peut arrêter le flux directement sans créer de demande.",
+      "DATA_RONDE_PLANNED_CANCEL_REQUEST_NOT_NEEDED"
+    );
+  }
+  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
+  if (!existing) {
+    store.fail("data:rondePlannedProfiles:requestCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+  }
+  if (existing.cancellation_requested_at) {
+    store.fail(
+      "data:rondePlannedProfiles:requestCancellation",
+      "Une demande d'annulation est déjà en attente pour ce flux.",
+      "DATA_RONDE_PLANNED_CANCEL_REQUEST_ALREADY_PENDING"
+    );
+  }
+  const now = new Date().toISOString();
+  await db.run(
+    `UPDATE data_ronde_planned_profiles
+     SET cancellation_request_reason = ?, cancellation_requested_at = ?, cancellation_requested_by = ?, updated_at = ?
+     WHERE id = ?`,
+    [reason, now, String(payload.requesterUsername || "unknown"), now, id]
+  );
+  store.logAudit({
+    actorUsername: payload.requesterUsername || "unknown",
+    action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST",
+    details: {
+      label: existing.label || "",
+      request: { reason, requestedAt: now, requestedBy: String(payload.requesterUsername || "unknown") }
+    }
+  });
+  return getProfileById(db, id);
+}
+
+/**
  * Fixe la date de fin de planification.
  *
  * @param {import('../../../userStore')} store
@@ -416,6 +485,14 @@ async function deleteRondePlannedProfile(store, payload) {
  */
 async function setRondePlannedProfilePlanningEnd(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  if (!canManagePlannedProfileCancellation(payload.requesterRole, payload.role)) {
+    store.fail(
+      "data:rondePlannedProfiles:planningEnd",
+      "Accès refusé : arrêt du flux réservé au responsable.",
+      "AUTH_FORBIDDEN",
+      { requesterRole: payload.requesterRole }
+    );
+  }
   const db = requireRondePersistence(store, "data:rondePlannedProfiles:planningEnd");
   const id = String(payload.id || "").trim();
   const endDate = String(payload.planningEndDate || "").trim().slice(0, 10);
@@ -427,12 +504,132 @@ async function setRondePlannedProfilePlanningEnd(store, payload) {
   if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
     store.fail("data:rondePlannedProfiles:planningEnd", "La date de fin doit suivre la date de début.", "DATA_RONDE_PLANNED_PLANNING_ORDER");
   }
-  await db.run("UPDATE data_ronde_planned_profiles SET planning_valid_to = ?, updated_at = ? WHERE id = ?",
-    [endDate, new Date().toISOString(), id]);
-  store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
+  const now = new Date().toISOString();
+  await db.run(
+    `UPDATE data_ronde_planned_profiles
+     SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
+         cancellation_requested_by = NULL, updated_at = ?
+     WHERE id = ?`,
+    [endDate, now, id]
+  );
+  store.logAudit({
+    actorUsername: payload.requesterUsername || "unknown",
     action: "DATA_RONDE_PLANNED_PROFILE_PLANNING_END",
-    details: { label: existing.label || "", reason,
-      before: { planningValidTo: existing.planning_valid_to || null }, after: { planningValidTo: endDate } } });
+    details: {
+      label: existing.label || "",
+      reason,
+      before: {
+        planningValidTo: existing.planning_valid_to || null,
+        cancellationRequestReason: existing.cancellation_request_reason || null,
+        cancellationRequestedAt: existing.cancellation_requested_at || null,
+        cancellationRequestedBy: existing.cancellation_requested_by || null
+      },
+      after: { planningValidTo: endDate, cancellationRequestCleared: Boolean(existing.cancellation_requested_at) }
+    }
+  });
+  return getProfileById(db, id);
+}
+
+/**
+ * Accepte ou refuse une demande d'annulation de flux contractuel.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @returns {Promise<object>}
+ */
+async function reviewRondePlannedProfileCancellationRequest(store, payload) {
+  store.ensureDataReaderRole(payload.requesterRole);
+  if (!canManagePlannedProfileCancellation(payload.requesterRole, payload.role)) {
+    store.fail(
+      "data:rondePlannedProfiles:reviewCancellation",
+      "Accès refusé : validation réservée au responsable.",
+      "AUTH_FORBIDDEN",
+      { requesterRole: payload.requesterRole }
+    );
+  }
+  const db = requireRondePersistence(store, "data:rondePlannedProfiles:reviewCancellation");
+  const id = String(payload.id || "").trim();
+  const decision = payload.decision === "approve" ? "approve" : "reject";
+  const reviewReason = String(payload.reviewReason || "").trim();
+  const endDate = String(payload.planningEndDate || "").trim().slice(0, 10);
+  if (!reviewReason) {
+    store.fail(
+      "data:rondePlannedProfiles:reviewCancellation",
+      "Le motif de validation est obligatoire.",
+      "DATA_RONDE_PLANNED_CANCEL_REVIEW_REASON_REQUIRED"
+    );
+  }
+  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
+  if (!existing) {
+    store.fail("data:rondePlannedProfiles:reviewCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+  }
+  if (!existing.cancellation_requested_at) {
+    store.fail(
+      "data:rondePlannedProfiles:reviewCancellation",
+      "Aucune demande d'annulation en attente pour ce flux.",
+      "DATA_RONDE_PLANNED_CANCEL_REQUEST_NOT_FOUND"
+    );
+  }
+  if (decision === "approve") {
+    if (!endDate) {
+      store.fail(
+        "data:rondePlannedProfiles:reviewCancellation",
+        "Indiquez la date de fin du flux.",
+        "DATA_RONDE_PLANNED_END_DATE_REQUIRED"
+      );
+    }
+    if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
+      store.fail(
+        "data:rondePlannedProfiles:reviewCancellation",
+        "La date de fin doit suivre la date de début.",
+        "DATA_RONDE_PLANNED_PLANNING_ORDER"
+      );
+    }
+    const now = new Date().toISOString();
+    await db.run(
+      `UPDATE data_ronde_planned_profiles
+       SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
+           cancellation_requested_by = NULL, updated_at = ?
+       WHERE id = ?`,
+      [endDate, now, id]
+    );
+    store.logAudit({
+      actorUsername: payload.requesterUsername || "unknown",
+      action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_APPROVE",
+      details: {
+        label: existing.label || "",
+        reviewReason,
+        request: {
+          reason: existing.cancellation_request_reason || "",
+          requestedAt: existing.cancellation_requested_at || null,
+          requestedBy: existing.cancellation_requested_by || null
+        },
+        before: { planningValidTo: existing.planning_valid_to || null },
+        after: { planningValidTo: endDate }
+      }
+    });
+    return getProfileById(db, id);
+  }
+  await db.run(
+    `UPDATE data_ronde_planned_profiles
+     SET cancellation_request_reason = NULL, cancellation_requested_at = NULL, cancellation_requested_by = NULL,
+         updated_at = ?
+     WHERE id = ?`,
+    [new Date().toISOString(), id]
+  );
+  store.logAudit({
+    actorUsername: payload.requesterUsername || "unknown",
+    action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_REJECT",
+    details: {
+      label: existing.label || "",
+      reviewReason,
+      request: {
+        reason: existing.cancellation_request_reason || "",
+        requestedAt: existing.cancellation_requested_at || null,
+        requestedBy: existing.cancellation_requested_by || null
+      }
+    }
+  });
   return getProfileById(db, id);
 }
 
@@ -466,6 +663,8 @@ async function setRondePlannedProfileValidated(store, payload) {
 module.exports = {
   deleteRondePlannedProfile,
   listRondePlannedProfiles,
+  requestRondePlannedProfileCancellation,
+  reviewRondePlannedProfileCancellationRequest,
   setRondePlannedProfilePlanningEnd,
   setRondePlannedProfileValidated,
   upsertRondePlannedProfile

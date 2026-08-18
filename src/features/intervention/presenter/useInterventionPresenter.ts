@@ -1,13 +1,15 @@
 /**
  * Presenter Interventions : liste, statistiques, CRUD, statuts et facturation.
  *
- * Polling ~20 s, compteurs pour le bandeau de la page. Persistance PostgreSQL.
+ * Polling ~20 s, compteurs mois en cours (`requestDate`) pour les cartes de synthèse.
  * Utilisé par : `InterventionPage`.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { getLocalMonthKey, isIsoDateInLocalMonth } from "../../common/utils/currentMonthSummary";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { InterventionEntry, InterventionSavePayload } from "../model/intervention.types";
 
 function makeInterventionId() {
@@ -20,15 +22,15 @@ function makeInterventionId() {
 type UseInterventionPresenterOptions = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 };
 
 export function useInterventionPresenter({ requesterRole, requesterUsername, onToast }: UseInterventionPresenterOptions) {
   const [entries, setEntries] = useState<InterventionEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const notify = (message: string) => {
-    onToast?.(message);
+  const notify: NotifyToast = (message, variant) => {
+    onToast?.(message, variant);
   };
 
   const loadEntries = useCallback(
@@ -39,7 +41,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
         setEntries(rows);
         return rows;
       } catch (error) {
-        notify(error instanceof Error ? error.message : "Impossible de charger les interventions.");
+        notify(error instanceof Error ? error.message : "Impossible de charger les interventions.", "error");
         return [];
       } finally {
         if (!silent) setLoading(false);
@@ -60,10 +62,12 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
   }, [loadEntries]);
 
   const stats = useMemo(() => {
-    const total = entries.length;
-    const inProgress = entries.filter((entry) => entry.status === "EN_COURS").length;
-    const closed = entries.filter((entry) => entry.status === "CLOTURE").length;
-    const canceled = entries.filter((entry) => entry.status === "ANNULE").length;
+    const monthKey = getLocalMonthKey();
+    const monthEntries = entries.filter((entry) => isIsoDateInLocalMonth(entry.requestDate, monthKey));
+    const total = monthEntries.length;
+    const inProgress = monthEntries.filter((entry) => entry.status === "EN_COURS").length;
+    const closed = monthEntries.filter((entry) => entry.status === "CLOTURE").length;
+    const canceled = monthEntries.filter((entry) => entry.status === "ANNULE").length;
     return { total, inProgress, closed, canceled };
   }, [entries]);
 
@@ -78,7 +82,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Création impossible.");
+      notify(error instanceof Error ? error.message : "Création impossible.", "error");
       return false;
     }
   };
@@ -95,7 +99,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
       await loadEntries(true);
       return updated;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Mise à jour impossible.");
+      notify(error instanceof Error ? error.message : "Mise à jour impossible.", "error");
       return null;
     }
   };
@@ -118,7 +122,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Changement d'état impossible.");
+      notify(error instanceof Error ? error.message : "Changement d'état impossible.", "error");
       return false;
     }
   };
@@ -141,7 +145,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Statut de facturation non modifié.");
+      notify(error instanceof Error ? error.message : "Statut de facturation non modifié.", "error");
       return false;
     }
   };

@@ -40,6 +40,7 @@ export function FirstLoginModal({
         </div>
         <h3>Mise à jour du mot de passe</h3>
         <p className="muted">Bienvenue {displayName}, veuillez définir votre mot de passe personnel.</p>
+        <p className="muted">Il ne doit pas reprendre un mot de passe déjà utilisé récemment (y compris le temporaire).</p>
         <form onSubmit={onSubmit} className="form">
           <label title="6 caractères minimum, sans contrainte de complexité">
             Nouveau mot de passe

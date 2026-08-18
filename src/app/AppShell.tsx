@@ -23,11 +23,14 @@ import { RondePage } from "../features/rondes/view/RondePage";
 import { GardiennagePage } from "../features/gardiennage/view/GardiennagePage";
 import { ConfirmModal } from "../features/common/components/ConfirmModal";
 import { PgOfflineBlockingModal } from "../features/common/components/PgOfflineBlockingModal";
-import { Toast } from "../features/common/components/Toast";
+import { ToastStack } from "../features/common/components/Toast";
 import { CredentialShareModal } from "../features/common/components/CredentialShareModal";
 import { useGlobalDraggableModals } from "../features/common/hooks/useGlobalDraggableModals";
+import { useToastStack } from "../features/common/hooks/useToastStack";
+import type { NotifyToast } from "../features/common/model/toast.types";
 import { gtsApiClient } from "../infrastructure/api/gtsApiClient";
 import type { PostgresLabHealth } from "../infrastructure/api/gtsApiClient";
+import { getLocalDateIso } from "../features/common/utils/localDateIso";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
@@ -67,21 +70,31 @@ function formatSidebarDateTime(date: Date): string {
 export function AppShell() {
   useGlobalDraggableModals();
   const { session, setSession, clearSession } = useSession();
+  /** Erreurs formulaires auth / bootstrap uniquement (pas de bandeau haut de page métier). */
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
-  const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
-  const notifyToast = useCallback((message: string, variant: "default" | "error" = "default") => {
-    if (!message) {
-      setToast(null);
-      return;
-    }
-    setToast({ message, variant });
-  }, []);
+  const { toasts, notify: notifyToast, dismiss: dismissToast } = useToastStack();
+  const notifyError: NotifyToast = useCallback(
+    (message) => {
+      if (!String(message || "").trim()) return;
+      notifyToast(message, "error");
+    },
+    [notifyToast]
+  );
+  const notifyInfo: NotifyToast = useCallback(
+    (message) => {
+      if (!String(message || "").trim()) return;
+      notifyToast(message, "success");
+    },
+    [notifyToast]
+  );
   const [credentialsToShare, setCredentialsToShare] = useState<{ username: string; temporaryPassword: string } | null>(null);
   const [activePage, setActivePage] = useState<AppPage>("mainCourante");
   const previousSessionUsernameRef = useRef<string | null>(null);
   const [mainCouranteUnconsultedCount, setMainCouranteUnconsultedCount] = useState(0);
+  const [mainCouranteOperatorResponseCount, setMainCouranteOperatorResponseCount] = useState(0);
   const [interventionOpenCount, setInterventionOpenCount] = useState(0);
+  const [rondeTodayInProgressCount, setRondeTodayInProgressCount] = useState(0);
+  const [gardiennageTodayInProgressCount, setGardiennageTodayInProgressCount] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "dark";
     const saved = window.localStorage.getItem("gts-theme");
@@ -128,7 +141,7 @@ export function AppShell() {
 
   const navigateToLinkedIntervention = (interventionId: string) => {
     if (!userPageAccess.intervention) {
-      notifyToast("Accès à la page Interventions non autorisé.");
+      notifyToast("Accès à la page Interventions non autorisé.", "warning");
       return;
     }
     setFocusInterventionIdFromRonde(interventionId);
@@ -137,7 +150,7 @@ export function AppShell() {
 
   const navigateToLinkedRonde = (rondeId: string) => {
     if (!userPageAccess.rondes) {
-      notifyToast("Accès à la page Rondes non autorisé.");
+      notifyToast("Accès à la page Rondes non autorisé.", "warning");
       return;
     }
     setFocusRondeIdFromIntervention(rondeId);
@@ -146,7 +159,7 @@ export function AppShell() {
 
   const navigateToLinkedGardiennage = (gardiennageId: string) => {
     if (!userPageAccess.gardiennage) {
-      notifyToast("Accès à la page Gardiennage non autorisé.");
+      notifyToast("Accès à la page Gardiennage non autorisé.", "warning");
       return;
     }
     setFocusGardiennageIdFromIntervention(gardiennageId);
@@ -160,6 +173,7 @@ export function AppShell() {
     settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
     // Et dans Gestion des données, revenir au premier onglet à gauche.
     settings.setActiveDataTab("sites");
+    settings.setActiveDocumentsTab("templates");
   };
 
   const auth = useAuthPresenter({
@@ -175,8 +189,8 @@ export function AppShell() {
 
   const settings = useSettingsPresenter({
     session,
-    onError: setError,
-    onInfo: setInfo,
+    onError: notifyError,
+    onInfo: notifyInfo,
     onToast: notifyToast,
     onCredentialsReady: setCredentialsToShare,
     onSessionUserPatch: (patch) => {
@@ -217,12 +231,6 @@ export function AppShell() {
     if (!window.gtsApi.subscribeAppExitChoiceRequest) return;
     return window.gtsApi.subscribeAppExitChoiceRequest(() => setShowCloseAppModal(true));
   }, []);
-
-  useEffect(() => {
-    if (!toast?.message) return;
-    const timeout = setTimeout(() => setToast(null), 2600);
-    return () => clearTimeout(timeout);
-  }, [toast]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -287,17 +295,19 @@ export function AppShell() {
       if (firstSidebarPage === "settings") {
         settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
         settings.setActiveDataTab("sites");
+        settings.setActiveDocumentsTab("templates");
       }
     }
     previousSessionUsernameRef.current = currentUsername;
-  }, [firstSidebarPage, session?.user?.username, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveSettingsTab]);
+  }, [firstSidebarPage, session?.user?.username, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveDocumentsTab, settings.setActiveSettingsTab]);
 
   useEffect(() => {
     if (activePage !== "settings") return;
     // À chaque entrée dans Paramètres, forcer le premier onglet principal + premier sous-onglet data.
     settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
     settings.setActiveDataTab("sites");
-  }, [activePage, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveSettingsTab]);
+    settings.setActiveDocumentsTab("templates");
+  }, [activePage, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveDocumentsTab, settings.setActiveSettingsTab]);
 
   useEffect(() => {
     if (!session) {
@@ -391,11 +401,76 @@ export function AppShell() {
     return () => clearInterval(timer);
   }, [session, isManager]);
 
+  useEffect(() => {
+    if (!session || isManager) {
+      setMainCouranteOperatorResponseCount(0);
+      return;
+    }
+    const loadOperatorResponseCount = async () => {
+      try {
+        const result = await gtsApiClient.getMainCouranteOperatorResponseCount({ requesterRole: session.user.role });
+        setMainCouranteOperatorResponseCount(Math.max(0, Number(result.count) || 0));
+      } catch {
+        setMainCouranteOperatorResponseCount(0);
+      }
+    };
+    void loadOperatorResponseCount();
+    const timer = setInterval(() => {
+      void loadOperatorResponseCount();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [session, isManager]);
+
+  useEffect(() => {
+    if (!session || !userPageAccess.rondes) {
+      setRondeTodayInProgressCount(0);
+      return;
+    }
+    const loadRondeTodayCount = async () => {
+      try {
+        const result = await gtsApiClient.getRondeTodayInProgressCounts({
+          requesterRole: session.user.role,
+          todayIso: getLocalDateIso()
+        });
+        setRondeTodayInProgressCount(Math.max(0, Number(result.total) || 0));
+      } catch {
+        setRondeTodayInProgressCount(0);
+      }
+    };
+    void loadRondeTodayCount();
+    const timer = setInterval(() => {
+      void loadRondeTodayCount();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [session, userPageAccess.rondes]);
+
+  useEffect(() => {
+    if (!session || !userPageAccess.gardiennage) {
+      setGardiennageTodayInProgressCount(0);
+      return;
+    }
+    const loadGardiennageTodayCount = async () => {
+      try {
+        const result = await gtsApiClient.getGardiennageTodayInProgressCount({
+          requesterRole: session.user.role,
+          todayIso: getLocalDateIso()
+        });
+        setGardiennageTodayInProgressCount(Math.max(0, Number(result.count) || 0));
+      } catch {
+        setGardiennageTodayInProgressCount(0);
+      }
+    };
+    void loadGardiennageTodayCount();
+    const timer = setInterval(() => {
+      void loadGardiennageTodayCount();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [session, userPageAccess.gardiennage]);
+
   const runDisconnect = () => {
     setShowCloseAppModal(false);
     clearSession();
     settings.resetSettingsState();
-    setInfo("");
     setError("");
     setCredentialsToShare(null);
   };
@@ -451,7 +526,7 @@ export function AppShell() {
             </section>
           </main>
           {exitChoiceModal}
-          <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+          <ToastStack toasts={toasts} onDismiss={dismissToast} />
         </>
       );
     }
@@ -470,7 +545,7 @@ export function AppShell() {
             error={error}
           />
           {exitChoiceModal}
-          <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+          <ToastStack toasts={toasts} onDismiss={dismissToast} />
         </>
       );
     }
@@ -496,7 +571,7 @@ export function AppShell() {
           onSubmit={auth.onFirstLogin}
         />
         {exitChoiceModal}
-        <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </>
     );
   }
@@ -535,6 +610,15 @@ export function AppShell() {
           {userPageAccess.rondes && (
             <button type="button" className={activePage === "rondes" ? "nav-btn active" : "nav-btn"} onClick={() => setActivePage("rondes")}>
               <span className="nav-btn-label">Rondes</span>
+              {rondeTodayInProgressCount > 0 ? (
+                <span
+                  className="nav-btn-badge"
+                  title={`${rondeTodayInProgressCount} ronde(s) en cours aujourd'hui`}
+                  aria-label={`${rondeTodayInProgressCount} ronde(s) en cours aujourd'hui`}
+                >
+                  {rondeTodayInProgressCount}
+                </span>
+              ) : null}
             </button>
           )}
           {userPageAccess.gardiennage && (
@@ -544,6 +628,15 @@ export function AppShell() {
               onClick={() => setActivePage("gardiennage")}
             >
               <span className="nav-btn-label">Gardiennage</span>
+              {gardiennageTodayInProgressCount > 0 ? (
+                <span
+                  className="nav-btn-badge"
+                  title={`${gardiennageTodayInProgressCount} gardiennage(s) en cours aujourd'hui`}
+                  aria-label={`${gardiennageTodayInProgressCount} gardiennage(s) en cours aujourd'hui`}
+                >
+                  {gardiennageTodayInProgressCount}
+                </span>
+              ) : null}
             </button>
           )}
           {userPageAccess.mainCourante && (
@@ -560,6 +653,15 @@ export function AppShell() {
                   aria-label={`${mainCouranteUnconsultedCount} entrée(s) non consultée(s)`}
                 >
                   {mainCouranteUnconsultedCount}
+                </span>
+              ) : null}
+              {!isManager && mainCouranteOperatorResponseCount > 0 ? (
+                <span
+                  className="nav-btn-badge"
+                  title={`${mainCouranteOperatorResponseCount} réponse(s) encadrement sur vos entrées`}
+                  aria-label={`${mainCouranteOperatorResponseCount} réponse(s) encadrement sur vos entrées`}
+                >
+                  {mainCouranteOperatorResponseCount}
                 </span>
               ) : null}
             </button>
@@ -653,9 +755,6 @@ export function AppShell() {
           </h1>
         </header>
 
-        {error && !showPgUnavailableModal ? <p className="error">{error}</p> : null}
-        {info && <p className="info">{info}</p>}
-
         {activePage === "settings" && userPageAccess.settings && (
           <SettingsPage
             session={session}
@@ -684,6 +783,8 @@ export function AppShell() {
             onTabChange={settings.setActiveSettingsTab}
             activeDataTab={settings.activeDataTab}
             onDataTabChange={settings.setActiveDataTab}
+            activeDocumentsTab={settings.activeDocumentsTab}
+            onDocumentsTabChange={settings.setActiveDocumentsTab}
             onOpenCreate={settings.onOpenCreateUserModal}
             onExportAuditLogs={settings.onExportAuditLogs}
             onDeactivateUser={settings.onDeactivateUser}
@@ -788,6 +889,12 @@ export function AppShell() {
             onFocusRondeConsumed={() => setFocusRondeIdFromIntervention(null)}
             onUpsertRondePlannedProfile={(payload) => void settings.onUpsertRondePlannedProfile(payload)}
             onDeleteRondePlannedProfile={(id, reason) => void settings.onDeleteRondePlannedProfile(id, reason)}
+            onRequestRondePlannedProfileCancellation={(id, reason) =>
+              void settings.onRequestRondePlannedProfileCancellation(id, reason)
+            }
+            onReviewRondePlannedProfileCancellationRequest={(id, payload) =>
+              void settings.onReviewRondePlannedProfileCancellationRequest(id, payload)
+            }
             onSetRondePlannedProfilePlanningEnd={(id, planningEndDate, reason) =>
               void settings.onSetRondePlannedProfilePlanningEnd(id, planningEndDate, reason)
             }
@@ -823,7 +930,7 @@ export function AppShell() {
           temporaryPassword={credentialsToShare?.temporaryPassword || ""}
           onClose={() => setCredentialsToShare(null)}
         />
-        <Toast message={toast?.message ?? ""} variant={toast?.variant} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </section>
     </main>
   );

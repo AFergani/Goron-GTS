@@ -2,17 +2,20 @@
  * Presenter main courante : liste, stats, création opérateur, édition, actions responsable.
  *
  * Polling ~20 s. Persistance PostgreSQL (passthrough IPC).
+ * Compteurs cartes : mois civil en cours (`createdAt`).
  * Utilisé par : `MainCourantePage` (badge sidebar alimenté par AppShell via API séparée).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { getLocalMonthKey, isTimestampInLocalMonth } from "../../common/utils/currentMonthSummary";
 import type {
   MainCouranteCreatePayload,
   MainCouranteEntry,
   MainCouranteSavePayload
 } from "../model/mainCourante.types";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 function makeEntryId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -24,7 +27,7 @@ function makeEntryId() {
 type MainCourantePresenterOptions = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 };
 
 export function useMainCourantePresenter(currentOperator: string, options: MainCourantePresenterOptions) {
@@ -32,8 +35,8 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
   const [entries, setEntries] = useState<MainCouranteEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const notify = (msg: string) => {
-    onToast?.(msg);
+  const notify: NotifyToast = (msg, variant) => {
+    onToast?.(msg, variant);
   };
 
   const loadEntries = useCallback(
@@ -43,7 +46,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         const list = await gtsApiClient.listMainCouranteEntries({ requesterRole });
         setEntries(list);
       } catch (e) {
-        notify(e instanceof Error ? e.message : "Impossible de charger la main courante.");
+        notify(e instanceof Error ? e.message : "Impossible de charger la main courante.", "error");
       } finally {
         if (!silent) setLoading(false);
       }
@@ -61,10 +64,12 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
   }, [loadEntries]);
 
   const stats = useMemo(() => {
-    const total = entries.length;
-    const waiting = entries.filter((e) => e.status === "EN_ATTENTE").length;
-    const inProgress = entries.filter((e) => e.status === "EN_COURS").length;
-    const closed = entries.filter((e) => e.status === "CLOTURE").length;
+    const monthKey = getLocalMonthKey();
+    const monthEntries = entries.filter((entry) => isTimestampInLocalMonth(entry.createdAt, monthKey));
+    const total = monthEntries.length;
+    const waiting = monthEntries.filter((entry) => entry.status === "EN_ATTENTE").length;
+    const inProgress = monthEntries.filter((entry) => entry.status === "EN_COURS").length;
+    const closed = monthEntries.filter((entry) => entry.status === "CLOTURE").length;
     return { total, waiting, inProgress, closed };
   }, [entries]);
 
@@ -85,7 +90,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       await loadEntries(true);
       return true;
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Création impossible.");
+      notify(e instanceof Error ? e.message : "Création impossible.", "error");
       return false;
     }
   };
@@ -111,7 +116,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       await loadEntries(true);
       return true;
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Mise à jour impossible.");
+      notify(e instanceof Error ? e.message : "Mise à jour impossible.", "error");
       return false;
     }
   };
@@ -143,7 +148,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       await loadEntries(true);
       return true;
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Enregistrement impossible.");
+      notify(e instanceof Error ? e.message : "Enregistrement impossible.", "error");
       return false;
     }
   };
@@ -163,7 +168,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       await loadEntries(true);
       return true;
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Réouverture impossible.");
+      notify(e instanceof Error ? e.message : "Réouverture impossible.", "error");
       return false;
     }
   };

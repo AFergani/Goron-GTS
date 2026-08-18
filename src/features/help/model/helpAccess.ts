@@ -7,7 +7,7 @@
 
 import type { HelpAccessContext, HelpPageAccess, HelpTopicId } from "./helpTopics";
 
-/** Accès aux onglets Gestion des données, modèles, variables, base (aligné sur l'UI Paramètres). */
+/** Accès aux onglets Gestion des données, modèles et variables, base (aligné sur l'UI Paramètres). */
 export function canAccessSettingsDataHelp(access?: HelpAccessContext): boolean {
   return Boolean(access?.pageAccess.settings && access?.canManageData);
 }

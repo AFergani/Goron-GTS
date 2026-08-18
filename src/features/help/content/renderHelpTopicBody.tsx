@@ -58,11 +58,13 @@ export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessCon
   if (topicId === "settings-audit") {
     return <HelpSettingsAuditTopic />;
   }
-  if (topicId === "settings-templates") {
-    return <HelpSettingsTemplatesTopic />;
-  }
-  if (topicId === "settings-variables") {
-    return <HelpSettingsVariablesTopic />;
+  if (topicId === "settings-templates" || topicId === "settings-variables") {
+    return (
+      <>
+        <HelpSettingsTemplatesTopic />
+        <HelpSettingsVariablesTopic />
+      </>
+    );
   }
   return welcomeTopic();
 }

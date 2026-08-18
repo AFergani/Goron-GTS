@@ -3,6 +3,7 @@
  *
  * Orchestration presenters + modales création/édition/clôture, exports Excel/Word,
  * filtres statut/famille/prestataire. Mode d’affichage jour/liste mémorisé en localStorage.
+ * Affichage liste : filtre Statut par défaut « En cours » (planifié + actif).
  * Montée depuis `AppShell` si permission `gardiennage`.
  */
 
@@ -13,7 +14,9 @@ import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { GardiennageEntry } from "../model/gardiennage.types";
+import { clipGardiennageHoursToDay } from "../model/gardiennageDayHours";
 import { useGardiennagePresenter } from "../presenter/useGardiennagePresenter";
 import { useGardiennageReferenceData } from "../presenter/useGardiennageReferenceData";
 import { GardiennageEntryModal, type GardiennageModalMode } from "../components/GardiennageEntryModal";
@@ -28,7 +31,7 @@ const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v1";
 type GardiennagePageProps = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
   /** Id gardiennage à ouvrir (navigation depuis une intervention liée). */
@@ -81,9 +84,10 @@ export function GardiennagePage({
   const [selectedDate, setSelectedDate] = useState(getTodayIso);
   const isSelectedToday = selectedDate === getTodayIso();
 
-  /* ── Onglet Planification — filtres ── */
+  /* ── Onglet Planification — filtres (affichage liste) ── */
   const planifFilters = useTableFilters();
-  const [statusFilter, setStatusFilterRaw] = useState("");
+  /** Défaut « en cours » : clôturés et annulés masqués tant qu'on ne les demande pas explicitement. */
+  const [statusFilter, setStatusFilterRaw] = useState("en_cours");
   const [familyFilter, setFamilyFilterRaw] = useState("");
   const [intervenantFilter, setIntervenantFilterRaw] = useState("");
   const setStatusFilter = (v: string) => { setStatusFilterRaw(v); planifFilters.setCurrentPage(1); };
@@ -117,7 +121,7 @@ export function GardiennagePage({
         setModalMode("edit");
         setModalOpen(true);
       } else {
-        onToast?.("Gardiennage lié introuvable dans la liste.");
+        onToast?.("Gardiennage lié introuvable dans la liste.", "error");
       }
       onFocusGardiennageConsumed?.();
     })();
@@ -128,9 +132,7 @@ export function GardiennagePage({
   const duJourEntries = useMemo(() => {
     return presenter.entries.filter((e) => {
       if (e.status === "ANNULE" || e.status === "CLOTURE") return false;
-      if (e.recurrenceStartDate > selectedDate) return false;
-      if (e.recurrenceEndDate && e.recurrenceEndDate < selectedDate) return false;
-      return true;
+      return clipGardiennageHoursToDay(e, selectedDate) !== null;
     });
   }, [presenter.entries, selectedDate]);
 
@@ -175,15 +177,6 @@ export function GardiennagePage({
     [planificationFiltered, planifFilters.currentPage, planifFilters.pageSize]
   );
 
-  /* ── Stats rapides ── */
-  const stats = useMemo(() => ({
-    total: presenter.entries.length,
-    enCours: presenter.entries.filter((e) => e.status === "PLANIFIE" || e.status === "ACTIF").length,
-    cloture: presenter.entries.filter((e) => e.status === "CLOTURE").length,
-    annule: presenter.entries.filter((e) => e.status === "ANNULE").length,
-    duJour: duJourEntries.length
-  }), [presenter.entries, duJourEntries]);
-
   /* ── Handlers ── */
   const openCreate = () => { setActiveEntry(null); setModalMode("create"); setModalOpen(true); };
   const openEdit = (entry: GardiennageEntry) => {
@@ -223,21 +216,21 @@ export function GardiennagePage({
 
   const resetPlanificationFilters = () => {
     planifFilters.reset();
-    setStatusFilter("");
+    setStatusFilter("en_cours");
     setFamilyFilter("");
     setIntervenantFilter("");
   };
 
   const handleExportFilteredList = () => {
     if (!planificationFiltered.length) {
-      onToast?.("Aucune donnée à exporter avec les filtres actifs.");
+      onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
       exportGardiennageToExcel(planificationFiltered);
       onToast?.(`${planificationFiltered.length} ligne(s) exportée(s) dans le tableur Excel.`);
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
   };
 
@@ -246,7 +239,7 @@ export function GardiennagePage({
       await exportGardiennageEntryToWord(entry);
       onToast?.("Document Word téléchargé.");
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Word impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
     }
   };
 
@@ -257,130 +250,9 @@ export function GardiennagePage({
 
   return (
     <>
-      {/* ── Statistiques ── */}
-      <section className="panel main-log-stats">
-        <div className="stat-card">
-          <span>Total</span>
-          <strong>{stats.total}</strong>
-        </div>
-        <div className="stat-card">
-          <span>En cours</span>
-          <strong>{stats.enCours}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Clôturés</span>
-          <strong>{stats.cloture}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Annulés</span>
-          <strong>{stats.annule}</strong>
-        </div>
-      </section>
-
-      {/* Ligne 1: toggle à gauche, action à droite */}
-      <section className="panel">
-        <div className="main-courante-table-toolbar">
-          <div className="row-actions" style={{ display: "inline-flex" }}>
-            <button
-              type="button"
-              className="btn-light"
-              title="Exporter Excel (filtres actifs)"
-              aria-label="Exporter données (filtres actifs)"
-              onClick={handleExportFilteredList}
-              disabled={displayMode !== "list"}
-            >
-              Export données
-            </button>
-          </div>
-          <div className="row-actions" style={{ display: "inline-flex" }}>
-            <ToggleSwitch
-              checked={displayMode === "day"}
-              onChange={(checked) => setDisplayMode(checked ? "day" : "list")}
-              label={displayMode === "day" ? "Affichage journée" : "Affichage liste"}
-              labelFirst
-            />
-          </div>
-          <button type="button" className="mc-btn-primary" onClick={openCreate}>
-            <Plus size={15} aria-hidden />
-            Nouveau gardiennage
-          </button>
-        </div>
-        {displayMode === "list" ? (
-          <>
-            {references.error ? <p className="error">{references.error}</p> : null}
-            <TableFiltersBar
-              search={planifFilters.search}
-              onSearchChange={planifFilters.setSearch}
-              dateFrom={planifFilters.dateFrom}
-              onDateFromChange={planifFilters.setDateFrom}
-              dateTo={planifFilters.dateTo}
-              onDateToChange={planifFilters.setDateTo}
-              searchPlaceholder="Site, prestataire…"
-              onReset={resetPlanificationFilters}
-            >
-              <label>
-                Famille
-                <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-                  <option value="">Toutes</option>
-                  {familyOptions.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Prestataire
-                <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-                  <option value="">Tous</option>
-                  {references.intervenants.map((i) => (
-                    <option key={i.id} value={i.id}>{i.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Statut
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">Tous</option>
-                  <option value="en_cours">En cours</option>
-                  <option value="CLOTURE">Clôturé</option>
-                  <option value="ANNULE">Annulé</option>
-                </select>
-              </label>
-            </TableFiltersBar>
-          </>
-        ) : null}
-      </section>
-
-      {/* Section 2: conteneurs séparés en mode liste */}
-      {displayMode === "list" ? (
-        <>
-          <section className="panel main-courante-table-panel">
-            {!presenter.loading ? (
-              <GardiennageTable
-                entries={planificationPaginated}
-                showPeriode
-                onEdit={openEdit}
-                onDelete={openDeleteConfirm}
-                onClose={openCloseModal}
-                onExportWord={handleExportWord}
-              />
-            ) : (
-              <p className="muted">Chargement…</p>
-            )}
-
-            <TablePaginationBar
-              currentPage={planifFilters.currentPage}
-              totalPages={totalPages}
-              totalItems={planificationFiltered.length}
-              pageSize={planifFilters.pageSize}
-              onPageChange={planifFilters.setCurrentPage}
-              onPageSizeChange={planifFilters.setPageSize}
-            />
-          </section>
-        </>
-      ) : (
-        <section className="panel main-courante-table-panel">
-          {references.error ? <p className="error">{references.error}</p> : null}
-          <>
+      <section className="panel main-courante-table-panel">
+        <div className={`gard-panel-head${displayMode === "list" ? " gard-panel-head--list" : ""}`}>
+          {displayMode === "day" ? (
             <div className="gard-date-nav">
               <button
                 type="button"
@@ -421,6 +293,105 @@ export function GardiennagePage({
               <span className="gard-date-nav-label">{formatDateLong(selectedDate)}</span>
               {isSelectedToday ? <span className="gard-today-badge">Aujourd'hui</span> : null}
             </div>
+          ) : null}
+
+          <div className="main-courante-table-toolbar gard-panel-head__toolbar">
+            {displayMode === "list" ? (
+              <button
+                type="button"
+                className="btn-light"
+                title="Exporter Excel (filtres actifs)"
+                aria-label="Exporter données (filtres actifs)"
+                onClick={handleExportFilteredList}
+              >
+                Export données
+              </button>
+            ) : null}
+            <div className="row-actions">
+              <ToggleSwitch
+                checked={displayMode === "day"}
+                onChange={(checked) => setDisplayMode(checked ? "day" : "list")}
+                label={displayMode === "day" ? "Affichage journée" : "Affichage liste"}
+                labelFirst
+              />
+            </div>
+            <button type="button" className="mc-btn-primary" onClick={openCreate}>
+              <Plus size={15} aria-hidden />
+              Nouveau gardiennage
+            </button>
+          </div>
+        </div>
+
+        {displayMode === "list" ? (
+          <>
+            {references.error ? <p className="error">{references.error}</p> : null}
+            <div className="list-panel-filters">
+              <TableFiltersBar
+                search={planifFilters.search}
+                onSearchChange={planifFilters.setSearch}
+                dateFrom={planifFilters.dateFrom}
+                onDateFromChange={planifFilters.setDateFrom}
+                dateTo={planifFilters.dateTo}
+                onDateToChange={planifFilters.setDateTo}
+                searchPlaceholder="Site, prestataire…"
+                onReset={resetPlanificationFilters}
+              >
+                <label>
+                  Famille
+                  <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
+                    <option value="">Toutes</option>
+                    {familyOptions.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Prestataire
+                  <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
+                    <option value="">Tous</option>
+                    {references.intervenants.map((i) => (
+                      <option key={i.id} value={i.id}>{i.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Statut
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="en_cours">En cours</option>
+                    <option value="">Tous</option>
+                    <option value="CLOTURE">Clôturé</option>
+                    <option value="ANNULE">Annulé</option>
+                  </select>
+                </label>
+              </TableFiltersBar>
+            </div>
+
+            {!presenter.loading ? (
+              <GardiennageTable
+                entries={planificationPaginated}
+                showPeriode
+                onEdit={openEdit}
+                onDelete={openDeleteConfirm}
+                onClose={openCloseModal}
+                onExportWord={handleExportWord}
+                onNotify={onToast}
+              />
+            ) : (
+              <p className="muted">Chargement…</p>
+            )}
+
+            <TablePaginationBar
+              currentPage={planifFilters.currentPage}
+              totalPages={totalPages}
+              totalItems={planificationFiltered.length}
+              pageSize={planifFilters.pageSize}
+              onPageChange={planifFilters.setCurrentPage}
+              onPageSizeChange={planifFilters.setPageSize}
+            />
+          </>
+        ) : (
+          <>
+            {references.error ? <p className="error">{references.error}</p> : null}
 
             {!presenter.loading && duJourEntries.length === 0 ? (
               <div className="main-log-empty">
@@ -431,23 +402,30 @@ export function GardiennagePage({
             {!presenter.loading && duJourEntries.length > 0 ? (
               <GardiennageTable
                 entries={duJourEntries}
+                hoursForDate={selectedDate}
                 onEdit={openEdit}
                 onDelete={openDeleteConfirm}
                 onClose={openCloseModal}
                 onExportWord={handleExportWord}
+                onNotify={onToast}
               />
             ) : null}
 
             {presenter.loading ? <p className="muted">Chargement…</p> : null}
           </>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Modale de création / édition complète */}
       <GardiennageEntryModal
         isOpen={modalOpen}
         mode={modalMode}
         entry={activeEntry}
+        batchEntries={
+          activeEntry?.planningBatchId
+            ? presenter.entries.filter((row) => String(row.planningBatchId || "") === String(activeEntry.planningBatchId))
+            : (activeEntry ? [activeEntry] : [])
+        }
         sites={references.sites}
         intervenants={references.intervenants}
         holidays={references.holidays}

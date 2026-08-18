@@ -83,6 +83,7 @@ function mapMainCouranteRow(row) {
     managerName: row.manager_name || undefined,
     consultedByManagerAt: row.consulted_by_manager_at || undefined,
     consultedByManagerName: row.consulted_by_manager_name || undefined,
+    consultedByOperatorAt: row.consulted_by_operator_at || undefined,
     priseEnCompteAt: row.prise_en_compte_at || undefined,
     closedAt: row.closed_at || undefined,
     archivedAt: row.archived_at || undefined

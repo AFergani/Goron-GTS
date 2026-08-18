@@ -5,31 +5,12 @@
  * et calcule la « date logique » d’affichage / filtre. Utilisé par `InterventionEntryModal`.
  */
 
+import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
+
+export { isValidTime, normalizeTimeForSave };
+
 export function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
-}
-
-export function isValidTime(value: string) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || "").trim());
-}
-
-export function normalizeTimeForSave(value: string) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const digitsOnly = raw.replace(/\D/g, "");
-  if (digitsOnly.length === 4) {
-    const h = Number(digitsOnly.slice(0, 2));
-    const min = Number(digitsOnly.slice(2));
-    if (Number.isFinite(h) && Number.isFinite(min) && h <= 23 && min <= 59) {
-      return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-    }
-  }
-  const m = raw.match(/^(\d{1,2}):(\d{1,2})$/);
-  if (!m) return raw;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return raw;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 function toMinutes(timeIso: string): number {

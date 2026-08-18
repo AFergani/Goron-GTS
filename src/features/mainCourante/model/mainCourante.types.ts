@@ -26,6 +26,8 @@ export type MainCouranteEntry = {
   managerName?: string;
   consultedByManagerAt?: string;
   consultedByManagerName?: string;
+  /** Consultation opérateur créateur après réponse encadrement (badge sidebar) */
+  consultedByOperatorAt?: string;
   /** Horodatage de la prise en compte (validation responsable) */
   priseEnCompteAt?: string;
   closedAt?: string;

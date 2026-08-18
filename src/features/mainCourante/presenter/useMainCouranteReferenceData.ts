@@ -8,16 +8,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { AnomalyTypeRef, Role, SiteRef } from "../../../types";
-
-function getErrorMessage(err: unknown, fallback: string) {
-  if (!(err instanceof Error)) return fallback;
-  return err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim() || fallback;
-}
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 export function useMainCouranteReferenceData(
   requesterRole: Role | undefined,
   requesterUsername: string,
-  onToast?: (message: string) => void
+  onToast?: NotifyToast
 ) {
   const [sites, setSites] = useState<SiteRef[]>([]);
   const [anomalyTypes, setAnomalyTypes] = useState<AnomalyTypeRef[]>([]);
@@ -38,7 +35,7 @@ export function useMainCouranteReferenceData(
       setAnomalyTypes(t);
       setError("");
     } catch (err) {
-      setError(getErrorMessage(err, "Impossible de charger les référentiels."));
+      setError(extractUserFacingErrorMessage(err, "Impossible de charger les référentiels."));
     } finally {
       setLoading(false);
     }
@@ -67,13 +64,13 @@ export function useMainCouranteReferenceData(
         });
         await load();
         if (response.alreadyExists) {
-          onToast?.("Ce site existe déjà ou est déjà en attente de validation.");
+          onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
         } else {
           onToast?.("Site ajouté en attente de validation.");
         }
         return true;
       } catch (error) {
-        onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter le site en attente.");
+        onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
         return false;
       }
     },

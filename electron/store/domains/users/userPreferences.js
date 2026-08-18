@@ -59,6 +59,7 @@ async function getUserPreferences(store, { requesterRole, requesterUsername }) {
 
 /**
  * Met à jour le thème du compte actif (valeur normalisée `light` ou `dark`).
+ * Pas d'entrée dans le journal d'audit (préférence personnelle non métier).
  *
  * @param {import('../../../userStore')} store
  * @param {{ requesterRole: string, requesterUsername: string, themeMode?: string }} params
@@ -90,15 +91,6 @@ async function setUserPreferences(store, { requesterRole, requesterUsername, the
   if (typeof refreshUsersCache === "function") {
     await refreshUsersCache(store);
   }
-  store.logAudit({
-    actorUsername: requesterUsername,
-    action: "USER_PREFERENCES_THEME_UPDATE",
-    targetUsername: username,
-    details: {
-      before: { themeMode: beforeTheme },
-      after: { themeMode: nextTheme }
-    }
-  });
   return { success: true, themeMode: nextTheme };
 }
 

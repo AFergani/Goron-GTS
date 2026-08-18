@@ -129,7 +129,7 @@ export function FransorPage({
 }: {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string, variant?: "default" | "error") => void;
+  onToast?: (message: string, variant?: "success" | "warning" | "error") => void;
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [entryDate, setEntryDate] = useState(getLocalIsoDate);
@@ -458,11 +458,11 @@ export function FransorPage({
 
   const submitQuickEntry = async () => {
     if (!entryDate) {
-      onToast?.("Date obligatoire.");
+      onToast?.("Date obligatoire.", "warning");
       return;
     }
     if (!entryOuvertureDone && !entryFermetureDone) {
-      onToast?.("Sélectionner au moins une action.");
+      onToast?.("Sélectionner au moins une action.", "warning");
       return;
     }
     const dayEntries = presenter.entries.filter((entry) => entry.date === entryDate);
@@ -478,11 +478,11 @@ export function FransorPage({
     }
 
     if (entryOuvertureDone && !entryOuvertureResponsableId) {
-      onToast?.("Responsable obligatoire pour l'ouverture.");
+      onToast?.("Responsable obligatoire pour l'ouverture.", "warning");
       return;
     }
     if (entryFermetureDone && !entryFermetureResponsableId) {
-      onToast?.("Responsable obligatoire pour la fermeture.");
+      onToast?.("Responsable obligatoire pour la fermeture.", "warning");
       return;
     }
 
@@ -523,7 +523,7 @@ export function FransorPage({
       onToast?.("Saisie Fransor enregistrée.");
       setShowAddModal(false);
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Enregistrement impossible.");
+      onToast?.(error instanceof Error ? error.message : "Enregistrement impossible.", "error");
     }
   };
 
@@ -541,7 +541,7 @@ export function FransorPage({
       }
       onToast?.("Récap copié.");
     } catch {
-      onToast?.("Impossible de copier le récap.");
+      onToast?.("Impossible de copier le récap.", "error");
     }
   };
 

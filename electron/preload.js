@@ -97,6 +97,10 @@ contextBridge.exposeInMainWorld("gtsApi", {
   listRondePlannedProfiles: (payload) => ipcRenderer.invoke("data:rondePlannedProfiles:list", payload),
   upsertRondePlannedProfile: (payload) => ipcRenderer.invoke("data:rondePlannedProfiles:upsert", payload),
   deleteRondePlannedProfile: (payload) => ipcRenderer.invoke("data:rondePlannedProfiles:delete", payload),
+  requestRondePlannedProfileCancellation: (payload) =>
+    ipcRenderer.invoke("data:rondePlannedProfiles:requestCancellation", payload),
+  reviewRondePlannedProfileCancellationRequest: (payload) =>
+    ipcRenderer.invoke("data:rondePlannedProfiles:reviewCancellation", payload),
   setRondePlannedProfilePlanningEnd: (payload) =>
     ipcRenderer.invoke("data:rondePlannedProfiles:setPlanningEnd", payload),
   setRondePlannedProfileValidated: (payload) =>
@@ -120,7 +124,9 @@ contextBridge.exposeInMainWorld("gtsApi", {
   // --- Main courante ---
   listMainCouranteEntries: (payload) => ipcRenderer.invoke("mainCourante:list", payload),
   getMainCouranteUnconsultedCount: (payload) => ipcRenderer.invoke("mainCourante:getUnconsultedCount", payload),
+  getMainCouranteOperatorResponseCount: (payload) => ipcRenderer.invoke("mainCourante:getOperatorResponseCount", payload),
   markMainCouranteEntryConsulted: (payload) => ipcRenderer.invoke("mainCourante:markConsulted", payload),
+  markMainCouranteEntryConsultedByOperator: (payload) => ipcRenderer.invoke("mainCourante:markOperatorConsulted", payload),
   createMainCouranteEntry: (payload) => ipcRenderer.invoke("mainCourante:create", payload),
   updateMainCouranteEntryOperator: (payload) => ipcRenderer.invoke("mainCourante:updateOperator", payload),
   applyMainCouranteManagerAction: (payload) => ipcRenderer.invoke("mainCourante:applyManager", payload),
@@ -144,6 +150,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
 
   // --- Rondes ---
   listRondes: (payload) => ipcRenderer.invoke("ronde:list", payload),
+  getRondeTodayInProgressCounts: (payload) => ipcRenderer.invoke("ronde:getTodayInProgressCounts", payload),
   createRondeEntry: (payload) => ipcRenderer.invoke("ronde:create", payload),
   updateRondeEntry: (payload) => ipcRenderer.invoke("ronde:update", payload),
   setRondeStatus: (payload) => ipcRenderer.invoke("ronde:setStatus", payload),
@@ -153,6 +160,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
 
   // --- Gardiennage ---
   listGardiennages: (payload) => ipcRenderer.invoke("gardiennage:list", payload),
+  getGardiennageTodayInProgressCount: (payload) => ipcRenderer.invoke("gardiennage:getTodayInProgressCount", payload),
   createGardiennage: (payload) => ipcRenderer.invoke("gardiennage:create", payload),
   updateGardiennage: (payload) => ipcRenderer.invoke("gardiennage:update", payload),
   setGardiennageStatus: (payload) => ipcRenderer.invoke("gardiennage:setStatus", payload),

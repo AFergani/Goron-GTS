@@ -1,6 +1,9 @@
 /**
  * Page Interventions : liste filtrée, statistiques, modale, exports, liens ronde/gardiennage.
  *
+ * Filtre Statut par défaut : « En cours » — les fiches clôturées et annulées sont masquées
+ * tant que l'opérateur ne choisit pas un autre filtre (aligné main courante « Ouverts »).
+ *
  * Deep-link `focusInterventionId` depuis AppShell (ronde liée). Permissions ronde/gardiennage
  * pour créer des fiches liées depuis une intervention clôturée.
  */
@@ -8,6 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
@@ -23,6 +27,7 @@ import type { RondeMotifTypeRef, RondeSavePayload } from "../../rondes/model/ron
 import { GardiennageEntryModal } from "../../gardiennage/components/GardiennageEntryModal";
 import type { GardiennageSavePayload } from "../../gardiennage/model/gardiennage.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { getCurrentMonthSummaryTitle } from "../../common/utils/currentMonthSummary";
 type InterventionPageProps = {
   requesterRole: Role;
   requesterUsername: string;
@@ -30,7 +35,7 @@ type InterventionPageProps = {
   canAccessRondes?: boolean;
   /** Aligné sur la permission d'accès à la page Gardiennage (bouton gardiennage lié). */
   canAccessGardiennage?: boolean;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
   /** Id intervention à ouvrir (navigation depuis une ronde liée). */
   focusInterventionId?: string | null;
   onFocusInterventionConsumed?: () => void;
@@ -66,7 +71,8 @@ export function InterventionPage({
   onNavigateToLinkedGardiennage
 }: InterventionPageProps) {
   const filters = useTableFilters();
-  const [statusFilter, setStatusFilterRaw] = useState("");
+  /** Défaut « en cours » : clôturées et annulées masquées tant qu'on ne les demande pas explicitement. */
+  const [statusFilter, setStatusFilterRaw] = useState("EN_COURS");
   const [familyFilter, setFamilyFilterRaw] = useState("");
   const [intervenantFilter, setIntervenantFilterRaw] = useState("");
 
@@ -117,7 +123,7 @@ export function InterventionPage({
         setModalMode(isResponsable && found.status === "CLOTURE" ? "facturation" : "edit");
         setModalOpen(true);
       } else {
-        onToast?.("Intervention liée introuvable dans la liste.");
+        onToast?.("Intervention liée introuvable dans la liste.", "error");
       }
       onFocusInterventionConsumed?.();
     })();
@@ -193,7 +199,7 @@ export function InterventionPage({
       exportInterventionToExcel(filteredEntries);
       onToast?.("Export Excel téléchargé.");
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
   };
 
@@ -202,7 +208,7 @@ export function InterventionPage({
       await exportInterventionEntryToWord(entry);
       onToast?.("Document Word téléchargé.");
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Word impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
     }
   };
 
@@ -222,7 +228,7 @@ export function InterventionPage({
       onToast?.("Ronde créée.");
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Création de ronde impossible.");
+      onToast?.(error instanceof Error ? error.message : "Création de ronde impossible.", "error");
       return false;
     }
   };
@@ -238,84 +244,37 @@ export function InterventionPage({
       onToast?.("Gardiennage créé.");
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Création de gardiennage impossible.");
+      onToast?.(error instanceof Error ? error.message : "Création de gardiennage impossible.", "error");
       return false;
     }
   };
 
   return (
     <>
-      <section className="panel main-log-stats">
-        <div className="stat-card">
-          <span>Total</span>
-          <strong>{intervention.stats.total}</strong>
+      <section className="panel main-log-stats-block">
+        <h2 className="main-log-stats-title">{getCurrentMonthSummaryTitle()}</h2>
+        <div className="main-log-stats">
+          <div className="stat-card">
+            <span>Total</span>
+            <strong>{intervention.stats.total}</strong>
+          </div>
+          <div className="stat-card">
+            <span>En cours</span>
+            <strong>{intervention.stats.inProgress}</strong>
+          </div>
+          <div className="stat-card">
+            <span>Clôturées</span>
+            <strong>{intervention.stats.closed}</strong>
+          </div>
+          <div className="stat-card">
+            <span>Annulées</span>
+            <strong>{intervention.stats.canceled}</strong>
+          </div>
         </div>
-        <div className="stat-card">
-          <span>En cours</span>
-          <strong>{intervention.stats.inProgress}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Clôturées</span>
-          <strong>{intervention.stats.closed}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Annulées</span>
-          <strong>{intervention.stats.canceled}</strong>
-        </div>
-      </section>
-
-      <section className="panel">
-        {references.error ? <p className="error">{references.error}</p> : null}
-        <TableFiltersBar
-          search={filters.search}
-          onSearchChange={filters.setSearch}
-          dateFrom={filters.dateFrom}
-          onDateFromChange={filters.setDateFrom}
-          dateTo={filters.dateTo}
-          onDateToChange={filters.setDateTo}
-          searchPlaceholder="Site, motif, prestataire, bon inter…"
-          onReset={() => {
-            filters.reset();
-            setStatusFilter("");
-            setFamilyFilter("");
-            setIntervenantFilter("");
-          }}
-        >
-          <label>
-            Famille
-            <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-              <option value="">Toutes</option>
-              {familyOptions.map((family) => (
-                <option key={family} value={family}>
-                  {family}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Prestataire
-            <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-              <option value="">Tous</option>
-              {references.intervenants.map((intervenant) => (
-                <option key={intervenant.id} value={intervenant.id}>
-                  {intervenant.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Statut
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">Tous</option>
-              <option value="EN_COURS">En cours</option>
-              <option value="CLOTURE">Clôturé</option>
-              <option value="ANNULE">Annulé</option>
-            </select>
-          </label>
-        </TableFiltersBar>
       </section>
 
       <section className="panel main-courante-table-panel">
+        {references.error ? <p className="error">{references.error}</p> : null}
         <div className="main-courante-table-toolbar">
           <button
             type="button"
@@ -325,10 +284,59 @@ export function InterventionPage({
           >
             Exporter données
           </button>
-          <button type="button" onClick={openCreate}>
-            <Plus size={16} aria-hidden style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
+          <button type="button" className="mc-btn-primary" onClick={openCreate}>
+            <Plus size={16} aria-hidden />
             Nouvelle intervention
           </button>
+        </div>
+        <div className="list-panel-filters">
+          <TableFiltersBar
+            search={filters.search}
+            onSearchChange={filters.setSearch}
+            dateFrom={filters.dateFrom}
+            onDateFromChange={filters.setDateFrom}
+            dateTo={filters.dateTo}
+            onDateToChange={filters.setDateTo}
+            searchPlaceholder="Site, motif, prestataire, bon inter…"
+            onReset={() => {
+              filters.reset();
+              setStatusFilter("EN_COURS");
+              setFamilyFilter("");
+              setIntervenantFilter("");
+            }}
+          >
+            <label>
+              Famille
+              <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
+                <option value="">Toutes</option>
+                {familyOptions.map((family) => (
+                  <option key={family} value={family}>
+                    {family}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Prestataire
+              <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
+                <option value="">Tous</option>
+                {references.intervenants.map((intervenant) => (
+                  <option key={intervenant.id} value={intervenant.id}>
+                    {intervenant.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Statut
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="EN_COURS">En cours</option>
+                <option value="">Tous</option>
+                <option value="CLOTURE">Clôturé</option>
+                <option value="ANNULE">Annulé</option>
+              </select>
+            </label>
+          </TableFiltersBar>
         </div>
         {intervention.loading ? <p className="muted">Chargement des interventions…</p> : null}
         <InterventionTable

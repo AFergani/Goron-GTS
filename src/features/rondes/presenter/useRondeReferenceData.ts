@@ -11,8 +11,10 @@ import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import type { RondeMotifTypeRef } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { mergeWithFrenchFixedHolidays } from "../model/rondeCalendarLocal";
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import type { NotifyToast } from "../../common/model/toast.types";
 
-export function useRondeReferenceData(requesterRole: Role, requesterUsername: string, onToast?: (message: string) => void) {
+export function useRondeReferenceData(requesterRole: Role, requesterUsername: string, onToast?: NotifyToast) {
   const [sites, setSites] = useState<SiteRef[]>([]);
   const [intervenants, setIntervenants] = useState<IntervenantRef[]>([]);
   const [rondeMotifs, setRondeMotifs] = useState<RondeMotifTypeRef[]>([]);
@@ -42,7 +44,7 @@ export function useRondeReferenceData(requesterRole: Role, requesterUsername: st
         .filter((year) => Number.isFinite(year));
       setHolidays(mergeWithFrenchFixedHolidays(holidayRows, [nowYear - 1, nowYear, nowYear + 1, ...yearsFromRows]));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de charger les référentiels ronde.");
+      setError(extractUserFacingErrorMessage(err, "Impossible de charger les référentiels ronde."));
     } finally {
       setLoading(false);
     }
@@ -62,13 +64,13 @@ export function useRondeReferenceData(requesterRole: Role, requesterUsername: st
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Ce site existe déjà ou est déjà en attente de validation.");
+        onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Site ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter le site en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
       return false;
     }
   };
@@ -82,13 +84,13 @@ export function useRondeReferenceData(requesterRole: Role, requesterUsername: st
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.");
+        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Intervenant ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter l'intervenant en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter l'intervenant en attente."), "error");
       return false;
     }
   };

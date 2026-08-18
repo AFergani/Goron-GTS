@@ -15,6 +15,8 @@ export type RondeMotifTypeRef = {
   colorHex: string;
   sortOrder: number;
   createdAt: string;
+  /** Motif injecté en base, non modifiable ni supprimable. */
+  isSystem?: boolean;
 };
 
 export type RondeOriginKind = "TELESURVEILLANCE" | "CLIENT" | "AUTRE";

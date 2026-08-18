@@ -201,6 +201,43 @@ async function listRondes(store, { requesterRole }) {
   return rows.map(mapRondeRow);
 }
 
+/** Clause SQL : ronde contractuelle / planifiée (alignée onglet « Ronde contractuelle »). */
+const CONTRACTUAL_RONDE_SQL = `(
+  source = 'PLANIFIE'
+  OR NULLIF(BTRIM(planned_profile_id), '') IS NOT NULL
+  OR NULLIF(BTRIM(planned_round_kind), '') IS NOT NULL
+  OR origin_kind = 'TELESURVEILLANCE'
+)`;
+
+/**
+ * Compte les rondes en cours pour la journée (badges sidebar et onglets).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {{ requesterRole: string, todayIso: string }} payload
+ * @returns {Promise<{ total: number, contractual: number, exceptional: number }>}
+ */
+async function getRondeTodayInProgressCounts(store, { requesterRole, todayIso }) {
+  store.ensureDataReaderRole(requesterRole);
+  const day = String(todayIso || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    store.fail("ronde:todayInProgressCount", "Date du jour invalide.", "RONDE_BADGE_DATE_INVALID");
+  }
+  const db = requireRondePersistence(store, "ronde:todayInProgressCount");
+  await autoCloseExpiredExceptionalRondes(store);
+  const baseWhere = `status = 'EN_COURS' AND request_date = ?`;
+  const contractualRow = await db.get(
+    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND ${CONTRACTUAL_RONDE_SQL}`,
+    [day]
+  );
+  const exceptionalRow = await db.get(
+    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND NOT ${CONTRACTUAL_RONDE_SQL}`,
+    [day]
+  );
+  const contractual = Number(contractualRow?.count || 0);
+  const exceptional = Number(exceptionalRow?.count || 0);
+  return { total: contractual + exceptional, contractual, exceptional };
+}
+
 /**
  * Crée une ronde de manière idempotente.
  *
@@ -618,6 +655,7 @@ module.exports = {
   bulkCancelRondeBatch,
   bulkDeleteRondeBatch,
   createRonde,
+  getRondeTodayInProgressCounts,
   listRondes,
   setRondeStatus,
   updateRonde,

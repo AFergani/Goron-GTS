@@ -8,7 +8,7 @@
  */
 
 const crypto = require("crypto");
-const { hashPassword, verifyPassword, needsPasswordMigration } = require("../../core/password");
+const { hashPassword, verifyPassword, needsPasswordMigration, isPasswordRecentlyUsed, pushPasswordHistory } = require("../../core/password");
 const { generateEntityId } = require("../../core/ids");
 const { normalizePageAccess, sanitizeUser, toUserAuditSnapshot } = require("./userMapping");
 
@@ -257,6 +257,48 @@ function ensureCanListUsers(store, requesterUsername, roles, source) {
 }
 
 /**
+ * Indique si un autre compte actif porte déjà le même nom affiché (insensible à la casse).
+ * Les comptes désactivés sont ignorés (historique autorisé).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} fullName
+ * @param {string|null} [excludedUserId] - Identifiant à exclure (soi-même en modification / réactivation)
+ * @returns {Promise<boolean>}
+ */
+async function isActiveFullNameUsedByAnotherUser(store, fullName, excludedUserId = null) {
+  const db = requirePersistence(store);
+  const normalized = normalizeDisplayName(fullName);
+  if (!normalized) return false;
+  const rows = await db.all(
+    excludedUserId
+      ? "SELECT id, is_active FROM users WHERE lower(full_name) = ? AND id <> ?"
+      : "SELECT id, is_active FROM users WHERE lower(full_name) = ?",
+    excludedUserId ? [normalized, excludedUserId] : [normalized]
+  );
+  return rows.some((row) => isDatabaseBooleanTrue(row.is_active));
+}
+
+/**
+ * Refuse un nom affiché déjà porté par un autre utilisateur actif.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} fullName
+ * @param {string} source
+ * @param {string|null} [excludedUserId]
+ * @returns {Promise<void>}
+ */
+async function assertActiveFullNameUnique(store, fullName, source, excludedUserId = null) {
+  if (await isActiveFullNameUsedByAnotherUser(store, fullName, excludedUserId)) {
+    store.fail(
+      source,
+      "Un utilisateur actif porte déjà ce nom affiché.",
+      "USER_ACTIVE_DISPLAY_NAME_TAKEN",
+      { fullName: String(fullName || "").trim() }
+    );
+  }
+}
+
+/**
  * Vérifie l'unicité du couple nom affiché et mot de passe.
  *
  * @param {import('../../../userStore')} store
@@ -466,6 +508,13 @@ async function completeFirstLogin(store, { username, temporaryPassword, newPassw
     store.fail("auth:firstLogin", "Le mot de passe doit contenir au moins 6 caracteres.", "AUTH_PASSWORD_TOO_SHORT");
   }
   assertPasswordNotBlacklisted(newPassword);
+  if (isPasswordRecentlyUsed(newPassword, user.password_hash, user.password_history_json)) {
+    store.fail(
+      "auth:firstLogin",
+      "Mot de passe déjà utilisé récemment.",
+      "AUTH_PASSWORD_RECENTLY_USED"
+    );
+  }
   const passwordHash = await assertFullNamePasswordPairUnique(
     store,
     user.full_name,
@@ -473,9 +522,10 @@ async function completeFirstLogin(store, { username, temporaryPassword, newPassw
     "auth:firstLogin",
     user.id
   );
+  const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
   await db.run(
-    "UPDATE users SET password_hash = ?, must_change_password = ?, updated_at = ? WHERE username = ?",
-    [passwordHash, false, new Date().toISOString(), user.username]
+    "UPDATE users SET password_hash = ?, password_history_json = ?, must_change_password = ?, updated_at = ? WHERE username = ?",
+    [passwordHash, nextHistoryJson, false, new Date().toISOString(), user.username]
   );
   await refreshUsersCache(store);
   store.logAudit({ actorUsername: user.username, action: "AUTH_FIRST_LOGIN_COMPLETED", targetUsername: user.username });
@@ -516,6 +566,7 @@ async function createUser(
   if (!normalizedFullName) {
     store.fail("users:create", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
+  await assertActiveFullNameUnique(store, normalizedFullName, "users:create");
   const normalizedPageAccess = canManagePageAccess(store, requesterRole, requesterUsername, roles)
     ? normalizePageAccess(pageAccess, role)
     : normalizePageAccess(null, role);
@@ -607,10 +658,13 @@ async function deactivateUser(store, { requesterRole, requesterUsername, usernam
 
 /**
  * Réactive un compte désactivé avec un motif.
+ * Génère toujours un mot de passe temporaire (comme création / réinitialisation)
+ * et impose le changement à la prochaine connexion.
+ * Si un autre actif porte déjà le nom affiché, exige un nouveau `fullName` distinct.
  *
- * @returns {Promise<{success: true}>}
+ * @returns {Promise<{success: true, temporaryPassword: string, fullName: string}>}
  */
-async function reactivateUser(store, { requesterRole, requesterUsername, username, role, reason }) {
+async function reactivateUser(store, { requesterRole, requesterUsername, username, role, reason, fullName }) {
   const db = requirePersistence(store);
   await refreshUsersCache(store);
   ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:reactivate");
@@ -626,19 +680,36 @@ async function reactivateUser(store, { requesterRole, requesterUsername, usernam
   if (!normalizedReason) {
     store.fail("users:reactivate", "Le motif de réactivation est obligatoire.", "USER_REASON_REQUIRED");
   }
+  const cleanFullName = String(fullName != null ? fullName : user.full_name || "").trim();
+  if (!cleanFullName) {
+    store.fail("users:reactivate", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
+  }
+  await assertActiveFullNameUnique(store, cleanFullName, "users:reactivate", user.id);
   const before = toUserAuditSnapshot(user);
+  const temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, user.id);
+  const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
+  const passwordHash = hashPassword(temporaryPassword);
+  const now = new Date().toISOString();
   await db.run(
-    "UPDATE users SET is_active = ?, updated_by = ?, updated_at = ? WHERE username = ?",
-    [true, requesterUsername, new Date().toISOString(), normalizedUsername]
+    `UPDATE users
+     SET is_active = ?, full_name = ?, password_hash = ?, password_history_json = ?, must_change_password = ?,
+         failed_login_attempts = 0, is_locked = ?, updated_by = ?, updated_at = ?
+     WHERE username = ?`,
+    [true, cleanFullName, passwordHash, nextHistoryJson, true, false, requesterUsername, now, normalizedUsername]
   );
   await refreshUsersCache(store);
   store.logAudit({
     actorUsername: requesterUsername,
     action: "USER_REACTIVATE",
     targetUsername: normalizedUsername,
-    details: { reason: normalizedReason, before, after: { ...before, isActive: true } }
+    details: {
+      reason: normalizedReason,
+      passwordResetForced: true,
+      before,
+      after: { ...before, fullName: cleanFullName, isActive: true, mustChangePassword: true }
+    }
   });
-  return { success: true };
+  return { success: true, temporaryPassword, fullName: cleanFullName };
 }
 
 /**
@@ -691,6 +762,7 @@ async function updateUserProfile(
   if (!cleanFullName) {
     store.fail("users:updateProfile", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
+  await assertActiveFullNameUnique(store, cleanFullName, "users:updateProfile", user.id);
   if (![role.OPERATEUR, role.RESPONSABLE].includes(newRole)) {
     store.fail("users:updateProfile", "Role invalide.", "USER_BAD_ROLE", { newRole });
   }
@@ -707,19 +779,21 @@ async function updateUserProfile(
   let temporaryPassword = null;
   let passwordHash = user.password_hash;
   let nextMustChangePassword = isDatabaseBooleanTrue(user.must_change_password);
+  let nextHistoryJson = user.password_history_json || null;
   if (mustResetPassword) {
     temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, user.id);
+    nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
     passwordHash = hashPassword(temporaryPassword);
     nextMustChangePassword = true;
   }
   await db.run(
     `UPDATE users
      SET full_name = ?, role = ?, manager_profile = ?, page_access_json = ?, password_hash = ?,
-         must_change_password = ?, updated_by = ?, updated_at = ?
+         password_history_json = ?, must_change_password = ?, updated_by = ?, updated_at = ?
      WHERE username = ?`,
     [
       cleanFullName, newRole, nextManagerProfile, JSON.stringify(nextPageAccess), passwordHash,
-      nextMustChangePassword, requesterUsername, new Date().toISOString(), normalizedUsername
+      nextHistoryJson, nextMustChangePassword, requesterUsername, new Date().toISOString(), normalizedUsername
     ]
   );
   const verify = await db.get("SELECT full_name FROM users WHERE username = ?", [normalizedUsername]);
@@ -792,6 +866,7 @@ async function ensureDevUser(store, { roles }) {
 }
 
 module.exports = {
+  isActiveFullNameUsedByAnotherUser, assertActiveFullNameUnique,
   isFullNamePasswordPairUsedByAnotherUser, assertFullNamePasswordPairUnique,
   generateUniqueTemporaryPasswordForFullName, generateUniqueUsername, sanitizeUser,
   login, completeFirstLogin, listUsers, createUser, deactivateUser, updateUserProfile,

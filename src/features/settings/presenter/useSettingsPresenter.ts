@@ -7,8 +7,9 @@
 import { FormEvent, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
-import type { ConfirmDialogState, CreateUserFormState, DataTab, SettingsTab } from "../model/settings.types";
+import type { ConfirmDialogState, CreateUserFormState, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import { getDefaultPageAccessByRole } from "../model/settings.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { AnomalyTypeRef, AuditLog, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef, User } from "../../../types";
 import type { PendingInterventionSite } from "../../intervention/model/intervention.types";
 import type { PendingInterventionIntervenant } from "../../intervention/model/intervention.types";
@@ -20,11 +21,7 @@ import type {
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
 import type { PostgresBusyPhase, PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
-
-function getErrorMessage(err: unknown, fallback: string) {
-  if (!(err instanceof Error)) return fallback;
-  return err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim() || fallback;
-}
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
 const defaultConfirmDialog: ConfirmDialogState = {
   isOpen: false,
@@ -65,9 +62,9 @@ export function useSettingsPresenter({
   onSessionUserPatch
 }: {
   session: Session;
-  onError: (message: string) => void;
-  onInfo: (message: string) => void;
-  onToast: (message: string) => void;
+  onError: NotifyToast;
+  onInfo: NotifyToast;
+  onToast: NotifyToast;
   onCredentialsReady: (value: { username: string; temporaryPassword: string } | null) => void;
   /** Met à jour le badge sidebar si l'utilisateur connecté modifie son propre nom affiché. */
   onSessionUserPatch?: (patch: Partial<Session["user"]>) => void;
@@ -92,6 +89,7 @@ export function useSettingsPresenter({
   const [interventionPendingIntervenants, setInterventionPendingIntervenants] = useState<PendingInterventionIntervenant[]>([]);
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("operators");
   const [activeDataTab, setActiveDataTab] = useState<DataTab>("sites");
+  const [activeDocumentsTab, setActiveDocumentsTab] = useState<DocumentsTab>("templates");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [userModalMode, setUserModalMode] = useState<"create" | "edit">("create");
   const [editingTechnicalUsername, setEditingTechnicalUsername] = useState<string>("");
@@ -104,15 +102,55 @@ export function useSettingsPresenter({
   });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(defaultConfirmDialog);
   const [confirmReason, setConfirmReason] = useState("");
+  const [confirmFullName, setConfirmFullName] = useState("");
   const confirmReasonRef = useRef("");
+  const confirmFullNameRef = useRef("");
   useEffect(() => {
     if (!confirmDialog.isOpen) return;
-    setConfirmDialog((prev) => ({ ...prev, confirmDisabled: confirmReason.trim().length === 0 }));
-  }, [confirmDialog.isOpen, confirmReason]);
+    if (!confirmDialog.requireReason && !confirmDialog.requireDisplayName) return;
+    const reasonOk = !confirmDialog.requireReason || confirmReason.trim().length > 0;
+    const nameRequired = Boolean(confirmDialog.requireDisplayName);
+    const nameTrimmed = confirmFullName.trim();
+    const nameOk = !nameRequired || nameTrimmed.length > 0;
+    const excludeUsername = confirmDialog.excludeUsername || "";
+    const nameConflict =
+      nameRequired &&
+      nameTrimmed.length > 0 &&
+      users.some(
+        (u) =>
+          u.isActive &&
+          u.username !== excludeUsername &&
+          String(u.fullName || "")
+            .trim()
+            .toLowerCase() === nameTrimmed.toLowerCase()
+      );
+    const baseMessage = confirmDialog.baseMessage || confirmDialog.message;
+    const nextMessage = nameConflict
+      ? `${baseMessage}\n\nUn utilisateur actif porte déjà ce nom affiché. Modifiez le nom affiché pour pouvoir réactiver.`
+      : baseMessage;
+    setConfirmDialog((prev) => ({
+      ...prev,
+      confirmDisabled: !reasonOk || !nameOk || nameConflict,
+      message: nextMessage
+    }));
+  }, [
+    confirmDialog.isOpen,
+    confirmDialog.requireReason,
+    confirmDialog.requireDisplayName,
+    confirmDialog.excludeUsername,
+    confirmDialog.baseMessage,
+    confirmReason,
+    confirmFullName,
+    users
+  ]);
 
   const setConfirmReasonValue = useCallback((value: string) => {
     confirmReasonRef.current = value;
     setConfirmReason(value);
+  }, []);
+  const setConfirmFullNameValue = useCallback((value: string) => {
+    confirmFullNameRef.current = value;
+    setConfirmFullName(value);
   }, []);
   const [dbWritable, setDbWritable] = useState<boolean>(false);
   const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
@@ -177,7 +215,7 @@ export function useSettingsPresenter({
         password: ""
       });
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible de charger la configuration PostgreSQL."));
+      onError(extractUserFacingErrorMessage(err, "Impossible de charger la configuration PostgreSQL."));
     }
   }, [onError, session]);
 
@@ -199,14 +237,15 @@ export function useSettingsPresenter({
       setPostgresConfig(result.config);
       setPostgresDraft((prev) => ({ ...prev, password: "" }));
       if (result.reconnect?.reachable) {
-        onToast("Configuration PostgreSQL enregistrée. Connexion OK.");
+        onToast("Configuration PostgreSQL enregistrée. Connexion OK.", "success");
       } else {
         onToast(
-          `Configuration enregistrée, mais reconnexion incomplète${result.reconnect?.error ? ` : ${result.reconnect.error}` : "."}`
+          `Configuration enregistrée, mais reconnexion incomplète${result.reconnect?.error ? ` : ${result.reconnect.error}` : "."}`,
+          "warning"
         );
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible d'enregistrer la configuration PostgreSQL."));
+      onError(extractUserFacingErrorMessage(err, "Impossible d'enregistrer la configuration PostgreSQL."));
     } finally {
       setPostgresBusyPhase("idle");
     }
@@ -233,7 +272,7 @@ export function useSettingsPresenter({
         onError(result.error || "Connexion PostgreSQL impossible.");
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Échec du test PostgreSQL."));
+      onError(extractUserFacingErrorMessage(err, "Échec du test PostgreSQL."));
     } finally {
       setPostgresBusyPhase("idle");
     }
@@ -254,7 +293,7 @@ export function useSettingsPresenter({
         onError(result.error || "Reconnexion PostgreSQL impossible.");
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Reconnexion PostgreSQL impossible."));
+      onError(extractUserFacingErrorMessage(err, "Reconnexion PostgreSQL impossible."));
     } finally {
       setPostgresBusyPhase("idle");
     }
@@ -271,7 +310,7 @@ export function useSettingsPresenter({
       setUsers(data);
       setActiveUsernames(sessions.activeUsernames);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement."));
     }
   }, [onError, session]);
 
@@ -307,7 +346,7 @@ export function useSettingsPresenter({
       onToast("Compte déverrouillé.");
       await loadUsers();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de déverrouillage."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de déverrouillage."));
     }
   }, [onError, onToast, session, loadUsers]);
 
@@ -327,7 +366,7 @@ export function useSettingsPresenter({
       });
       setAuditMetadata(metadata);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement du journal."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement du journal."));
     }
   }, [onError, session]);
 
@@ -341,7 +380,7 @@ export function useSettingsPresenter({
       });
       setTechErrorLogs(rows);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des logs techniques."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des logs techniques."));
     }
   }, [onError, session]);
 
@@ -357,7 +396,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listSites({ requesterRole: session.user.role });
       setSites(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des sites."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des sites."));
     }
   }, [onError, session]);
 
@@ -368,7 +407,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listIntervenants({ requesterRole: session.user.role });
       setIntervenants(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des intervenants."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des intervenants."));
     }
   }, [onError, session]);
 
@@ -379,7 +418,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listAnomalyTypes({ requesterRole: session.user.role });
       setAnomalyTypes(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des types d'anomalie."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des types d'anomalie."));
     }
   }, [onError, session]);
 
@@ -390,7 +429,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listRondeMotifTypes({ requesterRole: session.user.role });
       setRondeMotifTypes(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des motifs de ronde."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des motifs de ronde."));
     }
   }, [onError, session]);
 
@@ -401,7 +440,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listHolidays({ requesterRole: session.user.role });
       setHolidays(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des jours fériés."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des jours fériés."));
     }
   }, [onError, session]);
 
@@ -411,7 +450,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listRondePlannedProfiles({ requesterRole: session.user.role });
       setRondePlannedProfiles(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des profils de planification des rondes."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des profils de planification des rondes."));
     }
   }, [onError, session]);
 
@@ -422,7 +461,7 @@ export function useSettingsPresenter({
       const data = await gtsApiClient.listFransorResponsables({ requesterRole: session.user.role });
       setFransorResponsables(data);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de chargement des responsables Fransor."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de chargement des responsables Fransor."));
     }
   }, [onError, session]);
 
@@ -477,7 +516,7 @@ export function useSettingsPresenter({
       return () => clearInterval(timer);
     }
 
-    if (activeSettingsTab === "data") {
+    if (activeSettingsTab === "data" || activeSettingsTab === "templates" || activeSettingsTab === "variables") {
       void loadDataSection();
       const timer = setInterval(() => {
         void loadDataSection();
@@ -521,6 +560,12 @@ export function useSettingsPresenter({
     }
     setActiveSettingsTab("data");
   }, [canManageUsers, canAccessOperatorsTab, activeSettingsTab, setActiveSettingsTab]);
+
+  useEffect(() => {
+    if (activeSettingsTab !== "variables") return;
+    setActiveSettingsTab("templates");
+    setActiveDocumentsTab("variables");
+  }, [activeSettingsTab]);
 
   const onCreateUser = async (e: FormEvent) => {
     e.preventDefault();
@@ -580,7 +625,7 @@ export function useSettingsPresenter({
       setShowCreateModal(false);
       await loadUsers();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de creation."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de creation."));
     }
   };
 
@@ -633,7 +678,7 @@ export function useSettingsPresenter({
       onToast("Site ajouté.");
       await loadSites();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout du site."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout du site."));
     }
   };
 
@@ -645,7 +690,7 @@ export function useSettingsPresenter({
       onToast("Site supprimé.");
       await loadSites();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du site."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du site."));
     }
   };
 
@@ -661,7 +706,7 @@ export function useSettingsPresenter({
       onToast("Site modifié.");
       await loadSites();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification du site."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification du site."));
     }
   };
 
@@ -677,7 +722,7 @@ export function useSettingsPresenter({
       onToast("Intervenant ajouté.");
       await loadIntervenants();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout de l'intervenant."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout de l'intervenant."));
     }
   };
 
@@ -689,7 +734,7 @@ export function useSettingsPresenter({
       onToast("Intervenant supprimé.");
       await loadIntervenants();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression de l'intervenant."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression de l'intervenant."));
     }
   };
 
@@ -706,7 +751,7 @@ export function useSettingsPresenter({
       onToast("Intervenant modifié.");
       await loadIntervenants();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification de l'intervenant."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification de l'intervenant."));
     }
   };
 
@@ -723,24 +768,32 @@ export function useSettingsPresenter({
       onToast("Type d'anomalie ajouté.");
       await loadAnomalyTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout du type d'anomalie."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout du type d'anomalie."));
     }
   };
 
   const onDeleteAnomalyType = async (id: string, reason: string) => {
     if (!session) return;
+    if (anomalyTypes.find((item) => item.id === id)?.isSystem) {
+      onError("Ce type d'anomalie est un type système et ne peut pas être supprimé.");
+      return;
+    }
     onError("");
     try {
       await gtsApiClient.deleteAnomalyType({ requesterRole: session.user.role, requesterUsername: session.user.username, id, reason });
       onToast("Type d'anomalie supprimé.");
       await loadAnomalyTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du type d'anomalie."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du type d'anomalie."));
     }
   };
 
   const onUpdateAnomalyType = async (id: string, label: string, colorHex: string) => {
     if (!session) return;
+    if (anomalyTypes.find((item) => item.id === id)?.isSystem) {
+      onError("Ce type d'anomalie est un type système et ne peut pas être modifié.");
+      return;
+    }
     onError("");
     try {
       await gtsApiClient.updateAnomalyType({
@@ -753,7 +806,7 @@ export function useSettingsPresenter({
       onToast("Type d'anomalie modifié.");
       await loadAnomalyTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification du type d'anomalie."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification du type d'anomalie."));
     }
   };
 
@@ -770,7 +823,7 @@ export function useSettingsPresenter({
       onToast("Jour férié ajouté.");
       await loadHolidays();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout du jour férié."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout du jour férié."));
     }
   };
 
@@ -788,7 +841,7 @@ export function useSettingsPresenter({
       onToast("Jour férié modifié.");
       await loadHolidays();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification du jour férié."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification du jour férié."));
     }
   };
 
@@ -805,7 +858,7 @@ export function useSettingsPresenter({
       onToast("Jour férié supprimé.");
       await loadHolidays();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du jour férié."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du jour férié."));
     }
   };
 
@@ -823,12 +876,16 @@ export function useSettingsPresenter({
       onToast("Motif de ronde ajouté.");
       await loadRondeMotifTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout du motif de ronde."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout du motif de ronde."));
     }
   };
 
   const onUpdateRondeMotifType = async (id: string, label: string, colorHex: string) => {
     if (!session) return;
+    if (rondeMotifTypes.find((item) => item.id === id)?.isSystem) {
+      onError("Ce motif de ronde est un type système et ne peut pas être modifié.");
+      return;
+    }
     onError("");
     try {
       await gtsApiClient.updateRondeMotifType({
@@ -842,12 +899,16 @@ export function useSettingsPresenter({
       onToast("Motif de ronde modifié.");
       await loadRondeMotifTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification du motif de ronde."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification du motif de ronde."));
     }
   };
 
   const onDeleteRondeMotifType = async (id: string, reason: string) => {
     if (!session) return;
+    if (rondeMotifTypes.find((item) => item.id === id)?.isSystem) {
+      onError("Ce motif de ronde est un type système et ne peut pas être supprimé.");
+      return;
+    }
     onError("");
     try {
       await gtsApiClient.deleteRondeMotifType({
@@ -859,7 +920,7 @@ export function useSettingsPresenter({
       onToast("Motif de ronde supprimé.");
       await loadRondeMotifTypes();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du motif de ronde."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du motif de ronde."));
     }
   };
 
@@ -875,7 +936,7 @@ export function useSettingsPresenter({
       onToast(payload.id ? "Profil de planification mis à jour." : "Profil de planification créé.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur à l'enregistrement du profil."));
+      onError(extractUserFacingErrorMessage(err, "Erreur à l'enregistrement du profil."));
     }
   };
 
@@ -892,7 +953,44 @@ export function useSettingsPresenter({
       onToast("Profil de planification supprimé.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du profil."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du profil."));
+    }
+  };
+
+  const onRequestRondePlannedProfileCancellation = async (id: string, reason: string) => {
+    if (!session) return;
+    onError("");
+    try {
+      await gtsApiClient.requestRondePlannedProfileCancellation({
+        requesterRole: session.user.role,
+        requesterUsername: session.user.username,
+        id,
+        reason
+      });
+      onToast("Demande d'annulation envoyée.");
+      await loadRondePlannedProfiles();
+    } catch (err) {
+      onError(extractUserFacingErrorMessage(err, "Impossible d'envoyer la demande d'annulation."));
+    }
+  };
+
+  const onReviewRondePlannedProfileCancellationRequest = async (
+    id: string,
+    payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
+  ) => {
+    if (!session) return;
+    onError("");
+    try {
+      await gtsApiClient.reviewRondePlannedProfileCancellationRequest({
+        requesterRole: session.user.role,
+        requesterUsername: session.user.username,
+        id,
+        ...payload
+      });
+      onToast(payload.decision === "approve" ? "Demande d'annulation acceptée." : "Demande d'annulation refusée.");
+      await loadRondePlannedProfiles();
+    } catch (err) {
+      onError(extractUserFacingErrorMessage(err, "Impossible de traiter la demande d'annulation."));
     }
   };
 
@@ -910,7 +1008,7 @@ export function useSettingsPresenter({
       onToast("Date de fin de planification enregistrée.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible d'enregistrer la fin de planification."));
+      onError(extractUserFacingErrorMessage(err, "Impossible d'enregistrer la fin de planification."));
     }
   };
 
@@ -927,7 +1025,7 @@ export function useSettingsPresenter({
       onToast(validated ? "Profil marqué comme validé." : "Validation du profil levée.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible de mettre à jour la validation du profil."));
+      onError(extractUserFacingErrorMessage(err, "Impossible de mettre à jour la validation du profil."));
     }
   };
 
@@ -943,7 +1041,7 @@ export function useSettingsPresenter({
       onToast("Responsable Fransor ajouté.");
       await loadFransorResponsables();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur d'ajout du responsable Fransor."));
+      onError(extractUserFacingErrorMessage(err, "Erreur d'ajout du responsable Fransor."));
     }
   };
 
@@ -960,7 +1058,7 @@ export function useSettingsPresenter({
       onToast("Responsable Fransor modifié.");
       await loadFransorResponsables();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de modification du responsable Fransor."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de modification du responsable Fransor."));
     }
   };
 
@@ -977,7 +1075,7 @@ export function useSettingsPresenter({
       onToast("Responsable Fransor supprimé.");
       await loadFransorResponsables();
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de suppression du responsable Fransor."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du responsable Fransor."));
     }
   };
 
@@ -1087,7 +1185,7 @@ export function useSettingsPresenter({
       onToast(toastMsg);
       await Promise.all([loadSites(), onRefreshImportedData("interventionPendingSites")]);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de validation du site en attente."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de validation du site en attente."));
     }
   };
 
@@ -1111,7 +1209,7 @@ export function useSettingsPresenter({
       onToast(toastMsg);
       await Promise.all([loadIntervenants(), onRefreshImportedData("interventionPendingIntervenants")]);
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de validation de l'intervenant en attente."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de validation de l'intervenant en attente."));
     }
   };
 
@@ -1127,7 +1225,7 @@ export function useSettingsPresenter({
       onToast("Soumission site en attente supprimée.");
       await onRefreshImportedData("interventionPendingSites");
     } catch (err) {
-      const message = getErrorMessage(err, "Erreur de suppression de la soumission site.");
+      const message = extractUserFacingErrorMessage(err, "Erreur de suppression de la soumission site.");
       throw new Error(message);
     }
   };
@@ -1144,7 +1242,7 @@ export function useSettingsPresenter({
       onToast("Soumission intervenant en attente supprimée.");
       await onRefreshImportedData("interventionPendingIntervenants");
     } catch (err) {
-      const message = getErrorMessage(err, "Erreur de suppression de la soumission intervenant.");
+      const message = extractUserFacingErrorMessage(err, "Erreur de suppression de la soumission intervenant.");
       throw new Error(message);
     }
   };
@@ -1172,7 +1270,7 @@ export function useSettingsPresenter({
         }
         await loadUsers();
       } catch (err) {
-        onError(getErrorMessage(err, "Erreur lors de la réinitialisation du mot de passe."));
+        onError(extractUserFacingErrorMessage(err, "Erreur lors de la réinitialisation du mot de passe."));
       }
     },
     [session, onError, onToast, onCredentialsReady, loadUsers]
@@ -1188,6 +1286,7 @@ export function useSettingsPresenter({
       confirmLabel: "Désactiver",
       confirmClassName: "btn-danger",
       confirmDisabled: true,
+      requireReason: true,
       children: createElement(
         "label",
         { className: "mc-field" },
@@ -1215,7 +1314,7 @@ export function useSettingsPresenter({
           onInfo(`Utilisateur ${user.fullName} désactivé.`);
           await loadUsers();
         } catch (err) {
-          onError(getErrorMessage(err, "Erreur de désactivation."));
+          onError(extractUserFacingErrorMessage(err, "Erreur de désactivation."));
         }
       }
     });
@@ -1224,41 +1323,71 @@ export function useSettingsPresenter({
   const onReactivateUser = (user: User) => {
     if (!session || !canManageUsers) return;
     setConfirmReasonValue("");
+    setConfirmFullNameValue(user.fullName || "");
+    const baseMessage =
+      `Réactiver l'utilisateur ${user.fullName} ? Un nouveau mot de passe temporaire sera généré (comme à la création).` +
+      " Si un autre compte actif porte déjà ce nom, changez le nom affiché ci-dessous.";
     setConfirmDialog({
       isOpen: true,
       title: "Confirmer la réactivation",
-      message: `Réactiver l'utilisateur ${user.fullName} ?`,
+      message: baseMessage,
+      baseMessage,
       confirmLabel: "Réactiver",
       confirmClassName: "btn-light",
       confirmDisabled: true,
+      requireReason: true,
+      requireDisplayName: true,
+      excludeUsername: user.username,
       children: createElement(
-        "label",
-        { className: "mc-field" },
-        createElement("span", null, "Motif (obligatoire)"),
-        createElement("textarea", {
-          className: "mc-textarea",
-          onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
-          rows: 2,
-          placeholder: "Ex: retour d'absence, compte réhabilité",
-          autoFocus: true
-        })
+        "div",
+        { className: "mc-form-stack", style: { display: "grid", gap: "0.75rem" } },
+        createElement(
+          "label",
+          { className: "mc-field" },
+          createElement("span", null, "Nom affiché"),
+          createElement("input", {
+            className: "mc-input",
+            type: "text",
+            defaultValue: user.fullName || "",
+            onChange: (e) => setConfirmFullNameValue((e.target as HTMLInputElement).value),
+            autoFocus: true,
+            "aria-label": "Nom affiché pour la réactivation"
+          })
+        ),
+        createElement(
+          "label",
+          { className: "mc-field" },
+          createElement("span", null, "Motif (obligatoire)"),
+          createElement("textarea", {
+            className: "mc-textarea",
+            onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
+            rows: 2,
+            placeholder: "Ex: retour d'absence, compte réhabilité"
+          })
+        )
       ),
       onConfirm: async () => {
         onError("");
         onInfo("");
         onCredentialsReady(null);
         const reasonToSend = confirmReasonRef.current.trim();
+        const fullNameToSend = confirmFullNameRef.current.trim();
         try {
-          await gtsApiClient.reactivateUser({
+          const result = await gtsApiClient.reactivateUser({
             requesterRole: session.user.role,
             requesterUsername: session.user.username,
             username: user.username,
-            reason: reasonToSend
+            reason: reasonToSend,
+            fullName: fullNameToSend
           });
-          onInfo(`Utilisateur ${user.fullName} réactivé.`);
+          const displayName = result.fullName || fullNameToSend || user.fullName;
+          onToast(`Utilisateur ${displayName} réactivé — mot de passe temporaire généré.`);
+          if (result.temporaryPassword) {
+            onCredentialsReady({ username: displayName, temporaryPassword: result.temporaryPassword });
+          }
           await loadUsers();
         } catch (err) {
-          onError(getErrorMessage(err, "Erreur de réactivation."));
+          onError(extractUserFacingErrorMessage(err, "Erreur de réactivation."));
         }
       }
     });
@@ -1288,6 +1417,7 @@ export function useSettingsPresenter({
   const closeConfirmDialog = () => {
     setConfirmDialog(defaultConfirmDialog);
     setConfirmReasonValue("");
+    setConfirmFullNameValue("");
   };
   const handleConfirmDialog = async () => {
     const action = confirmDialog.onConfirm;
@@ -1319,6 +1449,7 @@ export function useSettingsPresenter({
     setConfirmDialog(defaultConfirmDialog);
     setActiveSettingsTab("operators");
     setActiveDataTab("sites");
+    setActiveDocumentsTab("templates");
     onCredentialsReady(null);
     setTechErrorLogs([]);
   };
@@ -1342,6 +1473,8 @@ export function useSettingsPresenter({
     setActiveSettingsTab,
     activeDataTab,
     setActiveDataTab,
+    activeDocumentsTab,
+    setActiveDocumentsTab,
     showCreateModal,
     setShowCreateModal,
     onOpenCreateUserModal,
@@ -1401,6 +1534,8 @@ export function useSettingsPresenter({
     onDeleteRondeMotifType,
     onUpsertRondePlannedProfile,
     onDeleteRondePlannedProfile,
+    onRequestRondePlannedProfileCancellation,
+    onReviewRondePlannedProfileCancellationRequest,
     onSetRondePlannedProfilePlanningEnd,
     onSetRondePlannedProfileValidated,
     onCreateFransorResponsable,

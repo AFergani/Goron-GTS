@@ -6,6 +6,7 @@ import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { RondeEntry } from "../model/ronde.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 
@@ -62,7 +63,7 @@ type RondeTableProps = {
   onOpen: (entry: RondeEntry) => void;
   onFollowUp: (entry: RondeEntry) => void;
   onExportWord?: (entry: RondeEntry) => void;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
 };
 
 export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify }: RondeTableProps) {

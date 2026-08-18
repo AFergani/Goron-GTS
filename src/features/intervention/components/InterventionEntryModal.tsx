@@ -14,6 +14,7 @@ import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyBu
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
 import type { InterventionEntry, InterventionSavePayload } from "../model/intervention.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
 import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
 import { IntervenantSearchInput } from "./IntervenantSearchInput";
@@ -23,6 +24,7 @@ import { PendingSiteIntervenantRefActions } from "../../common/components/Pendin
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { TimeInput } from "../../common/components/TimeInput";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { FormVariableDef } from "../../settings/model/formVariables.types";
 import { normalizeWordTemplateFieldType } from "../../settings/model/wordTemplateFieldTypes";
@@ -76,7 +78,7 @@ type InterventionEntryModalProps = {
   ) => Promise<boolean>;
   onCreatePendingSite: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant: (name: string) => Promise<boolean>;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   /** Après réouverture depuis clôturé : garder la modale ouverte (ex. passer la page en mode édition). */
   onAfterReopen?: () => void;
   /** Accès page Rondes : affiche le bouton de création d'une ronde liée. */
@@ -93,23 +95,6 @@ type InterventionEntryModalProps = {
 
 function formatNowDate() {
   return new Date().toISOString().slice(0, 10);
-}
-
-/**
- * Saisie compacte : 4 chiffres => HH:MM (ex. 1015 => 10:15).
- * À 3 chiffres on n'insère pas encore les ":" : sinon « 101 » avant le « 5 »
- * était interprété à tort comme l'ancien raccourci 9h30 (01:01).
- */
-function padTimeInput(value: string) {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
-  if (digits.length === 0) return "";
-  if (digits.length <= 2) return digits;
-  if (digits.length === 3) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-}
-
-function isValidTime(value: string) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
 function getMissingInterventionClosureFields(params: {
@@ -606,11 +591,10 @@ export function InterventionEntryModal({
                 </label>
                 <label className="mc-field">
                   <span>Heure de la demande</span>
-                  <input
-                    type="time"
+                  <TimeInput
                     value={requestTime}
                     disabled={formLockedClosed}
-                    onChange={(e) => setRequestTime(e.target.value)}
+                    onChange={setRequestTime}
                   />
                 </label>
               </div>
@@ -740,12 +724,11 @@ export function InterventionEntryModal({
                         aria-label="Date d'arrivée"
                         onChange={(e) => setArrivalDate(e.target.value)}
                       />
-                      <input
-                        type="time"
+                      <TimeInput
                         value={arrivalTime}
                         disabled={formLockedClosed}
                         aria-label="Heure d'arrivée"
-                        onChange={(e) => setArrivalTime(e.target.value)}
+                        onChange={setArrivalTime}
                       />
                     </div>
                   </div>
@@ -759,12 +742,11 @@ export function InterventionEntryModal({
                         aria-label="Date de départ"
                         onChange={(e) => setDepartureDate(e.target.value)}
                       />
-                      <input
-                        type="time"
+                      <TimeInput
                         value={departureTime}
                         disabled={formLockedClosed}
                         aria-label="Heure de départ"
-                        onChange={(e) => setDepartureTime(e.target.value)}
+                        onChange={setDepartureTime}
                       />
                     </div>
                   </div>
@@ -835,12 +817,10 @@ export function InterventionEntryModal({
                           return (
                             <label key={def.fieldKey} className="mc-field mc-field-full">
                               <span>{def.label}</span>
-                              <input
-                                type="time"
-                                step={60}
+                              <TimeInput
                                 value={value}
                                 disabled={formLockedClosed}
-                                onChange={(e) => setVal(e.target.value)}
+                                onChange={setVal}
                                 title={ph ?? def.label}
                               />
                             </label>

@@ -58,56 +58,62 @@ export function TypesDataTab(props: TypesDataTabProps) {
                 )}
               </td>
               <td>
-                <div className="table-actions">
-                  {props.editingTypeId === typeItem.id ? (
-                    <>
+                {typeItem.isSystem ? (
+                  <span className="muted" title="Type système : non modifiable ni supprimable">
+                    Type système
+                  </span>
+                ) : (
+                  <div className="table-actions">
+                    {props.editingTypeId === typeItem.id ? (
+                      <>
+                        <button
+                          className="btn-light action-icon-btn"
+                          title="Sauvegarder"
+                          aria-label="Sauvegarder"
+                          onClick={() => {
+                            void props.onUpdateType(typeItem.id, props.editingTypeLabel, props.editingTypeColor);
+                            props.setEditingTypeId(null);
+                          }}
+                        >
+                          <Save size={14} />
+                        </button>
+                        <button
+                          className="btn-light action-icon-btn"
+                          title="Annuler"
+                          aria-label="Annuler"
+                          onClick={() => props.setEditingTypeId(null)}
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      </>
+                    ) : (
                       <button
                         className="btn-light action-icon-btn"
-                        title="Sauvegarder"
-                        aria-label="Sauvegarder"
+                        title="Modifier"
+                        aria-label="Modifier"
                         onClick={() => {
-                          void props.onUpdateType(typeItem.id, props.editingTypeLabel, props.editingTypeColor);
-                          props.setEditingTypeId(null);
+                          props.setEditingTypeId(typeItem.id);
+                          props.setEditingTypeLabel(typeItem.label);
+                          props.setEditingTypeColor(typeItem.colorHex || "#1f5fcf");
                         }}
                       >
-                        <Save size={14} />
+                        <Pencil size={14} />
                       </button>
+                    )}
+                    {props.canDeleteData && (
                       <button
-                        className="btn-light action-icon-btn"
-                        title="Annuler"
-                        aria-label="Annuler"
-                        onClick={() => props.setEditingTypeId(null)}
+                        className="btn-danger action-icon-btn"
+                        title="Supprimer"
+                        aria-label="Supprimer"
+                        onClick={() => {
+                          props.openDeleteReasonModal(`type ${typeItem.label}`, (reason) => props.onDeleteType(typeItem.id, reason));
+                        }}
                       >
-                        <RotateCcw size={14} />
+                        <Trash2 size={14} />
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      className="btn-light action-icon-btn"
-                      title="Modifier"
-                      aria-label="Modifier"
-                      onClick={() => {
-                        props.setEditingTypeId(typeItem.id);
-                        props.setEditingTypeLabel(typeItem.label);
-                        props.setEditingTypeColor(typeItem.colorHex || "#1f5fcf");
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                  {props.canDeleteData && (
-                    <button
-                      className="btn-danger action-icon-btn"
-                      title="Supprimer"
-                      aria-label="Supprimer"
-                      onClick={() => {
-                        props.openDeleteReasonModal(`type ${typeItem.label}`, (reason) => props.onDeleteType(typeItem.id, reason));
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </td>
             </tr>
           ))}

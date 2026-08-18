@@ -1,5 +1,5 @@
 /**
- * Page Paramètres : onglets opérateurs, données, modèles, variables, BDD, journal
+ * Page Paramètres : onglets opérateurs, données, modèles et variables, BDD, journal
  * (actions métier + logs techniques).
  *
  * Filtres audit paginés, droits station (directeur / responsable de station / Admin).
@@ -19,7 +19,8 @@ import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDra
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import type { Role } from "../../../types";
-import type { DataTab, SettingsTab } from "../model/settings.types";
+import type { DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { PublicPostgresConfig, PostgresTestResult, TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type {
   AnomalyTypeRef,
@@ -93,6 +94,8 @@ type SettingsPageProps = {
   onTabChange: (next: SettingsTab) => void;
   activeDataTab: DataTab;
   onDataTabChange: (next: DataTab) => void;
+  activeDocumentsTab: DocumentsTab;
+  onDocumentsTabChange: (next: DocumentsTab) => void;
   onOpenCreate: () => void;
   onExportAuditLogs: (logs?: AuditLog[]) => void;
   onDeactivateUser: (user: User) => void;
@@ -134,7 +137,7 @@ type SettingsPageProps = {
   onResolvePendingIntervenant: (payload: { pendingId: string; name: string }) => void | Promise<void>;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
-  onNotify: (message: string) => void;
+  onNotify: NotifyToast;
   onPostgresDraftChange: (next: PostgresConfigDraft) => void;
   onSavePostgresConfig: () => void;
   onTestPostgresConfig: () => void;
@@ -251,12 +254,7 @@ export function SettingsPage(props: SettingsPageProps) {
         )}
         {props.canManageData && (
           <button className={activeTab === "templates" ? "tab active" : "tab"} onClick={() => props.onTabChange("templates")}>
-            Gestion modèles
-          </button>
-        )}
-        {props.canManageData && (
-          <button className={activeTab === "variables" ? "tab active" : "tab"} onClick={() => props.onTabChange("variables")}>
-            Gestion variables
+            Modèles et variables
           </button>
         )}
         {props.canManageData && (
@@ -573,21 +571,40 @@ export function SettingsPage(props: SettingsPageProps) {
         />
       )}
       {activeTab === "templates" && props.canManageData && (
-        <TemplatesManagementPanel
-          requesterRole={props.requesterRole}
-          requesterUsername={props.currentUsername}
-          sites={props.sites}
-          onNotify={props.onNotify}
-        />
-      )}
-      {activeTab === "variables" && props.canManageData && (
-        <VariablesManagementPanel
-          requesterRole={props.requesterRole}
-          requesterUsername={props.currentUsername}
-          sites={props.sites}
-          rondePlannedProfiles={props.rondePlannedProfiles}
-          onNotify={props.onNotify}
-        />
+        <section className="panel">
+          <div className="tabs">
+            <button
+              type="button"
+              className={props.activeDocumentsTab === "templates" ? "tab active" : "tab"}
+              onClick={() => props.onDocumentsTabChange("templates")}
+            >
+              Modèles Word
+            </button>
+            <button
+              type="button"
+              className={props.activeDocumentsTab === "variables" ? "tab active" : "tab"}
+              onClick={() => props.onDocumentsTabChange("variables")}
+            >
+              Variables
+            </button>
+          </div>
+          {props.activeDocumentsTab === "templates" ? (
+            <TemplatesManagementPanel
+              requesterRole={props.requesterRole}
+              requesterUsername={props.currentUsername}
+              sites={props.sites}
+              onNotify={props.onNotify}
+            />
+          ) : (
+            <VariablesManagementPanel
+              requesterRole={props.requesterRole}
+              requesterUsername={props.currentUsername}
+              sites={props.sites}
+              rondePlannedProfiles={props.rondePlannedProfiles}
+              onNotify={props.onNotify}
+            />
+          )}
+        </section>
       )}
 
       {activeTab === "database" && props.canManageData && (

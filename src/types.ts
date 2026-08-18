@@ -83,6 +83,8 @@ export type AnomalyTypeRef = {
   colorHex: string;
   createdAt: string;
   updatedAt: string | null;
+  /** Type injecté en base, non modifiable ni supprimable. */
+  isSystem?: boolean;
 };
 
 // --- Fransor ---

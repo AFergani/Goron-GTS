@@ -11,6 +11,12 @@
  */
 
 const { generateEntityId } = require("../../core/ids");
+const {
+  SYSTEM_ANOMALY_TYPE_COLOR,
+  SYSTEM_ANOMALY_TYPE_ID,
+  SYSTEM_ANOMALY_TYPE_LABEL,
+  isSystemAnomalyType
+} = require("../../core/systemReferentials");
 
 /**
  * Normalise une couleur hexadécimale `#rrggbb`.
@@ -128,7 +134,7 @@ async function createSite(
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, cleanCode, cleanName, cleanAddress || null, cleanParc || null, cleanFamille || null, now]
   );
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_sites",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -189,7 +195,7 @@ async function updateSite(
     [cleanCode, cleanName, cleanAddress || null, cleanParc || null, cleanFamille || null, new Date().toISOString(), id]
   );
   if (auditMode !== "batch") {
-    const historyBefore = store.getEntityChangeHistory("data_sites", id, 3);
+    const historyBefore = await store.getEntityChangeHistory("data_sites", id, 3);
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "DATA_SITE_UPDATE",
@@ -207,7 +213,7 @@ async function updateSite(
       }
     });
   }
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_sites",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -304,7 +310,7 @@ async function createIntervenant(store, { requesterRole, requesterUsername, name
   const id = generateEntityId();
   const now = new Date().toISOString();
   await db.run("INSERT INTO data_intervenants (id, name, created_at) VALUES (?, ?, ?)", [id, cleanName, now]);
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_intervenants",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -352,7 +358,7 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
     id
   ]);
   if (auditMode !== "batch") {
-    const historyBefore = store.getEntityChangeHistory("data_intervenants", id, 3);
+    const historyBefore = await store.getEntityChangeHistory("data_intervenants", id, 3);
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "DATA_INTERVENANT_UPDATE",
@@ -364,7 +370,7 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
       }
     });
   }
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_intervenants",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -420,8 +426,33 @@ async function listAnomalyTypes(store, { requesterRole }) {
     label: row.label,
     colorHex: normalizeColorHex(row.color_hex),
     createdAt: row.created_at,
-    updatedAt: row.updated_at || null
+    updatedAt: row.updated_at || null,
+    isSystem: isSystemAnomalyType(row)
   }));
+}
+
+/**
+ * Garantit la présence du type d'anomalie système « Voir Observation ».
+ * Réutilise une ligne existante au même libellé (insensible à la casse) ; sinon insertion.
+ *
+ * @param {import('../../../userStore')} store
+ * @returns {Promise<void>}
+ */
+async function ensureSystemAnomalyType(store) {
+  const db =
+    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
+  if (!db || !db.isOpen()) return;
+  const existing = await db.get(
+    "SELECT id FROM data_anomaly_types WHERE lower(trim(label)) = lower(?)",
+    [SYSTEM_ANOMALY_TYPE_LABEL]
+  );
+  if (existing) return;
+  await db.run("INSERT INTO data_anomaly_types (id, label, color_hex, created_at) VALUES (?, ?, ?, ?)", [
+    SYSTEM_ANOMALY_TYPE_ID,
+    SYSTEM_ANOMALY_TYPE_LABEL,
+    SYSTEM_ANOMALY_TYPE_COLOR,
+    new Date().toISOString()
+  ]);
 }
 
 /**
@@ -454,7 +485,7 @@ async function createAnomalyType(
     cleanColorHex,
     now
   ]);
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_anomaly_types",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -492,6 +523,13 @@ async function updateAnomalyType(
   if (!existingType) {
     store.fail("data:types:update", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
   }
+  if (isSystemAnomalyType(existingType)) {
+    store.fail(
+      "data:types:update",
+      "Ce type d'anomalie est un type système et ne peut pas être modifié.",
+      "DATA_TYPE_SYSTEM_PROTECTED"
+    );
+  }
   const duplicate = await db.get("SELECT id FROM data_anomaly_types WHERE label = ? AND id <> ?", [
     cleanLabel,
     id
@@ -506,7 +544,7 @@ async function updateAnomalyType(
     id
   ]);
   if (auditMode !== "batch") {
-    const historyBefore = store.getEntityChangeHistory("data_anomaly_types", id, 3);
+    const historyBefore = await store.getEntityChangeHistory("data_anomaly_types", id, 3);
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "DATA_TYPE_UPDATE",
@@ -518,7 +556,7 @@ async function updateAnomalyType(
       }
     });
   }
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_anomaly_types",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -545,6 +583,13 @@ async function deleteAnomalyType(store, { requesterRole, requesterUsername, id, 
   if (!existing) {
     store.fail("data:types:delete", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
   }
+  if (isSystemAnomalyType(existing)) {
+    store.fail(
+      "data:types:delete",
+      "Ce type d'anomalie est un type système et ne peut pas être supprimé.",
+      "DATA_TYPE_SYSTEM_PROTECTED"
+    );
+  }
   await db.run("DELETE FROM data_anomaly_types WHERE id = ?", [id]);
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
@@ -570,5 +615,6 @@ module.exports = {
   listAnomalyTypes,
   createAnomalyType,
   updateAnomalyType,
-  deleteAnomalyType
+  deleteAnomalyType,
+  ensureSystemAnomalyType
 };

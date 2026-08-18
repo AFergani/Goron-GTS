@@ -2,7 +2,7 @@
  * Modèle du centre d’aide : identifiants de rubriques, navigation filtrée par droits.
  *
  * `buildHelpNavigation` construit la sidebar ; `resolveHelpTopicId` redirige les anciens
- * identifiants Paramètres vers `settings-data`.
+ * identifiants Paramètres (données, variables) vers les rubriques regroupées.
  */
 
 /** Identifiants des rubriques du centre d'aide (navigation hiérarchique). */
@@ -34,7 +34,7 @@ export type HelpAccessContext = {
   canManageUsers: boolean;
   /** Superviseur : onglet Gestion opérateur (réinit. MDP) sans droits complets. */
   canAccessOperatorsTab?: boolean;
-  /** Session connectée : onglets données / modèles / variables / base */
+  /** Session connectée : onglets données / modèles et variables / base */
   canManageData: boolean;
 };
 
@@ -61,6 +61,7 @@ const LEGACY_SETTINGS_DATA_TOPIC_IDS = new Set<string>([
 export function resolveHelpTopicId(requested: HelpTopicId | string | null | undefined): HelpTopicId | null {
   if (!requested) return null;
   if (LEGACY_SETTINGS_DATA_TOPIC_IDS.has(requested)) return "settings-data";
+  if (requested === "settings-variables") return "settings-templates";
   return requested as HelpTopicId;
 }
 
@@ -90,8 +91,7 @@ export function buildHelpNavigation(ctx: HelpAccessContext): HelpNavItem[] {
 
     if (ctx.canManageData) {
       items.push({ id: "settings-data", label: "Gestion des données", emoji: "🗂️" });
-      items.push({ id: "settings-templates", label: "Gestion modèles", emoji: "📄" });
-      items.push({ id: "settings-variables", label: "Gestion variables", emoji: "🔧" });
+      items.push({ id: "settings-templates", label: "Modèles et variables", emoji: "📄" });
       items.push({ id: "settings-database", label: "Gestion base de données", emoji: "💾" });
     }
 

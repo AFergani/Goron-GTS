@@ -171,13 +171,108 @@ function filterSlotsPreservingClosed(slots, closedRows) {
     : slots;
 }
 
+/** Nombre de jours après la fin prévue avant clôture automatique. */
+const GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS = 3;
+const MS_PER_DAY = 86400000;
+
+/**
+ * Parse le snapshot de planification d'une ligne SQL.
+ *
+ * @param {unknown} raw
+ * @returns {object|null}
+ */
+function parsePlanningSnapshotJson(raw) {
+  try {
+    const snapshot = raw && typeof raw === "object" ? raw : JSON.parse(String(raw || ""));
+    return snapshot && Number(snapshot.version) === 1 ? snapshot : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * H24 jusqu'à nouvel ordre : pas de clôture manuelle ni automatique tant qu'une date de fin n'est pas enregistrée.
+ *
+ * @param {object|null} snapshot
+ * @returns {boolean}
+ */
+function isOpenEndedContinuousSnapshot(snapshot) {
+  return Boolean(snapshot?.isOpenEnded && snapshot?.isContinuous);
+}
+
+/**
+ * @param {object} row - Ligne SQL gardiennage
+ * @returns {boolean}
+ */
+function isOpenEndedContinuousRow(row) {
+  return isOpenEndedContinuousSnapshot(parsePlanningSnapshotJson(row?.planning_snapshot_json));
+}
+
+/**
+ * Instant de fin du créneau (ms), ou `null` si indéterminable.
+ *
+ * @param {object} row
+ * @returns {number|null}
+ */
+function resolveSlotEndMs(row) {
+  const slotEnd = String(row.planning_slot_end || "").trim();
+  if (slotEnd) {
+    const timestamp = new Date(slotEnd.length === 16 ? `${slotEnd}:00` : slotEnd).getTime();
+    return Number.isNaN(timestamp) ? null : timestamp;
+  }
+  const activeDate = toIsoDate(row.recurrence_start_date);
+  const endTime = toIsoTime(row.end_time);
+  if (!activeDate || !endTime) return null;
+  const endDate = row.crosses_midnight ? addDaysIso(activeDate, 1) : (toIsoDate(row.recurrence_end_date) || activeDate);
+  const timestamp = new Date(`${endDate}T${endTime}:00`).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+/**
+ * Clôture manuelle autorisée après la fin prévue.
+ * H24 jusqu'à nouvel ordre : refusé tant qu'une date de fin n'est pas enregistrée.
+ *
+ * @param {object} row
+ * @param {number} [nowMs]
+ * @returns {boolean}
+ */
+function isManualCloseAllowed(row, nowMs = Date.now()) {
+  const status = String(row.status || "");
+  if (status === "CLOTURE" || status === "ANNULE") return false;
+  if (isOpenEndedContinuousRow(row)) return false;
+  const endMs = resolveSlotEndMs(row);
+  if (endMs == null) return false;
+  return nowMs >= endMs;
+}
+
+/**
+ * Clôture auto due : fin prévue + 3 jours, hors H24 ouvert.
+ *
+ * @param {object} row
+ * @param {number} [nowMs]
+ * @returns {boolean}
+ */
+function isAutoCloseDue(row, nowMs = Date.now()) {
+  const status = String(row.status || "");
+  if (status !== "PLANIFIE" && status !== "ACTIF") return false;
+  if (isOpenEndedContinuousRow(row)) return false;
+  const endMs = resolveSlotEndMs(row);
+  if (endMs == null) return false;
+  return nowMs >= endMs + GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS * MS_PER_DAY;
+}
+
 module.exports = {
   addDaysIso,
   filterSlotsPreservingClosed,
+  GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS,
+  isAutoCloseDue,
   isIsoDate,
+  isManualCloseAllowed,
+  isOpenEndedContinuousRow,
   isPonctuelPlanningSnapshot,
   normalizePlanningSnapshot,
   parseTimeToMinutes,
+  resolveSlotEndMs,
   toIsoDate,
   toIsoTime,
   validatePlanningLinesNoOverlap

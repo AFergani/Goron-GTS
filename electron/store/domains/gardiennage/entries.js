@@ -12,8 +12,11 @@ const interventionDomain = require("../intervention");
 const { autoCloseExpiredGardiennageEntries } = require("./autoClose");
 const {
   filterSlotsPreservingClosed,
+  isManualCloseAllowed,
+  isOpenEndedContinuousRow,
   isPonctuelPlanningSnapshot,
   normalizePlanningSnapshot,
+  resolveSlotEndMs,
   toIsoDate,
   toIsoTime,
   validatePlanningLinesNoOverlap
@@ -159,6 +162,37 @@ function normalizeRequest(store, payload, source) {
 }
 
 /**
+ * Refuse la clôture si H24 jusqu'à nouvel ordre (sans date de fin) ou si la fin prévue n'est pas atteinte.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} action - Clé d'action IPC (`gardiennage:close` / `gardiennage:setStatus`)
+ * @param {object} row - Ligne SQL
+ * @param {number} nowMs - Horloge
+ * @returns {void}
+ */
+function failIfCloseNotAllowed(store, action, row, nowMs) {
+  if (isManualCloseAllowed(row, nowMs)) return;
+  if (isOpenEndedContinuousRow(row)) {
+    store.fail(
+      action,
+      "Indiquez une date de fin dans la demande, enregistrez, puis clôturez après cette fin.",
+      "GARDIENNAGE_CLOSE_OPEN_ENDED"
+    );
+  }
+  const endMs = resolveSlotEndMs(row);
+  const endLabel = endMs != null
+    ? new Date(endMs).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })
+    : "";
+  store.fail(
+    action,
+    endLabel
+      ? `La clôture est possible après la fin prévue (${endLabel}).`
+      : "La clôture n'est pas encore possible : la fin prévue n'est pas atteinte.",
+    "GARDIENNAGE_CLOSE_TOO_EARLY"
+  );
+}
+
+/**
  * Liste les gardiennages après extension d'horizon et clôture automatique.
  *
  * @param {import('../../../userStore')} store
@@ -176,6 +210,32 @@ async function listGardiennages(store, { requesterRole }) {
     []
   );
   return rows.map(mapGardiennageRow);
+}
+
+/**
+ * Compte les gardiennages en cours couvrant la journée (badge sidebar).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {{ requesterRole: string, todayIso: string }} payload
+ * @returns {Promise<{ count: number }>}
+ */
+async function getGardiennageTodayInProgressCount(store, { requesterRole, todayIso }) {
+  store.ensureDataReaderRole(requesterRole);
+  const day = String(todayIso || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    store.fail("gardiennage:todayInProgressCount", "Date du jour invalide.", "GARDIENNAGE_BADGE_DATE_INVALID");
+  }
+  const db = requireGardiennagePersistence(store, "gardiennage:todayInProgressCount");
+  await extendOpenEndedGardiennageHorizons(store);
+  await autoCloseExpiredGardiennageEntries(store);
+  const row = await db.get(
+    `SELECT COUNT(*) AS count FROM gardiennage_entries
+     WHERE status IN ('PLANIFIE', 'ACTIF')
+       AND recurrence_start_date <= ?
+       AND (NULLIF(BTRIM(recurrence_end_date), '') IS NULL OR recurrence_end_date >= ?)`,
+    [day, day]
+  );
+  return { count: Number(row?.count || 0) };
 }
 
 /**
@@ -342,12 +402,14 @@ async function updateGardiennage(store, payload) {
     const closedIds = new Set(closedRows.map((row) => row.id));
     let returnId = closedIds.has(payload.id) ? closedRows[0]?.id : payload.id;
     const snapshotJson = JSON.stringify(snapshot);
+    const createdAt = existing.created_at || now;
     for (let index = 0; index < slots.length; index += 1) {
       const slot = slots[index];
       const id = index === 0 && !closedIds.has(payload.id) ? payload.id : generateEntityId();
       if (index === 0) returnId = id;
       await insertGardiennageRow(tx, {
         ...makeBaseRow(payload, normalized, id, now),
+        createdAt,
         startTime: slot.startTime,
         endTime: slot.endTime,
         crossesMidnight: slot.crossesMidnight,
@@ -416,6 +478,9 @@ async function setGardiennageStatus(store, payload) {
     if (!existing) store.fail("gardiennage:setStatus", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
     if (String(existing.updated_at) !== String(payload.expectedUpdatedAt || "")) {
       store.fail("gardiennage:setStatus", "Ce gardiennage a été modifié. Veuillez recharger.", "GARDIENNAGE_CONFLICT");
+    }
+    if (payload.status === "CLOTURE") {
+      failIfCloseNotAllowed(store, "gardiennage:setStatus", existing, Date.now());
     }
     const now = new Date().toISOString();
     const batchId = String(existing.planning_batch_id || "").trim();
@@ -493,7 +558,10 @@ async function setGardiennageStatus(store, payload) {
 }
 
 /**
- * Clôture un gardiennage et avance une série récurrente si nécessaire.
+ * Clôture une fiche gardiennage (prestation H24 entière, ou une nuit).
+ * Interdit tant que la fin prévue n'est pas atteinte.
+ * H24 jusqu'à nouvel ordre : poser une date de fin dans la demande, enregistrer, puis clôturer après cette fin.
+ * Ne glisse plus les dates de récurrence.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -502,8 +570,8 @@ async function setGardiennageStatus(store, payload) {
 async function closeGardiennage(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const db = requireGardiennagePersistence(store, "gardiennage:close");
-  const now = new Date().toISOString();
-  const targetDate = toIsoDate(payload.closeDate) || now.slice(0, 10);
+  const now = new Date();
+  const nowIso = now.toISOString();
   const existing = await db.transaction(async (tx) => {
     const row = await tx.get("SELECT * FROM gardiennage_entries WHERE id = ? FOR UPDATE", [payload.id]);
     if (!row) store.fail("gardiennage:close", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
@@ -513,46 +581,25 @@ async function closeGardiennage(store, payload) {
     if (row.status === "ANNULE") {
       store.fail("gardiennage:close", "Un gardiennage annulé ne peut pas être clôturé.", "GARDIENNAGE_STATUS_INVALID");
     }
-    const currentStart = String(row.recurrence_start_date || "");
-    const currentEnd = String(row.recurrence_end_date || "");
-    const inRange = targetDate >= currentStart && (!currentEnd || targetDate <= currentEnd);
-    let result;
-    if (!row.is_ponctuel && inRange) {
-      const closesSeries = Boolean(currentEnd && targetDate >= currentEnd);
-      const nextDate = closesSeries
-        ? currentStart
-        : new Date(`${targetDate}T12:00:00`);
-      const nextStart = typeof nextDate === "string"
-        ? nextDate
-        : new Date(nextDate.setDate(nextDate.getDate() + 1)).toISOString().slice(0, 10);
-      result = await tx.run(
-        `UPDATE gardiennage_entries
-         SET status = ?, recurrence_start_date = ?, closure_report = ?, actual_start_time = ?,
-             actual_end_time = ?, work_order_number = ?, updated_at = ?
-         WHERE id = ? AND updated_at = ?`,
-        [
-          closesSeries ? "CLOTURE" : "PLANIFIE", nextStart,
-          String(payload.closureReport || "").trim(), toIsoTime(payload.actualStartTime),
-          toIsoTime(payload.actualEndTime), String(payload.workOrderNumber || "").trim(),
-          now, payload.id, payload.expectedUpdatedAt
-        ]
-      );
-    } else {
-      const newEnd = row.is_ponctuel
-        ? currentEnd
-        : (!currentEnd || currentEnd > targetDate ? targetDate : currentEnd);
-      result = await tx.run(
-        `UPDATE gardiennage_entries
-         SET status = 'CLOTURE', recurrence_end_date = ?, closure_report = ?,
-             actual_start_time = ?, actual_end_time = ?, work_order_number = ?, updated_at = ?
-         WHERE id = ? AND updated_at = ?`,
-        [
-          newEnd, String(payload.closureReport || "").trim(), toIsoTime(payload.actualStartTime),
-          toIsoTime(payload.actualEndTime), String(payload.workOrderNumber || "").trim(),
-          now, payload.id, payload.expectedUpdatedAt
-        ]
-      );
+    if (row.status === "CLOTURE") {
+      store.fail("gardiennage:close", "Ce gardiennage est déjà clôturé.", "GARDIENNAGE_STATUS_INVALID");
     }
+    failIfCloseNotAllowed(store, "gardiennage:close", row, now.getTime());
+    const result = await tx.run(
+      `UPDATE gardiennage_entries
+       SET status = 'CLOTURE', closure_report = ?, actual_start_time = ?,
+           actual_end_time = ?, work_order_number = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [
+        String(payload.closureReport || "").trim(),
+        toIsoTime(payload.actualStartTime),
+        toIsoTime(payload.actualEndTime),
+        String(payload.workOrderNumber || "").trim(),
+        nowIso,
+        payload.id,
+        payload.expectedUpdatedAt
+      ]
+    );
     if (!result.changes) store.fail("gardiennage:close", "Gardiennage modifié ailleurs.", "GARDIENNAGE_CONFLICT");
     return row;
   });
@@ -564,7 +611,7 @@ async function closeGardiennage(store, payload) {
     details: {
       id: payload.id,
       siteDisplay: existing.site_display,
-      closeDate: targetDate,
+      closeDate: toIsoDate(payload.closeDate) || nowIso.slice(0, 10),
       before: { status: existing.status, recurrenceStartDate: existing.recurrence_start_date },
       after: { status: updated.status, recurrenceStartDate: updated.recurrenceStartDate }
     }
@@ -686,6 +733,7 @@ module.exports = {
   closeGardiennage,
   createGardiennage,
   deleteGardiennage,
+  getGardiennageTodayInProgressCount,
   listGardiennages,
   reopenGardiennage,
   setGardiennageStatus,

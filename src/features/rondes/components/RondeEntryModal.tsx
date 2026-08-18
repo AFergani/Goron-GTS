@@ -28,6 +28,8 @@ import { PendingSiteIntervenantRefActions } from "../../common/components/Pendin
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { TimeInput } from "../../common/components/TimeInput";
+import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 import { RondeClosureFieldsEditor } from "./RondeClosureFieldsEditor";
 import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate";
 import { formatDateShortFr } from "../utils/formatDateShortFr";
@@ -36,6 +38,8 @@ import { profileLineMatchesEmittedRoundKind } from "../utils/profileLineMatchesS
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import { computeRondeLogicalDate } from "../utils/logicalDate";
 import { formatLocalDateIso } from "../model/rondeCalendarLocal";
+import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 type Mode = "create" | "edit";
 
@@ -52,37 +56,6 @@ function formatJourneeDuLabel(dateIso: string) {
     month: "long",
     year: "numeric"
   });
-}
-
-function padTimeInput(value: string) {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
-  if (digits.length === 0) return "";
-  if (digits.length <= 2) return digits;
-  if (digits.length === 3) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-}
-
-function isValidTime(value: string) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-
-function normalizeTimeForSave(value: string) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const digitsOnly = raw.replace(/\D/g, "");
-  if (digitsOnly.length === 4) {
-    const h = Number(digitsOnly.slice(0, 2));
-    const min = Number(digitsOnly.slice(2));
-    if (Number.isFinite(h) && Number.isFinite(min) && h <= 23 && min <= 59) {
-      return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-    }
-  }
-  const m = raw.match(/^(\d{1,2}):(\d{1,2})$/);
-  if (!m) return raw;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return raw;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 function computeDurationMinutes(requestDate: string, arrival: string, departure: string) {
@@ -129,7 +102,7 @@ type RondeEntryModalProps = {
   onCreatePendingSite: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant: (name: string) => Promise<boolean>;
   /** Toasts copie code site, etc. */
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   /** Ouvre la page Intervention sur la fiche liée (traçabilité interne, sans afficher d’id technique). */
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onOpenLinkedRequest?: (payload: {
@@ -225,11 +198,8 @@ export function RondeEntryModal({
     if (fromEntry) return fromEntry;
     return "—";
   }, [rondeMotifs, motifTypeId, entry?.motifTypeLabel]);
-  /** Motif « Autre » (référentiel) en priorité, sinon premier motif disponible */
-  const defaultMotifTypeId = useMemo(() => {
-    const autre = rondeMotifs.find((m) => /^autre\b/i.test(String(m.label || "").trim()));
-    return autre?.id ?? rondeMotifs[0]?.id ?? "";
-  }, [rondeMotifs]);
+  /** Motif système « Voir Consigne » en priorité, sinon premier motif disponible */
+  const defaultMotifTypeId = useMemo(() => getDefaultSystemRefId(rondeMotifs), [rondeMotifs]);
   const activePlannedProfile = useMemo(() => {
     const plannedProfileId =
       (isCreateMode && createPreset?.source === "PLANIFIE" ? createPreset.plannedProfileId : entry?.plannedProfileId) || "";
@@ -359,7 +329,7 @@ export function RondeEntryModal({
     setLogicalDateOverride("");
   }, [isOpen, isCreateMode, linkedInterventionEntry?.id, createPreset?.source, createPreset?.plannedSlotKey]);
 
-  /** Défaut motif « Autre » quand la liste référentielle arrive (dépendances réduites, cf. règle formulaires). */
+  /** Défaut motif système « Voir Consigne » quand la liste référentielle arrive (dépendances réduites, cf. règle formulaires). */
   useEffect(() => {
     if (!isOpen || !isCreateMode) return;
     if (motifTypeId) return;
@@ -893,20 +863,18 @@ export function RondeEntryModal({
           <div className="mc-form-grid mc-form-grid-main">
             <label className="mc-field">
               <span>Heure arrivée</span>
-              <input
-                type="time"
+              <TimeInput
                 value={arrivalTime}
                 disabled={lockFields}
-                onChange={(e) => setArrivalTime(e.target.value)}
+                onChange={setArrivalTime}
               />
             </label>
             <label className="mc-field">
               <span>Heure départ</span>
-              <input
-                type="time"
+              <TimeInput
                 value={departureTime}
                 disabled={lockFields}
-                onChange={(e) => setDepartureTime(e.target.value)}
+                onChange={setDepartureTime}
               />
             </label>
           </div>

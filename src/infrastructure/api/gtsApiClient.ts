@@ -361,7 +361,8 @@ export const gtsApiClient = {
     requesterUsername: string;
     username: string;
     reason: string;
-  }): Promise<{ success: boolean }> {
+    fullName?: string;
+  }): Promise<{ success: boolean; temporaryPassword: string; fullName?: string }> {
     return window.gtsApi.reactivateUser(withSession(payload));
   },
   listAuditLogs(payload: { requesterRole: Role; requesterUsername: string; limit?: number }): Promise<AuditLog[]> {
@@ -580,12 +581,22 @@ export const gtsApiClient = {
   getMainCouranteUnconsultedCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
     return window.gtsApi.getMainCouranteUnconsultedCount(withSession(payload));
   },
+  getMainCouranteOperatorResponseCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
+    return window.gtsApi.getMainCouranteOperatorResponseCount(withSession(payload));
+  },
   markMainCouranteEntryConsulted(payload: {
     requesterRole: Role;
     requesterUsername: string;
     id: string;
   }): Promise<{ success: boolean }> {
     return window.gtsApi.markMainCouranteEntryConsulted(withSession(payload));
+  },
+  markMainCouranteEntryConsultedByOperator(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    id: string;
+  }): Promise<{ success: boolean }> {
+    return window.gtsApi.markMainCouranteEntryConsultedByOperator(withSession(payload));
   },
   createMainCouranteEntry(payload: {
     requesterRole: Role;
@@ -737,6 +748,13 @@ export const gtsApiClient = {
   listRondes(payload: { requesterRole: Role }): Promise<RondeEntry[]> {
     return window.gtsApi.listRondes(withSession(payload));
   },
+  getRondeTodayInProgressCounts(payload: { requesterRole: Role; todayIso: string }): Promise<{
+    total: number;
+    contractual: number;
+    exceptional: number;
+  }> {
+    return window.gtsApi.getRondeTodayInProgressCounts(withSession(payload));
+  },
   createRondeEntry(payload: {
     requesterRole: Role;
     requesterUsername: string;
@@ -851,6 +869,24 @@ export const gtsApiClient = {
   }): Promise<{ success: boolean }> {
     return window.gtsApi.deleteRondePlannedProfile(withSession(payload));
   },
+  requestRondePlannedProfileCancellation(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    id: string;
+    reason: string;
+  }): Promise<RondePlannedProfileRef> {
+    return window.gtsApi.requestRondePlannedProfileCancellation(withSession(payload));
+  },
+  reviewRondePlannedProfileCancellationRequest(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    id: string;
+    decision: "approve" | "reject";
+    reviewReason: string;
+    planningEndDate?: string;
+  }): Promise<RondePlannedProfileRef> {
+    return window.gtsApi.reviewRondePlannedProfileCancellationRequest(withSession(payload));
+  },
   setRondePlannedProfilePlanningEnd(payload: {
     requesterRole: Role;
     requesterUsername: string;
@@ -895,6 +931,9 @@ export const gtsApiClient = {
   },
   listGardiennages(payload: { requesterRole: Role }): Promise<GardiennageEntry[]> {
     return window.gtsApi.listGardiennages(withSession(payload));
+  },
+  getGardiennageTodayInProgressCount(payload: { requesterRole: Role; todayIso: string }): Promise<{ count: number }> {
+    return window.gtsApi.getGardiennageTodayInProgressCount(withSession(payload));
   },
   createGardiennage(payload: {
     requesterRole: Role;

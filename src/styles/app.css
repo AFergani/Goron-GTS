@@ -39,6 +39,8 @@
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Réserve la gouttière scrollbar (évite le décalage horizontal jour ↔ liste) */
+  scrollbar-gutter: stable;
 }
 
 .panel {
@@ -507,6 +509,50 @@
   flex-wrap: wrap;
 }
 
+.tabs-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  width: 100%;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.tabs-bar .tabs {
+  flex: 1 1 280px;
+  min-width: 0;
+  width: auto;
+  border-bottom: none;
+}
+
+.tabs-bar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 1 auto;
+  padding-bottom: 6px;
+}
+
+.tabs-bar__toolbar {
+  margin-bottom: 0;
+}
+
+.tabs-bar__toolbar .mc-btn-primary,
+.gard-panel-head__toolbar .mc-btn-primary,
+.main-courante-table-toolbar .mc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.list-panel-filters {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
 .tabs {
   display: flex;
   align-items: flex-end;
@@ -515,7 +561,6 @@
   border-bottom: 1px solid var(--border);
   background: transparent;
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .tab {
@@ -863,20 +908,69 @@ th {
   color: #b91c1c;
 }
 
-.toast {
+.toast-stack {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  background: #174f3c;
-  color: #fff;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  max-width: min(380px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 2px solid transparent;
+  background: #28a745;
+  color: #000;
   padding: 10px 14px;
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-  z-index: 2000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  cursor: pointer;
+  animation: toast-in 160ms ease-out;
+}
+
+.toast__message {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.toast--success {
+  background: #28a745;
+  border-color: #218838;
+  color: #000;
+}
+
+.toast--warning {
+  background: #ffc107;
+  border-color: #b38600;
+  color: #000;
 }
 
 .toast--error {
-  background: #b91c1c;
+  background: #ff8379;
+  border-color: #b21f2d;
+  color: #000;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .db-box {
@@ -1389,6 +1483,40 @@ th {
   overflow-y: hidden;
 }
 
+/* Panneau scroll interne (aperçus, listes compactes dans modales) */
+.app-scroll-panel {
+  overflow: auto;
+}
+
+.gardiennage-planning-preview-panel {
+  max-height: 160px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.gardiennage-planning-preview-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 4px 0;
+}
+
+.gardiennage-planning-preview-row__check {
+  flex-shrink: 0;
+  color: var(--success-700, #067647);
+  margin-top: 2px;
+}
+
+.gardiennage-planning-preview-row__check-spacer {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.ronde-linked-batch-table-scroll {
+  max-height: 240px;
+}
+
 .table-scroll-x .data-table-fixed {
   min-width: 760px;
 }
@@ -1476,6 +1604,18 @@ th {
   gap: 6px;
   color: var(--text-2);
   font-size: 13px;
+}
+
+.main-log-stats-block {
+  display: grid;
+  gap: 10px;
+}
+
+.main-log-stats-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 .main-log-stats {
@@ -2267,6 +2407,25 @@ th {
   margin-bottom: 12px;
 }
 
+/* Bandeaux outils : le toggle ne doit pas s'étirer comme dans les grilles de formulaire */
+.main-courante-table-toolbar .toggle-switch,
+.gard-panel-head__toolbar .toggle-switch,
+.tabs-bar__toolbar .toggle-switch {
+  width: auto;
+  min-width: 12.25rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Libellé « Affichage journée / liste » : largeur fixe pour éviter le redimensionnement au basculement */
+.main-courante-table-toolbar .toggle-switch__label,
+.gard-panel-head__toolbar .toggle-switch__label,
+.tabs-bar__toolbar .toggle-switch__label {
+  display: inline-block;
+  min-width: 8.75rem;
+  text-align: left;
+}
+
 .main-courante-table-panel {
   padding-top: 14px;
 }
@@ -2293,17 +2452,26 @@ th {
     background 0.15s ease;
 }
 
-.mc-table-action-btn:hover {
+.mc-table-action-btn:hover:not(:disabled) {
   border-color: rgba(240, 193, 77, 0.55);
   color: #f0c14d;
 }
 
-.mc-table-action-btn--validate:hover {
+.mc-table-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mc-table-action-btn-wrap {
+  display: inline-flex;
+}
+
+.mc-table-action-btn--validate:hover:not(:disabled) {
   border-color: rgba(41, 201, 154, 0.45);
   color: #5ee0b8;
 }
 
-.mc-table-action-btn--word:hover {
+.mc-table-action-btn--word:hover:not(:disabled) {
   border-color: rgba(74, 136, 242, 0.55);
   color: var(--accent-hi);
 }
@@ -3851,6 +4019,33 @@ fieldset.ronde-planned-weekdays {
   max-width: 100%;
 }
 
+.templates-assign-modal__flow-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.templates-assign-modal__tokens {
+  max-height: 220px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.templates-assign-modal__tokens-intro {
+  margin: 0 0 6px;
+}
+
+.templates-assign-modal__tokens-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.templates-assign-modal__tokens-list li {
+  margin: 0 0 4px;
+}
+
 .templates-management-panel__subsection-title {
   margin: 20px 0 8px;
   font-size: 15px;
@@ -4174,12 +4369,94 @@ fieldset.ronde-planned-weekdays {
    ========================================== */
 
 /* Table gardiennage */
-.main-courante-table.gardiennage-table col.gard-col-site { width: 220px; }
-.main-courante-table.gardiennage-table col.gard-col-periode { width: 170px; }
+.main-courante-table.gardiennage-table col.gard-col-created { width: 170px; }
+.main-courante-table.gardiennage-table col.gard-col-site { width: 200px; }
+.main-courante-table.gardiennage-table col.gard-col-periode { width: 160px; }
 .main-courante-table.gardiennage-table col.gard-col-creneau { width: 130px; }
-.main-courante-table.gardiennage-table col.gard-col-presta { width: 150px; }
+.main-courante-table.gardiennage-table col.gard-col-presta { width: 140px; }
 .main-courante-table.gardiennage-table col.gard-col-statut { width: 100px; }
 .main-courante-table.gardiennage-table col.gard-col-actions { width: 70px; }
+
+.gardiennage-created-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.gardiennage-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  border: 1px solid transparent;
+  white-space: normal;
+  text-align: left;
+}
+
+.gardiennage-kind-badge--h24 {
+  color: #c5e1ff;
+  background: rgba(47, 120, 220, 0.28);
+  border-color: rgba(197, 225, 255, 0.45);
+}
+
+.gardiennage-kind-badge--recurring-night {
+  color: #e0d0ff;
+  background: rgba(110, 70, 190, 0.32);
+  border-color: rgba(224, 208, 255, 0.45);
+}
+
+.gardiennage-kind-badge--recurring-day {
+  color: #b8f0d8;
+  background: rgba(20, 120, 90, 0.28);
+  border-color: rgba(184, 240, 216, 0.45);
+}
+
+.gardiennage-kind-badge--ponctuel-night {
+  color: #ffd8a8;
+  background: rgba(180, 100, 20, 0.28);
+  border-color: rgba(255, 216, 168, 0.45);
+}
+
+.gardiennage-kind-badge--ponctuel-day {
+  color: #d4f0a8;
+  background: rgba(90, 130, 20, 0.28);
+  border-color: rgba(212, 240, 168, 0.45);
+}
+
+[data-theme="light"] .gardiennage-kind-badge--h24 {
+  color: #0b3d86;
+  background: #d9e8ff;
+  border-color: #7aa8e0;
+}
+
+[data-theme="light"] .gardiennage-kind-badge--recurring-night {
+  color: #3d1f7a;
+  background: #ebe4ff;
+  border-color: #a78bd4;
+}
+
+[data-theme="light"] .gardiennage-kind-badge--recurring-day {
+  color: #0b5344;
+  background: #d4f3ea;
+  border-color: #5fb89a;
+}
+
+[data-theme="light"] .gardiennage-kind-badge--ponctuel-night {
+  color: #7a3d00;
+  background: #ffe8cc;
+  border-color: #d4a05a;
+}
+
+[data-theme="light"] .gardiennage-kind-badge--ponctuel-day {
+  color: #3d5c0a;
+  background: #e8f5c8;
+  border-color: #9cbc4a;
+}
 
 .gardiennage-creneau-cell {
   display: inline-flex;
@@ -4582,7 +4859,37 @@ fieldset.ronde-planned-weekdays {
   font-size: 0.88em;
 }
 
-/* ── Navigateur de date — partagé gardiennage + rondes ───── */
+/* ── En-tête panneau gardiennage (navigation date + actions) ───── */
+.gard-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gard-panel-head--list {
+  justify-content: flex-end;
+}
+
+.gard-panel-head .gard-date-nav {
+  flex: 1 1 280px;
+  min-width: 0;
+  padding: 0;
+}
+
+.gard-panel-head__toolbar {
+  margin-bottom: 0;
+  flex: 0 1 auto;
+}
+
+.gard-panel-head--list .gard-panel-head__toolbar {
+  flex: 1 1 100%;
+}
+
 .gard-date-nav {
   display: flex;
   align-items: center;
@@ -4668,7 +4975,7 @@ fieldset.ronde-planned-weekdays {
   color: var(--danger, #e55);
 }
 
-.mc-table-action-btn--danger:hover {
+.mc-table-action-btn--danger:hover:not(:disabled) {
   background: rgba(220, 50, 50, 0.08);
 }
 
@@ -4697,6 +5004,25 @@ fieldset.ronde-planned-weekdays {
 
   .main-log-stats {
     grid-template-columns: 1fr;
+  }
+
+  .gard-panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gard-panel-head__toolbar {
+    justify-content: flex-end;
+  }
+
+  .tabs-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tabs-bar__actions {
+    justify-content: flex-end;
+    padding-bottom: 8px;
   }
 
   .main-courante-table th.mc-col-date,

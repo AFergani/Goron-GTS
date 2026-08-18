@@ -6,8 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import { CircleHelp, FileUp, FolderOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { Role, SiteRef } from "../../../types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import type { DocumentTemplateListItem } from "../model/documentTemplates.types";
+import type { DocumentTemplateListItem, TemplateFlowKind } from "../model/documentTemplates.types";
 import { DocumentTemplateHelpModal } from "./DocumentTemplateHelpModal";
+import {
+  helpIdFromFlowKind,
+  resolveDocumentTemplateHelpBlock
+} from "./documentTemplateHelpContent";
 import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 
@@ -20,7 +24,7 @@ type TemplatesManagementPanelProps = {
 
 type TemplateAssignmentRow = {
   id: string;
-  flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+  flowKind: TemplateFlowKind;
   scopeKind: "SITE" | "FAMILLE";
   scopeValue: string;
   scopeLabel: string;
@@ -37,7 +41,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const [replacingFileName, setReplacingFileName] = useState<string | null>(null);
   const [helpId, setHelpId] = useState<string | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignFlowKind, setAssignFlowKind] = useState<"INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE">("INTERVENTION");
+  const [assignFlowKind, setAssignFlowKind] = useState<TemplateFlowKind>("INTERVENTION");
   const [assignScopeKind, setAssignScopeKind] = useState<"SITE" | "FAMILLE">("SITE");
   const [assignSite, setAssignSite] = useState<SiteRef | null>(null);
   const [assignFamille, setAssignFamille] = useState("");
@@ -108,7 +112,10 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
     )
   );
 
-  const flowKindLabel = (flowKind: TemplateAssignmentRow["flowKind"]) => {
+  const assignFlowHelpId = helpIdFromFlowKind(assignFlowKind);
+  const assignFlowHelp = resolveDocumentTemplateHelpBlock(assignFlowHelpId);
+
+  const flowKindLabel = (flowKind: TemplateFlowKind) => {
     if (flowKind === "INTERVENTION") return "Intervention";
     if (flowKind === "RONDE_PLANIFIEE") return "Ronde contractuelle";
     if (flowKind === "GARDIENNAGE") return "Gardiennage";
@@ -163,7 +170,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
 
   return (
     <>
-      <section className="panel templates-management-panel">
+      <div className="templates-management-panel">
         <div className="row">
           <h3 style={{ marginTop: 0 }}>Gestion des modèles Word</h3>
           <div className="row-actions">
@@ -297,15 +304,26 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                       <code>{row.templateFileName}</code>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn-danger action-icon-btn"
-                        title="Supprimer l'attribution"
-                        aria-label="Supprimer l'attribution"
-                        onClick={() => setDeleteAssignmentId(row.id)}
-                      >
-                        <Trash2 size={16} aria-hidden />
-                      </button>
+                      <div className="templates-management-panel__row-actions">
+                        <button
+                          type="button"
+                          className="action-icon-btn btn-light"
+                          title="Aide variables (mêmes champs que le modèle par défaut de ce flux)"
+                          aria-label={`Aide variables ${flowKindLabel(row.flowKind)}`}
+                          onClick={() => setHelpId(helpIdFromFlowKind(row.flowKind))}
+                        >
+                          <CircleHelp size={16} aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-danger action-icon-btn"
+                          title="Supprimer l'attribution"
+                          aria-label="Supprimer l'attribution"
+                          onClick={() => setDeleteAssignmentId(row.id)}
+                        >
+                          <Trash2 size={16} aria-hidden />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -319,29 +337,60 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
 
-      <DocumentTemplateHelpModal
-        helpId={helpId}
-        onClose={() => setHelpId(null)}
-        onNotify={onNotify}
-        requesterRole={requesterRole}
-      />
       {assignModalOpen ? (
-        <div className="modal-overlay" onClick={() => setAssignModalOpen(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!helpId) setAssignModalOpen(false);
+          }}
+        >
           <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Ajouter un modèle personnalisé</h3>
-            <p className="muted">Sélectionnez la portée puis choisissez le fichier Word à attribuer.</p>
+            <p className="muted">
+              Sélectionnez le flux, la portée, puis choisissez le fichier Word. Ce modèle personnalisé accepte{" "}
+              <strong>les mêmes champs</strong> que le modèle par défaut du flux, plus les variables custom affectées à ce flux.
+            </p>
             <div className="form">
               <label>
-                Flux
-                <select value={assignFlowKind} onChange={(e) => setAssignFlowKind(e.target.value as "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE")}>
+                <span className="templates-assign-modal__flow-label">
+                  Flux
+                  <button
+                    type="button"
+                    className="action-icon-btn btn-light"
+                    title="Afficher tous les champs Word de ce flux"
+                    aria-label="Afficher tous les champs Word de ce flux"
+                    onClick={() => setHelpId(assignFlowHelpId)}
+                  >
+                    <CircleHelp size={16} aria-hidden />
+                  </button>
+                </span>
+                <select
+                  value={assignFlowKind}
+                  onChange={(e) => setAssignFlowKind(e.target.value as TemplateFlowKind)}
+                >
                   <option value="INTERVENTION">Intervention</option>
                   <option value="RONDE_PLANIFIEE">Ronde contractuelle</option>
                   <option value="RONDE_EXCEPTIONNELLE">Ronde exceptionnelle</option>
                   <option value="GARDIENNAGE">Gardiennage</option>
                 </select>
               </label>
+              {assignFlowHelp ? (
+                <div className="templates-assign-modal__tokens app-scroll-panel" role="region" aria-label="Champs Word du flux">
+                  <p className="muted templates-assign-modal__tokens-intro">
+                    Champs du modèle par défaut « {flowKindLabel(assignFlowKind)} » (à coller dans le .docx) :
+                  </p>
+                  <ul className="templates-assign-modal__tokens-list">
+                    {assignFlowHelp.variables.map((item) => (
+                      <li key={item.token}>
+                        <code>{item.token}</code>
+                        <span> — {item.description}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <label>
                 Portée
                 <select value={assignScopeKind} onChange={(e) => setAssignScopeKind(e.target.value as "SITE" | "FAMILLE")}>
@@ -381,6 +430,12 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
           </section>
         </div>
       ) : null}
+      <DocumentTemplateHelpModal
+        helpId={helpId}
+        onClose={() => setHelpId(null)}
+        onNotify={onNotify}
+        requesterRole={requesterRole}
+      />
       <ConfirmModal
         isOpen={Boolean(deleteAssignmentId)}
         title="Supprimer cette attribution ?"

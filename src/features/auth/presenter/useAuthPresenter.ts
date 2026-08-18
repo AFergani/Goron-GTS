@@ -9,13 +9,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Session } from "../../../app/session/SessionProvider";
 import type { LoginFormState, PasswordUpdateFormState } from "../model/auth.types";
-
-/** Normalise les messages d'erreur IPC (retrait du bruit technique et des codes [AUTH_*]). */
-function getErrorMessage(err: unknown, fallback: string) {
-  if (!(err instanceof Error)) return fallback;
-  const raw = err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim();
-  return raw.replace(/^\[[A-Z_]+\]\s*/, "") || fallback;
-}
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
 type UseAuthPresenterOptions = {
   onSessionCreated: (session: Session) => void;
@@ -67,7 +61,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
         setShowLockedDialog(true);
         return;
       }
-      onError(getErrorMessage(err, "Erreur de connexion."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de connexion."));
     } finally {
       setIsLoggingIn(false);
     }
@@ -106,7 +100,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
       setLoginForm({ username: "", password: "" });
       onToast("Mot de passe mis à jour.");
     } catch (err) {
-      onError(getErrorMessage(err, "Erreur de première connexion."));
+      onError(extractUserFacingErrorMessage(err, "Erreur de première connexion."));
     }
   };
 

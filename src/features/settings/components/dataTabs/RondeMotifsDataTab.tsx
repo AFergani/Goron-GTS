@@ -58,62 +58,68 @@ export function RondeMotifsDataTab(props: RondeMotifsDataTabProps) {
                 )}
               </td>
               <td>
-                <div className="table-actions">
-                  {props.editingRondeMotifId === motifItem.id ? (
-                    <>
+                {motifItem.isSystem ? (
+                  <span className="muted" title="Motif système : non modifiable ni supprimable">
+                    Type système
+                  </span>
+                ) : (
+                  <div className="table-actions">
+                    {props.editingRondeMotifId === motifItem.id ? (
+                      <>
+                        <button
+                          className="btn-light action-icon-btn"
+                          title="Sauvegarder"
+                          aria-label="Sauvegarder"
+                          onClick={() => {
+                            void props.onUpdateRondeMotifType(
+                              motifItem.id,
+                              props.editingRondeMotifLabel,
+                              props.editingRondeMotifColor
+                            );
+                            props.setEditingRondeMotifId(null);
+                          }}
+                        >
+                          <Save size={14} />
+                        </button>
+                        <button
+                          className="btn-light action-icon-btn"
+                          title="Annuler"
+                          aria-label="Annuler"
+                          onClick={() => props.setEditingRondeMotifId(null)}
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      </>
+                    ) : (
                       <button
                         className="btn-light action-icon-btn"
-                        title="Sauvegarder"
-                        aria-label="Sauvegarder"
+                        title="Modifier"
+                        aria-label="Modifier"
                         onClick={() => {
-                          void props.onUpdateRondeMotifType(
-                            motifItem.id,
-                            props.editingRondeMotifLabel,
-                            props.editingRondeMotifColor
-                          );
-                          props.setEditingRondeMotifId(null);
+                          props.setEditingRondeMotifId(motifItem.id);
+                          props.setEditingRondeMotifLabel(motifItem.label);
+                          props.setEditingRondeMotifColor(motifItem.colorHex || "#5c6bc0");
                         }}
                       >
-                        <Save size={14} />
+                        <Pencil size={14} />
                       </button>
+                    )}
+                    {props.canDeleteData && (
                       <button
-                        className="btn-light action-icon-btn"
-                        title="Annuler"
-                        aria-label="Annuler"
-                        onClick={() => props.setEditingRondeMotifId(null)}
+                        className="btn-danger action-icon-btn"
+                        title="Supprimer"
+                        aria-label="Supprimer"
+                        onClick={() => {
+                          props.openDeleteReasonModal(`motif ${motifItem.label}`, (reason) =>
+                            props.onDeleteRondeMotifType(motifItem.id, reason)
+                          );
+                        }}
                       >
-                        <RotateCcw size={14} />
+                        <Trash2 size={14} />
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      className="btn-light action-icon-btn"
-                      title="Modifier"
-                      aria-label="Modifier"
-                      onClick={() => {
-                        props.setEditingRondeMotifId(motifItem.id);
-                        props.setEditingRondeMotifLabel(motifItem.label);
-                        props.setEditingRondeMotifColor(motifItem.colorHex || "#5c6bc0");
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                  {props.canDeleteData && (
-                    <button
-                      className="btn-danger action-icon-btn"
-                      title="Supprimer"
-                      aria-label="Supprimer"
-                      onClick={() => {
-                        props.openDeleteReasonModal(`motif ${motifItem.label}`, (reason) =>
-                          props.onDeleteRondeMotifType(motifItem.id, reason)
-                        );
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </td>
             </tr>
           ))}

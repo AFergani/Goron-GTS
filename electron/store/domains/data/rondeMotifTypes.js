@@ -10,6 +10,12 @@
  */
 
 const { generateEntityId } = require("../../core/ids");
+const {
+  SYSTEM_RONDE_MOTIF_COLOR,
+  SYSTEM_RONDE_MOTIF_ID,
+  SYSTEM_RONDE_MOTIF_LABEL,
+  isSystemRondeMotifType
+} = require("../../core/systemReferentials");
 
 /**
  * @param {string} value
@@ -36,8 +42,33 @@ function mapRow(row) {
     colorHex: row.color_hex || "#5c6bc0",
     sortOrder: row.sort_order == null ? 0 : Number(row.sort_order),
     legacyCode: row.legacy_code || null,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    isSystem: isSystemRondeMotifType(row)
   };
+}
+
+/**
+ * Garantit la présence du motif système « Voir Consigne ».
+ * Réutilise une ligne existante au même libellé ; sinon insertion en tête de tri.
+ *
+ * @param {import('../../../userStore')} store
+ * @returns {Promise<void>}
+ */
+async function ensureSystemRondeMotifType(store) {
+  const db =
+    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
+  if (!db || !db.isOpen()) return;
+  const existing = await db.get(
+    "SELECT id FROM data_ronde_motif_types WHERE lower(trim(label)) = lower(?)",
+    [SYSTEM_RONDE_MOTIF_LABEL]
+  );
+  if (existing) return;
+  await db.run(
+    `INSERT INTO data_ronde_motif_types (id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at)
+     VALUES (?, ?, 0, ?, 0, NULL, ?)`,
+    [SYSTEM_RONDE_MOTIF_ID, SYSTEM_RONDE_MOTIF_LABEL, SYSTEM_RONDE_MOTIF_COLOR, new Date().toISOString()]
+  );
+  await refreshRondeMotifTypesCache(store);
 }
 
 /**
@@ -194,6 +225,13 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
   if (!existing) {
     store.fail("data:rondeMotifs:update", "Motif introuvable.", "DATA_RONDE_MOTIF_NOT_FOUND");
   }
+  if (isSystemRondeMotifType(existing)) {
+    store.fail(
+      "data:rondeMotifs:update",
+      "Ce motif de ronde est un type système et ne peut pas être modifié.",
+      "DATA_RONDE_MOTIF_SYSTEM_PROTECTED"
+    );
+  }
   const dup = await db.get(
     "SELECT id FROM data_ronde_motif_types WHERE lower(trim(label)) = lower(?) AND id <> ?",
     [cleanLabel, cleanId]
@@ -208,7 +246,7 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
     [cleanLabel, req ? 1 : 0, color, cleanId]
   );
 
-  const historyBefore = store.getEntityChangeHistory("data_ronde_motif_types", cleanId, 3);
+  const historyBefore = await store.getEntityChangeHistory("data_ronde_motif_types", cleanId, 3);
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "DATA_RONDE_MOTIF_UPDATE",
@@ -224,7 +262,7 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
     }
   });
 
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_ronde_motif_types",
     entityId: cleanId,
     changedBy: requesterUsername || "unknown",
@@ -255,6 +293,13 @@ async function deleteRondeMotifType(store, { requesterRole, requesterUsername, i
   if (!existing) {
     store.fail("data:rondeMotifs:delete", "Motif introuvable.", "DATA_RONDE_MOTIF_NOT_FOUND");
   }
+  if (isSystemRondeMotifType(existing)) {
+    store.fail(
+      "data:rondeMotifs:delete",
+      "Ce motif de ronde est un type système et ne peut pas être supprimé.",
+      "DATA_RONDE_MOTIF_SYSTEM_PROTECTED"
+    );
+  }
   const usage = await db.get("SELECT COUNT(*) AS count FROM ronde_entries WHERE motif_type_id = ?", [cleanId]);
   if (Number(usage?.count || 0) > 0) {
     store.fail(
@@ -284,5 +329,6 @@ module.exports = {
   deleteRondeMotifType,
   refreshRondeMotifTypesCache,
   getRondeMotifTypeForPlanning,
-  getRondeMotifLabelForPlanning
+  getRondeMotifLabelForPlanning,
+  ensureSystemRondeMotifType
 };

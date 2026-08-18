@@ -4,6 +4,9 @@
 
 import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
 
+/** Flux métier pouvant recevoir un modèle Word personnalisé (site / famille). */
+export type TemplateFlowKind = "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+
 export type DocumentTemplateListItem = {
   kind: "builtin" | "custom";
   templateKey: string;

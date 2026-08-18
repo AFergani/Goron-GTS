@@ -137,28 +137,103 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-/* Scrollbar UI adaptée à l'app (Electron/WebKit) */
-.app-scrollbar {
+/* Scrollbars unifiées (réf. modale « Nouveau gardiennage » / champs scroll métier) */
+.app-scrollbar,
+.app-scroll-panel,
+.modal,
+.main-courante-entry-modal,
+.main-courante-manager-modal,
+.fransor-help-modal,
+.table-scroll-x,
+.main-courante-table-wrap,
+.sidebar-nav-scroll,
+.content.simple,
+.mc-site-suggest,
+.tabs,
+.linked-intervention-readonly,
+.help-center-nav,
+.help-center-main,
+.fransor-closure-month-window {
   scrollbar-width: thin;
   scrollbar-color: var(--border-hi) var(--surf);
 }
 
-.app-scrollbar::-webkit-scrollbar {
+.app-scrollbar::-webkit-scrollbar,
+.app-scroll-panel::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.main-courante-entry-modal::-webkit-scrollbar,
+.main-courante-manager-modal::-webkit-scrollbar,
+.fransor-help-modal::-webkit-scrollbar,
+.table-scroll-x::-webkit-scrollbar,
+.main-courante-table-wrap::-webkit-scrollbar,
+.sidebar-nav-scroll::-webkit-scrollbar,
+.content.simple::-webkit-scrollbar,
+.mc-site-suggest::-webkit-scrollbar,
+.tabs::-webkit-scrollbar,
+.linked-intervention-readonly::-webkit-scrollbar,
+.help-center-nav::-webkit-scrollbar,
+.help-center-main::-webkit-scrollbar,
+.fransor-closure-month-window::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.app-scrollbar::-webkit-scrollbar-track {
+.app-scrollbar::-webkit-scrollbar-track,
+.app-scroll-panel::-webkit-scrollbar-track,
+.modal::-webkit-scrollbar-track,
+.main-courante-entry-modal::-webkit-scrollbar-track,
+.main-courante-manager-modal::-webkit-scrollbar-track,
+.fransor-help-modal::-webkit-scrollbar-track,
+.table-scroll-x::-webkit-scrollbar-track,
+.main-courante-table-wrap::-webkit-scrollbar-track,
+.sidebar-nav-scroll::-webkit-scrollbar-track,
+.content.simple::-webkit-scrollbar-track,
+.mc-site-suggest::-webkit-scrollbar-track,
+.tabs::-webkit-scrollbar-track,
+.linked-intervention-readonly::-webkit-scrollbar-track,
+.help-center-nav::-webkit-scrollbar-track,
+.help-center-main::-webkit-scrollbar-track,
+.fransor-closure-month-window::-webkit-scrollbar-track {
   background: var(--surf);
   border-radius: 999px;
 }
 
-.app-scrollbar::-webkit-scrollbar-thumb {
+.app-scrollbar::-webkit-scrollbar-thumb,
+.app-scroll-panel::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb,
+.main-courante-entry-modal::-webkit-scrollbar-thumb,
+.main-courante-manager-modal::-webkit-scrollbar-thumb,
+.fransor-help-modal::-webkit-scrollbar-thumb,
+.table-scroll-x::-webkit-scrollbar-thumb,
+.main-courante-table-wrap::-webkit-scrollbar-thumb,
+.sidebar-nav-scroll::-webkit-scrollbar-thumb,
+.content.simple::-webkit-scrollbar-thumb,
+.mc-site-suggest::-webkit-scrollbar-thumb,
+.tabs::-webkit-scrollbar-thumb,
+.linked-intervention-readonly::-webkit-scrollbar-thumb,
+.help-center-nav::-webkit-scrollbar-thumb,
+.help-center-main::-webkit-scrollbar-thumb,
+.fransor-closure-month-window::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, var(--border-hi), var(--accent));
   border-radius: 999px;
   border: 2px solid var(--surf);
 }
 
-.app-scrollbar::-webkit-scrollbar-thumb:hover {
+.app-scrollbar::-webkit-scrollbar-thumb:hover,
+.app-scroll-panel::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover,
+.main-courante-entry-modal::-webkit-scrollbar-thumb:hover,
+.main-courante-manager-modal::-webkit-scrollbar-thumb:hover,
+.fransor-help-modal::-webkit-scrollbar-thumb:hover,
+.table-scroll-x::-webkit-scrollbar-thumb:hover,
+.main-courante-table-wrap::-webkit-scrollbar-thumb:hover,
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover,
+.content.simple::-webkit-scrollbar-thumb:hover,
+.mc-site-suggest::-webkit-scrollbar-thumb:hover,
+.tabs::-webkit-scrollbar-thumb:hover,
+.linked-intervention-readonly::-webkit-scrollbar-thumb:hover,
+.help-center-nav::-webkit-scrollbar-thumb:hover,
+.help-center-main::-webkit-scrollbar-thumb:hover,
+.fransor-closure-month-window::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, var(--accent-hi), var(--accent));
 }

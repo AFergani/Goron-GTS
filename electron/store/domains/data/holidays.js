@@ -131,7 +131,7 @@ async function createHoliday(store, { requesterRole, requesterUsername, dateIso,
     `INSERT INTO data_holidays (id, date_iso, label, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
     [id, cleanDateIso, cleanLabel, now, now]
   );
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_holidays",
     entityId: id,
     changedBy: requesterUsername || "unknown",
@@ -183,7 +183,7 @@ async function updateHoliday(store, { requesterRole, requesterUsername, id, date
     now,
     cleanId
   ]);
-  const historyBefore = store.getEntityChangeHistory("data_holidays", cleanId, 3);
+  const historyBefore = await store.getEntityChangeHistory("data_holidays", cleanId, 3);
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "DATA_HOLIDAY_UPDATE",
@@ -194,7 +194,7 @@ async function updateHoliday(store, { requesterRole, requesterUsername, id, date
       historyBefore
     }
   });
-  store.recordEntityChange({
+  await store.recordEntityChange({
     entityType: "data_holidays",
     entityId: cleanId,
     changedBy: requesterUsername || "unknown",

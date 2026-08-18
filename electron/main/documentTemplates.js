@@ -144,6 +144,45 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
+   * Identifiant d’aide Word déduit du nom de fichier (modèle par défaut ou attribution scopée).
+   * Un modèle personnalisé d’intervention / gardiennage / ronde réutilise l’aide du flux par défaut.
+   *
+   * @param {string} fileName - Nom du fichier `.docx`.
+   * @returns {string} Clé d’aide (`intervention`, `gardiennage`, `ronde`, alias ronde, ou `custom-docx`).
+   */
+  function helpIdFromTemplateFileName(fileName) {
+    const name = String(fileName || "").trim().toLowerCase();
+    if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
+    if (name === "gardiennage-template.docx" || name.startsWith("gardiennage_")) return "gardiennage";
+    if (name === "main-courante-template.docx") return "main-courante";
+    if (name === "ronde-template.docx") return "ronde";
+    if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
+    if (name.startsWith("ronde_exceptionnelle_")) return "ronde-exceptionnelle";
+    return "custom-docx";
+  }
+
+  /**
+   * Titre liste pour un `.docx` hors modèles embarqués.
+   *
+   * @param {string} fileName - Nom du fichier.
+   * @param {string} helpId - Identifiant d’aide déduit.
+   * @returns {string} Libellé affiché (flux + nom de fichier).
+   */
+  function customTemplateTitle(fileName, helpId) {
+    const labels = {
+      intervention: "Intervention",
+      gardiennage: "Gardiennage",
+      ronde: "Ronde",
+      "ronde-planifiee": "Ronde contractuelle",
+      "ronde-exceptionnelle": "Ronde exceptionnelle",
+      "main-courante": "Main courante"
+    };
+    const label = labels[helpId];
+    if (label) return `Modèle personnalisé — ${label} (${fileName})`;
+    return `Modèle personnalisé (${fileName})`;
+  }
+
+  /**
    * Retourne (et crée si besoin) le dossier `{dataRoot}/templates` writable du poste.
    * Utilise la première racine de `getDataRootCandidates` (plus de fichier `.db`).
    *
@@ -208,12 +247,13 @@ function createDocumentTemplatesService(deps) {
           if (seen.has(f)) continue;
           seen.add(f);
           const full = path.join(dir, f);
+          const helpId = helpIdFromTemplateFileName(f);
           templates.push({
             kind: "custom",
             templateKey: `custom:${f}`,
-            title: `Modèle personnalisé (${f})`,
+            title: customTemplateTitle(f, helpId),
             fileName: f,
-            helpId: "custom-docx",
+            helpId,
             resolvedPath: full,
             exists: true,
             targetInstallPath: writableDir ? path.join(writableDir, f) : full

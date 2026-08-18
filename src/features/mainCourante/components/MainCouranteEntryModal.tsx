@@ -17,6 +17,8 @@ import { PendingSiteIntervenantRefActions } from "../../common/components/Pendin
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 export type EntryModalMode = "create" | "edit" | "manager" | "view";
 
@@ -32,7 +34,7 @@ type MainCouranteEntryModalProps = {
   referencesLoading: boolean;
   referencesError: string;
   canReopenEntry?: boolean;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   onClose: () => void;
   onCreatePendingSite: (code: string, name: string) => Promise<boolean>;
   onCreate: (payload: MainCouranteCreatePayload) => Promise<boolean>;
@@ -137,6 +139,14 @@ export function MainCouranteEntryModal({
     setPendingName("");
     setShowPendingSiteForm(false);
   }, [isOpen, mode]);
+
+  /** Pré-sélection du type système « Voir Observation » une fois la liste chargée. */
+  useEffect(() => {
+    if (!isOpen || mode !== "create") return;
+    if (anomalyTypeId) return;
+    const defaultId = getDefaultSystemRefId(anomalyTypes);
+    if (defaultId) setAnomalyTypeId(defaultId);
+  }, [isOpen, mode, anomalyTypeId, anomalyTypes]);
 
   useEffect(() => {
     if (!isOpen || mode !== "edit" || !entry) return;
@@ -524,7 +534,9 @@ export function MainCouranteEntryModal({
                     disabled={referencesLoading || anomalyTypes.length === 0}
                     required
                   >
-                    <option value="">{referencesLoading ? "Chargement…" : "Sélectionner un type…"}</option>
+                    {referencesLoading && !anomalyTypes.length ? (
+                      <option value="">Chargement…</option>
+                    ) : null}
                     {anomalyTypes.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.label}

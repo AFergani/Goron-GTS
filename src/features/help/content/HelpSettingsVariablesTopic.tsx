@@ -2,9 +2,9 @@
 export function HelpSettingsVariablesTopic() {
   return (
     <article className="help-center-article">
-      <h2 className="help-center-content-title">🔧 Gestion des variables</h2>
+      <h2 className="help-center-content-title">🔧 Variables de formulaires</h2>
       <p className="help-center-lead">
-        L&apos;onglet <strong>Gestion des variables</strong> (accessible dans les <em>Paramètres</em>) permet de créer et d&apos;administrer des{" "}
+        Le sous-onglet <strong>Variables</strong> (dans <em>Paramètres → Modèles et variables</em>) permet de créer et d&apos;administrer des{" "}
         <strong>champs personnalisés</strong> au sein des différents formulaires de l&apos;application. Vous pouvez ainsi enrichir les saisies terrain
         pour 5 modules majeurs : les interventions, les mains courantes, les gardiennages, les rondes contractuelles et les rondes exceptionnelles.
       </p>
@@ -17,7 +17,7 @@ export function HelpSettingsVariablesTopic() {
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
         <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>Rappel :</strong> cet onglet est exclusivement visible si le module <em>Paramètres</em> est activé sur votre compte utilisateur.
+          <strong>Rappel :</strong> cet écran est exclusivement visible si le module <em>Paramètres</em> est activé sur votre compte utilisateur.
         </div>
         <div className="help-center-table-wrap">
           <table className="help-center-table">
@@ -66,7 +66,7 @@ export function HelpSettingsVariablesTopic() {
           </li>
           <li>
             <strong>Exports Word :</strong> pour extraire ces données dans vos rapports, intégrez le code technique de la variable entre accolades{" "}
-            <code>{"{nom_du_jeton}"}</code> directement dans votre trame <code>.docx</code> (<em>Paramètres → Gestion des modèles</em>).
+            <code>{"{nom_du_jeton}"}</code> directement dans votre trame <code>.docx</code> (<em>Paramètres → Modèles et variables → Modèles Word</em>).
           </li>
         </ul>
       </div>

@@ -15,13 +15,7 @@ import type {
   PostgresBusyPhase,
   PostgresConfigDraft
 } from "../../settings/components/PostgresConnectionPanel";
-
-/** Normalise les messages d'erreur IPC pour l'affichage utilisateur. */
-function getErrorMessage(err: unknown, fallback: string) {
-  if (!(err instanceof Error)) return fallback;
-  const raw = err.message.replace("Error invoking remote method", "").replace(/^[:\s-]+/, "").trim();
-  return raw.replace(/^\[[A-Z_]+\]\s*/, "") || fallback;
-}
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
 /** Laisse React peindre l'état « busy » avant un IPC potentiellement long. */
 function yieldToUi(): Promise<void> {
@@ -73,7 +67,7 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
         if (!cancelled) {
           // En cas d'échec IPC, ne pas bloquer le login (repli).
           setNeedsSetup(false);
-          onError(getErrorMessage(err, "Impossible de vérifier la configuration PostgreSQL."));
+          onError(extractUserFacingErrorMessage(err, "Impossible de vérifier la configuration PostgreSQL."));
         }
       } finally {
         if (!cancelled) setStatusLoaded(true);
@@ -113,7 +107,7 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
         );
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Impossible d'enregistrer la connexion PostgreSQL."));
+      onError(extractUserFacingErrorMessage(err, "Impossible d'enregistrer la connexion PostgreSQL."));
     } finally {
       setBusyPhase("idle");
     }
@@ -139,7 +133,7 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
         onError(result.error || "Connexion PostgreSQL impossible.");
       }
     } catch (err) {
-      onError(getErrorMessage(err, "Échec du test PostgreSQL."));
+      onError(extractUserFacingErrorMessage(err, "Échec du test PostgreSQL."));
     } finally {
       setBusyPhase("idle");
     }

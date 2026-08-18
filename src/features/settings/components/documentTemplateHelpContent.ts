@@ -2,7 +2,13 @@
  * Contenu des modales d’aide modèles Word : jetons Docxtemplater `{nom}`.
  *
  * Pas de chemins techniques complets exposés en UI utilisateur.
+ * Les modèles personnalisés (attribution par flux) réutilisent les mêmes jetons
+ * que le modèle par défaut du flux correspondant.
  */
+
+import type { FormTarget } from "../model/formVariables.types";
+import type { TemplateFlowKind } from "../model/documentTemplates.types";
+
 export type TemplateHelpBlock = {
   title: string;
   intro?: string;
@@ -54,7 +60,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
   gardiennage: {
     title: "Gardiennage — variables du modèle Word",
     intro:
-      "Syntaxe {nom_du_jeton}. Fichier : gardiennage-template.docx dans data/templates. Les variables custom de l’onglet « Gestion des variables » affectées à ce template sont listées automatiquement ci-dessous.",
+      "Syntaxe {nom_du_jeton}. Fichier : gardiennage-template.docx dans data/templates. Les variables custom du sous-onglet Variables affectées à ce template sont listées automatiquement ci-dessous.",
     variables: [
       { token: "{site}", description: "Site (libellé affiché)." },
       { token: "{prestataire}", description: "Prestataire." },
@@ -114,3 +120,81 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       "Les champs de clôture du profil utilisent la clé définie à la création du champ : {ma_clef}. Jetons historiques : site_code, profil_label, date_demande, etc."
   }
 };
+
+/**
+ * Identifiant d’aide Word correspondant à un flux d’attribution personnalisée.
+ *
+ * @param flowKind - Flux métier choisi dans la modale d’attribution.
+ * @returns Clé de `DOCUMENT_TEMPLATE_HELP` ou alias ronde (`ronde-planifiee` / `ronde-exceptionnelle`).
+ */
+export function helpIdFromFlowKind(flowKind: TemplateFlowKind | string): string {
+  const kind = String(flowKind || "").trim().toUpperCase();
+  if (kind === "INTERVENTION") return "intervention";
+  if (kind === "GARDIENNAGE") return "gardiennage";
+  if (kind === "RONDE_PLANIFIEE") return "ronde-planifiee";
+  if (kind === "RONDE_EXCEPTIONNELLE") return "ronde-exceptionnelle";
+  return "custom-docx";
+}
+
+/**
+ * Identifiant d’aide Word déduit du nom de fichier modèle (défaut ou attribution scopée).
+ *
+ * @param fileName - Nom du fichier `.docx`.
+ * @returns Clé d’aide du flux, alias ronde, ou `custom-docx` pour un fichier non rattaché.
+ */
+export function helpIdFromTemplateFileName(fileName: string): string {
+  const name = String(fileName || "").trim().toLowerCase();
+  if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
+  if (name === "gardiennage-template.docx" || name.startsWith("gardiennage_")) return "gardiennage";
+  if (name === "main-courante-template.docx") return "main-courante";
+  if (name === "ronde-template.docx") return "ronde";
+  if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
+  if (name.startsWith("ronde_exceptionnelle_")) return "ronde-exceptionnelle";
+  return "custom-docx";
+}
+
+/**
+ * Formulaires métier dont les variables custom s’ajoutent à l’aide du modèle.
+ *
+ * @param helpId - Identifiant d’aide Word.
+ * @returns Cibles `FormTarget` à filtrer dans la liste des variables custom.
+ */
+export function helpIdToFormTargets(helpId: string): FormTarget[] {
+  if (helpId === "main-courante") return ["MAIN_COURANTE"];
+  if (helpId === "intervention") return ["INTERVENTION"];
+  if (helpId === "gardiennage") return ["GARDIENNAGE"];
+  if (helpId === "ronde-planifiee") return ["RONDE_PLANIFIEE"];
+  if (helpId === "ronde-exceptionnelle") return ["RONDE_EXCEPTIONNELLE"];
+  if (helpId === "ronde" || helpId === "custom-docx") return ["RONDE_PLANIFIEE", "RONDE_EXCEPTIONNELLE"];
+  return [];
+}
+
+/**
+ * Bloc d’aide (jetons) pour un identifiant, y compris les alias ronde.
+ *
+ * @param helpId - Identifiant d’aide Word.
+ * @returns Bloc d’aide ou `undefined` si inconnu.
+ */
+export function resolveDocumentTemplateHelpBlock(helpId: string): TemplateHelpBlock | undefined {
+  const direct = DOCUMENT_TEMPLATE_HELP[helpId];
+  if (direct) return direct;
+  const rondeBase = DOCUMENT_TEMPLATE_HELP.ronde;
+  if (!rondeBase) return undefined;
+  if (helpId === "ronde-planifiee") {
+    return {
+      ...rondeBase,
+      title: "Ronde contractuelle — variables du modèle Word",
+      intro:
+        "Un modèle personnalisé de ronde contractuelle utilise les mêmes champs que le modèle par défaut (ronde-template.docx). Syntaxe {nom_du_jeton}."
+    };
+  }
+  if (helpId === "ronde-exceptionnelle") {
+    return {
+      ...rondeBase,
+      title: "Ronde exceptionnelle — variables du modèle Word",
+      intro:
+        "Un modèle personnalisé de ronde exceptionnelle utilise les mêmes champs que le modèle par défaut des rondes. Syntaxe {nom_du_jeton}."
+    };
+  }
+  return undefined;
+}

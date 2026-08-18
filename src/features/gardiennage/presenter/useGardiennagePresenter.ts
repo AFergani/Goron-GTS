@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { GardiennageClosePayload, GardiennageEntry, GardiennageSavePayload, GardiennageStatus } from "../model/gardiennage.types";
 
 function makeGardiennageId() {
@@ -20,14 +21,14 @@ function makeGardiennageId() {
 type UseGardiennagePresenterOptions = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 };
 
 export function useGardiennagePresenter({ requesterRole, requesterUsername, onToast }: UseGardiennagePresenterOptions) {
   const [entries, setEntries] = useState<GardiennageEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const notify = (message: string) => onToast?.(message);
+  const notify: NotifyToast = (message, variant) => onToast?.(message, variant);
 
   const loadEntries = useCallback(
     async (silent?: boolean): Promise<GardiennageEntry[]> => {
@@ -37,7 +38,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
         setEntries(rows);
         return rows;
       } catch (error) {
-        notify(error instanceof Error ? error.message : "Impossible de charger les gardiennages.");
+        notify(error instanceof Error ? error.message : "Impossible de charger les gardiennages.", "error");
         return [];
       } finally {
         if (!silent) setLoading(false);
@@ -68,7 +69,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Création impossible.");
+      notify(error instanceof Error ? error.message : "Création impossible.", "error");
       return false;
     }
   };
@@ -85,7 +86,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return updated;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Mise à jour impossible.");
+      notify(error instanceof Error ? error.message : "Mise à jour impossible.", "error");
       return null;
     }
   };
@@ -123,7 +124,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Changement de statut impossible.");
+      notify(error instanceof Error ? error.message : "Changement de statut impossible.", "error");
       return false;
     }
   };
@@ -135,7 +136,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Clôture impossible.");
+      notify(error instanceof Error ? error.message : "Clôture impossible.", "error");
       return false;
     }
   };
@@ -147,7 +148,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Réouverture impossible.");
+      notify(error instanceof Error ? error.message : "Réouverture impossible.", "error");
       return false;
     }
   };
@@ -167,7 +168,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Suppression impossible.");
+      notify(error instanceof Error ? error.message : "Suppression impossible.", "error");
       return false;
     }
   };

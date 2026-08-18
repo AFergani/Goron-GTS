@@ -2,8 +2,7 @@
  * Page Main courante : journal filtré, persistance filtres localStorage, exports Excel/Word.
  *
  * Filtre État par défaut : « Ouverts » (En attente + En cours) — Clôturé masqué tant qu'on ne le demande pas.
- * Compteurs statuts, modale unique (create/edit/manager/view). Responsable vs opérateur
- * pour les actions disponibles sur une ligne.
+ * Cartes synthèse du mois en cours, modale unique (create/edit/manager/view).
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -17,9 +16,11 @@ import { MainCouranteTable } from "../components/MainCouranteTable";
 import { useMainCourantePresenter } from "../presenter/useMainCourantePresenter";
 import { useMainCouranteReferenceData } from "../presenter/useMainCouranteReferenceData";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import { exportMainCouranteToExcel } from "../export/mainCouranteExcelExport";
 import { exportMainCouranteEntryToWord } from "../export/mainCouranteWordExport";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { getCurrentMonthSummaryTitle } from "../../common/utils/currentMonthSummary";
 
 const MAIN_COURANTE_FILTERS_STORAGE_KEY = "mainCourante.filters.v1";
 
@@ -38,7 +39,7 @@ type MainCourantePageProps = {
   operatorName: string;
   requesterUsername: string;
   requesterRole: Role;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 };
 
 export function MainCourantePage({ operatorName, requesterUsername, requesterRole, onToast }: MainCourantePageProps) {
@@ -166,6 +167,13 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
     if (isManager && !entry.consultedByManagerAt) {
       void gtsApiClient.markMainCouranteEntryConsulted({ requesterRole, requesterUsername, id: entry.id });
     }
+    if (!isManager && entry.priseEnCompteAt && entry.operatorName === operatorName) {
+      void gtsApiClient.markMainCouranteEntryConsultedByOperator({
+        requesterRole,
+        requesterUsername,
+        id: entry.id
+      });
+    }
   };
 
   const handleExportExcel = async () => {
@@ -174,7 +182,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
       await exportMainCouranteToExcel(filteredEntries);
       onToast?.("Export Excel téléchargé.");
     } catch (e) {
-      onToast?.(e instanceof Error ? e.message : "Export Excel impossible.");
+      onToast?.(e instanceof Error ? e.message : "Export Excel impossible.", "error");
     }
   };
 
@@ -183,7 +191,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
       await exportMainCouranteEntryToWord(entry);
       onToast?.("Document Word téléchargé.");
     } catch (e) {
-      onToast?.(e instanceof Error ? e.message : "Export Word impossible.");
+      onToast?.(e instanceof Error ? e.message : "Export Word impossible.", "error");
     }
   };
 
@@ -244,92 +252,30 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
 
   return (
     <>
-      <section className="panel main-log-stats">
-        <div className="stat-card">
-          <span>Total</span>
-          <strong>{stats.total}</strong>
+      <section className="panel main-log-stats-block">
+        <h2 className="main-log-stats-title">{getCurrentMonthSummaryTitle()}</h2>
+        <div className="main-log-stats">
+          <div className="stat-card">
+            <span>Total</span>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="stat-card">
+            <span>En attente</span>
+            <strong>{stats.waiting}</strong>
+          </div>
+          <div className="stat-card">
+            <span>En cours</span>
+            <strong>{stats.inProgress}</strong>
+          </div>
+          <div className="stat-card">
+            <span>Clôturés</span>
+            <strong>{stats.closed}</strong>
+          </div>
         </div>
-        <div className="stat-card">
-          <span>En attente</span>
-          <strong>{stats.waiting}</strong>
-        </div>
-        <div className="stat-card">
-          <span>En cours</span>
-          <strong>{stats.inProgress}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Clôturés</span>
-          <strong>{stats.closed}</strong>
-        </div>
-      </section>
-
-      <section className="panel">
-        {referencesError ? <p className="error main-log-ref-error">{referencesError}</p> : null}
-        <TableFiltersBar
-          search={filters.search}
-          onSearchChange={filters.setSearch}
-          dateFrom={filters.dateFrom}
-          onDateFromChange={filters.setDateFrom}
-          dateTo={filters.dateTo}
-          onDateToChange={filters.setDateTo}
-          searchPlaceholder="Opérateur, site, type, information…"
-          onReset={() => {
-            filters.reset();
-            setOperatorFilter("all");
-            setManagerFilter("all");
-            setTypeFilter("");
-            setStatusFilter("OPEN");
-          }}
-        >
-          <label>
-            Opérateur
-            <select value={operatorFilter} onChange={(e) => setOperatorFilter(e.target.value)}>
-              <option value="all">Tous</option>
-              {operatorOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Responsable
-            <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)}>
-              <option value="all">Tous</option>
-              <option value="__none__">Sans responsable</option>
-              {managerOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Type
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">Tous</option>
-              {anomalyTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            État
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="OPEN">Ouverts (en attente + en cours)</option>
-              <option value="TOUS">Tous</option>
-              <option value="EN_ATTENTE">En attente</option>
-              <option value="EN_COURS">En cours</option>
-              <option value="CLOTURE">Clôturé</option>
-            </select>
-          </label>
-        </TableFiltersBar>
-        {referencesLoading && !anomalyTypes.length ? <p className="muted" style={{ marginTop: 8 }}>Chargement des types…</p> : null}
       </section>
 
       <section className="panel main-courante-table-panel">
+        {referencesError ? <p className="error main-log-ref-error">{referencesError}</p> : null}
         <div className="main-courante-table-toolbar">
           <button
             type="button"
@@ -339,11 +285,75 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
           >
             Exporter données
           </button>
-          <button type="button" onClick={openCreate}>
-            <Plus size={16} aria-hidden style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
+          <button type="button" className="mc-btn-primary" onClick={openCreate}>
+            <Plus size={16} aria-hidden />
             Nouvelle entrée
           </button>
         </div>
+        <div className="list-panel-filters">
+          <TableFiltersBar
+            search={filters.search}
+            onSearchChange={filters.setSearch}
+            dateFrom={filters.dateFrom}
+            onDateFromChange={filters.setDateFrom}
+            dateTo={filters.dateTo}
+            onDateToChange={filters.setDateTo}
+            searchPlaceholder="Opérateur, site, type, information…"
+            onReset={() => {
+              filters.reset();
+              setOperatorFilter("all");
+              setManagerFilter("all");
+              setTypeFilter("");
+              setStatusFilter("OPEN");
+            }}
+          >
+            <label>
+              Opérateur
+              <select value={operatorFilter} onChange={(e) => setOperatorFilter(e.target.value)}>
+                <option value="all">Tous</option>
+                {operatorOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Responsable
+              <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)}>
+                <option value="all">Tous</option>
+                <option value="__none__">Sans responsable</option>
+                {managerOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Type
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="">Tous</option>
+                {anomalyTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              État
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="OPEN">Ouverts (en attente + en cours)</option>
+                <option value="TOUS">Tous</option>
+                <option value="EN_ATTENTE">En attente</option>
+                <option value="EN_COURS">En cours</option>
+                <option value="CLOTURE">Clôturé</option>
+              </select>
+            </label>
+          </TableFiltersBar>
+        </div>
+        {referencesLoading && !anomalyTypes.length ? <p className="muted" style={{ marginTop: 8 }}>Chargement des types…</p> : null}
         {loading ? <p className="muted main-log-loading">Chargement de la main courante…</p> : null}
         <MainCouranteTable
           entries={pagedEntries}

@@ -5,6 +5,8 @@
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { SiteRef } from "../../../../types";
 import type { PendingInterventionSite } from "../../../intervention/model/intervention.types";
+import { SiteDisplayCopyButton } from "../../../common/components/SiteDisplayCopyButton";
+import type { NotifyToast } from "../../../common/model/toast.types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
 
 type SitesDataTabProps = {
@@ -29,6 +31,7 @@ type SitesDataTabProps = {
   onOpenPendingSiteValidation: (site: PendingInterventionSite) => void;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
   openDeleteReasonModal: OpenDeleteReasonModal;
+  onNotify?: NotifyToast;
 };
 
 export function SitesDataTab(props: SitesDataTabProps) {
@@ -112,7 +115,18 @@ export function SitesDataTab(props: SitesDataTabProps) {
             {props.pagedSites.map((site) => (
               <tr key={site.id}>
                 <td>{props.editingSiteId === site.id ? <input value={props.editingSiteCode} onChange={(e) => props.setEditingSiteCode(e.target.value)} /> : site.code}</td>
-                <td>{props.editingSiteId === site.id ? <input value={props.editingSiteName} onChange={(e) => props.setEditingSiteName(e.target.value)} /> : site.name}</td>
+                <td className="mc-site-wrap">
+                  {props.editingSiteId === site.id ? (
+                    <input value={props.editingSiteName} onChange={(e) => props.setEditingSiteName(e.target.value)} />
+                  ) : (
+                    <SiteDisplayCopyButton
+                      variant="table"
+                      siteLabel={site.name}
+                      copySource={`${site.name} (${site.code})`}
+                      onNotify={props.onNotify}
+                    />
+                  )}
+                </td>
                 <td>
                   {props.editingSiteId === site.id ? (
                     <input value={props.editingSiteAddress} onChange={(e) => props.setEditingSiteAddress(e.target.value)} />

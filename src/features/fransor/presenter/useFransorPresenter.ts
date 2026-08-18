@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { FransorClosure, FransorEntry, FransorMonthlyRecap, FransorResponsableRef, HolidayRef, Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
 
 function getCurrentMonth() {
@@ -29,7 +30,7 @@ export function useFransorPresenter({
 }: {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 }) {
   const [month, setMonth] = useState(getCurrentMonth);
   const [loading, setLoading] = useState(false);
@@ -60,7 +61,7 @@ export function useFransorPresenter({
       setRecap(recapRows);
       setHolidays(mergedHolidays);
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Erreur de chargement Fransor.");
+      onToast?.(error instanceof Error ? error.message : "Erreur de chargement Fransor.", "error");
     } finally {
       setLoading(false);
     }

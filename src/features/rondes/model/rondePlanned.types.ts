@@ -73,6 +73,10 @@ export type RondePlannedProfileRef = {
   planningValidFrom: string | null;
   /** Plage globale Au ; vide ou null = jusqu’à nouvel ordre. */
   planningValidTo: string | null;
+  /** Motif de demande d'arrêt du flux, en attente de validation responsable. */
+  cancellationRequestReason: string | null;
+  cancellationRequestedAt: string | null;
+  cancellationRequestedBy: string | null;
   /** Flux couvrant la date du jour (plage globale Du / Au). */
   isActive: boolean;
   /** Horodatage ISO de validation par un responsable ; null si non validé. */

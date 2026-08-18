@@ -852,6 +852,7 @@ function formatOldValuesTooltip(log: AuditLog) {
       "Réactivation utilisateur",
       `Nom affiché: ${String(before.fullName || "-")}`,
       `Actif: ${toYesNo(before.isActive)} => ${toYesNo(after.isActive)}`,
+      `Mot de passe temporaire généré: ${toYesNo(detailsAny.passwordResetForced ?? true)}`,
       `Motif: ${String(detailsAny.reason || "-")}`
     ].join("\n");
   }

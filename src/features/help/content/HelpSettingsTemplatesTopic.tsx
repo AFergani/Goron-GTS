@@ -2,16 +2,18 @@
 export function HelpSettingsTemplatesTopic() {
   return (
     <article className="help-center-article">
-      <h2 className="help-center-content-title">📄 Gestion des modèles Word</h2>
+      <h2 className="help-center-content-title">📄 Modèles et variables</h2>
       <p className="help-center-lead">
-        L&apos;onglet <strong>Gestion des modèles</strong> (accessible dans les <em>Paramètres</em>) permet de piloter et de personnaliser les
-        fichiers <strong>.docx</strong> utilisés lors des exports Word de l&apos;application. Il couvre 5 flux majeurs : les mains courantes, les
-        interventions, les rondes, les gardiennages et le récapitulatif mensuel Fransor.
+        L&apos;onglet <strong>Modèles et variables</strong> (accessible dans les <em>Paramètres</em>) regroupe deux sous-onglets, comme{" "}
+        <em>Gestion des données</em> : <strong>Modèles Word</strong> (fichiers <strong>.docx</strong> d&apos;export) et{" "}
+        <strong>Variables</strong> (champs personnalisés des formulaires). Il couvre les flux mains courantes, interventions, rondes,
+        gardiennages et le récapitulatif mensuel Fransor.
       </p>
       <p className="help-center-lead">
-        Cet écran vous permet de vérifier la présence des fichiers, de remplacer les trames standards par vos propres documents, et de définir des
-        règles d&apos;attribution spécifiques (par site ou par famille de sites). Toutes ces opérations de configuration sont consignées dans le{" "}
-        <strong>journal d&apos;audit</strong> de la station.
+        Dans le sous-onglet <strong>Modèles Word</strong>, vous vérifiez la présence des fichiers, remplacez les trames standards, et définissez des
+        attributions par site ou par famille. Un modèle personnalisé d&apos;un flux (intervention, gardiennage, ronde, etc.) utilise{" "}
+        <strong>les mêmes champs Word</strong> que le modèle par défaut de ce flux. Le sous-onglet <strong>Variables</strong> gère les champs
+        personnalisés des formulaires. Toutes ces opérations sont consignées dans le <strong>journal d&apos;audit</strong> de la station.
       </p>
 
       <div className="help-center-card help-center-card--accent">
@@ -67,8 +69,8 @@ export function HelpSettingsTemplatesTopic() {
           </li>
           <li>
             <strong>Variables personnalisées :</strong> si vous utilisez des champs complémentaires (notamment pour les interventions), assurez-vous
-            qu&apos;ils soient correctement configurés dans <em>Paramètres → Gestion des variables</em> avant de les intégrer sous forme de jetons
-            dans vos fichiers Word.
+            qu&apos;ils soient correctement configurés dans <em>Paramètres → Modèles et variables → Variables</em> avant de les intégrer sous forme de
+            jetons dans vos fichiers Word.
           </li>
         </ul>
       </div>
@@ -174,7 +176,7 @@ export function HelpSettingsTemplatesTopic() {
           <li>
             Cliquez sur <strong>Ajouter un modèle personnalisé</strong> dans la barre d&apos;actions.
           </li>
-          <li>Choisissez le <strong>Flux</strong> concerné.</li>
+          <li>Choisissez le <strong>Flux</strong> concerné. La liste des champs Word affichée est identique à celle du modèle par défaut de ce flux (intervention, gardiennage, ronde contractuelle ou exceptionnelle).</li>
           <li>
             Définissez la <strong>Portée</strong> : soit un <strong>Site</strong> précis (recherche dans votre référentiel), soit une{" "}
             <strong>Famille</strong> de sites (suggestions automatiques).

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Eye } from "lucide-react";
 import type { RondeEntry } from "../model/ronde.types";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 function statusWordFr(status: RondeEntry["status"]): string {
   switch (status) {
@@ -23,7 +24,7 @@ function statusWordFr(status: RondeEntry["status"]): string {
 type RondeLinkedBatchPanelProps = {
   entries: RondeEntry[];
   onOpenRonde: (entry: RondeEntry) => void;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   bulkCancelBatch: (
     entryIds: string[],
     reason: string
@@ -80,10 +81,10 @@ export function RondeLinkedBatchPanel({
           base.
         </p>
         <p className="muted" style={{ margin: "0 0 10px", fontSize: "0.9em" }}>
-          Annulation ouverte à tous les rôles. Suppression ouverte à tous : les fiches clôturées sont conservées, la programmation du lot
-          est désactivée, puis les autres fiches sont supprimées (auteur du lot ou responsable/dev).
+          Annulation ouverte à tous les rôles. Suppression réservée au responsable : les fiches clôturées sont conservées, la programmation
+          du lot est désactivée, puis les autres fiches sont supprimées.
         </p>
-        <div style={{ overflow: "auto", maxHeight: 240 }}>
+        <div className="app-scroll-panel ronde-linked-batch-table-scroll">
           <table className="ronde-demand-consult__table">
             <thead>
               <tr>

@@ -11,8 +11,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import type { NotifyToast } from "../../common/model/toast.types";
 
-export function useInterventionReferenceData(requesterRole: Role, requesterUsername: string, onToast?: (message: string) => void) {
+export function useInterventionReferenceData(requesterRole: Role, requesterUsername: string, onToast?: NotifyToast) {
   const [sites, setSites] = useState<SiteRef[]>([]);
   const [intervenants, setIntervenants] = useState<IntervenantRef[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export function useInterventionReferenceData(requesterRole: Role, requesterUsern
       setSites(siteRows);
       setIntervenants(intervenantRows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de charger les référentiels intervention.");
+      setError(extractUserFacingErrorMessage(err, "Impossible de charger les référentiels intervention."));
     } finally {
       setLoading(false);
     }
@@ -49,13 +51,13 @@ export function useInterventionReferenceData(requesterRole: Role, requesterUsern
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Ce site existe déjà ou est déjà en attente de validation.");
+        onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Site ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter le site en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
       return false;
     }
   };
@@ -69,13 +71,13 @@ export function useInterventionReferenceData(requesterRole: Role, requesterUsern
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.");
+        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Intervenant ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter l'intervenant en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter l'intervenant en attente."), "error");
       return false;
     }
   };

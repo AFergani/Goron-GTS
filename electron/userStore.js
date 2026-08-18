@@ -12,6 +12,10 @@
 const { resolveAdminAccess } = require("./store/core/bootstrap");
 const { AppError, failWithLog } = require("./store/core/errors");
 const {
+  getEntityChangeHistory: getEntityChangeHistoryCore,
+  recordEntityChange: recordEntityChangeCore
+} = require("./store/core/entityHistory");
+const {
   ensureDataManagerRole: ensureDataManagerRoleRbac,
   ensureDataDeleteRole: ensureDataDeleteRoleRbac,
   ensureDataReaderRole: ensureDataReaderRoleRbac
@@ -225,6 +229,8 @@ class UserStore {
     });
     try {
       await holidaysDomain.refreshHolidayDateIsosCache(this);
+      await referentialsDomain.ensureSystemAnomalyType(this);
+      await rondeMotifTypesDomain.ensureSystemRondeMotifType(this);
       await rondeMotifTypesDomain.refreshRondeMotifTypesCache(this);
       await fransorDomain.refreshFransorResponsablesCache(this);
       await authUsersDomain.ensureDevUser(this, { roles: ROLE });
@@ -402,6 +408,32 @@ class UserStore {
   }
 
   /**
+   * Enregistre un snapshot d'entité référentielle (historique pour audit UPDATE).
+   *
+   * @param {{ entityType: string, entityId: string, changedBy?: string, snapshot?: object }} payload
+   * @returns {Promise<void>}
+   */
+  async recordEntityChange(payload) {
+    const db = this.getReferentialsPersistence();
+    if (!db || (typeof db.isOpen === "function" && !db.isOpen())) return;
+    await recordEntityChangeCore(db, payload);
+  }
+
+  /**
+   * Retourne les derniers snapshots connus d'une entité référentielle.
+   *
+   * @param {string} entityType
+   * @param {string} entityId
+   * @param {number} [limit=3]
+   * @returns {Promise<Array<{ changedAt: string, changedBy: string, snapshot: object }>>}
+   */
+  async getEntityChangeHistory(entityType, entityId, limit = 3) {
+    const db = this.getReferentialsPersistence();
+    if (!db || (typeof db.isOpen === "function" && !db.isOpen())) return [];
+    return getEntityChangeHistoryCore(db, entityType, entityId, limit);
+  }
+
+  /**
    * Attend la fin du branchement PostgreSQL labo (démarrage / bascule DB).
    *
    * @returns {Promise<{ attached?: boolean, engine?: string }|void>}
@@ -484,9 +516,16 @@ class UserStore {
     return authUsersDomain.deactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
   }
 
-  async reactivateUser({ requesterRole, requesterUsername, username, reason }) {
+  async reactivateUser({ requesterRole, requesterUsername, username, reason, fullName }) {
     await this.whenPostgresReady();
-    return authUsersDomain.reactivateUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
+    return authUsersDomain.reactivateUser(this, {
+      requesterRole,
+      requesterUsername,
+      username,
+      reason,
+      fullName,
+      role: ROLE
+    });
   }
 
   async unlockUser({ requesterRole, requesterUsername, username }) {
@@ -828,9 +867,28 @@ class UserStore {
     return mainCouranteDomain.getMainCouranteUnconsultedCount(this, { requesterRole, role: ROLE });
   }
 
+  async getMainCouranteOperatorResponseCount({ requesterRole, requesterUsername }) {
+    await this.whenPostgresReady();
+    return mainCouranteDomain.getMainCouranteOperatorResponseCount(this, {
+      requesterRole,
+      requesterUsername,
+      role: ROLE
+    });
+  }
+
   async markMainCouranteEntryConsulted({ requesterRole, requesterUsername, id }) {
     await this.whenPostgresReady();
     return mainCouranteDomain.markMainCouranteEntryConsulted(this, {
+      requesterRole,
+      requesterUsername,
+      id,
+      role: ROLE
+    });
+  }
+
+  async markMainCouranteEntryConsultedByOperator({ requesterRole, requesterUsername, id }) {
+    await this.whenPostgresReady();
+    return mainCouranteDomain.markMainCouranteEntryConsultedByOperator(this, {
       requesterRole,
       requesterUsername,
       id,
@@ -927,6 +985,11 @@ class UserStore {
     return rondeDomain.listRondes(this, { requesterRole });
   }
 
+  async getRondeTodayInProgressCounts({ requesterRole, todayIso }) {
+    await this.whenPostgresReady();
+    return rondeDomain.getRondeTodayInProgressCounts(this, { requesterRole, todayIso });
+  }
+
   async autoCloseExpiredExceptionalRondes(options) {
     await this.whenPostgresReady();
     return rondeDomain.autoCloseExpiredExceptionalRondes(this, options);
@@ -996,9 +1059,28 @@ class UserStore {
     return rondePlannedProfilesDomain.deleteRondePlannedProfile(this, payload);
   }
 
+  async requestRondePlannedProfileCancellation(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.requestRondePlannedProfileCancellation(this, {
+      ...payload,
+      role: ROLE
+    });
+  }
+
+  async reviewRondePlannedProfileCancellationRequest(payload) {
+    await this.whenPostgresReady();
+    return rondePlannedProfilesDomain.reviewRondePlannedProfileCancellationRequest(this, {
+      ...payload,
+      role: ROLE
+    });
+  }
+
   async setRondePlannedProfilePlanningEnd(payload) {
     await this.whenPostgresReady();
-    return rondePlannedProfilesDomain.setRondePlannedProfilePlanningEnd(this, payload);
+    return rondePlannedProfilesDomain.setRondePlannedProfilePlanningEnd(this, {
+      ...payload,
+      role: ROLE
+    });
   }
 
   async setRondePlannedProfileValidated(payload) {
@@ -1060,6 +1142,11 @@ class UserStore {
   async listGardiennages({ requesterRole }) {
     await this.whenPostgresReady();
     return gardiennageDomain.listGardiennages(this, { requesterRole });
+  }
+
+  async getGardiennageTodayInProgressCount({ requesterRole, todayIso }) {
+    await this.whenPostgresReady();
+    return gardiennageDomain.getGardiennageTodayInProgressCount(this, { requesterRole, todayIso });
   }
 
   async extendOpenEndedGardiennageHorizons(options) {

@@ -83,7 +83,11 @@ async function deletePendingInterventionSite(store, { requesterRole, requesterUs
   const pending = await db.get("SELECT * FROM intervention_site_pending WHERE id = ?", [String(pendingId || "").trim()]);
   if (!pending) store.fail("intervention:pendingSiteDelete", "Site en attente introuvable.", "INTERVENTION_PENDING_SITE_NOT_FOUND");
   if (await db.get("SELECT id FROM data_sites WHERE lower(code) = lower(?) LIMIT 1", [pending.code])) {
-    store.fail("intervention:pendingSiteDelete", "Suppression impossible: ce site est déjà présent en base.", "INTERVENTION_PENDING_SITE_DELETE_BLOCKED_ALREADY_IN_BASE");
+    store.fail(
+      "intervention:pendingSiteDelete",
+      "Ce site existe déjà dans le référentiel. Validez la proposition en attente ou supprimez-la après avoir mis à jour les fiches qui l'utilisent.",
+      "INTERVENTION_PENDING_SITE_DELETE_BLOCKED_ALREADY_IN_BASE"
+    );
   }
   const likePattern = `%(${pending.code})%`;
   const linkedIntervention = await db.get(
@@ -100,7 +104,11 @@ async function deletePendingInterventionSite(store, { requesterRole, requesterUs
   );
   const linkedMainCourante = await require("../mainCourante").hasMainCouranteLinkedToPendingSiteDisplay(store, likePattern);
   if (linkedIntervention || linkedGardiennage || linkedRonde || linkedMainCourante) {
-    store.fail("intervention:pendingSiteDelete", "Suppression impossible: ce site en attente est encore utilisé par une entrée métier.", "INTERVENTION_PENDING_SITE_DELETE_BLOCKED_LINKED_INTERVENTION");
+    store.fail(
+      "intervention:pendingSiteDelete",
+      "Ce site en attente est encore utilisé par une fiche (intervention, ronde, gardiennage ou main courante). Clôturez ou modifiez la fiche concernée, ou validez le site dans le référentiel, puis réessayez.",
+      "INTERVENTION_PENDING_SITE_DELETE_BLOCKED_LINKED_INTERVENTION"
+    );
   }
   const cleanReason = String(reason || "").trim();
   if (!cleanReason) store.fail("intervention:pendingSiteDelete", "Le motif de suppression est obligatoire.", "INTERVENTION_PENDING_SITE_DELETE_REASON_REQUIRED");

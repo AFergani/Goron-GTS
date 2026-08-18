@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS error_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_at ON audit_logs (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_error_logs_occurred_at ON error_logs (occurred_at DESC);
 
+CREATE TABLE IF NOT EXISTS entity_change_history (
+  id BIGSERIAL PRIMARY KEY,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  changed_at TEXT NOT NULL,
+  changed_by TEXT NOT NULL,
+  snapshot_json TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_change_history_lookup
+  ON entity_change_history (entity_type, entity_id, changed_at DESC);
+
 
 -- ---------------------------------------------------------------------------
 -- Section : referentials
@@ -126,6 +138,7 @@ CREATE TABLE IF NOT EXISTS users (
   theme_mode TEXT,
   page_access_json TEXT,
   password_hash TEXT NOT NULL,
+  password_history_json TEXT,
   must_change_password INTEGER NOT NULL DEFAULT 1,
   failed_login_attempts INTEGER NOT NULL DEFAULT 0,
   is_locked INTEGER NOT NULL DEFAULT 0,
@@ -138,6 +151,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_full_name_lower ON users (lower(full_name));
 CREATE INDEX IF NOT EXISTS idx_users_active_username ON users (is_active, username);
+
+-- Postes déjà migrés : ajoute la colonne historique MDP si absente (PG 18).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_history_json TEXT;
 
 -- Présence multi-postes (badge « connecté » partagé via PostgreSQL).
 CREATE TABLE IF NOT EXISTS user_presence (
@@ -262,6 +278,8 @@ CREATE TABLE IF NOT EXISTS main_courante_entries (
   archive_reason TEXT,
   updated_at TEXT NOT NULL
 );
+
+ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS consulted_by_operator_at TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_main_courante_created
   ON main_courante_entries (created_at DESC);
@@ -403,11 +421,18 @@ CREATE TABLE IF NOT EXISTS data_ronde_planned_profiles (
   closure_fields_json TEXT,
   planning_valid_from TEXT,
   planning_valid_to TEXT,
+  cancellation_request_reason TEXT,
+  cancellation_requested_at TEXT,
+  cancellation_requested_by TEXT,
   validated_at TEXT,
   validated_by TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+ALTER TABLE data_ronde_planned_profiles ADD COLUMN IF NOT EXISTS cancellation_request_reason TEXT;
+ALTER TABLE data_ronde_planned_profiles ADD COLUMN IF NOT EXISTS cancellation_requested_at TEXT;
+ALTER TABLE data_ronde_planned_profiles ADD COLUMN IF NOT EXISTS cancellation_requested_by TEXT;
 
 CREATE TABLE IF NOT EXISTS data_ronde_planned_profile_lines (
   id TEXT PRIMARY KEY,

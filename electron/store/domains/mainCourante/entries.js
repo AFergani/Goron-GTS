@@ -49,6 +49,11 @@ async function createMainCouranteEntry(
   if (!cleanOperator) {
     store.fail("mainCourante:create", "Opérateur invalide.", "MAIN_COURANTE_OPERATOR_REQUIRED");
   }
+  const cleanTypeId = String(anomalyTypeId || "").trim();
+  const cleanTypeLabel = String(anomalyTypeLabel || "").trim();
+  if (!cleanTypeId || !cleanTypeLabel) {
+    store.fail("mainCourante:create", "Le type d'anomalie est obligatoire.", "MAIN_COURANTE_TYPE_REQUIRED");
+  }
   const existing = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
   if (existing) {
     const existingMapped = mapMainCouranteRow(existing);
@@ -80,8 +85,8 @@ async function createMainCouranteEntry(
       cleanOperator,
       siteId || null,
       String(siteDisplay || "").trim(),
-      String(anomalyTypeId || "").trim(),
-      String(anomalyTypeLabel || "").trim(),
+      cleanTypeId,
+      cleanTypeLabel,
       cleanInfo,
       "EN_ATTENTE",
       now
@@ -95,7 +100,7 @@ async function createMainCouranteEntry(
       created: {
         operatorName: cleanOperator,
         siteDisplay: String(siteDisplay || "").trim(),
-        anomalyTypeLabel: String(anomalyTypeLabel || "").trim(),
+        anomalyTypeLabel: cleanTypeLabel,
         information: cleanInfo,
         status: "EN_ATTENTE"
       }
@@ -132,6 +137,11 @@ async function updateMainCouranteEntryOperator(
   const cleanInfo = String(information || "").trim();
   if (!cleanInfo) {
     store.fail("mainCourante:updateOp", "Le texte d'information est obligatoire.", "MAIN_COURANTE_INFO_REQUIRED");
+  }
+  const cleanTypeId = String(anomalyTypeId || "").trim();
+  const cleanTypeLabel = String(anomalyTypeLabel || "").trim();
+  if (!cleanTypeId || !cleanTypeLabel) {
+    store.fail("mainCourante:updateOp", "Le type d'anomalie est obligatoire.", "MAIN_COURANTE_TYPE_REQUIRED");
   }
   const row = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
   if (!row) {
@@ -174,8 +184,8 @@ async function updateMainCouranteEntryOperator(
     [
       siteId || null,
       String(siteDisplay || "").trim(),
-      String(anomalyTypeId || "").trim(),
-      String(anomalyTypeLabel || "").trim(),
+      cleanTypeId,
+      cleanTypeLabel,
       cleanInfo,
       now,
       id,
@@ -204,8 +214,8 @@ async function updateMainCouranteEntryOperator(
       after: {
         siteId: siteId || null,
         siteDisplay: String(siteDisplay || "").trim(),
-        anomalyTypeId: String(anomalyTypeId || "").trim(),
-        anomalyTypeLabel: String(anomalyTypeLabel || "").trim(),
+        anomalyTypeId: cleanTypeId,
+        anomalyTypeLabel: cleanTypeLabel,
         information: cleanInfo
       }
     }
@@ -428,10 +438,85 @@ async function getMainCouranteUnconsultedCount(store, { requesterRole, role }) {
   const db = requireMainCourantePersistence(store, "mainCourante:unconsulted");
   const row = await db.get(
     `SELECT COUNT(*) AS count FROM main_courante_entries
-     WHERE consulted_by_manager_at IS NULL`,
+     WHERE consulted_by_manager_at IS NULL
+       AND archived_at IS NULL`,
     []
   );
   return { count: Number(row?.count || 0) };
+}
+
+/**
+ * Résout le nom affiché d'un utilisateur à partir de son login technique.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} username
+ * @returns {Promise<string>}
+ */
+async function resolveUserFullNameByUsername(store, username) {
+  const usersDb = typeof store.getUsersPersistence === "function" ? store.getUsersPersistence() : null;
+  if (!usersDb || !usersDb.isOpen()) return "";
+  const row = await usersDb.get("SELECT full_name FROM users WHERE username = ?", [String(username || "").trim()]);
+  return String(row?.full_name || "").trim();
+}
+
+/**
+ * Badge sidebar opérateur : entrées créées par l'utilisateur ayant reçu une réponse encadrement non lues.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {{ requesterRole: string, requesterUsername: string, role: object }} payload
+ * @returns {Promise<{ count: number }>}
+ */
+async function getMainCouranteOperatorResponseCount(store, { requesterRole, requesterUsername, role }) {
+  if (requesterRole === role.RESPONSABLE || requesterRole === role.DEV) {
+    return { count: 0 };
+  }
+  const db = requireMainCourantePersistence(store, "mainCourante:operatorResponseCount");
+  const fullName = await resolveUserFullNameByUsername(store, requesterUsername);
+  if (!fullName) return { count: 0 };
+  const row = await db.get(
+    `SELECT COUNT(*) AS count FROM main_courante_entries
+     WHERE archived_at IS NULL
+       AND prise_en_compte_at IS NOT NULL
+       AND consulted_by_operator_at IS NULL
+       AND lower(trim(operator_name)) = lower(trim(?))`,
+    [fullName]
+  );
+  return { count: Number(row?.count || 0) };
+}
+
+/**
+ * Marque une entrée comme consultée par l'opérateur créateur (badge « réponse reçue »).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @returns {Promise<{ success: true }>}
+ */
+async function markMainCouranteEntryConsultedByOperator(store, { requesterRole, requesterUsername, id, role }) {
+  if (requesterRole === role.RESPONSABLE || requesterRole === role.DEV) {
+    return { success: true };
+  }
+  const db = requireMainCourantePersistence(store, "mainCourante:operatorConsulted");
+  const fullName = await resolveUserFullNameByUsername(store, requesterUsername);
+  const row = await db.get("SELECT id, operator_name, prise_en_compte_at, consulted_by_operator_at FROM main_courante_entries WHERE id = ?", [
+    String(id || "").trim()
+  ]);
+  if (!row) {
+    store.fail("mainCourante:operatorConsulted", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+  }
+  if (!sameOperatorDisplay(row.operator_name, fullName)) {
+    store.fail("mainCourante:operatorConsulted", "Accès refusé.", "MAIN_COURANTE_FORBIDDEN");
+  }
+  if (!row.prise_en_compte_at) {
+    return { success: true };
+  }
+  if (row.consulted_by_operator_at) {
+    return { success: true };
+  }
+  await db.run("UPDATE main_courante_entries SET consulted_by_operator_at = ? WHERE id = ?", [
+    new Date().toISOString(),
+    row.id
+  ]);
+  return { success: true };
 }
 
 /**
@@ -515,7 +600,9 @@ module.exports = {
   applyMainCouranteManagerAction,
   reopenMainCouranteEntry,
   getMainCouranteUnconsultedCount,
+  getMainCouranteOperatorResponseCount,
   markMainCouranteEntryConsulted,
+  markMainCouranteEntryConsultedByOperator,
   hasMainCouranteEntry,
   propagateSiteIdToMainCouranteEntries,
   hasMainCouranteLinkedToPendingSiteDisplay

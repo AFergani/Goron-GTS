@@ -5,10 +5,12 @@
  * (onglets urgence, planifié, gestion profils déléguée AppShell).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeOriginKind, RondeSavePayload, RondeStatus } from "../model/ronde.types";
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
 function makeRondeId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -19,7 +21,7 @@ function makeRondeId() {
 
 function mapRondeStatusError(error: unknown): string {
   if (!(error instanceof Error)) return "Changement d'état impossible.";
-  const msg = String(error.message || "");
+  const msg = extractUserFacingErrorMessage(error, "");
   if (msg.includes("RONDE_CONFLICT") || msg.toLowerCase().includes("modifiée ailleurs")) {
     return "Cette ronde a été modifiée sur un autre poste. Rechargez la liste puis réessayez.";
   }
@@ -32,15 +34,15 @@ function mapRondeStatusError(error: unknown): string {
 type UseRondePresenterOptions = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
 };
 
 export function useRondePresenter({ requesterRole, requesterUsername, onToast }: UseRondePresenterOptions) {
   const [entries, setEntries] = useState<RondeEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const notify = (message: string) => {
-    onToast?.(message);
+  const notify: NotifyToast = (message, variant) => {
+    onToast?.(message, variant);
   };
 
   const loadEntries = useCallback(
@@ -51,7 +53,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
         setEntries(rows);
         return rows;
       } catch (error) {
-        notify(error instanceof Error ? error.message : "Impossible de charger les rondes.");
+        notify(error instanceof Error ? error.message : "Impossible de charger les rondes.", "error");
         return [];
       } finally {
         if (!silent) setLoading(false);
@@ -70,14 +72,6 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
     }, 20000);
     return () => window.clearInterval(timer);
   }, [loadEntries]);
-
-  const stats = useMemo(() => {
-    const total = entries.length;
-    const inProgress = entries.filter((entry) => entry.status === "EN_COURS").length;
-    const closed = entries.filter((entry) => entry.status === "CLOTURE").length;
-    const canceled = entries.filter((entry) => entry.status === "ANNULE").length;
-    return { total, inProgress, closed, canceled };
-  }, [entries]);
 
   const createEntry = async (
     payload: RondeSavePayload & {
@@ -126,7 +120,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Création impossible.");
+      notify(error instanceof Error ? error.message : "Création impossible.", "error");
       return false;
     }
   };
@@ -143,7 +137,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return updated;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Mise à jour impossible.");
+      notify(error instanceof Error ? error.message : "Mise à jour impossible.", "error");
       return null;
     }
   };
@@ -166,7 +160,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(mapRondeStatusError(error));
+      notify(mapRondeStatusError(error), "error");
       return false;
     }
   };
@@ -192,7 +186,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return true;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Mise à jour du lot impossible.");
+      notify(error instanceof Error ? error.message : "Mise à jour du lot impossible.", "error");
       return false;
     }
   };
@@ -208,7 +202,7 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return res;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Annulation en lot impossible.");
+      notify(error instanceof Error ? error.message : "Annulation en lot impossible.", "error");
       return null;
     }
   };
@@ -224,14 +218,13 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
       await loadEntries(true);
       return res;
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Suppression en lot impossible.");
+      notify(error instanceof Error ? error.message : "Suppression en lot impossible.", "error");
       return null;
     }
   };
 
   return {
     entries,
-    stats,
     loading,
     loadEntries,
     createEntry,

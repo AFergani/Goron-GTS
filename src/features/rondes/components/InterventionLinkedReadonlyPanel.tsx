@@ -4,6 +4,7 @@
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 function formatDateFr(dateIso: string) {
   if (!dateIso) return "—";
@@ -14,7 +15,7 @@ function formatDateFr(dateIso: string) {
 
 type InterventionLinkedReadonlyPanelProps = {
   entry: InterventionEntry;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
 };
 
 export function InterventionLinkedReadonlyPanel({ entry, onNotify }: InterventionLinkedReadonlyPanelProps) {

@@ -79,7 +79,11 @@ async function deletePendingInterventionIntervenant(store, { requesterRole, requ
   const pending = await db.get("SELECT * FROM intervention_intervenant_pending WHERE id = ?", [String(pendingId || "").trim()]);
   if (!pending) store.fail("intervention:pendingIntervenantDelete", "Intervenant en attente introuvable.", "INTERVENTION_PENDING_INTERVENANT_NOT_FOUND");
   if (await db.get("SELECT id FROM data_intervenants WHERE lower(name) = lower(?) LIMIT 1", [pending.name])) {
-    store.fail("intervention:pendingIntervenantDelete", "Suppression impossible: cet intervenant est déjà présent en base.", "INTERVENTION_PENDING_INTERVENANT_DELETE_BLOCKED_ALREADY_IN_BASE");
+    store.fail(
+      "intervention:pendingIntervenantDelete",
+      "Cet intervenant existe déjà dans le référentiel. Validez la proposition en attente ou supprimez-la après avoir mis à jour les fiches qui l'utilisent.",
+      "INTERVENTION_PENDING_INTERVENANT_DELETE_BLOCKED_ALREADY_IN_BASE"
+    );
   }
   const linked = await db.get(
     "SELECT id FROM intervention_entries WHERE archived_at IS NULL AND intervenant_id IS NULL AND lower(intervenant_name) = lower(?) LIMIT 1",
@@ -94,7 +98,11 @@ async function deletePendingInterventionIntervenant(store, { requesterRole, requ
     [pending.name]
   );
   if (linked || linkedGardiennage || linkedRonde) {
-    store.fail("intervention:pendingIntervenantDelete", "Suppression impossible: cet intervenant en attente est encore utilisé par une entrée métier.", "INTERVENTION_PENDING_INTERVENANT_DELETE_BLOCKED_LINKED_INTERVENTION");
+    store.fail(
+      "intervention:pendingIntervenantDelete",
+      "Cet intervenant en attente est encore utilisé par une fiche (intervention, ronde ou gardiennage). Clôturez ou modifiez la fiche concernée, ou validez l'intervenant dans le référentiel, puis réessayez.",
+      "INTERVENTION_PENDING_INTERVENANT_DELETE_BLOCKED_LINKED_INTERVENTION"
+    );
   }
   const cleanReason = String(reason || "").trim();
   if (!cleanReason) store.fail("intervention:pendingIntervenantDelete", "Le motif de suppression est obligatoire.", "INTERVENTION_PENDING_INTERVENANT_DELETE_REASON_REQUIRED");

@@ -9,6 +9,7 @@ import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyBu
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { MainCouranteEntry, MainCouranteStatus } from "../model/mainCourante.types";
 import type { AnomalyTypeRef } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 function IconPencil() {
   return (
@@ -138,7 +139,7 @@ type MainCouranteTableProps = {
   anomalyTypes: AnomalyTypeRef[];
   currentOperatorName: string;
   isManager: boolean;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   onEditEntry: (entry: MainCouranteEntry) => void;
   onManagerTreat: (entry: MainCouranteEntry) => void;
   onExportWord: (entry: MainCouranteEntry) => void | Promise<void>;

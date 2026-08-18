@@ -3,6 +3,7 @@
  * Utilisé par `authUsers.js` (login, création compte, première connexion, unicité nom affiché + mot de passe).
  *
  * Format stocké courant : `scrypt1$<sel base64>$<hash base64>` ; ancien format : 64 caractères hex SHA-256.
+ * Historique : jusqu'à 3 hash précédents (`users.password_history_json`) — refus de réutilisation.
  */
 
 const crypto = require("crypto");
@@ -10,6 +11,9 @@ const crypto = require("crypto");
 /** Paramètres scrypt (alignés OWASP recommandations desktop). */
 const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const PREFIX_SCRYPT = "scrypt1";
+
+/** Nombre max de hash précédents conservés pour refus de réutilisation. */
+const PASSWORD_HISTORY_MAX = 3;
 
 /**
  * Ancien algorithme SHA-256 hex — conservé pour vérification et détection de migration uniquement.
@@ -90,8 +94,59 @@ function needsPasswordMigration(stored) {
   return Boolean(stored && typeof stored === "string" && /^[a-f0-9]{64}$/i.test(stored));
 }
 
+/**
+ * Parse la colonne `password_history_json` (tableau de hash, max 3).
+ *
+ * @param {string|null|undefined} historyJson
+ * @returns {string[]}
+ */
+function parsePasswordHistory(historyJson) {
+  if (!historyJson || typeof historyJson !== "string") return [];
+  try {
+    const parsed = JSON.parse(historyJson);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean)
+      .slice(0, PASSWORD_HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Indique si le mot de passe en clair correspond au hash courant ou à l'historique récent.
+ *
+ * @param {string} rawPassword
+ * @param {string|null|undefined} currentHash
+ * @param {string|null|undefined} historyJson
+ * @returns {boolean}
+ */
+function isPasswordRecentlyUsed(rawPassword, currentHash, historyJson) {
+  if (currentHash && verifyPassword(rawPassword, currentHash)) return true;
+  return parsePasswordHistory(historyJson).some((hash) => verifyPassword(rawPassword, hash));
+}
+
+/**
+ * Empile le hash courant en tête de l'historique (max {@link PASSWORD_HISTORY_MAX}).
+ *
+ * @param {string|null|undefined} previousHash - Hash remplacé (exclu s'il est vide).
+ * @param {string|null|undefined} historyJson - Historique actuel.
+ * @returns {string} JSON à stocker dans `password_history_json`.
+ */
+function pushPasswordHistory(previousHash, historyJson) {
+  const previous = String(previousHash || "").trim();
+  const next = parsePasswordHistory(historyJson).filter((hash) => hash !== previous);
+  if (previous) next.unshift(previous);
+  return JSON.stringify(next.slice(0, PASSWORD_HISTORY_MAX));
+}
+
 module.exports = {
   hashPassword,
   verifyPassword,
-  needsPasswordMigration
+  needsPasswordMigration,
+  parsePasswordHistory,
+  isPasswordRecentlyUsed,
+  pushPasswordHistory,
+  PASSWORD_HISTORY_MAX
 };

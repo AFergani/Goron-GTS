@@ -299,7 +299,8 @@ declare global {
         requesterUsername: string;
         username: string;
         reason: string;
-      }) => Promise<{ success: boolean }>;
+        fullName?: string;
+      }) => Promise<{ success: boolean; temporaryPassword: string; fullName?: string }>;
       // --- Audit et préférences ---
       listAuditLogs: (payload: {
         requesterRole: Role;
@@ -474,7 +475,13 @@ declare global {
       // --- Main courante ---
       listMainCouranteEntries: (payload: { requesterRole: Role }) => Promise<MainCouranteEntry[]>;
       getMainCouranteUnconsultedCount: (payload: { requesterRole: Role }) => Promise<{ count: number }>;
+      getMainCouranteOperatorResponseCount: (payload: { requesterRole: Role }) => Promise<{ count: number }>;
       markMainCouranteEntryConsulted: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+      }) => Promise<{ success: boolean }>;
+      markMainCouranteEntryConsultedByOperator: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
@@ -593,6 +600,11 @@ declare global {
       }) => Promise<{ success: boolean }>;
       // --- Rondes ---
       listRondes: (payload: { requesterRole: Role }) => Promise<RondeEntry[]>;
+      getRondeTodayInProgressCounts: (payload: { requesterRole: Role; todayIso: string }) => Promise<{
+        total: number;
+        contractual: number;
+        exceptional: number;
+      }>;
       createRondeEntry: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -679,6 +691,20 @@ declare global {
         id: string;
         reason: string;
       }) => Promise<{ success: boolean }>;
+      requestRondePlannedProfileCancellation: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        reason: string;
+      }) => Promise<RondePlannedProfileRef>;
+      reviewRondePlannedProfileCancellationRequest: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        id: string;
+        decision: "approve" | "reject";
+        reviewReason: string;
+        planningEndDate?: string;
+      }) => Promise<RondePlannedProfileRef>;
       setRondePlannedProfilePlanningEnd: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -714,6 +740,7 @@ declare global {
       }) => Promise<FormVariableDef[]>;
       // --- Gardiennage ---
       listGardiennages: (payload: { sessionToken: string; requesterRole: Role }) => Promise<GardiennageEntry[]>;
+      getGardiennageTodayInProgressCount: (payload: { requesterRole: Role; todayIso: string }) => Promise<{ count: number }>;
       createGardiennage: (payload: {
         sessionToken: string;
         requesterRole: Role;

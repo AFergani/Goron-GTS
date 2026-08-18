@@ -14,6 +14,8 @@ import {
   groupSlotsBySite
 } from "../model/plannedSlots";
 import { exportRondeEntryToWord } from "../export/rondeWordExport";
+import type { NotifyToast } from "../../common/model/toast.types";
+import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 
 function formatTodayIso() {
   const d = new Date();
@@ -133,7 +135,7 @@ type RondePlannedDaySectionProps = {
   rondeMotifs: RondeMotifTypeRef[];
   holidays: HolidayRef[];
   mode?: "planned" | "entries";
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   onOpenCreatePlanned: (slot: ApplicablePlannedSlot, dayIso: string) => void;
   onOpenEntry: (entry: RondeEntry) => void;
 };
@@ -291,7 +293,9 @@ export function RondePlannedDaySection({
             {mode === "planned"
               ? rows.map((row) => (
                 <tr key={row.siteId}>
-                  <td>{row.siteDisplay}</td>
+                  <td className="mc-site-wrap">
+                    <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
+                  </td>
                   <td>
                     <div className="ronde-planned-day-passages-grid">
                       {row.slots.map((slot) => {
@@ -321,7 +325,7 @@ export function RondePlannedDaySection({
                                       await exportRondeEntryToWord(existing, { profileLabel: slot.profileLabel, profiles });
                                       onNotify?.("Document Word exporté.");
                                     } catch (err) {
-                                      onNotify?.(err instanceof Error ? err.message : "Export Word impossible.");
+                                      onNotify?.(err instanceof Error ? err.message : "Export Word impossible.", "error");
                                     } finally {
                                       setExportingEntryId(null);
                                     }
@@ -344,7 +348,9 @@ export function RondePlannedDaySection({
               ))
               : entryRows.map((row) => (
                 <tr key={row.siteId}>
-                  <td>{row.siteDisplay}</td>
+                  <td className="mc-site-wrap">
+                    <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
+                  </td>
                   <td>
                     <div className="ronde-planned-day-passages-grid">
                       {row.items.map((entry) => (
@@ -371,7 +377,7 @@ export function RondePlannedDaySection({
                                   await exportRondeEntryToWord(entry, { profiles });
                                   onNotify?.("Document Word exporté.");
                                 } catch (err) {
-                                  onNotify?.(err instanceof Error ? err.message : "Export Word impossible.");
+                                  onNotify?.(err instanceof Error ? err.message : "Export Word impossible.", "error");
                                 } finally {
                                   setExportingEntryId(null);
                                 }

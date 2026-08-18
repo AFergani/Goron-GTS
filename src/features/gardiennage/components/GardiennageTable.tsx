@@ -1,13 +1,21 @@
 /**
- * Tableau des gardiennages (tri colonnes, badges statut).
+ * Tableau des gardiennages (tri colonnes, badges type et statut).
  *
  * Actions : clôturer (si actif/planifié), modifier, export Word (clôturé/annulé), supprimer.
- * Colonne Période optionnelle (onglet Planification).
+ * Colonne Période optionnelle (affichage liste).
+ * Vue journée : `hoursForDate` affiche la portion horaire du jour, pas le créneau entier.
+ * Date de création + badge de type (H24 / récurrent / ponctuel, jour ou nuit) dans les deux vues.
+ * Colonne Site : clic pour copier le code (comme les autres tableaux métier).
  */
 
 import { Check, FileText, Infinity, Moon, Pencil, Trash2 } from "lucide-react";
+import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { GardiennageEntry } from "../model/gardiennage.types";
+import { canManuallyCloseGardiennage, gardiennageCloseBlockedLabel } from "../model/gardiennageClosure";
+import { clipGardiennageHoursToDay, formatGardiennageDayHours } from "../model/gardiennageDayHours";
+import { classifyGardiennageKind } from "../model/gardiennageKind";
 
 function statusLabel(status: GardiennageEntry["status"]) {
   if (status === "ACTIF") return "Actif";
@@ -30,6 +38,38 @@ function formatDateFr(iso: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/**
+ * Date de création au format français (jour uniquement, comme les rondes).
+ *
+ * @param iso - Horodatage ISO
+ * @returns Date `jj/mm/aaaa`, ou tiret
+ */
+function formatCreatedAtDate(iso: string): string {
+  if (!iso) return "—";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/**
+ * Infobulle datetime complète pour la date de création.
+ *
+ * @param iso - Horodatage ISO
+ * @returns Date et heure `fr-FR`, ou chaîne vide
+ */
+function formatCreatedAtTitle(iso: string): string {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 function isOpenEndedH24(entry: GardiennageEntry): boolean {
   const snap = entry.planningSnapshot;
   return Boolean(snap?.isOpenEnded && snap?.isContinuous);
@@ -48,26 +88,75 @@ type GardiennageTableProps = {
   entries: GardiennageEntry[];
   /** Affiche la colonne Période (Du → Au) — pour l'onglet Planification */
   showPeriode?: boolean;
+  /**
+   * Date de la vue « journée » (`YYYY-MM-DD`) : horaires clippés sur ce jour.
+   * Absent en affichage liste (horaires du créneau entier).
+   */
+  hoursForDate?: string;
   onEdit: (entry: GardiennageEntry) => void;
   onDelete: (entry: GardiennageEntry) => void;
   onClose?: (entry: GardiennageEntry) => void;
   /** Export Word de la fiche */
   onExportWord?: (entry: GardiennageEntry) => void;
+  onNotify?: NotifyToast;
 };
+
+/**
+ * Horaires de la colonne : portion du jour en vue journée, sinon créneau stocké.
+ *
+ * @param entry - Ligne gardiennage
+ * @param hoursForDate - Date vue journée, ou absente en liste
+ * @returns Libellé React (texte, infini H24 ouvert, ou tiret)
+ */
+function renderHoursLabel(entry: GardiennageEntry, hoursForDate?: string) {
+  if (hoursForDate) {
+    const clipped = clipGardiennageHoursToDay(entry, hoursForDate);
+    return clipped ? formatGardiennageDayHours(clipped) : "—";
+  }
+  if (!entry.startTime) return "—";
+  if (isOpenEndedH24(entry)) {
+    return (
+      <>
+        {entry.startTime} → <OpenEndedInfinityMark />
+      </>
+    );
+  }
+  return entry.endTime ? `${entry.startTime} → ${entry.endTime}` : entry.startTime;
+}
+
+/**
+ * Badge de type de prestation (H24, récurrent, ponctuel).
+ *
+ * @param entry - Ligne gardiennage
+ */
+function GardiennageKindBadge({ entry }: { entry: GardiennageEntry }) {
+  const kind = classifyGardiennageKind(entry);
+  return (
+    <span
+      className={`gardiennage-kind-badge gardiennage-kind-badge--${kind.id}`}
+      title={kind.title}
+    >
+      {kind.label}
+    </span>
+  );
+}
 
 export function GardiennageTable({
   entries,
   showPeriode = false,
+  hoursForDate,
   onEdit,
   onDelete,
   onClose,
-  onExportWord
+  onExportWord,
+  onNotify
 }: GardiennageTableProps) {
   if (!entries.length) {
     return <p className="muted">Aucun gardiennage à afficher.</p>;
   }
 
   const comparators = {
+    createdAt: (a: GardiennageEntry, b: GardiennageEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     site: (a: GardiennageEntry, b: GardiennageEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     periode: (a: GardiennageEntry, b: GardiennageEntry) =>
       `${a.recurrenceStartDate || ""}|${a.recurrenceEndDate || ""}`.localeCompare(`${b.recurrenceStartDate || ""}|${b.recurrenceEndDate || ""}`),
@@ -76,7 +165,7 @@ export function GardiennageTable({
     statut: (a: GardiennageEntry, b: GardiennageEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
   } as const;
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort(entries, comparators, {
-    key: showPeriode ? "periode" : "site",
+    key: "createdAt",
     direction: "desc"
   });
   const sortLabel = (key: keyof typeof comparators) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
@@ -85,6 +174,7 @@ export function GardiennageTable({
     <div className="main-courante-table-wrap">
       <table className="main-courante-table gardiennage-table">
         <colgroup>
+          <col className="gard-col-created" />
           <col className="gard-col-site" />
           {showPeriode && <col className="gard-col-periode" />}
           <col className="gard-col-creneau" />
@@ -94,6 +184,7 @@ export function GardiennageTable({
         </colgroup>
         <thead>
           <tr>
+            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("createdAt")}>Créé le {sortLabel("createdAt")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
             {showPeriode && <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("periode")}>Période {sortLabel("periode")}</button></th>}
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("horaires")}>Horaires {sortLabel("horaires")}</button></th>
@@ -104,10 +195,20 @@ export function GardiennageTable({
         </thead>
         <tbody>
           {sortedEntries.map((entry) => {
-            const canClose = onClose && entry.status !== "CLOTURE" && entry.status !== "ANNULE";
+            const closeBlocked = gardiennageCloseBlockedLabel(entry);
+            const canClose = Boolean(onClose) && canManuallyCloseGardiennage(entry);
+            const showCloseDisabled = Boolean(onClose) && entry.status !== "CLOTURE" && entry.status !== "ANNULE" && !canClose;
             return (
               <tr key={entry.id} className="mc-table-row">
-                <td className="mc-site-wrap">{entry.siteDisplay || <span className="muted">—</span>}</td>
+                <td className="gardiennage-created-cell">
+                  <GardiennageKindBadge entry={entry} />
+                  <span title={formatCreatedAtTitle(entry.createdAt) || undefined}>
+                    {formatCreatedAtDate(entry.createdAt)}
+                  </span>
+                </td>
+                <td className="mc-site-wrap">
+                  <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
+                </td>
 
                 {showPeriode && (
                   <td>
@@ -126,21 +227,9 @@ export function GardiennageTable({
                 <td>
                   <div className="gardiennage-creneau-cell">
                     <span className="gardiennage-creneau-label">
-                      {entry.startTime ? (
-                        isOpenEndedH24(entry) ? (
-                          <>
-                            {entry.startTime} → <OpenEndedInfinityMark />
-                          </>
-                        ) : entry.endTime ? (
-                          `${entry.startTime} → ${entry.endTime}`
-                        ) : (
-                          entry.startTime
-                        )
-                      ) : (
-                        "—"
-                      )}
+                      {renderHoursLabel(entry, hoursForDate)}
                     </span>
-                    {entry.crossesMidnight && (
+                    {!hoursForDate && entry.crossesMidnight && (
                       <span
                         className="gardiennage-nocturne-icon"
                         title="Créneau nocturne (se termine le lendemain)"
@@ -165,16 +254,25 @@ export function GardiennageTable({
                 {/* Actions */}
                 <td>
                   <div className="row-actions mc-row-actions-wrap">
-                    {canClose && (
-                      <button
-                        type="button"
-                        className="mc-table-action-btn mc-table-action-btn--validate"
-                        title="Clôturer ce gardiennage"
-                        aria-label="Clôturer"
-                        onClick={() => onClose(entry)}
+                    {(canClose || showCloseDisabled) && (
+                      <span
+                        className="mc-table-action-btn-wrap"
+                        title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
                       >
-                        <Check size={15} />
-                      </button>
+                        <button
+                          type="button"
+                          className="mc-table-action-btn mc-table-action-btn--validate"
+                          title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
+                          aria-label={canClose ? "Clôturer" : closeBlocked}
+                          disabled={showCloseDisabled}
+                          onClick={() => {
+                            if (!canClose) return;
+                            onClose?.(entry);
+                          }}
+                        >
+                          <Check size={15} />
+                        </button>
+                      </span>
                     )}
                     <button
                       type="button"

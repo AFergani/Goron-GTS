@@ -20,11 +20,14 @@ import type {
 } from "../model/rondePlanned.types";
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT, type RondePlannedRoundKind } from "../model/rondePlanned.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
+import { TimeInput } from "../../common/components/TimeInput";
 import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 import { RondeLinkedBatchPanel } from "./RondeLinkedBatchPanel";
 import { addDaysIso, dateIsoToWeekdayMask, generateRandomSlotSpecs } from "../model/rondePlannedSlotEngine";
 import { formatLocalDateIso, formatLocalTimeHm } from "../model/rondeCalendarLocal";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
+import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
+import type { NotifyToast } from "../../common/model/toast.types";
 
 type RondeRequestModalProps = {
   isOpen: boolean;
@@ -36,7 +39,7 @@ type RondeRequestModalProps = {
   /** Profil à éditer — si fourni, la modale s'ouvre en mode édition */
   editProfile?: RondePlannedProfileRef | null;
   onClose: () => void;
-  onNotify?: (message: string) => void;
+  onNotify?: NotifyToast;
   /** Crée ou met à jour un profil de planification (avec `id` en édition) */
   onCreateProfile: (payload: RondePlannedProfilePayload & { autoValidate?: boolean }) => Promise<void> | void;
   /** Crée une ronde exceptionnelle — optionnel en mode profil seul */
@@ -304,6 +307,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     () => props.rondeMotifs.find((m) => m.id === motifTypeId) ?? null,
     [props.rondeMotifs, motifTypeId]
   );
+  const defaultMotifTypeId = useMemo(() => getDefaultSystemRefId(props.rondeMotifs), [props.rondeMotifs]);
 
   useEffect(() => {
     if (!props.isOpen) return;
@@ -317,7 +321,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       setRequestTime(nowHm);
       setSiteId(ep.siteId ?? null);
       setIntervenantId(ep.intervenantId ?? "");
-      setMotifTypeId(props.rondeMotifs[0]?.id ?? "");
+      setMotifTypeId(defaultMotifTypeId);
       setOrigin("CONTRAT");
       setConsigne(ep.notes ?? "");
       setMotifDetail("");
@@ -358,7 +362,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       }
       setSiteId(s.siteId ?? null);
       setIntervenantId(String(s.intervenantId || "").trim());
-      setMotifTypeId(String(s.motifTypeId || "").trim() || (props.rondeMotifs[0]?.id ?? ""));
+      setMotifTypeId(String(s.motifTypeId || "").trim() || defaultMotifTypeId);
       const replayOriginFallback: RequestOrigin =
         s.origin === "CONTRAT" ||
         s.origin === "APPEL_CLIENT" ||
@@ -420,7 +424,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       setValidToTime("23:59");
       setSiteId(props.initialSiteId ?? null);
       setIntervenantId(props.initialIntervenantId ?? "");
-      setMotifTypeId(props.initialMotifTypeId?.trim() || (props.rondeMotifs[0]?.id ?? ""));
+      setMotifTypeId(props.initialMotifTypeId?.trim() || defaultMotifTypeId);
       setOrigin(props.fixedOrigin ?? "CONTRAT");
       setConsigne(props.initialConsigne ?? "");
       setMotifDetail("");
@@ -949,7 +953,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             </label>
             <label>
               Heure de la demande
-              <input type="time" step={60} value={requestTime} onChange={(e) => setRequestTime(e.target.value)} />
+              <TimeInput value={requestTime} onChange={setRequestTime} />
             </label>
           </div>
           <div className="ronde-planned-profile-modal__site-prest-row">
@@ -1062,11 +1066,9 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           <div className="ronde-planned-profile-modal__validity-inline">
             <span className="ronde-planned-profile-modal__validity-label">Validité - Du</span>
             <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} aria-label="Date de début de validité" />
-            <input
-              type="time"
-              step={60}
+            <TimeInput
               value={validFromTime}
-              onChange={(e) => setValidFromTime(e.target.value)}
+              onChange={setValidFromTime}
               title="Heure de début (vide = 00:00)"
               aria-label="Heure de début de validité"
             />
@@ -1078,12 +1080,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               onChange={(e) => setValidTo(e.target.value)}
               aria-label="Date de fin de validité"
             />
-            <input
-              type="time"
-              step={60}
+            <TimeInput
               value={validToTime}
               disabled={isSingleDay}
-              onChange={(e) => setValidToTime(e.target.value)}
+              onChange={setValidToTime}
               title="Heure de fin (vide = 23:59)"
               aria-label="Heure de fin de validité"
             />
@@ -1138,7 +1138,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                     {line.roundKind !== "RANDOM" ? (
                       <label className="ronde-request-line-grid__field-large">
                         {line.roundKind === "OPENING" ? "Heure demandée" : "Heure demandée"}
-                        <input type="time" step={60} value={line.requestedTime} onChange={(e) => updateLine(index, { requestedTime: e.target.value })} />
+                        <TimeInput value={line.requestedTime} onChange={(value) => updateLine(index, { requestedTime: value })} />
                       </label>
                     ) : (
                       <>
@@ -1155,12 +1155,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                         {!isContract ? (
                           <label>
                             Heure de fin
-                            <input
-                              type="time"
-                              step={60}
+                            <TimeInput
                               value={line.intervalEndTime}
                               disabled={!line.intervalHours.trim() || Boolean(line.randomWindowStart.trim() && line.randomWindowEnd.trim())}
-                              onChange={(e) => updateLine(index, { intervalEndTime: e.target.value })}
+                              onChange={(value) => updateLine(index, { intervalEndTime: value })}
                             />
                           </label>
                         ) : null}
@@ -1171,11 +1169,11 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                     <div className="ronde-request-line-grid__row ronde-request-line-grid__row--second">
                       <label>
                         Fenêtre de
-                        <input type="time" step={60} value={line.randomWindowStart} onChange={(e) => updateLine(index, { randomWindowStart: e.target.value })} />
+                        <TimeInput value={line.randomWindowStart} onChange={(value) => updateLine(index, { randomWindowStart: value })} />
                       </label>
                       <label>
                         Fenêtre à
-                        <input type="time" step={60} value={line.randomWindowEnd} onChange={(e) => updateLine(index, { randomWindowEnd: e.target.value })} />
+                        <TimeInput value={line.randomWindowEnd} onChange={(value) => updateLine(index, { randomWindowEnd: value })} />
                       </label>
                       <label>
                         Nombre de rondes

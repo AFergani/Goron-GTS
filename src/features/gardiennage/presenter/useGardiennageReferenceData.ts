@@ -11,8 +11,10 @@ import { useCallback, useEffect, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
+import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import type { NotifyToast } from "../../common/model/toast.types";
 
-export function useGardiennageReferenceData(requesterRole: Role, requesterUsername: string, onToast?: (message: string) => void) {
+export function useGardiennageReferenceData(requesterRole: Role, requesterUsername: string, onToast?: NotifyToast) {
   const [sites, setSites] = useState<SiteRef[]>([]);
   const [intervenants, setIntervenants] = useState<IntervenantRef[]>([]);
   const [holidays, setHolidays] = useState<HolidayRef[]>([]);
@@ -36,7 +38,7 @@ export function useGardiennageReferenceData(requesterRole: Role, requesterUserna
         .filter((year) => Number.isFinite(year));
       setHolidays(mergeWithFrenchFixedHolidays(holidayRows, [nowYear - 1, nowYear, nowYear + 1, ...yearsFromRows]));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de charger les référentiels.");
+      setError(extractUserFacingErrorMessage(err, "Impossible de charger les référentiels."));
     } finally {
       setLoading(false);
     }
@@ -56,13 +58,13 @@ export function useGardiennageReferenceData(requesterRole: Role, requesterUserna
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Ce site existe déjà ou est déjà en attente de validation.");
+        onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Site ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter le site en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
       return false;
     }
   };
@@ -76,13 +78,13 @@ export function useGardiennageReferenceData(requesterRole: Role, requesterUserna
       });
       await load();
       if (response.alreadyExists) {
-        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.");
+        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.", "warning");
       } else {
         onToast?.("Intervenant ajouté en attente de validation.");
       }
       return true;
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Impossible d'ajouter l'intervenant en attente.");
+      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter l'intervenant en attente."), "error");
       return false;
     }
   };

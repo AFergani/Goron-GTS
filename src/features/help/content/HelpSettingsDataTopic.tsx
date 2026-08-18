@@ -87,6 +87,10 @@ export function HelpSettingsDataTopic() {
             attribuez-lui une couleur spécifique.
           </li>
           <li>
+            <strong>Type système :</strong> « Voir Observation » est toujours présent en base. Il sert de défaut à la création d&apos;une
+            main courante (l&apos;opérateur décrit le fait dans l&apos;observation). Ce type n&apos;est ni modifiable ni supprimable.
+          </li>
+          <li>
             <strong>Affichage :</strong> cette couleur s&apos;affichera sous forme de badge visuel dans la liste des mains courantes pour faciliter
             le tri et la lecture des opérateurs.
           </li>
@@ -117,6 +121,10 @@ export function HelpSettingsDataTopic() {
           <li>
             <strong>Gestion :</strong> saisie manuelle et exclusive (pas d&apos;import Excel). Permet de définir et standardiser les libellés
             proposés lors de la création d&apos;une ronde exceptionnelle (ex. demande client, déclenchement alarme, suite intervention).
+          </li>
+          <li>
+            <strong>Motif système :</strong> « Voir Consigne » est toujours présent. Il est pré-sélectionné à la saisie : le détail se lit
+            dans les consignes. Ce motif n&apos;est ni modifiable ni supprimable.
           </li>
           <li>
             <strong>Affichage :</strong> fonctionne comme les types d&apos;anomalie, avec l&apos;attribution d&apos;un libellé et d&apos;une

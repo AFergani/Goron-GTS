@@ -1,7 +1,8 @@
 /**
  * Page Rondes : onglets urgence, planifié, gestion profils ; orchestration presenter + référentiels.
  *
- * Filtres tableau, modales demande/fiche, exports. ~860 lignes — découpage futur si besoin.
+ * Barre d’onglets + actions (export, jour/liste, création). Filtres collés au tableau.
+ * Affichage liste (contractuelle et exceptionnelle) : filtre Statut par défaut « En cours ».
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
+import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeOriginKind } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { useRondePresenter } from "../presenter/useRondePresenter";
@@ -18,6 +20,7 @@ import { buildApplicablePlannedSlots } from "../model/plannedSlots";
 import { RondeEntryModal } from "../components/RondeEntryModal";
 import { RondeRequestModal } from "../components/RondeRequestModal";
 import type { RequestOrigin } from "../components/RondeRequestModal";
+import { RondePageTabsBar } from "../components/RondePageTabsBar";
 import { RondeProfilesManageTab } from "../components/RondeProfilesManageTab";
 import type { RondePlannedProfilePayload } from "../model/rondePlanned.types";
 import { RondeTable } from "../components/RondeTable";
@@ -26,6 +29,8 @@ import { getExceptionalDemandGroup } from "../utils/exceptionalDemandGroup";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { exportRondeToExcel } from "../export/rondeExcelExport";
 import { exportRondeEntryToWord } from "../export/rondeWordExport";
+import { getLocalDateIso } from "../../common/utils/localDateIso";
+import { countTodayInProgressRondes, isContractualRondeEntry } from "../utils/rondeEntryClassification";
 /** Anciens lots sans snapshot : hydratation minimale pour rouvrir la même modale que à la création. */
 function syntheticPlanningSnapshotForLinkedDemand(row: {
   requestDate: string;
@@ -77,16 +82,6 @@ function syntheticPlanningSnapshotForLinkedDemand(row: {
   };
 }
 
-function isContractualEntry(entry: RondeEntry): boolean {
-  return (
-    entry.source === "PLANIFIE" ||
-    Boolean(entry.plannedProfileId) ||
-    Boolean(entry.plannedRoundKind) ||
-    entry.requestPlanningSnapshot?.origin === "CONTRAT" ||
-    entry.originKind === "TELESURVEILLANCE"
-  );
-}
-
 function findExistingPlannedEntryForSlot(entries: RondeEntry[], dateIso: string, slotKey: string, profileId: string) {
   return entries.find(
     (entry) =>
@@ -115,13 +110,18 @@ function enumerateDateRangeInclusive(fromIso: string, toIso: string): string[] {
 type RondePageProps = {
   requesterRole: Role;
   requesterUsername: string;
-  onToast?: (message: string) => void;
+  onToast?: NotifyToast;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   /** Id ronde à ouvrir (navigation depuis une intervention liée). */
   focusRondeId?: string | null;
   onFocusRondeConsumed?: () => void;
   onUpsertRondePlannedProfile?: (payload: RondePlannedProfilePayload) => void | Promise<void>;
   onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<void>;
+  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<void>;
+  onReviewRondePlannedProfileCancellationRequest?: (
+    id: string,
+    payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
+  ) => void | Promise<void>;
   onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<void>;
 };
 
@@ -136,6 +136,8 @@ export function RondePage({
   onFocusRondeConsumed,
   onUpsertRondePlannedProfile,
   onDeleteRondePlannedProfile,
+  onRequestRondePlannedProfileCancellation,
+  onReviewRondePlannedProfileCancellationRequest,
   onSetRondePlannedProfilePlanningEnd
 }: RondePageProps) {
   const [listView, setListView] = useState<"urgence" | "planifie" | "gestion">("planifie");
@@ -158,7 +160,8 @@ export function RondePage({
     }
   });
   const filters = useTableFilters();
-  const [statusFilter, setStatusFilterRaw] = useState("");
+  /** Défaut « en cours » en affichage liste : clôturées et annulées masquées tant qu'on ne les demande pas. */
+  const [statusFilter, setStatusFilterRaw] = useState("EN_COURS");
   const [familyFilter, setFamilyFilterRaw] = useState("");
   const [intervenantFilter, setIntervenantFilterRaw] = useState("");
   const setStatusFilter = (v: string) => { setStatusFilterRaw(v); filters.setCurrentPage(1); };
@@ -208,7 +211,7 @@ export function RondePage({
         setModalMode("edit");
         setModalOpen(true);
       } else {
-        onToast?.("Ronde liée introuvable dans la liste.");
+        onToast?.("Ronde liée introuvable dans la liste.", "error");
       }
       onFocusRondeConsumed?.();
     })();
@@ -223,12 +226,10 @@ export function RondePage({
     [references.sites]
   );
 
-  /** Compte des rondes planifiées (source PLANIFIE) pour aujourd'hui */
-  const plannedTodayCount = useMemo(() => {
-    const d = new Date();
-    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return ronde.entries.filter((e) => e.source === "PLANIFIE" && e.requestDate === todayIso).length;
-  }, [ronde.entries]);
+  const todayRondeBadgeCounts = useMemo(
+    () => countTodayInProgressRondes(ronde.entries, getLocalDateIso()),
+    [ronde.entries]
+  );
 
   const linkedDemandGroup = useMemo(() => {
     if (!linkedDemandAnchorId) return [];
@@ -249,7 +250,7 @@ export function RondePage({
     const siteById = new Map(references.sites.map((s) => [s.id, s]));
     return ronde.entries
       .filter((entry) => {
-        if (isContractualEntry(entry)) return false;
+        if (isContractualRondeEntry(entry)) return false;
         if (filters.dateFrom && entry.requestDate < filters.dateFrom) return false;
         if (effectiveDateTo && entry.requestDate > effectiveDateTo) return false;
         if (statusFilter && entry.status !== statusFilter) return false;
@@ -277,7 +278,7 @@ export function RondePage({
   const contractualEntries = useMemo(
     () =>
       ronde.entries
-        .filter((entry) => isContractualEntry(entry))
+        .filter((entry) => isContractualRondeEntry(entry))
         .sort((a, b) => b.requestDate.localeCompare(a.requestDate)),
     [ronde.entries]
   );
@@ -386,69 +387,71 @@ export function RondePage({
       });
   }, [contractualListEntries, familyFilter, filters.dateFrom, filters.dateTo, filters.search, intervenantFilter, references.sites, statusFilter]);
   const sharedListFiltersBar = (
-    <TableFiltersBar
-      search={filters.search}
-      onSearchChange={filters.setSearch}
-      dateFrom={filters.dateFrom}
-      onDateFromChange={filters.setDateFrom}
-      dateTo={filters.dateTo}
-      onDateToChange={filters.setDateTo}
-      searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
-      onReset={() => { filters.reset(); setStatusFilter(""); setFamilyFilter(""); setIntervenantFilter(""); }}
-    >
-      <label>
-        Famille
-        <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-          <option value="">Toutes</option>
-          {familyOptions.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Prestataire
-        <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-          <option value="">Tous</option>
-          {references.intervenants.map((i) => (
-            <option key={i.id} value={i.id}>{i.name}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Statut
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">Tous</option>
-          <option value="EN_COURS">En cours</option>
-          <option value="CLOTURE">Clôturé</option>
-          <option value="ANNULE">Annulé</option>
-        </select>
-      </label>
-    </TableFiltersBar>
+    <div className="list-panel-filters">
+      <TableFiltersBar
+        search={filters.search}
+        onSearchChange={filters.setSearch}
+        dateFrom={filters.dateFrom}
+        onDateFromChange={filters.setDateFrom}
+        dateTo={filters.dateTo}
+        onDateToChange={filters.setDateTo}
+        searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
+        onReset={() => { filters.reset(); setStatusFilter("EN_COURS"); setFamilyFilter(""); setIntervenantFilter(""); }}
+      >
+        <label>
+          Famille
+          <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
+            <option value="">Toutes</option>
+            {familyOptions.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Prestataire
+          <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
+            <option value="">Tous</option>
+            {references.intervenants.map((i) => (
+              <option key={i.id} value={i.id}>{i.name}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Statut
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="EN_COURS">En cours</option>
+            <option value="">Tous</option>
+            <option value="CLOTURE">Clôturé</option>
+            <option value="ANNULE">Annulé</option>
+          </select>
+        </label>
+      </TableFiltersBar>
+    </div>
   );
 
   const handleExportContractual = () => {
     if (!filteredContractualListEntries.length) {
-      onToast?.("Aucune donnée à exporter avec les filtres actifs.");
+      onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
       exportRondeToExcel(filteredContractualListEntries, "Ronde contractuelle");
       onToast?.(`${filteredContractualListEntries.length} ligne(s) exportée(s) en Excel.`);
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
   };
 
   const handleExportExceptional = () => {
     if (!filteredEntries.length) {
-      onToast?.("Aucune donnée à exporter avec les filtres actifs.");
+      onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
       exportRondeToExcel(filteredEntries, "Ronde exceptionnelle");
       onToast?.(`${filteredEntries.length} ligne(s) exportée(s) en Excel.`);
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
   };
 
@@ -457,7 +460,7 @@ export function RondePage({
       await exportRondeEntryToWord(entry, { profiles: references.plannedProfiles });
       onToast?.("Document Word exporté.");
     } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Word impossible.");
+      onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
     }
   };
 
@@ -479,41 +482,97 @@ export function RondePage({
     window.localStorage.setItem(RONDE_DISPLAY_MODE_STORAGE_KEY, JSON.stringify(displayModeByService));
   }, [displayModeByService]);
 
-  return (
-    <>
-      <section className="panel main-log-stats">
-        <div className="stat-card">
-          <span>Total</span>
-          <strong>{ronde.stats.total}</strong>
-        </div>
-        <div className="stat-card">
-          <span>En cours</span>
-          <strong>{ronde.stats.inProgress}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Clôturées</span>
-          <strong>{ronde.stats.closed}</strong>
-        </div>
-        <div className="stat-card">
-          <span>Annulées</span>
-          <strong>{ronde.stats.canceled}</strong>
-        </div>
-      </section>
+  const activeServiceView = listView === "urgence" ? "urgence" : "planifie";
+  const activeDisplayMode = displayModeByService[activeServiceView];
 
-      <div className="tabs">
-        <button type="button" className={listView === "planifie" ? "tab active" : "tab"} onClick={() => setListView("planifie")}>
-          Ronde contractuelle
-          {plannedTodayCount > 0 && <span className="gard-tab-badge">{plannedTodayCount}</span>}
-        </button>
-        <button type="button" className={listView === "urgence" ? "tab active" : "tab"} onClick={() => setListView("urgence")}>
-          Ronde exceptionnelle
-        </button>
-        {onUpsertRondePlannedProfile ? (
-          <button type="button" className={listView === "gestion" ? "tab active" : "tab"} onClick={() => { setListView("gestion"); setOpenProfileRequest(null); }}>
-            Programmations
+  const openRequestModal = (origin: RequestOrigin) => {
+    setRequestFixedOrigin(origin);
+    setRequestInitial(null);
+    setRequestPlanningReplay(null);
+    setLinkedDemandAnchorId(null);
+    setRequestModalOpen(true);
+  };
+
+  const openContractualRow = (entry: RondeEntry) => {
+    if (entry.id.startsWith("virtual-planned-")) {
+      if (!entry.siteId || !entry.plannedProfileId || !entry.plannedRoundKind || !entry.plannedSlotKey) {
+        onToast?.("Créneau planifié incomplet, ouverture impossible.", "warning");
+        return;
+      }
+      setCreatePreset({
+        source: "PLANIFIE",
+        requestDate: entry.requestDate,
+        siteId: entry.siteId,
+        intervenantId: entry.intervenantId ?? null,
+        plannedProfileId: entry.plannedProfileId,
+        plannedRoundKind: entry.plannedRoundKind,
+        plannedSlotKey: entry.plannedSlotKey,
+        planningHint: entry.horairesDemandeObs,
+        motifTypeId: entry.motifTypeId
+      });
+      setModalMode("create");
+      setActiveEntry(null);
+      setModalOpen(true);
+      return;
+    }
+    setCreatePreset(null);
+    setActiveEntry(entry);
+    setModalMode("edit");
+    setModalOpen(true);
+  };
+
+  const serviceTabActions =
+    listView === "gestion" ? undefined : (
+      <div className="main-courante-table-toolbar tabs-bar__toolbar">
+        {activeDisplayMode === "list" ? (
+          <button
+            type="button"
+            className="btn-light"
+            title="Exporter Excel (filtres actifs)"
+            aria-label="Exporter données (filtres actifs)"
+            onClick={listView === "planifie" ? handleExportContractual : handleExportExceptional}
+          >
+            Export données
           </button>
         ) : null}
+        <div className="row-actions">
+          <ToggleSwitch
+            checked={activeDisplayMode === "day"}
+            onChange={(checked) =>
+              setDisplayModeByService((prev) => ({
+                ...prev,
+                [activeServiceView]: checked ? "day" : "list"
+              }))
+            }
+            label={activeDisplayMode === "day" ? "Affichage jour" : "Affichage liste"}
+            labelFirst
+          />
+        </div>
+        <button
+          type="button"
+          className="mc-btn-primary"
+          onClick={() => openRequestModal(listView === "planifie" ? "CONTRAT" : "APPEL_CLIENT")}
+        >
+          <Plus size={16} aria-hidden />
+          {listView === "planifie" ? "Planifier une ronde" : "Nouvelle ronde"}
+        </button>
       </div>
+    );
+
+  return (
+    <>
+      <RondePageTabsBar
+        listView={listView}
+        onListViewChange={setListView}
+        todayContractualCount={todayRondeBadgeCounts.contractual}
+        todayExceptionalCount={todayRondeBadgeCounts.exceptional}
+        showProgrammations={Boolean(onUpsertRondePlannedProfile)}
+        onOpenProgrammations={() => {
+          setListView("gestion");
+          setOpenProfileRequest(null);
+        }}
+        actions={serviceTabActions}
+      />
 
       {listView === "gestion" && onUpsertRondePlannedProfile ? (
         <RondeProfilesManageTab
@@ -527,6 +586,8 @@ export function RondePage({
           requesterRole={requesterRole}
           onUpsertRondePlannedProfile={onUpsertRondePlannedProfile}
           onDeleteRondePlannedProfile={onDeleteRondePlannedProfile}
+          onRequestRondePlannedProfileCancellation={onRequestRondePlannedProfileCancellation}
+          onReviewRondePlannedProfileCancellationRequest={onReviewRondePlannedProfileCancellationRequest}
           onSetRondePlannedProfilePlanningEnd={onSetRondePlannedProfilePlanningEnd}
           onNotify={onToast}
           openProfileRequest={openProfileRequest}
@@ -534,237 +595,105 @@ export function RondePage({
       ) : null}
 
       {listView === "planifie" ? (
-        <>
-          <section className="panel">
-            <div className="main-courante-table-toolbar" style={{ justifyContent: "flex-end", gap: 8 }}>
-              <div className="row-actions" style={{ display: "inline-flex" }}>
-                <button
-                  type="button"
-                  className="btn-light"
-                  title="Exporter Excel (filtres actifs)"
-                  aria-label="Exporter données (filtres actifs)"
-                  onClick={handleExportContractual}
-                  disabled={displayModeByService.planifie !== "list"}
-                >
-                  Export données
-                </button>
-              </div>
-              <div className="row-actions" style={{ display: "inline-flex" }}>
-                <ToggleSwitch
-                  checked={displayModeByService.planifie === "day"}
-                  onChange={(checked) => setDisplayModeByService((prev) => ({ ...prev, planifie: checked ? "day" : "list" }))}
-                  label={displayModeByService.planifie === "day" ? "Affichage jour" : "Affichage liste"}
-                  labelFirst
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setRequestFixedOrigin("CONTRAT");
-                  setRequestInitial(null);
-                  setRequestPlanningReplay(null);
-                  setLinkedDemandAnchorId(null);
-                  setRequestModalOpen(true);
-                }}
-              >
-                <Plus size={16} aria-hidden style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
-                Planifier une ronde
-              </button>
-            </div>
-            {displayModeByService.planifie === "list" ? sharedListFiltersBar : null}
-          </section>
+        <section className="panel main-courante-table-panel">
+          {displayModeByService.planifie === "list" ? sharedListFiltersBar : null}
+          {displayModeByService.planifie === "day" ? (
+            <RondePlannedDaySection
+              entries={ronde.entries}
+              profiles={references.plannedProfiles}
+              intervenants={references.intervenants}
+              rondeMotifs={references.rondeMotifs}
+              holidays={references.holidays}
+              onNotify={onToast}
+              onOpenCreatePlanned={(slot, dayIso) => {
+                setCreatePreset({
+                  source: "PLANIFIE",
+                  requestDate: dayIso,
+                  siteId: slot.siteId,
+                  intervenantId: slot.defaultIntervenantId ?? null,
+                  plannedProfileId: slot.profileId,
+                  plannedRoundKind: slot.roundKind,
+                  plannedSlotKey: slot.slotKey,
+                  planningHint: slot.planningHint,
+                  motifTypeId: slot.motifTypeId
+                });
+                setModalMode("create");
+                setActiveEntry(null);
+                setModalOpen(true);
+              }}
+              onOpenEntry={(entry) => {
+                setCreatePreset(null);
+                setActiveEntry(entry);
+                setModalMode("edit");
+                setModalOpen(true);
+              }}
+            />
+          ) : (
+            <RondeTable
+              entries={filteredContractualListEntries}
+              onNotify={onToast}
+              onExportWord={handleExportRondeWord}
+              onOpen={openContractualRow}
+              onFollowUp={openContractualRow}
+            />
+          )}
+        </section>
+      ) : null}
 
-          <section className="panel main-courante-table-panel">
-            {displayModeByService.planifie === "day" ? (
-              <RondePlannedDaySection
-                entries={ronde.entries}
-                profiles={references.plannedProfiles}
-                intervenants={references.intervenants}
-                rondeMotifs={references.rondeMotifs}
-                holidays={references.holidays}
-                onNotify={onToast}
-                onOpenCreatePlanned={(slot, dayIso) => {
-                  setCreatePreset({
-                    source: "PLANIFIE",
-                    requestDate: dayIso,
-                    siteId: slot.siteId,
-                    intervenantId: slot.defaultIntervenantId ?? null,
-                    plannedProfileId: slot.profileId,
-                    plannedRoundKind: slot.roundKind,
-                    plannedSlotKey: slot.slotKey,
-                    planningHint: slot.planningHint,
-                    motifTypeId: slot.motifTypeId
-                  });
-                  setModalMode("create");
-                  setActiveEntry(null);
-                  setModalOpen(true);
-                }}
-                onOpenEntry={(entry) => {
-                  setCreatePreset(null);
-                  setActiveEntry(entry);
-                  setModalMode("edit");
-                  setModalOpen(true);
-                }}
-              />
-            ) : (
+      {listView === "urgence" ? (
+        <section className="panel main-courante-table-panel">
+          {references.error ? <p className="error">{references.error}</p> : null}
+          {displayModeByService.urgence === "list" ? sharedListFiltersBar : null}
+          {ronde.loading ? <p className="muted">Chargement des rondes…</p> : null}
+          {displayModeByService.urgence === "list" ? (
+            <>
               <RondeTable
-                entries={filteredContractualListEntries}
+                entries={pagedEntries}
                 onNotify={onToast}
                 onExportWord={handleExportRondeWord}
                 onOpen={(entry) => {
-                  if (entry.id.startsWith("virtual-planned-")) {
-                    if (!entry.siteId || !entry.plannedProfileId || !entry.plannedRoundKind || !entry.plannedSlotKey) {
-                      onToast?.("Créneau planifié incomplet, ouverture impossible.");
-                      return;
-                    }
-                    setCreatePreset({
-                      source: "PLANIFIE",
-                      requestDate: entry.requestDate,
-                      siteId: entry.siteId,
-                      intervenantId: entry.intervenantId ?? null,
-                      plannedProfileId: entry.plannedProfileId,
-                      plannedRoundKind: entry.plannedRoundKind,
-                      plannedSlotKey: entry.plannedSlotKey,
-                      planningHint: entry.horairesDemandeObs,
-                      motifTypeId: entry.motifTypeId
-                    });
-                    setModalMode("create");
-                    setActiveEntry(null);
-                    setModalOpen(true);
-                    return;
-                  }
                   setCreatePreset(null);
                   setActiveEntry(entry);
                   setModalMode("edit");
                   setModalOpen(true);
                 }}
                 onFollowUp={(entry) => {
-                  if (entry.id.startsWith("virtual-planned-")) {
-                    if (!entry.siteId || !entry.plannedProfileId || !entry.plannedRoundKind || !entry.plannedSlotKey) {
-                      onToast?.("Créneau planifié incomplet, ouverture impossible.");
-                      return;
-                    }
-                    setCreatePreset({
-                      source: "PLANIFIE",
-                      requestDate: entry.requestDate,
-                      siteId: entry.siteId,
-                      intervenantId: entry.intervenantId ?? null,
-                      plannedProfileId: entry.plannedProfileId,
-                      plannedRoundKind: entry.plannedRoundKind,
-                      plannedSlotKey: entry.plannedSlotKey,
-                      planningHint: entry.horairesDemandeObs,
-                      motifTypeId: entry.motifTypeId
-                    });
-                    setModalMode("create");
-                    setActiveEntry(null);
-                    setModalOpen(true);
-                    return;
-                  }
                   setCreatePreset(null);
                   setActiveEntry(entry);
                   setModalMode("edit");
                   setModalOpen(true);
                 }}
               />
-            )}
-          </section>
-        </>
-      ) : null}
-
-      {listView === "urgence" ? (
-      <>
-      <section className="panel">
-        {references.error ? <p className="error">{references.error}</p> : null}
-        <div className="main-courante-table-toolbar" style={{ justifyContent: "flex-end", gap: 8 }}>
-          <div className="row-actions" style={{ display: "inline-flex" }}>
-            <button
-              type="button"
-              className="btn-light"
-              title="Exporter Excel (filtres actifs)"
-              aria-label="Exporter données (filtres actifs)"
-              onClick={handleExportExceptional}
-              disabled={displayModeByService.urgence !== "list"}
-            >
-              Export données
-            </button>
-          </div>
-          <div className="row-actions" style={{ display: "inline-flex" }}>
-            <ToggleSwitch
-              checked={displayModeByService.urgence === "day"}
-              onChange={(checked) => setDisplayModeByService((prev) => ({ ...prev, urgence: checked ? "day" : "list" }))}
-              label={displayModeByService.urgence === "day" ? "Affichage jour" : "Affichage liste"}
-              labelFirst
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setRequestFixedOrigin("APPEL_CLIENT");
-              setRequestInitial(null);
-              setRequestPlanningReplay(null);
-              setLinkedDemandAnchorId(null);
-              setRequestModalOpen(true);
-            }}
-          >
-            <Plus size={16} aria-hidden style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
-            Nouvelle ronde
-          </button>
-        </div>
-        {displayModeByService.urgence === "list" ? sharedListFiltersBar : null}
-      </section>
-
-      <section className="panel main-courante-table-panel">
-        {ronde.loading ? <p className="muted">Chargement des rondes…</p> : null}
-        {displayModeByService.urgence === "list" ? (
-          <>
-            <RondeTable
-              entries={pagedEntries}
+              <TablePaginationBar
+                currentPage={filters.currentPage}
+                totalPages={totalPages}
+                totalItems={filteredEntries.length}
+                pageSize={filters.pageSize}
+                onPageChange={filters.setCurrentPage}
+                onPageSizeChange={filters.setPageSize}
+              />
+            </>
+          ) : (
+            <RondePlannedDaySection
+              mode="entries"
+              entries={filteredEntries}
+              profiles={references.plannedProfiles}
+              intervenants={references.intervenants}
+              rondeMotifs={references.rondeMotifs}
+              holidays={references.holidays}
               onNotify={onToast}
-              onExportWord={handleExportRondeWord}
-              onOpen={(entry) => {
-                setCreatePreset(null);
-                setActiveEntry(entry);
-                setModalMode("edit");
-                setModalOpen(true);
+              onOpenCreatePlanned={() => {
+                // Non utilisé en mode "entries"
               }}
-              onFollowUp={(entry) => {
+              onOpenEntry={(entry) => {
                 setCreatePreset(null);
                 setActiveEntry(entry);
                 setModalMode("edit");
                 setModalOpen(true);
               }}
             />
-            <TablePaginationBar
-              currentPage={filters.currentPage}
-              totalPages={totalPages}
-              totalItems={filteredEntries.length}
-              pageSize={filters.pageSize}
-              onPageChange={filters.setCurrentPage}
-              onPageSizeChange={filters.setPageSize}
-            />
-          </>
-        ) : (
-          <RondePlannedDaySection
-            mode="entries"
-            entries={filteredEntries}
-            profiles={references.plannedProfiles}
-            intervenants={references.intervenants}
-            rondeMotifs={references.rondeMotifs}
-            holidays={references.holidays}
-            onNotify={onToast}
-            onOpenCreatePlanned={() => {
-              // Non utilisé en mode "entries"
-            }}
-            onOpenEntry={(entry) => {
-              setCreatePreset(null);
-              setActiveEntry(entry);
-              setModalMode("edit");
-              setModalOpen(true);
-            }}
-          />
-        )}
-      </section>
-      </>
+          )}
+        </section>
       ) : null}
 
       <RondeEntryModal
@@ -859,7 +788,7 @@ export function RondePage({
         onSaveLinkedBatch={(payload) => ronde.updateBatchSharedFields(payload)}
         bulkCancelLinkedBatch={ronde.bulkCancelBatch}
         bulkDeleteLinkedBatch={
-          ronde.bulkDeleteBatch
+          requesterRole === "RESPONSABLE" || requesterRole === "DEV" ? ronde.bulkDeleteBatch : undefined
         }
         onOpenLinkedBatchRonde={(e) => {
           setRequestModalOpen(false);
@@ -873,7 +802,7 @@ export function RondePage({
         onNavigateBackToAnchorRonde={linkedDemandAnchorId ? () => {
           const anchor = ronde.entries.find((e) => e.id === linkedDemandAnchorId);
           if (!anchor) {
-            onToast?.("Rapport de ronde d'origine introuvable.");
+            onToast?.("Rapport de ronde d'origine introuvable.", "error");
             return;
           }
           setRequestModalOpen(false);
