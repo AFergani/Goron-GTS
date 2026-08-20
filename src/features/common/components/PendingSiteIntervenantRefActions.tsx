@@ -24,7 +24,10 @@ type PendingSiteIntervenantRefActionsProps = {
   onTogglePendingIntervenant?: () => void;
   pendingSiteForm: ReactNode;
   pendingIntervenantForm?: ReactNode;
+  siteButtonLabel?: string;
   intervenantButtonLabel?: string;
+  showSiteAction?: boolean;
+  showIntervenantAction?: boolean;
 };
 
 /**
@@ -40,30 +43,38 @@ export function PendingSiteIntervenantRefActions({
   onTogglePendingIntervenant,
   pendingSiteForm,
   pendingIntervenantForm,
-  intervenantButtonLabel = "Intervenant introuvable"
+  siteButtonLabel = "À créer ?",
+  intervenantButtonLabel = "À créer ?",
+  showSiteAction,
+  showIntervenantAction
 }: PendingSiteIntervenantRefActionsProps) {
-  const showSiteButton = !selectedSite;
-  const showIntervenantButton = withIntervenant && !selectedIntervenant;
+  const showSiteButton = showSiteAction ?? !selectedSite;
+  const showIntervenantButton = showIntervenantAction ?? (withIntervenant && !selectedIntervenant);
+
+  void showPendingSiteForm;
+  void showPendingIntervenantForm;
+  void pendingSiteForm;
+  void pendingIntervenantForm;
 
   return (
     <>
-      {showSiteButton || showIntervenantButton ? (
-        <div className="row-actions">
+      {(showSiteButton || showIntervenantButton) && (
+        <div className="pending-ref-inline-row">
           {showSiteButton ? (
             <button
               type="button"
-              className="btn-light"
+              className="btn-light pending-ref-inline-action"
               title={PENDING_SITE_CREATE_HINT}
               aria-label={PENDING_SITE_CREATE_HINT}
               onClick={onTogglePendingSite}
             >
-              Site introuvable
+              {siteButtonLabel}
             </button>
           ) : null}
           {showIntervenantButton && onTogglePendingIntervenant ? (
             <button
               type="button"
-              className="btn-light"
+              className="btn-light pending-ref-inline-action"
               title={PENDING_INTERVENANT_CREATE_HINT}
               aria-label={PENDING_INTERVENANT_CREATE_HINT}
               onClick={onTogglePendingIntervenant}
@@ -72,9 +83,7 @@ export function PendingSiteIntervenantRefActions({
             </button>
           ) : null}
         </div>
-      ) : null}
-      {showPendingSiteForm && !selectedSite ? pendingSiteForm : null}
-      {withIntervenant && showPendingIntervenantForm && !selectedIntervenant ? pendingIntervenantForm : null}
+      )}
     </>
   );
 }

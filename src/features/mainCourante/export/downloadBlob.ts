@@ -1,7 +1,7 @@
 /**
  * Téléchargement navigateur d’un Blob (export Word, Excel, etc.).
  *
- * Utilitaire partagé par main courante, interventions, rondes, gardiennage, Fransor.
+ * Utilitaire partagé par main courante, interventions et rondes.
  */
 
 export function downloadBlob(blob: Blob, filename: string): void {

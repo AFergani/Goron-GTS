@@ -1,7 +1,8 @@
 /**
- * CRUD et workflow Main courante (`main_courante_entries`) — PostgreSQL only.
+ * CRUD et workflow Main courante (`main_courante_entries`) — PostgreSQL seulement.
  *
- * Statuts : `EN_ATTENTE` → `EN_COURS` (à suivre) ou `CLOTURE`.
+ * Statuts : `EN_ATTENTE` → `EN_COURS` (suivi) ou `CLOTURE`.
+ * Aucune compatibilité SQLite ou historique local n'est conservée dans ce module.
  *
  * @module electron/store/domains/mainCourante/entries
  */

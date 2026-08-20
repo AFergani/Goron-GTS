@@ -1,15 +1,38 @@
 /**
- * Audit et rapport fichier des imports en masse (sites, intervenants).
+ * Audit et rapport fichier des imports en masse (sites, intervenants, types d'anomalie).
  *
- * Conforme aux règles projet : un log agrégé des réussites (`DATA_IMPORT_BATCH_RESULT`)
- * et un log agrégé des erreurs (`DATA_IMPORT_BATCH_ERROR_SUMMARY`) par fichier importé.
- * détail terrain optionnel dans `logs/Import_error.txt` à côté de la base.
+ * Un log agrégé des réussites (`DATA_IMPORT_BATCH_RESULT`) et, s'il y a des
+ * échecs, un log agrégé (`DATA_IMPORT_BATCH_ERROR_SUMMARY`). Détail terrain
+ * optionnel dans `{userData}/logs/Import_error.txt`.
  *
  * @module electron/store/domains/data/importAudit
  */
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { actorName } = require("../../core/actorName");
+
+const FILE_REPORT_TARGETS = new Set(["sites", "intervenants", "types"]);
+const SITE_CODE_KEYS = ["code site", "code", "code_site", "site code"];
+const SITE_NAME_KEYS = ["site", "nom site", "name", "nom", "site name"];
+const INTERVENANT_NAME_KEYS = [
+  "name",
+  "nom",
+  "intervenant",
+  "intervenants",
+  "societe",
+  "société",
+  "prestataire",
+  "entreprise",
+  "raison sociale",
+  "raison_sociale"
+];
+const TYPE_LABEL_KEYS = ["label", "libelle", "type", "type anomalie"];
+const TARGET_FILE_LABELS = {
+  sites: "sites",
+  intervenants: "intervenants",
+  types: "types d'anomalie"
+};
 
 /**
  * Normalise un en-tête de colonne Excel (accents, casse, séparateurs).
@@ -28,7 +51,7 @@ function normalizeImportRowHeaderKey(value) {
 }
 
 /**
- * @param {object|null|undefined} row - Ligne brute importée.
+ * @param {object|null|undefined} row
  * @returns {Map<string, unknown>}
  */
 function buildNormalizedImportRowMap(row) {
@@ -43,56 +66,45 @@ function buildNormalizedImportRowMap(row) {
 }
 
 /**
- * Lit la première valeur non vide parmi plusieurs libellés de colonnes possibles.
- *
- * @param {object} row
- * @param {string[]} keys - Alias d'en-têtes (ex. `code site`, `nom`).
+ * @param {Map<string, unknown>} normalized
+ * @param {string[]} keys
  * @returns {string}
  */
-function readImportRowText(row, keys) {
-  const normalized = buildNormalizedImportRowMap(row);
+function readFromNormalizedMap(normalized, keys) {
   for (const rawKey of keys) {
     const key = normalizeImportRowHeaderKey(rawKey);
     if (!key) continue;
-    const value = normalized.get(key);
-    const text = String(value ?? "").trim();
+    const text = String(normalized.get(key) ?? "").trim();
     if (text) return text;
   }
   return "";
 }
 
 /**
- * Résumé lisible du contenu d'une ligne refusée (pour audit UI et fichier erreur).
+ * Résumé lisible d'une ligne refusée (journal d'actions + Import_error.txt).
  *
- * @param {string} target - `sites`, `intervenants`, …
+ * @param {string} target - `sites`, `intervenants`, `types`.
  * @param {object|null|undefined} row
  * @returns {string}
  */
 function formatRejectedRowSummary(target, row) {
   const targetNorm = String(target || "").trim().toLowerCase();
-  const safeRow = row && typeof row === "object" ? row : {};
+  const map = buildNormalizedImportRowMap(row);
   if (targetNorm === "sites") {
-    const code = readImportRowText(safeRow, ["code site", "code", "code_site", "site code"]);
-    const name = readImportRowText(safeRow, ["site", "nom site", "name", "nom", "site name"]);
+    const code = readFromNormalizedMap(map, SITE_CODE_KEYS);
+    const name = readFromNormalizedMap(map, SITE_NAME_KEYS);
     return `code site: ${code || "N/A"} · nom site: ${name || "N/A"}`;
   }
   if (targetNorm === "intervenants") {
-    const name = readImportRowText(safeRow, [
-      "name",
-      "nom",
-      "intervenant",
-      "intervenants",
-      "societe",
-      "société",
-      "prestataire",
-      "entreprise",
-      "raison sociale",
-      "raison_sociale"
-    ]);
+    const name = readFromNormalizedMap(map, INTERVENANT_NAME_KEYS);
     return `nom / société: ${name || "N/A"}`;
   }
+  if (targetNorm === "types") {
+    const label = readFromNormalizedMap(map, TYPE_LABEL_KEYS);
+    return `libellé: ${label || "N/A"}`;
+  }
   const parts = [];
-  for (const [rawKey, rawValue] of Object.entries(safeRow)) {
+  for (const [rawKey, rawValue] of Object.entries(row && typeof row === "object" ? row : {})) {
     const text = String(rawValue ?? "").trim();
     if (!text) continue;
     parts.push(`${String(rawKey).trim()}: ${text}`);
@@ -102,41 +114,40 @@ function formatRejectedRowSummary(target, row) {
 }
 
 /**
- * @param {string} dbPath - Chemin de la base active.
+ * @param {string} [userDataPath]
  * @returns {{ logsDir: string, filePath: string }}
  */
-function resolveImportErrorLogPath(dbPath) {
-  const dbDir = String(dbPath || "").trim() ? path.dirname(dbPath) : path.join(process.cwd(), "data");
-  const logsDir = path.join(dbDir, "logs");
+function resolveImportErrorLogPath(userDataPath) {
+  const base = String(userDataPath || "").trim() || path.join(process.cwd(), "data");
+  const logsDir = path.join(base, "logs");
   return { logsDir, filePath: path.join(logsDir, "Import_error.txt") };
 }
 
 /**
- * Append un rapport lisible des lignes rejetées (sites ou intervenants uniquement).
+ * Append un rapport des lignes rejetées (sites, intervenants, types).
  *
  * @param {object} options
- * @param {string} options.dbPath
+ * @param {string} [options.userDataPath]
  * @param {string} options.actor
- * @param {string} options.target - `sites` ou `intervenants`.
+ * @param {string} options.target
  * @param {string} options.fileName
  * @param {Array<{ rowIndex?: number, message?: string, row?: object }>} options.errorEntries
  * @returns {void}
  */
-function appendImportErrorFile({ dbPath, actor, target, fileName, errorEntries }) {
+function appendImportErrorFile({ userDataPath, actor, target, fileName, errorEntries }) {
   const rows = Array.isArray(errorEntries) ? errorEntries : [];
   if (!rows.length) return;
 
   const targetNorm = String(target || "").trim().toLowerCase();
-  if (targetNorm !== "sites" && targetNorm !== "intervenants") return;
+  if (!FILE_REPORT_TARGETS.has(targetNorm)) return;
 
-  const lines = [];
-  const now = new Date().toISOString();
-  const cible = targetNorm === "sites" ? "sites" : "intervenants";
-
-  lines.push(`[${now}] Import ${cible} — lignes en échec`);
-  lines.push(`Utilisateur: ${String(actor || "unknown")}`);
-  lines.push(`Fichier: ${String(fileName || "inconnu")}`);
-  lines.push("Détails des lignes rejetées:");
+  const cible = TARGET_FILE_LABELS[targetNorm] || targetNorm;
+  const lines = [
+    `[${new Date().toLocaleString("fr-FR")}] Import ${cible} — lignes en échec`,
+    `Utilisateur: ${String(actor || "unknown")}`,
+    `Fichier: ${String(fileName || "inconnu")}`,
+    "Détails des lignes rejetées:"
+  ];
   for (const entry of rows) {
     const row = entry?.row && typeof entry.row === "object" ? entry.row : {};
     const reason = String(entry?.message || "Erreur inconnue").trim();
@@ -146,21 +157,20 @@ function appendImportErrorFile({ dbPath, actor, target, fileName, errorEntries }
   }
   lines.push("");
 
-  const { logsDir, filePath } = resolveImportErrorLogPath(dbPath);
+  const { logsDir, filePath } = resolveImportErrorLogPath(userDataPath);
   fs.mkdirSync(logsDir, { recursive: true });
   fs.appendFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
 }
 
 /**
- * Journalise le résultat d'un import en masse avec au plus 2 lignes d'audit par fichier:
- * - une ligne récap des réussites,
- * - une ligne récap des erreurs (si au moins une erreur).
+ * Journalise un import en masse : au plus 2 lignes d'audit par fichier
+ * (récap réussites + récap erreurs si `failed` > 0).
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
  * @param {string} payload.requesterRole
  * @param {string} payload.requesterUsername
- * @param {string} payload.target - Cible importée (`sites`, `intervenants`, …).
+ * @param {string} payload.target
  * @param {string} payload.fileName
  * @param {number} payload.total
  * @param {number} payload.success
@@ -180,23 +190,30 @@ function logBulkImportAudit(store, payload) {
     errorEntries = []
   } = payload;
   store.ensureDataManagerRole(requesterRole);
-  const actor = requesterUsername || "unknown";
+  const actor = actorName(requesterUsername);
+  const targetName = String(target || "");
+  const file = String(fileName || "");
+  const totalCount = Number(total) || 0;
+  const successCount = Number(success) || 0;
+  const failedCount = Number(failed) || 0;
+  const normalizedErrorEntries = Array.isArray(errorEntries) ? errorEntries : [];
+
   store.logAudit({
     actorUsername: actor,
     action: "DATA_IMPORT_BATCH_RESULT",
     status: "SUCCESS",
     details: {
-      target: String(target || ""),
-      fileName: String(fileName || ""),
-      total: Number(total) || 0,
-      success: Number(success) || 0,
-      failed: Number(failed) || 0
+      target: targetName,
+      fileName: file,
+      total: totalCount,
+      success: successCount,
+      failed: failedCount
     }
   });
-  const normalizedErrorEntries = Array.isArray(errorEntries) ? errorEntries : [];
-  if ((Number(failed) || 0) > 0) {
+
+  if (failedCount > 0) {
     const topErrors = normalizedErrorEntries.slice(0, 20).map((entry) => {
-      const rowSummary = formatRejectedRowSummary(target, entry?.row);
+      const rowSummary = formatRejectedRowSummary(targetName, entry?.row);
       return {
         rowIndex: Number(entry?.rowIndex) || 0,
         message: String(entry?.message || "Erreur inconnue"),
@@ -208,21 +225,22 @@ function logBulkImportAudit(store, payload) {
       action: "DATA_IMPORT_BATCH_ERROR_SUMMARY",
       status: "ERROR",
       details: {
-        target: String(target || ""),
-        fileName: String(fileName || ""),
-        total: Number(total) || 0,
-        failed: Number(failed) || 0,
+        target: targetName,
+        fileName: file,
+        total: totalCount,
+        failed: failedCount,
         errorCount: normalizedErrorEntries.length,
         topErrors
       }
     });
   }
+
   try {
     appendImportErrorFile({
-      dbPath: store.dbPath,
+      userDataPath: store.userDataPath,
       actor,
-      target,
-      fileName,
+      target: targetName,
+      fileName: file,
       errorEntries: normalizedErrorEntries
     });
   } catch (error) {
@@ -231,8 +249,8 @@ function logBulkImportAudit(store, payload) {
       code: "DATA_IMPORT_ERROR_FILE_WRITE_FAILED",
       messageFr: "Impossible d'écrire le rapport d'erreurs d'import.",
       details: {
-        target: String(target || ""),
-        fileName: String(fileName || ""),
+        target: targetName,
+        fileName: file,
         reason: error instanceof Error ? error.message : String(error || "Erreur inconnue")
       }
     });

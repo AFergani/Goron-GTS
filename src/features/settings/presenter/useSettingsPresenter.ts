@@ -11,8 +11,7 @@ import type { ConfirmDialogState, CreateUserFormState, DataTab, DocumentsTab, Se
 import { getDefaultPageAccessByRole } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { AnomalyTypeRef, AuditLog, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef, User } from "../../../types";
-import type { PendingInterventionSite } from "../../intervention/model/intervention.types";
-import type { PendingInterventionIntervenant } from "../../intervention/model/intervention.types";
+import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
 import type {
   RondePlannedProfilePayload,
@@ -61,13 +60,13 @@ export function useSettingsPresenter({
   onCredentialsReady,
   onSessionUserPatch
 }: {
-  session: Session;
+  session: Session | null;
   onError: NotifyToast;
   onInfo: NotifyToast;
   onToast: NotifyToast;
   onCredentialsReady: (value: { username: string; temporaryPassword: string } | null) => void;
   /** Met à jour le badge sidebar si l'utilisateur connecté modifie son propre nom affiché. */
-  onSessionUserPatch?: (patch: Partial<Session["user"]>) => void;
+  onSessionUserPatch?: (patch: Partial<User>) => void;
 }) {
   const [users, setUsers] = useState<User[]>([]);
   const [activeUsernames, setActiveUsernames] = useState<string[]>([]);
@@ -85,8 +84,8 @@ export function useSettingsPresenter({
   const [rondeMotifTypes, setRondeMotifTypes] = useState<RondeMotifTypeRef[]>([]);
   const [rondePlannedProfiles, setRondePlannedProfiles] = useState<RondePlannedProfileRef[]>([]);
   const [fransorResponsables, setFransorResponsables] = useState<FransorResponsableRef[]>([]);
-  const [interventionPendingSites, setInterventionPendingSites] = useState<PendingInterventionSite[]>([]);
-  const [interventionPendingIntervenants, setInterventionPendingIntervenants] = useState<PendingInterventionIntervenant[]>([]);
+  const [pendingSites, setPendingSites] = useState<PendingSite[]>([]);
+  const [pendingIntervenants, setPendingIntervenants] = useState<PendingIntervenant[]>([]);
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("operators");
   const [activeDataTab, setActiveDataTab] = useState<DataTab>("sites");
   const [activeDocumentsTab, setActiveDocumentsTab] = useState<DocumentsTab>("templates");
@@ -476,13 +475,13 @@ export function useSettingsPresenter({
       loadRondePlannedProfiles(),
       loadFransorResponsables(),
       gtsApiClient
-        .listPendingInterventionSites({ requesterRole: session.user.role })
-        .then((rows) => setInterventionPendingSites(rows))
-        .catch(() => setInterventionPendingSites([])),
+        .listPendingSites({ requesterRole: session.user.role })
+        .then((rows) => setPendingSites(rows))
+        .catch(() => setPendingSites([])),
       gtsApiClient
-        .listPendingInterventionIntervenants({ requesterRole: session.user.role })
-        .then((rows) => setInterventionPendingIntervenants(rows))
-        .catch(() => setInterventionPendingIntervenants([]))
+        .listPendingIntervenants({ requesterRole: session.user.role })
+        .then((rows) => setPendingIntervenants(rows))
+        .catch(() => setPendingIntervenants([]))
     ]);
   }, [loadAnomalyTypes, loadFransorResponsables, loadHolidays, loadIntervenants, loadRondeMotifTypes, loadRondePlannedProfiles, loadSites, session]);
 
@@ -490,13 +489,13 @@ export function useSettingsPresenter({
     if (!session) return;
     const loadPendingCounts = () => {
       void gtsApiClient
-        .listPendingInterventionSites({ requesterRole: session.user.role })
-        .then((rows) => setInterventionPendingSites(rows))
-        .catch(() => setInterventionPendingSites([]));
+        .listPendingSites({ requesterRole: session.user.role })
+        .then((rows) => setPendingSites(rows))
+        .catch(() => setPendingSites([]));
       void gtsApiClient
-        .listPendingInterventionIntervenants({ requesterRole: session.user.role })
-        .then((rows) => setInterventionPendingIntervenants(rows))
-        .catch(() => setInterventionPendingIntervenants([]));
+        .listPendingIntervenants({ requesterRole: session.user.role })
+        .then((rows) => setPendingIntervenants(rows))
+        .catch(() => setPendingIntervenants([]));
     };
     loadPendingCounts();
     const pendingTimer = setInterval(loadPendingCounts, 30000);
@@ -1138,16 +1137,16 @@ export function useSettingsPresenter({
       await loadFransorResponsables();
       return;
     }
-    if (target === "interventionPendingSites") {
+    if (target === "pendingSites") {
       if (!session) return;
-      const rows = await gtsApiClient.listPendingInterventionSites({ requesterRole: session.user.role });
-      setInterventionPendingSites(rows);
+      const rows = await gtsApiClient.listPendingSites({ requesterRole: session.user.role });
+      setPendingSites(rows);
       return;
     }
-    if (target === "interventionPendingIntervenants") {
+    if (target === "pendingIntervenants") {
       if (!session) return;
-      const rows = await gtsApiClient.listPendingInterventionIntervenants({ requesterRole: session.user.role });
-      setInterventionPendingIntervenants(rows);
+      const rows = await gtsApiClient.listPendingIntervenants({ requesterRole: session.user.role });
+      setPendingIntervenants(rows);
       return;
     }
     if (target === "rondeMotifs") {
@@ -1168,7 +1167,7 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
-      const result = await gtsApiClient.resolvePendingInterventionSite({
+      const result = await gtsApiClient.resolvePendingSite({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
@@ -1183,7 +1182,7 @@ export function useSettingsPresenter({
         ? `Site validé et propagé à ${totalPropagated} entrée(s) existante(s).`
         : "Site en attente validé et ajouté aux sites.";
       onToast(toastMsg);
-      await Promise.all([loadSites(), onRefreshImportedData("interventionPendingSites")]);
+      await Promise.all([loadSites(), onRefreshImportedData("pendingSites")]);
     } catch (err) {
       onError(extractUserFacingErrorMessage(err, "Erreur de validation du site en attente."));
     }
@@ -1193,7 +1192,7 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
-      const result = await gtsApiClient.resolvePendingInterventionIntervenant({
+      const result = await gtsApiClient.resolvePendingIntervenant({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
@@ -1207,7 +1206,7 @@ export function useSettingsPresenter({
         ? `Intervenant validé et propagé à ${totalPropagated} entrée(s) existante(s).`
         : "Intervenant en attente validé et ajouté aux intervenants.";
       onToast(toastMsg);
-      await Promise.all([loadIntervenants(), onRefreshImportedData("interventionPendingIntervenants")]);
+      await Promise.all([loadIntervenants(), onRefreshImportedData("pendingIntervenants")]);
     } catch (err) {
       onError(extractUserFacingErrorMessage(err, "Erreur de validation de l'intervenant en attente."));
     }
@@ -1216,14 +1215,14 @@ export function useSettingsPresenter({
   const onDeletePendingSiteSubmission = async (payload: { pendingId: string; reason: string }) => {
     if (!session) return;
     try {
-      await gtsApiClient.deletePendingInterventionSite({
+      await gtsApiClient.deletePendingSite({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
         reason: payload.reason
       });
       onToast("Soumission site en attente supprimée.");
-      await onRefreshImportedData("interventionPendingSites");
+      await onRefreshImportedData("pendingSites");
     } catch (err) {
       const message = extractUserFacingErrorMessage(err, "Erreur de suppression de la soumission site.");
       throw new Error(message);
@@ -1233,14 +1232,14 @@ export function useSettingsPresenter({
   const onDeletePendingIntervenantSubmission = async (payload: { pendingId: string; reason: string }) => {
     if (!session) return;
     try {
-      await gtsApiClient.deletePendingInterventionIntervenant({
+      await gtsApiClient.deletePendingIntervenant({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
         reason: payload.reason
       });
       onToast("Soumission intervenant en attente supprimée.");
-      await onRefreshImportedData("interventionPendingIntervenants");
+      await onRefreshImportedData("pendingIntervenants");
     } catch (err) {
       const message = extractUserFacingErrorMessage(err, "Erreur de suppression de la soumission intervenant.");
       throw new Error(message);
@@ -1440,8 +1439,8 @@ export function useSettingsPresenter({
     setRondeMotifTypes([]);
     setRondePlannedProfiles([]);
     setFransorResponsables([]);
-    setInterventionPendingSites([]);
-    setInterventionPendingIntervenants([]);
+    setPendingSites([]);
+    setPendingIntervenants([]);
     setShowCreateModal(false);
     resetUserForm();
     setUserModalMode("create");
@@ -1467,8 +1466,8 @@ export function useSettingsPresenter({
     rondeMotifTypes,
     rondePlannedProfiles,
     fransorResponsables,
-    interventionPendingSites,
-    interventionPendingIntervenants,
+    pendingSites,
+    pendingIntervenants,
     activeSettingsTab,
     setActiveSettingsTab,
     activeDataTab,

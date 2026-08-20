@@ -1,15 +1,18 @@
 /**
  * Référentiel des motifs de ronde (`data_ronde_motif_types`).
  *
- * Paramètres données et écrans rondes : libellé, couleur, précision libre obligatoire, tri.
- * Accès **PostgreSQL uniquement** via `store.getReferentialsPersistence()`.
- * Suppression refusée si le motif est référencé par des `ronde_entries` PostgreSQL.
- * Cache mémoire partagé avec les moteurs de planification.
+ * Paramètres et écrans rondes : libellé, couleur, précision libre, tri.
+ * Accès PostgreSQL via `store.getReferentialsPersistence()`.
+ * Suppression refusée si une ligne de profil planifié l'utilise encore
+ * (génération de rondes). Les fiches ronde déjà saisies gardent le libellé
+ * dans `motif_category` (même logique que les types d'anomalie main courante).
  *
  * @module electron/store/domains/data/rondeMotifTypes
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { actorName } = require("../../core/actorName");
+const { sqlFoldExpr } = require("../../core/textFold");
 const {
   SYSTEM_RONDE_MOTIF_COLOR,
   SYSTEM_RONDE_MOTIF_ID,
@@ -18,11 +21,12 @@ const {
 } = require("../../core/systemReferentials");
 
 /**
- * @param {string} value
- * @param {string} [fallback="#5c6bc0"]
+ * Normalise une couleur hexadécimale `#rrggbb`.
+ * @param {unknown} value
+ * @param {string} [fallback]
  * @returns {string}
  */
-function normalizeColorHex(value, fallback = "#5c6bc0") {
+function normalizeColorHex(value, fallback = SYSTEM_RONDE_MOTIF_COLOR) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
@@ -39,7 +43,7 @@ function mapRow(row) {
     id: row.id,
     label: row.label || "",
     requiresFreeText: Boolean(Number(row.requires_free_text)),
-    colorHex: row.color_hex || "#5c6bc0",
+    colorHex: normalizeColorHex(row.color_hex),
     sortOrder: row.sort_order == null ? 0 : Number(row.sort_order),
     legacyCode: row.legacy_code || null,
     createdAt: row.created_at,
@@ -48,27 +52,15 @@ function mapRow(row) {
 }
 
 /**
- * Garantit la présence du motif système « Voir Consigne ».
- * Réutilise une ligne existante au même libellé ; sinon insertion en tête de tri.
- *
- * @param {import('../../../userStore')} store
- * @returns {Promise<void>}
+ * @param {{ label?: unknown, requires_free_text?: unknown, color_hex?: unknown }} row
+ * @returns {{ label: string, requiresFreeText: boolean, colorHex: string }}
  */
-async function ensureSystemRondeMotifType(store) {
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) return;
-  const existing = await db.get(
-    "SELECT id FROM data_ronde_motif_types WHERE lower(trim(label)) = lower(?)",
-    [SYSTEM_RONDE_MOTIF_LABEL]
-  );
-  if (existing) return;
-  await db.run(
-    `INSERT INTO data_ronde_motif_types (id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at)
-     VALUES (?, ?, 0, ?, 0, NULL, ?)`,
-    [SYSTEM_RONDE_MOTIF_ID, SYSTEM_RONDE_MOTIF_LABEL, SYSTEM_RONDE_MOTIF_COLOR, new Date().toISOString()]
-  );
-  await refreshRondeMotifTypesCache(store);
+function toMotifSnapshot(row) {
+  return {
+    label: String(row.label || ""),
+    requiresFreeText: Boolean(Number(row.requires_free_text)),
+    colorHex: normalizeColorHex(row.color_hex)
+  };
 }
 
 /**
@@ -92,61 +84,26 @@ function requirePersistence(store) {
 }
 
 /**
- * Recharge le cache des motifs (id → motif mappé) pour le domaine rondes encore sync.
+ * Garantit la présence du motif système « Voir Consigne ».
+ * Réutilise une ligne existante au même libellé ; sinon insertion en tête de tri.
  *
  * @param {import('../../../userStore')} store
- * @returns {Promise<Map<string, object>>}
+ * @returns {Promise<void>}
  */
-async function refreshRondeMotifTypesCache(store) {
+async function ensureSystemRondeMotifType(store) {
   const db =
     typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) {
-    return store._rondeMotifTypesByIdCache instanceof Map ? store._rondeMotifTypesByIdCache : new Map();
-  }
-  const rows = await db.all(
-    `SELECT id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at
-     FROM data_ronde_motif_types
-     ORDER BY sort_order ASC, lower(label) ASC`,
-    []
+  if (!db || !db.isOpen()) return;
+  const existing = await db.get(
+    `SELECT id FROM data_ronde_motif_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
+    [SYSTEM_RONDE_MOTIF_LABEL]
   );
-  const map = new Map(rows.map((row) => [String(row.id), mapRow(row)]));
-  store._rondeMotifTypesByIdCache = map;
-  return map;
-}
-
-/**
- * Motif par id pour validation (cache mémoire hydraté depuis PostgreSQL).
- *
- * @param {import('../../../userStore')} store
- * @param {string} id
- * @returns {{ id: string, label: string, requiresFreeText: boolean }|null}
- */
-function getRondeMotifTypeForPlanning(store, id) {
-  const cleanId = String(id || "").trim();
-  if (!cleanId) return null;
-  if (store._rondeMotifTypesByIdCache instanceof Map) {
-    const cached = store._rondeMotifTypesByIdCache.get(cleanId);
-    if (cached) {
-      return {
-        id: cached.id,
-        label: cached.label,
-        requiresFreeText: Boolean(cached.requiresFreeText)
-      };
-    }
-  }
-  return null;
-}
-
-/**
- * Libellé motif pour affichage liste (cache PG).
- *
- * @param {import('../../../userStore')} store
- * @param {string|null|undefined} id
- * @returns {string}
- */
-function getRondeMotifLabelForPlanning(store, id) {
-  const motif = getRondeMotifTypeForPlanning(store, id);
-  return motif?.label || "";
+  if (existing) return;
+  await db.run(
+    `INSERT INTO data_ronde_motif_types (id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at)
+     VALUES (?, ?, 0, ?, 0, NULL, ?)`,
+    [SYSTEM_RONDE_MOTIF_ID, SYSTEM_RONDE_MOTIF_LABEL, SYSTEM_RONDE_MOTIF_COLOR, new Date().toISOString()]
+  );
 }
 
 /**
@@ -179,7 +136,7 @@ async function createRondeMotifType(store, { requesterRole, requesterUsername, l
     store.fail("data:rondeMotifs:create", "Libellé du motif obligatoire.", "DATA_RONDE_MOTIF_REQUIRED");
   }
   const dup = await db.get(
-    "SELECT id FROM data_ronde_motif_types WHERE lower(trim(label)) = lower(?)",
+    `SELECT id FROM data_ronde_motif_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
     [cleanLabel]
   );
   if (dup) {
@@ -196,16 +153,27 @@ async function createRondeMotifType(store, { requesterRole, requesterUsername, l
      VALUES (?, ?, ?, ?, ?, NULL, ?)`,
     [id, cleanLabel, req ? 1 : 0, color, sortOrder, now]
   );
-
-  store.logAudit({
-    actorUsername: requesterUsername || "unknown",
-    action: "DATA_RONDE_MOTIF_CREATE",
-    details: { id, label: cleanLabel, requiresFreeText: req }
+  const snapshot = { label: cleanLabel, requiresFreeText: req, colorHex: color };
+  await store.recordEntityChange({
+    entityType: "data_ronde_motif_types",
+    entityId: id,
+    changedBy: actorName(requesterUsername),
+    snapshot
   });
-
-  await refreshRondeMotifTypesCache(store);
-  const created = await db.get(`SELECT * FROM data_ronde_motif_types WHERE id = ?`, [id]);
-  return mapRow(created);
+  store.logAudit({
+    actorUsername: actorName(requesterUsername),
+    action: "DATA_RONDE_MOTIF_CREATE",
+    details: { id, ...snapshot }
+  });
+  return mapRow({
+    id,
+    label: cleanLabel,
+    requires_free_text: req ? 1 : 0,
+    color_hex: color,
+    sort_order: sortOrder,
+    legacy_code: null,
+    created_at: now
+  });
 }
 
 /**
@@ -221,7 +189,11 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
   if (!cleanId || !cleanLabel) {
     store.fail("data:rondeMotifs:update", "Données motif invalides.", "DATA_RONDE_MOTIF_REQUIRED");
   }
-  const existing = await db.get("SELECT * FROM data_ronde_motif_types WHERE id = ?", [cleanId]);
+  const existing = await db.get(
+    `SELECT id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at
+     FROM data_ronde_motif_types WHERE id = ?`,
+    [cleanId]
+  );
   if (!existing) {
     store.fail("data:rondeMotifs:update", "Motif introuvable.", "DATA_RONDE_MOTIF_NOT_FOUND");
   }
@@ -233,7 +205,7 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
     );
   }
   const dup = await db.get(
-    "SELECT id FROM data_ronde_motif_types WHERE lower(trim(label)) = lower(?) AND id <> ?",
+    `SELECT id FROM data_ronde_motif_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")} AND id <> ?`,
     [cleanLabel, cleanId]
   );
   if (dup) {
@@ -245,37 +217,34 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
     `UPDATE data_ronde_motif_types SET label = ?, requires_free_text = ?, color_hex = ? WHERE id = ?`,
     [cleanLabel, req ? 1 : 0, color, cleanId]
   );
-
+  const after = { label: cleanLabel, requiresFreeText: req, colorHex: color };
   const historyBefore = await store.getEntityChangeHistory("data_ronde_motif_types", cleanId, 3);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "DATA_RONDE_MOTIF_UPDATE",
     details: {
       id: cleanId,
-      before: {
-        label: String(existing.label || ""),
-        requiresFreeText: Boolean(Number(existing.requires_free_text)),
-        colorHex: String(existing.color_hex || "")
-      },
-      after: { label: cleanLabel, requiresFreeText: req, colorHex: color },
+      before: toMotifSnapshot(existing),
+      after,
       historyBefore
     }
   });
-
   await store.recordEntityChange({
     entityType: "data_ronde_motif_types",
     entityId: cleanId,
-    changedBy: requesterUsername || "unknown",
-    snapshot: { label: cleanLabel, requiresFreeText: req, colorHex: color }
+    changedBy: actorName(requesterUsername),
+    snapshot: after
   });
-
-  await refreshRondeMotifTypesCache(store);
-  const updated = await db.get(`SELECT * FROM data_ronde_motif_types WHERE id = ?`, [cleanId]);
-  return mapRow(updated);
+  return mapRow({
+    ...existing,
+    label: cleanLabel,
+    requires_free_text: req ? 1 : 0,
+    color_hex: color
+  });
 }
 
 /**
- * Suppression physique si aucune ronde PostgreSQL ne référence le motif.
+ * Suppression physique si aucun profil planifié ne référence encore le motif.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -284,12 +253,19 @@ async function updateRondeMotifType(store, { requesterRole, requesterUsername, i
 async function deleteRondeMotifType(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const db = requirePersistence(store);
+  const cleanId = String(id || "").trim();
   const cleanReason = String(reason || "").trim();
+  if (!cleanId) {
+    store.fail("data:rondeMotifs:delete", "Identifiant motif obligatoire.", "DATA_RONDE_MOTIF_NOT_FOUND");
+  }
   if (!cleanReason) {
     store.fail("data:rondeMotifs:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const cleanId = String(id || "").trim();
-  const existing = await db.get("SELECT * FROM data_ronde_motif_types WHERE id = ?", [cleanId]);
+  const existing = await db.get(
+    `SELECT id, label, requires_free_text, color_hex, sort_order, legacy_code, created_at
+     FROM data_ronde_motif_types WHERE id = ?`,
+    [cleanId]
+  );
   if (!existing) {
     store.fail("data:rondeMotifs:delete", "Motif introuvable.", "DATA_RONDE_MOTIF_NOT_FOUND");
   }
@@ -300,17 +276,20 @@ async function deleteRondeMotifType(store, { requesterRole, requesterUsername, i
       "DATA_RONDE_MOTIF_SYSTEM_PROTECTED"
     );
   }
-  const usage = await db.get("SELECT COUNT(*) AS count FROM ronde_entries WHERE motif_type_id = ?", [cleanId]);
+  const usage = await db.get(
+    "SELECT COUNT(*) AS count FROM data_ronde_planned_profile_lines WHERE motif_type_id = ?",
+    [cleanId]
+  );
   if (Number(usage?.count || 0) > 0) {
     store.fail(
       "data:rondeMotifs:delete",
-      "Impossible de supprimer : ce motif est utilisé par des rondes.",
+      "Impossible de supprimer : ce motif est encore utilisé par un profil de ronde planifiée.",
       "DATA_RONDE_MOTIF_IN_USE"
     );
   }
   await db.run("DELETE FROM data_ronde_motif_types WHERE id = ?", [cleanId]);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "DATA_RONDE_MOTIF_DELETE",
     details: {
       id: cleanId,
@@ -318,7 +297,6 @@ async function deleteRondeMotifType(store, { requesterRole, requesterUsername, i
       reason: cleanReason
     }
   });
-  await refreshRondeMotifTypesCache(store);
   return { success: true };
 }
 
@@ -327,8 +305,5 @@ module.exports = {
   createRondeMotifType,
   updateRondeMotifType,
   deleteRondeMotifType,
-  refreshRondeMotifTypesCache,
-  getRondeMotifTypeForPlanning,
-  getRondeMotifLabelForPlanning,
   ensureSystemRondeMotifType
 };

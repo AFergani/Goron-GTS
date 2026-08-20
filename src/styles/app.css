@@ -216,6 +216,93 @@
   flex-wrap: wrap;
 }
 
+.pending-ref-inline-row {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pending-ref-inline-action {
+  min-height: 2.5rem;
+  height: 2.5rem;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: end;
+}
+
+.pending-ref-inline-form-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.pending-ref-inline-form-layout--full {
+  grid-template-columns: 1fr;
+}
+
+.pending-ref-inline-form-column {
+  min-width: 0;
+}
+
+.pending-ref-inline-form-column--full {
+  width: 100%;
+}
+
+.pending-ref-inline-form-column .mc-form-grid,
+.pending-ref-inline-form-column .mc-form-grid-main,
+.pending-ref-inline-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  align-items: start;
+}
+
+.pending-ref-inline-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.pending-ref-inline-form-column .mc-field,
+.pending-ref-inline-grid .mc-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.pending-ref-inline-form-column .mc-field input,
+.pending-ref-inline-grid .mc-field input {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .pending-ref-inline-form-layout,
+  .pending-ref-inline-form-column .mc-form-grid,
+  .pending-ref-inline-form-column .mc-form-grid-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mc-field-with-inline-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mc-field-with-inline-action > *:first-child {
+  min-width: 0;
+}
+
 .modal-actions {
   justify-content: flex-start;
   width: 100%;
@@ -1555,13 +1642,22 @@ th {
 }
 
 .data-management-create-ref-form--anomaly-inline .data-type-color-field {
-  flex: 0 0 auto;
-  min-width: min(100%, 140px);
+  flex: 0 0 12rem;
+  width: 12rem;
+  min-width: 12rem;
 }
 
 .data-management-create-ref-form--anomaly-inline .data-management-create-ref-form__label--date {
-  flex: 0 0 auto;
-  min-width: 11.5rem;
+  flex: 0 0 12rem;
+  width: 12rem;
+  min-width: 12rem;
+}
+
+.data-management-create-ref-form--anomaly-inline .data-management-create-ref-form__date-input {
+  width: 9.5rem !important;
+  min-width: 9.5rem !important;
+  max-width: 9.5rem !important;
+  flex: 0 0 9.5rem;
 }
 
 .data-management-create-ref-form--anomaly-inline .data-management-create-ref-form__label--grow {
@@ -2691,6 +2787,7 @@ th {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px 16px;
+  align-items: start;
 }
 
 /* Paire liste déroulante + zone de texte : ne pas étirer le select sur la hauteur du textarea */
@@ -3489,12 +3586,53 @@ th {
   width: 100%;
 }
 
-.ronde-planned-profile-modal__date-range-row {
+.ronde-planned-profile-modal__schedule-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(132px, 0.8fr) minmax(132px, 0.7fr) minmax(210px, 1.6fr) auto;
+  gap: 10px;
   align-items: end;
   margin-bottom: 12px;
+}
+
+.ronde-planned-profile-modal__schedule-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ronde-planned-profile-modal__schedule-field span,
+.ronde-planned-profile-modal__schedule-field__label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.ronde-planned-profile-modal__schedule-field--motif {
+  min-width: 0;
+}
+
+.ronde-planned-profile-modal__schedule-field--motif select,
+.ronde-planned-profile-modal__schedule-field--origin select {
+  width: auto;
+  min-width: 9.5rem;
+  max-width: 100%;
+}
+
+.ronde-planned-profile-modal__schedule-field--origin {
+  justify-self: start;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.ronde-planned-profile-modal__schedule-field--origin .ronde-origin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  min-height: 2.5rem;
+  height: 2.5rem;
+  padding: 0 12px;
+  box-sizing: border-box;
+  margin-top: 0;
 }
 
 .ronde-planned-profile-modal__validity-inline {
@@ -4593,6 +4731,47 @@ fieldset.ronde-planned-weekdays {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.gardiennage-planning-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.95fr) minmax(0, 2.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.gardiennage-planning-layout__mode,
+.gardiennage-planning-layout__validity {
+  min-width: 0;
+}
+
+.gardiennage-planning-layout__mode .mc-field {
+  margin: 0;
+}
+
+.gardiennage-planning-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gardiennage-planning-mode .gardiennage-validity-lead {
+  font-size: 0.82em;
+  font-weight: 600;
+  line-height: 1.25;
+  min-height: 1.25em;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+}
+
+.gardiennage-planning-mode select {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Validité planification : libellés au-dessus des champs, alignés entre eux */

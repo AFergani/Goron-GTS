@@ -16,8 +16,8 @@ export type DataTab =
   | "holidays"
   | "documentTemplates"
   | "fransorResponsables"
-  | "interventionPendingSites"
-  | "interventionPendingIntervenants";
+  | "pendingSites"
+  | "pendingIntervenants";
 
 export type CreateUserFormState = {
   username: string;

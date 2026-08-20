@@ -282,7 +282,7 @@ function exceptionalPlanningSlotKey(requestDate, requestedTime) {
   return `${String(requestDate || "").trim()}|${String(requestedTime || "").trim()}`;
 }
 
-/** Extrait depuis horaires_demande_obs (formats issus création automatique ou fallback hh:mm dans le texte). */
+/** Extrait depuis `horaires_demande_obs` (formats issus de la création automatique ou d'un parsing heuristique hh:mm dans le texte). */
 function extractSlotKeyFromRondeObservation(requestDateIso, obs) {
   const o = String(obs || "");
   const m = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/.exec(o);

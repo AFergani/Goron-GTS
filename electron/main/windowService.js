@@ -1,5 +1,6 @@
 /**
- * Création et comportement de la fenêtre principale Electron (géométrie persistée, CSP prod, DevTools, tray).
+ * Création et comportement de la fenêtre principale Electron (géométrie persistée, CSP prod, DevTools).
+ * Barre de titre OS : `Goron-GTS vX.Y.Z` (version `package.json`, sans toucher à l'UI interne).
  * Gère le chargement Vite en dev ou `dist/index.html` en production, le menu contextuel et la fermeture
  * (croix → événement renderer `app:requestExitChoice` sauf quit explicite).
  *
@@ -18,11 +19,11 @@ const { resolveAppIconPath } = require("./resolveAppIconPath");
  * @param {boolean} deps.isDev - Charge `localhost:${DEV_PORT||5173}` et ouvre DevTools au démarrage si vrai.
  * @param {() => object} deps.readAppConfig - Lit `windowBounds` / `windowMaximized`.
  * @param {(config: object) => void} deps.writeAppConfig - Persiste géométrie sur move/resize/close.
- * @param {() => void} deps.setupTrayIfNeeded - Initialise le tray après création fenêtre (`trayService`).
  * @param {() => boolean} deps.getIsDevToolsAllowed - `true` en dev ou si switch admin DevTools actif.
- * @param {() => boolean} deps.getIsAppQuitting - Distingue fermeture réelle (tray Quitter) de la croix.
+ * @param {() => boolean} deps.getIsAppQuitting - Distingue fermeture réelle (IPC Quitter) de la croix.
  * @param {(win: import('electron').BrowserWindow) => void} deps.setMainWindow - Enregistre la référence globale `mainWindow`.
  * @param {string} deps.baseDirname - Répertoire `electron/` (`preload.js`, icône, dist).
+ * @param {import('electron').App} deps.app - Version lue via `app.getVersion()` (package.json).
  * @returns {{ createWindow: () => import('electron').BrowserWindow }}
  */
 function createWindowService(deps) {
@@ -33,12 +34,24 @@ function createWindowService(deps) {
     isDev,
     readAppConfig,
     writeAppConfig,
-    setupTrayIfNeeded,
     getIsDevToolsAllowed,
     getIsAppQuitting,
     setMainWindow,
-    baseDirname
+    baseDirname,
+    app
   } = deps;
+
+  /**
+   * Libellé de la barre de titre Windows uniquement (`Goron-GTS vX.Y.Z`).
+   * Ne s'applique pas à la sidebar, au login ni aux exports.
+   *
+   * @param {string} [version]
+   * @returns {string}
+   */
+  function buildWindowTitle(version) {
+    const normalized = String(version || "").trim() || "0.0.0";
+    return `Goron-GTS v${normalized}`;
+  }
 
   /**
    * Crée la fenêtre principale, branche les listeners et charge l'UI React.
@@ -54,7 +67,9 @@ function createWindowService(deps) {
     const cfg = readAppConfig();
     const savedBounds = cfg.windowBounds && typeof cfg.windowBounds === "object" ? cfg.windowBounds : null;
     const windowIconPath = resolveAppIconPath(baseDirname);
+    const windowTitle = buildWindowTitle(app && typeof app.getVersion === "function" ? app.getVersion() : "");
     const win = new BrowserWindow({
+      title: windowTitle,
       width: Number(savedBounds?.width) > 0 ? Number(savedBounds.width) : 1200,
       height: Number(savedBounds?.height) > 0 ? Number(savedBounds.height) : 800,
       x: Number.isFinite(savedBounds?.x) ? Number(savedBounds.x) : undefined,
@@ -72,6 +87,11 @@ function createWindowService(deps) {
     // Supprime la barre de menu native (File/Edit/View) dans la fenêtre principale.
     win.setMenuBarVisibility(false);
     win.setAutoHideMenuBar(true);
+    // Empêche le `<title>` HTML de remplacer la barre de titre OS.
+    win.on("page-title-updated", (event) => {
+      event.preventDefault();
+    });
+    win.setTitle(windowTitle);
 
     if (isDev) {
       const devPort = process.env.DEV_PORT || "5173";
@@ -194,7 +214,7 @@ function createWindowService(deps) {
     win.on("move", persistWindowState);
     win.on("resize", persistWindowState);
     win.on("close", (event) => {
-      // Sortie réelle (IPC Quitter / tray) : laisser fermer la fenêtre.
+      // Sortie réelle (IPC Quitter) : laisser fermer la fenêtre.
       if (getIsAppQuitting && getIsAppQuitting()) {
         persistWindowState();
         return;
@@ -206,7 +226,6 @@ function createWindowService(deps) {
       }
     });
     setMainWindow(win);
-    setupTrayIfNeeded();
     return win;
   }
 

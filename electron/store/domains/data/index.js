@@ -1,8 +1,9 @@
 /**
- * Domaines Paramètres → Gestion des données / variables / modèles (référentiels PG + audit d'import).
+ * Barrel Paramètres → Gestion des données (référentiels PG, variables, modèles, import).
  *
- * Point d'entrée unique pour `UserStore` et réexports des modules du dossier.
- * Les responsables Fransor sont dans `domains/fransor/` (périmètre métier complet).
+ * Consommé par `UserStore`. Les domaines métier (rondes / gardiennage) importent
+ * `holidays.js` directement. Responsables Fransor : `domains/fransor/`.
+ * Files d'attente site / prestataire : partagées par tous les formulaires de création.
  *
  * @module electron/store/domains/data
  */
@@ -13,6 +14,8 @@ const rondeMotifTypes = require("./rondeMotifTypes");
 const importAudit = require("./importAudit");
 const formVariables = require("./formVariables");
 const templateAssignments = require("./templateAssignments");
+const pendingSites = require("./pendingSites");
+const pendingIntervenants = require("./pendingIntervenants");
 
 module.exports = {
   referentials,
@@ -20,5 +23,7 @@ module.exports = {
   rondeMotifTypes,
   importAudit,
   formVariables,
-  templateAssignments
+  templateAssignments,
+  pendingSites,
+  pendingIntervenants
 };

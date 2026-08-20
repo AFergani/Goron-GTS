@@ -1,9 +1,9 @@
 /**
- * Routeur de persistance pour `audit_logs` (PostgreSQL only).
+ * Routeur d'écriture `audit_logs` (PostgreSQL only).
  *
- * - lecture / écriture uniquement sur PostgreSQL quand le pool est joignable ;
- * - si PG down : l'écriture d'audit est ignorée (no-op soft) ;
- * - plus de dual-write ni sync SQLite.
+ * - écriture via `writeAudit` si le pool est joignable ;
+ * - si PG down : no-op soft (`{ written: false }`) ;
+ * - lecture : `getActive()` (adaptateur ou `null`) pour `UserStore.getAuditPersistence()`.
  *
  * La perte / reconnexion PG se journalise dans `gts-pg-events.log` (`postgresLabMonitor`).
  *
@@ -17,9 +17,43 @@ const { writeAudit } = require("../core/audit");
  * @property {() => import('./persistenceContract').PersistenceAdapter|null} getActive
  * @property {() => "postgres"|"none"} getEngine
  * @property {(reachable: boolean) => void} setPostgresReachable
- * @property {() => boolean} isAvailable
  * @property {(entry: object) => Promise<{ written: boolean }>} write
  */
+
+/**
+ * Indique une panne de connexion (pas une erreur SQL métier).
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isPostgresConnectivityError(error) {
+  const code = String(error && typeof error === "object" && "code" in error ? error.code : "").toUpperCase();
+  if (
+    [
+      "57P01",
+      "57P02",
+      "57P03",
+      "08000",
+      "08001",
+      "08003",
+      "08006",
+      "ECONNREFUSED",
+      "ENOTFOUND",
+      "ETIMEDOUT",
+      "ECONNRESET"
+    ].includes(code)
+  ) {
+    return true;
+  }
+  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return (
+    message.includes("connection terminated") ||
+    message.includes("econnrefused") ||
+    message.includes("enotfound") ||
+    message.includes("timeout") ||
+    message.includes("adaptateur de persistance indisponible")
+  );
+}
 
 /**
  * Crée un routeur audit (PG only).
@@ -61,7 +95,7 @@ function createAuditPersistenceRouter({ postgresPersistence = null } = {}) {
   }
 
   /**
-   * Écrit une ligne d'audit sur PostgreSQL uniquement.
+   * Écrit une ligne d'audit. Panne réseau : no-op. Autre erreur : relancée (file `logAudit`).
    *
    * @param {object} entry
    * @returns {Promise<{ written: boolean }>}
@@ -70,13 +104,15 @@ function createAuditPersistenceRouter({ postgresPersistence = null } = {}) {
     if (!isAvailable()) {
       return { written: false };
     }
-    const occurredAt = entry?.occurredAt || new Date().toISOString();
     try {
-      await writeAudit(postgresPersistence, { ...entry, occurredAt });
+      await writeAudit(postgresPersistence, entry);
       return { written: true };
-    } catch {
-      setPostgresReachable(false);
-      return { written: false };
+    } catch (error) {
+      if (isPostgresConnectivityError(error)) {
+        setPostgresReachable(false);
+        return { written: false };
+      }
+      throw error;
     }
   }
 
@@ -84,7 +120,6 @@ function createAuditPersistenceRouter({ postgresPersistence = null } = {}) {
     getActive,
     getEngine,
     setPostgresReachable,
-    isAvailable,
     write
   };
 }

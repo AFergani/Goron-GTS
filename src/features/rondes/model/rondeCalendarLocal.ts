@@ -1,3 +1,5 @@
+import type { HolidayRef } from "../../../types";
+
 /**
  * Helpers calendrier en date/heure locales (Éviter toISOString() pour la partie date :
  * avant l’aube en Europe la date UTC peut être la veille, ce qui désaligne l’UI sur la sidebar).
@@ -15,17 +17,14 @@ export function formatLocalTimeHm(d: Date): string {
   return `${h}:${min}`;
 }
 
-type HolidayLike = {
-  id: string;
-  dateIso: string;
-  label: string;
-};
-
 /**
  * Jours fériés fixes FR (métropole) reconduits automatiquement chaque année.
  * Les jours variables (Pâques/Ascension/Pentecôte...) restent gérés via la table de données.
+ *
+ * Les objets synthétiques sont renvoyés sous le type métier `HolidayRef` pour rester
+ * compatible avec les hooks et composants qui stockent des jours fériés dans le state.
  */
-export function buildFrenchFixedHolidaysForYear(year: number): HolidayLike[] {
+export function buildFrenchFixedHolidaysForYear(year: number): HolidayRef[] {
   const yy = String(year);
   const fixed = [
     { md: "01-01", label: "Jour de l'An" },
@@ -42,14 +41,16 @@ export function buildFrenchFixedHolidaysForYear(year: number): HolidayLike[] {
     return {
       id: `fr-fixed-${dateIso}`,
       dateIso,
-      label: item.label
-    };
+      label: item.label,
+      createdAt: "",
+      updatedAt: null
+    } satisfies HolidayRef;
   });
 }
 
-export function mergeWithFrenchFixedHolidays(existing: HolidayLike[], years: number[]): HolidayLike[] {
+export function mergeWithFrenchFixedHolidays(existing: HolidayRef[], years: number[]): HolidayRef[] {
   const uniqYears = Array.from(new Set(years.filter((y) => Number.isFinite(y) && y >= 1900 && y <= 2200)));
-  const merged = new Map<string, HolidayLike>();
+  const merged = new Map<string, HolidayRef>();
 
   for (const item of existing) {
     if (!item?.dateIso) continue;

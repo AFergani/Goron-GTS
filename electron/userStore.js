@@ -1,15 +1,15 @@
 /**
  * Orchestrateur d'accès données pour Goron-GTS (PostgreSQL only).
  *
- * `UserStore` n'ouvre plus de fichier SQLite (`store.db`) : la persistance métier
- * passe exclusivement par le pool PostgreSQL (`attachPostgresAuditLab` / `referentialsPersistence`).
+ * Persistance métier exclusive via le pool PostgreSQL
+ * (`attachPostgresAuditLab` / `referentialsPersistence`).
  * Chaque méthode publique délègue vers `store/domains/*` ou `store/core/*` —
  * pas de règle métier volumineuse ici. Appelants principaux : IPC (`main.js`).
  *
  * @module electron/userStore
  */
 
-const { resolveAdminAccess } = require("./store/core/bootstrap");
+const { resolveAdminAccess } = require("./store/core/adminAccess");
 const { AppError, failWithLog } = require("./store/core/errors");
 const {
   getEntityChangeHistory: getEntityChangeHistoryCore,
@@ -40,7 +40,9 @@ const {
   rondeMotifTypes: rondeMotifTypesDomain,
   importAudit: importAuditDomain,
   formVariables: formVariablesDomain,
-  templateAssignments: templateAssignmentsDomain
+  templateAssignments: templateAssignmentsDomain,
+  pendingSites: pendingSitesDomain,
+  pendingIntervenants: pendingIntervenantsDomain
 } = require("./store/domains/data");
 const fransorDomain = require("./store/domains/fransor");
 const mainCouranteDomain = require("./store/domains/mainCourante");
@@ -59,7 +61,7 @@ const ROLE = {
 
 /**
  * Façade données PostgreSQL : audit, caches et délégation vers les domaines métier.
- * Aucun pont SQLite (`this.db` / `this.persistence`) — brancher PG via `attachPostgresAuditLab`.
+ * Brancher PG via `attachPostgresAuditLab`.
  */
 class UserStore {
   /**
@@ -68,15 +70,10 @@ class UserStore {
   constructor(options = {}) {
     const adminAccess = resolveAdminAccess(options);
     this.devMasterCode = adminAccess.devMasterCode;
-    this.adminAccessSourcePath = adminAccess.adminAccessSourcePath;
     this.adminAccessEnabled = adminAccess.adminAccessEnabled;
 
-    /** @type {string|null} Ancien chemin SQLite — conservé à null (plus de pont store.db). */
-    this.dbPath = null;
-    /** @type {null} Plus de DatabaseSync. */
-    this.db = null;
-    /** @type {null} Plus d'adaptateur SQLite sync. */
-    this.persistence = null;
+    /** @type {string} Dossier userData Electron (journaux locaux, pas de fichier base). */
+    this.userDataPath = String(options.userDataPath || "").trim();
 
     /** @type {import('./store/persistence/persistenceContract').PersistenceAdapter|null} */
     this.postgresPersistence = null;
@@ -97,18 +94,6 @@ class UserStore {
      * @type {string[]|null}
      */
     this._holidayDateIsosCache = null;
-
-    /**
-     * Cache motifs ronde (id → motif) pour le domaine rondes encore sync.
-     * @type {Map<string, object>|null}
-     */
-    this._rondeMotifTypesByIdCache = null;
-
-    /**
-     * Cache responsables Fransor actifs (id → { id, name }).
-     * @type {Map<string, { id: string, name: string }>|null}
-     */
-    this._fransorResponsablesByIdCache = null;
 
     /**
      * Cache comptes utilisateurs (username → ligne) pour session / RBAC sync.
@@ -231,8 +216,6 @@ class UserStore {
       await holidaysDomain.refreshHolidayDateIsosCache(this);
       await referentialsDomain.ensureSystemAnomalyType(this);
       await rondeMotifTypesDomain.ensureSystemRondeMotifType(this);
-      await rondeMotifTypesDomain.refreshRondeMotifTypesCache(this);
-      await fransorDomain.refreshFransorResponsablesCache(this);
       await authUsersDomain.ensureDevUser(this, { roles: ROLE });
       await authUsersDomain.refreshUsersCache(this);
     } catch (error) {
@@ -345,7 +328,17 @@ class UserStore {
   }
 
   /**
-   * Journal technique — no-op (plus de table SQLite `error_logs`).
+   * Droit de gérer la connexion PostgreSQL du poste (DEV, directeur ou responsable de station).
+   *
+   * @param {string} username
+   * @returns {boolean}
+   */
+  canManagePostgresConfig(username) {
+    return authUsersDomain.isStationAdminRequester(this.getCachedUserRow(username), ROLE);
+  }
+
+  /**
+   * Journal technique — no-op (les événements PG vont dans `gts-pg-events.log`).
    * Conservé pour que `failWithLog` / callers sync restent stables.
    *
    * @param {object} _entry
@@ -414,9 +407,7 @@ class UserStore {
    * @returns {Promise<void>}
    */
   async recordEntityChange(payload) {
-    const db = this.getReferentialsPersistence();
-    if (!db || (typeof db.isOpen === "function" && !db.isOpen())) return;
-    await recordEntityChangeCore(db, payload);
+    await recordEntityChangeCore(this.getReferentialsPersistence(), payload);
   }
 
   /**
@@ -428,9 +419,7 @@ class UserStore {
    * @returns {Promise<Array<{ changedAt: string, changedBy: string, snapshot: object }>>}
    */
   async getEntityChangeHistory(entityType, entityId, limit = 3) {
-    const db = this.getReferentialsPersistence();
-    if (!db || (typeof db.isOpen === "function" && !db.isOpen())) return [];
-    return getEntityChangeHistoryCore(db, entityType, entityId, limit);
+    return getEntityChangeHistoryCore(this.getReferentialsPersistence(), entityType, entityId, limit);
   }
 
   /**
@@ -611,16 +600,16 @@ class UserStore {
   // --- RBAC (délégation `store/core/rbac`) ---
 
   ensureDataManagerRole(requesterRole) {
-    ensureDataManagerRoleRbac(requesterRole, this.fail.bind(this), ROLE);
+    ensureDataManagerRoleRbac(requesterRole, this.fail.bind(this));
   }
 
   ensureDataDeleteRole(requesterRole) {
-    ensureDataDeleteRoleRbac(requesterRole, this.fail.bind(this), ROLE);
+    ensureDataDeleteRoleRbac(requesterRole, this.fail.bind(this));
   }
 
   /** Lecture des référentiels (saisie opérateur, main courante, etc.) */
   ensureDataReaderRole(requesterRole) {
-    ensureDataReaderRoleRbac(requesterRole, this.fail.bind(this), ROLE);
+    ensureDataReaderRoleRbac(requesterRole, this.fail.bind(this));
   }
 
   // --- Référentiels (async via PostgreSQL / referentialsPersistence) ---
@@ -674,6 +663,46 @@ class UserStore {
 
   async deleteIntervenant({ requesterRole, requesterUsername, id, reason }) {
     return referentialsDomain.deleteIntervenant(this, { requesterRole, requesterUsername, id, reason });
+  }
+
+  async listPendingSites({ requesterRole }) {
+    await this.whenPostgresReady();
+    return pendingSitesDomain.listPendingSites(this, { requesterRole });
+  }
+
+  async createPendingSite(payload) {
+    await this.whenPostgresReady();
+    return pendingSitesDomain.createPendingSite(this, payload);
+  }
+
+  async resolvePendingSite(payload) {
+    await this.whenPostgresReady();
+    return pendingSitesDomain.resolvePendingSite(this, payload);
+  }
+
+  async deletePendingSite(payload) {
+    await this.whenPostgresReady();
+    return pendingSitesDomain.deletePendingSite(this, payload);
+  }
+
+  async listPendingIntervenants({ requesterRole }) {
+    await this.whenPostgresReady();
+    return pendingIntervenantsDomain.listPendingIntervenants(this, { requesterRole });
+  }
+
+  async createPendingIntervenant(payload) {
+    await this.whenPostgresReady();
+    return pendingIntervenantsDomain.createPendingIntervenant(this, payload);
+  }
+
+  async resolvePendingIntervenant(payload) {
+    await this.whenPostgresReady();
+    return pendingIntervenantsDomain.resolvePendingIntervenant(this, payload);
+  }
+
+  async deletePendingIntervenant(payload) {
+    await this.whenPostgresReady();
+    return pendingIntervenantsDomain.deletePendingIntervenant(this, payload);
   }
 
   async listAnomalyTypes({ requesterRole }) {
@@ -913,14 +942,14 @@ class UserStore {
     return interventionDomain.getInterventionOpenCount(this, { requesterRole });
   }
 
-  async createInterventionEntry(payload) {
+  async createIntervention(payload) {
     await this.whenPostgresReady();
-    return interventionDomain.createInterventionEntry(this, payload);
+    return interventionDomain.createIntervention(this, payload);
   }
 
-  async updateInterventionEntry(payload) {
+  async updateIntervention(payload) {
     await this.whenPostgresReady();
-    return interventionDomain.updateInterventionEntry(this, payload);
+    return interventionDomain.updateIntervention(this, payload);
   }
 
   async setInterventionStatus(payload) {
@@ -930,47 +959,7 @@ class UserStore {
 
   async setInterventionBillingStatus(payload) {
     await this.whenPostgresReady();
-    return interventionDomain.setInterventionBillingStatus(this, { ...payload, role: ROLE });
-  }
-
-  async listPendingInterventionSites({ requesterRole }) {
-    await this.whenPostgresReady();
-    return interventionDomain.listPendingInterventionSites(this, { requesterRole });
-  }
-
-  async createPendingInterventionSite(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.createPendingInterventionSite(this, payload);
-  }
-
-  async listPendingInterventionIntervenants({ requesterRole }) {
-    await this.whenPostgresReady();
-    return interventionDomain.listPendingInterventionIntervenants(this, { requesterRole });
-  }
-
-  async createPendingInterventionIntervenant(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.createPendingInterventionIntervenant(this, payload);
-  }
-
-  async resolvePendingInterventionSite(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.resolvePendingInterventionSite(this, payload);
-  }
-
-  async resolvePendingInterventionIntervenant(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.resolvePendingInterventionIntervenant(this, payload);
-  }
-
-  async deletePendingInterventionSite(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.deletePendingInterventionSite(this, payload);
-  }
-
-  async deletePendingInterventionIntervenant(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.deletePendingInterventionIntervenant(this, payload);
+    return interventionDomain.setInterventionBillingStatus(this, payload);
   }
 
   async listInterventionWordExtraFields(payload) {

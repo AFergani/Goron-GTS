@@ -7,7 +7,10 @@
 import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
-import type { InterventionEntry } from "../model/intervention.types";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry
+} from "../model/intervention.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 
 function statusLabel(status: InterventionEntry["status"]) {
@@ -49,7 +52,9 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
     return <p className="muted">Aucune intervention.</p>;
   }
 
-  const comparators = {
+  type InterventionSortKey = "date" | "site" | "motif" | "prestataire" | "arrivee" | "depart" | "delai" | "etat";
+
+  const comparators: Record<InterventionSortKey, (a: InterventionEntry, b: InterventionEntry) => number> = {
     date: (a: InterventionEntry, b: InterventionEntry) => `${a.requestDate} ${a.requestTime}`.localeCompare(`${b.requestDate} ${b.requestTime}`),
     site: (a: InterventionEntry, b: InterventionEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     motif: (a: InterventionEntry, b: InterventionEntry) => (a.requestReason || "").localeCompare(b.requestReason || "", "fr"),
@@ -58,9 +63,12 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
     depart: (a: InterventionEntry, b: InterventionEntry) => (a.departureTime || "").localeCompare(b.departureTime || ""),
     delai: (a: InterventionEntry, b: InterventionEntry) => (a.delayMinutes || 0) - (b.delayMinutes || 0),
     etat: (a: InterventionEntry, b: InterventionEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
-  } as const;
-  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort(entries, comparators, { key: "date", direction: "desc" });
-  const sortLabel = (key: keyof typeof comparators) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<InterventionEntry, InterventionSortKey>(entries, comparators, {
+    key: "date",
+    direction: "desc"
+  });
+  const sortLabel = (key: InterventionSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   return (
     <div className="main-courante-table-wrap">
@@ -103,7 +111,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
               <td>{entry.arrivalTime || "—"}</td>
               <td>{entry.departureTime || "—"}</td>
               <td>{entry.delayMinutes == null ? "—" : `${entry.delayMinutes} min`}</td>
-              <td>{entry.workOrderNumber || "—"}</td>
+              <td>{entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL}</td>
               <td>
                 <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
                   <span className="mc-status-badge__dot" aria-hidden />

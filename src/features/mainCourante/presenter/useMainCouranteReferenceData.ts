@@ -56,7 +56,7 @@ export function useMainCouranteReferenceData(
     async (code: string, name: string) => {
       if (!requesterRole) return false;
       try {
-        const response = await gtsApiClient.createPendingInterventionSite({
+        const response = await gtsApiClient.createPendingSite({
           requesterRole,
           requesterUsername,
           code,

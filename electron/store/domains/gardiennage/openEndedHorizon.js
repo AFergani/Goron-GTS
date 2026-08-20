@@ -1,77 +1,50 @@
 /**
  * Extension PostgreSQL de l'horizon des gardiennages H24 ouverts.
  *
- * Les jours fériés proviennent exclusivement du cache du domaine `data/holidays`.
+ * Prolonge le snapshot et le créneau des lots continus sans date de fin
+ * lorsque la fin planifiée est à 14 jours ou moins.
+ * Appelé par la liste, le badge, le timer `electron/main.js` et `UserStore`.
+ * Audit agrégé `GARDIENNAGE_OPEN_ENDED_HORIZON_BATCH` (pas un log par lot).
  *
  * @module electron/store/domains/gardiennage/openEndedHorizon
  */
 
 const holidaysDomain = require("../data/holidays");
-const { addDaysIso } = require("./helpers");
+const {
+  computeOpenEndedHorizonEndDate,
+  GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
+  isOpenEndedContinuousSnapshot,
+  OPEN_STATUSES_SQL,
+  parseIsoDateTimeMs,
+  parsePlanningSnapshotJson,
+  resolveSystemActor,
+  toIsoTime
+} = require("./helpers");
 const { buildGardiennageSlotsFromSnapshot } = require("./plannerEngine");
 const { requireGardiennagePersistence } = require("./persistence");
 
 const GARDIENNAGE_OPEN_ENDED_HORIZON_ACTOR = "system:gardiennage-open-ended-horizon";
-const GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS = 90;
 const GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT = 14;
 const MS_PER_DAY = 86400000;
-
-/**
- * Calcule la fin cible de l'horizon glissant.
- *
- * @param {string} validFromDate
- * @param {string} [referenceDateIso]
- * @returns {string}
- */
-function computeOpenEndedHorizonEndDate(validFromDate, referenceDateIso) {
-  const reference = String(referenceDateIso || "").trim() || new Date().toISOString().slice(0, 10);
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(validFromDate || ""))
-    ? String(validFromDate)
-    : reference;
-  const fromHorizon = addDaysIso(from, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
-  const referenceHorizon = addDaysIso(reference, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
-  return fromHorizon > referenceHorizon ? fromHorizon : referenceHorizon;
-}
-
-/** @param {object} row @returns {object|null} */
-function parsePlanningSnapshot(row) {
-  const raw = row.planning_snapshot_json;
-  try {
-    const snapshot = raw && typeof raw === "object" ? raw : JSON.parse(String(raw || ""));
-    return snapshot && Number(snapshot.version) === 1 ? snapshot : null;
-  } catch {
-    return null;
-  }
-}
-
-/** @param {unknown} value @returns {number|null} */
-function resolveSlotEndMs(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return null;
-  const timestamp = new Date(raw.length === 16 ? `${raw}:00` : raw).getTime();
-  return Number.isNaN(timestamp) ? null : timestamp;
-}
+const HORIZON_SELECT = `site_display, planning_batch_id, planning_snapshot_json,
+     planning_slot_end, created_at`;
 
 /**
  * Prolonge les lots continus ouverts proches de leur fin d'horizon.
  *
  * @param {import('../../../userStore')} store
- * @param {{requesterUsername?:string}} [options]
- * @returns {Promise<{extendedCount:number,extendedBatchIds:string[]}>}
+ * @param {{ requesterUsername?: string }} [options]
+ * @returns {Promise<{ extendedCount: number, extendedBatchIds: string[] }>}
  */
-async function extendOpenEndedGardiennageHorizons(
-  store,
-  { requesterUsername = GARDIENNAGE_OPEN_ENDED_HORIZON_ACTOR } = {}
-) {
+async function extendOpenEndedGardiennageHorizons(store, options = {}) {
   const db = requireGardiennagePersistence(store, "gardiennage:extendHorizon");
-  const today = new Date().toISOString().slice(0, 10);
   const nowMs = Date.now();
   const nowIso = new Date().toISOString();
   const holidays = holidaysDomain.getHolidayDateIsosForPlanning(store);
   const result = await db.transaction(async (tx) => {
     const activeRows = await tx.all(
-      `SELECT * FROM gardiennage_entries
-       WHERE status IN ('PLANIFIE', 'ACTIF')
+      `SELECT ${HORIZON_SELECT} FROM gardiennage_entries
+       WHERE ${OPEN_STATUSES_SQL}
          AND planning_batch_id IS NOT NULL
          AND TRIM(COALESCE(planning_snapshot_json, '')) <> ''
        ORDER BY planning_batch_id, created_at
@@ -86,15 +59,13 @@ async function extendOpenEndedGardiennageHorizons(
     const batchIds = [];
     const samples = [];
     for (const [batchId, anchor] of anchors) {
-      const snapshot = parsePlanningSnapshot(anchor);
-      if (!snapshot?.isOpenEnded || !snapshot?.isContinuous) continue;
-      const slotEndMs = resolveSlotEndMs(anchor.planning_slot_end);
+      const snapshot = parsePlanningSnapshotJson(anchor.planning_snapshot_json);
+      if (!isOpenEndedContinuousSnapshot(snapshot)) continue;
+      const slotEndMs = parseIsoDateTimeMs(anchor.planning_slot_end);
       if (slotEndMs == null) continue;
       if (Math.ceil((slotEndMs - nowMs) / MS_PER_DAY) > GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT) continue;
-      const targetEndDate = computeOpenEndedHorizonEndDate(snapshot.validFromDate, today);
-      const validToTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(snapshot.validToTime || ""))
-        ? snapshot.validToTime
-        : snapshot.validFromTime;
+      const targetEndDate = computeOpenEndedHorizonEndDate(snapshot.validFromDate);
+      const validToTime = toIsoTime(snapshot.validToTime) || snapshot.validFromTime;
       const nextSnapshot = {
         ...snapshot,
         validToDate: targetEndDate,
@@ -103,7 +74,7 @@ async function extendOpenEndedGardiennageHorizons(
         isContinuous: true
       };
       const [slot] = buildGardiennageSlotsFromSnapshot(nextSnapshot, { holidayDateIsos: holidays });
-      if (!slot || resolveSlotEndMs(slot.endIso) <= slotEndMs) continue;
+      if (!slot || parseIsoDateTimeMs(slot.endIso) <= slotEndMs) continue;
       const json = JSON.stringify(nextSnapshot);
       await tx.run(
         `UPDATE gardiennage_entries
@@ -122,7 +93,6 @@ async function extendOpenEndedGardiennageHorizons(
       batchIds.push(batchId);
       if (samples.length < 20) {
         samples.push({
-          batchId,
           siteDisplay: anchor.site_display || "",
           previousSlotEnd: anchor.planning_slot_end || "",
           nextSlotEnd: slot.endIso,
@@ -134,7 +104,7 @@ async function extendOpenEndedGardiennageHorizons(
   });
   if (result.batchIds.length) {
     store.logAudit({
-      actorUsername: requesterUsername,
+      actorUsername: resolveSystemActor(options.requesterUsername, GARDIENNAGE_OPEN_ENDED_HORIZON_ACTOR),
       action: "GARDIENNAGE_OPEN_ENDED_HORIZON_BATCH",
       status: "SUCCESS",
       details: {
@@ -150,9 +120,4 @@ async function extendOpenEndedGardiennageHorizons(
   return { extendedCount: result.batchIds.length, extendedBatchIds: result.batchIds };
 }
 
-module.exports = {
-  GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
-  GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT,
-  computeOpenEndedHorizonEndDate,
-  extendOpenEndedGardiennageHorizons
-};
+module.exports = { extendOpenEndedGardiennageHorizons };

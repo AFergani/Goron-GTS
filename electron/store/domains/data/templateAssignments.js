@@ -9,9 +9,15 @@
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { actorName } = require("../../core/actorName");
+const { sqlFoldExpr } = require("../../core/textFold");
 
-const FLOW_KINDS = new Set(["INTERVENTION", "RONDE_EXCEPTIONNELLE", "RONDE_PLANIFIEE", "GARDIENNAGE"]);
+/** Flux Word encore exportés : pas de gardiennage (export Word retiré). */
+const FLOW_KINDS = new Set(["INTERVENTION", "RONDE_EXCEPTIONNELLE", "RONDE_PLANIFIEE"]);
 const SCOPE_KINDS = new Set(["SITE", "FAMILLE"]);
+
+const ASSIGNMENT_COLUMNS =
+  "id, flow_kind, scope_kind, scope_value, scope_label, template_file_name, created_at, updated_at";
 
 /**
  * @param {import('../../../userStore')} store
@@ -50,22 +56,24 @@ function normalizeScopeKind(value) {
 }
 
 /**
- * Liste les attributions personnalisées (Paramètres → Modèles).
+ * Retient le nom de fichier seul (sans chemin) pour l'attribution.
  *
- * @param {import('../../../userStore')} store
- * @param {{ requesterRole: string }} payload
- * @returns {Promise<object[]>}
+ * @param {unknown} value
+ * @returns {string}
  */
-async function listTemplateAssignments(store, payload) {
-  store.ensureDataReaderRole(payload.requesterRole);
-  const db = requirePersistence(store);
-  const rows = await db.all(
-    `SELECT id, flow_kind, scope_kind, scope_value, scope_label, template_file_name, created_at, updated_at
-     FROM data_document_template_assignments
-     ORDER BY flow_kind ASC, scope_kind ASC, scope_label ASC`,
-    []
-  );
-  return rows.map((row) => ({
+function normalizeTemplateFileName(value) {
+  const raw = String(value || "")
+    .trim()
+    .replace(/\\/g, "/");
+  return raw.split("/").pop() || "";
+}
+
+/**
+ * @param {object} row - Ligne SQL.
+ * @returns {object}
+ */
+function mapRow(row) {
+  return {
     id: row.id,
     flowKind: row.flow_kind,
     scopeKind: row.scope_kind,
@@ -74,7 +82,68 @@ async function listTemplateAssignments(store, payload) {
     templateFileName: row.template_file_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at
-  }));
+  };
+}
+
+/**
+ * @param {{ flow_kind?: unknown, scope_kind?: unknown, scope_value?: unknown, scope_label?: unknown, template_file_name?: unknown }} row
+ * @returns {{ flowKind: string, scopeKind: string, scopeValue: string, scopeLabel: string, templateFileName: string }}
+ */
+function toAssignmentSnapshot(row) {
+  return {
+    flowKind: String(row.flow_kind || ""),
+    scopeKind: String(row.scope_kind || ""),
+    scopeValue: String(row.scope_value || ""),
+    scopeLabel: String(row.scope_label || ""),
+    templateFileName: String(row.template_file_name || "")
+  };
+}
+
+/**
+ * Recherche l'attribution existante (famille : insensible à la casse, comme `resolve`).
+ *
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} db
+ * @param {string} flowKind
+ * @param {string} scopeKind
+ * @param {string} scopeValue
+ * @returns {Promise<object|undefined>}
+ */
+async function findExistingAssignment(db, flowKind, scopeKind, scopeValue) {
+  if (scopeKind === "FAMILLE") {
+    return db.get(
+      `SELECT ${ASSIGNMENT_COLUMNS}
+       FROM data_document_template_assignments
+       WHERE flow_kind = ? AND scope_kind = ? AND ${sqlFoldExpr("scope_value")} = ${sqlFoldExpr("?")}
+       LIMIT 1`,
+      [flowKind, scopeKind, scopeValue]
+    );
+  }
+  return db.get(
+    `SELECT ${ASSIGNMENT_COLUMNS}
+     FROM data_document_template_assignments
+     WHERE flow_kind = ? AND scope_kind = ? AND scope_value = ?
+     LIMIT 1`,
+    [flowKind, scopeKind, scopeValue]
+  );
+}
+
+/**
+ * Liste les attributions personnalisées (Paramètres → Modèles).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {{ requesterRole: string }} payload
+ * @returns {Promise<object[]>}
+ */
+async function listTemplateAssignments(store, { requesterRole }) {
+  store.ensureDataReaderRole(requesterRole);
+  const db = requirePersistence(store);
+  const rows = await db.all(
+    `SELECT ${ASSIGNMENT_COLUMNS}
+     FROM data_document_template_assignments
+     ORDER BY flow_kind ASC, scope_kind ASC, scope_label ASC`,
+    []
+  );
+  return rows.map(mapRow);
 }
 
 /**
@@ -87,11 +156,12 @@ async function listTemplateAssignments(store, payload) {
 async function upsertTemplateAssignment(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const db = requirePersistence(store);
+  const actor = actorName(payload.requesterUsername);
   const flowKind = normalizeFlowKind(payload.flowKind);
   const scopeKind = normalizeScopeKind(payload.scopeKind);
   const scopeValue = String(payload.scopeValue || "").trim();
   const scopeLabel = String(payload.scopeLabel || "").trim();
-  const templateFileName = String(payload.templateFileName || "").trim();
+  const templateFileName = normalizeTemplateFileName(payload.templateFileName);
   if (!FLOW_KINDS.has(flowKind)) {
     store.fail("templates:assign:upsert", "Type de flux invalide.", "DATA_TEMPLATE_ASSIGN_FLOW_INVALID");
   }
@@ -104,46 +174,53 @@ async function upsertTemplateAssignment(store, payload) {
   if (!scopeLabel) {
     store.fail("templates:assign:upsert", "Libellé de portée obligatoire.", "DATA_TEMPLATE_ASSIGN_SCOPE_LABEL_REQUIRED");
   }
-  if (!templateFileName || !String(templateFileName).toLowerCase().endsWith(".docx")) {
+  if (!templateFileName.toLowerCase().endsWith(".docx")) {
     store.fail("templates:assign:upsert", "Nom de modèle invalide.", "DATA_TEMPLATE_ASSIGN_TEMPLATE_REQUIRED");
   }
   const now = new Date().toISOString();
-  const existing = await db.get(
-    `SELECT id, template_file_name, scope_label
-     FROM data_document_template_assignments
-     WHERE flow_kind = ? AND scope_kind = ? AND scope_value = ?
-     LIMIT 1`,
-    [flowKind, scopeKind, scopeValue]
-  );
+  const existing = await findExistingAssignment(db, flowKind, scopeKind, scopeValue);
   if (existing) {
     await db.run(
       `UPDATE data_document_template_assignments
-       SET scope_label = ?, template_file_name = ?, updated_at = ?
+       SET scope_value = ?, scope_label = ?, template_file_name = ?, updated_at = ?
        WHERE id = ?`,
-      [scopeLabel, templateFileName, now, existing.id]
+      [scopeValue, scopeLabel, templateFileName, now, existing.id]
     );
-    store.logAudit({
-      actorUsername: payload.requesterUsername || "unknown",
-      action: "DATA_TEMPLATE_ASSIGNMENT_UPDATE",
-      details: {
-        id: existing.id,
-        before: {
-          templateFileName: String(existing.template_file_name || ""),
-          scopeLabel: String(existing.scope_label || "")
-        },
-        after: { templateFileName, scopeLabel, flowKind, scopeKind, scopeValue }
-      }
-    });
-    return {
-      id: existing.id,
+    const after = {
       flowKind,
       scopeKind,
       scopeValue,
       scopeLabel,
-      templateFileName,
-      createdAt: now,
-      updatedAt: now
+      templateFileName
     };
+    const historyBefore = await store.getEntityChangeHistory(
+      "data_document_template_assignments",
+      existing.id,
+      3
+    );
+    store.logAudit({
+      actorUsername: actor,
+      action: "DATA_TEMPLATE_ASSIGNMENT_UPDATE",
+      details: {
+        id: existing.id,
+        before: toAssignmentSnapshot(existing),
+        after,
+        historyBefore
+      }
+    });
+    await store.recordEntityChange({
+      entityType: "data_document_template_assignments",
+      entityId: existing.id,
+      changedBy: actor,
+      snapshot: after
+    });
+    return mapRow({
+      ...existing,
+      scope_value: scopeValue,
+      scope_label: scopeLabel,
+      template_file_name: templateFileName,
+      updated_at: now
+    });
   }
   const id = generateEntityId();
   await db.run(
@@ -152,12 +229,28 @@ async function upsertTemplateAssignment(store, payload) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName, now, now]
   );
-  store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
-    action: "DATA_TEMPLATE_ASSIGNMENT_CREATE",
-    details: { id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName }
+  const snapshot = { flowKind, scopeKind, scopeValue, scopeLabel, templateFileName };
+  await store.recordEntityChange({
+    entityType: "data_document_template_assignments",
+    entityId: id,
+    changedBy: actor,
+    snapshot
   });
-  return { id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName, createdAt: now, updatedAt: now };
+  store.logAudit({
+    actorUsername: actor,
+    action: "DATA_TEMPLATE_ASSIGNMENT_CREATE",
+    details: { id, ...snapshot }
+  });
+  return mapRow({
+    id,
+    flow_kind: flowKind,
+    scope_kind: scopeKind,
+    scope_value: scopeValue,
+    scope_label: scopeLabel,
+    template_file_name: templateFileName,
+    created_at: now,
+    updated_at: now
+  });
 }
 
 /**
@@ -179,8 +272,7 @@ async function deleteTemplateAssignment(store, payload) {
     store.fail("templates:assign:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
   const existing = await db.get(
-    `SELECT id, flow_kind, scope_kind, scope_value, scope_label, template_file_name
-     FROM data_document_template_assignments WHERE id = ?`,
+    `SELECT ${ASSIGNMENT_COLUMNS} FROM data_document_template_assignments WHERE id = ?`,
     [id]
   );
   if (!existing) {
@@ -188,17 +280,11 @@ async function deleteTemplateAssignment(store, payload) {
   }
   await db.run("DELETE FROM data_document_template_assignments WHERE id = ?", [id]);
   store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
+    actorUsername: actorName(payload.requesterUsername),
     action: "DATA_TEMPLATE_ASSIGNMENT_DELETE",
     details: {
       id,
-      deleted: {
-        flowKind: existing.flow_kind,
-        scopeKind: existing.scope_kind,
-        scopeValue: existing.scope_value,
-        scopeLabel: existing.scope_label,
-        templateFileName: existing.template_file_name
-      },
+      deleted: toAssignmentSnapshot(existing),
       reason
     }
   });
@@ -236,7 +322,7 @@ async function resolveTemplateFileForContext(store, payload) {
   if (famille) {
     const byFamille = await db.get(
       `SELECT template_file_name FROM data_document_template_assignments
-       WHERE flow_kind = ? AND scope_kind = 'FAMILLE' AND lower(scope_value) = lower(?)
+       WHERE flow_kind = ? AND scope_kind = 'FAMILLE' AND ${sqlFoldExpr("scope_value")} = ${sqlFoldExpr("?")}
        LIMIT 1`,
       [flowKind, famille]
     );

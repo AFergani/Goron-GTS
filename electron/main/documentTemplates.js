@@ -3,8 +3,9 @@
  * Cherche d'abord sous `{dataRoot}/templates`, puis les modèles embarqués `dist/templates`.
  *
  * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js` et `gtsApiClient`
- * (Paramètres données, exports main courante / intervention / rondes / gardiennage / Fransor).
- * Plus de dépendance à un fichier base SQLite : les racines `data/` viennent de `getDataRootCandidates`.
+ * (Paramètres → modèles ; exports main courante, intervention, rondes).
+ *
+ * @module electron/main/documentTemplates
  */
 
 /**
@@ -15,10 +16,10 @@
  * @param {import('path')} deps.path - Résolution sécurisée des chemins (`basename` anti traversal).
  * @param {import('electron').Dialog} deps.dialog - Sélecteur de fichier pour install / upsert scopé.
  * @param {string} deps.appDirname - Répertoire du bundle Electron (`__dirname` de main).
- * @param {string} deps.processCwd - Répertoire de travail courant (candidat `dist/templates` en dev).
- * @param {() => string[]} deps.getDataRootCandidates - Racines données Goron (cwd / portable / userData).
- * @param {() => void} deps.ensureStore - Vérifie que `UserStore` est initialisé (écritures / RBAC).
- * @param {() => import('../userStore')} deps.getUserStore - Store pour audit et assignations de modèles.
+ * @param {string} deps.processCwd - Répertoire de travail (candidat `dist/templates` en dev).
+ * @param {() => string[]} deps.getDataRootCandidates - Racines `data/` du poste.
+ * @param {() => void} deps.ensureStore - Vérifie que `UserStore` est initialisé.
+ * @param {() => import('../userStore')} deps.getUserStore - Store pour audit et assignations.
  * @returns {{
  *   getDocumentTemplate: (templateName: string) => object,
  *   listDocumentTemplatesPayload: () => object,
@@ -39,6 +40,11 @@ function createDocumentTemplatesService(deps) {
     getUserStore
   } = deps;
 
+  const DOCX_OPEN_FILTERS = [
+    { name: "Document Word", extensions: ["docx"] },
+    { name: "Tous les fichiers", extensions: ["*"] }
+  ];
+
   /**
    * Résout le premier chemin existant pour un nom de fichier modèle (données puis bundle).
    *
@@ -53,8 +59,7 @@ function createDocumentTemplatesService(deps) {
       path.join(appDirname, "..", "dist", "templates", safeName),
       path.join(processCwd, "dist", "templates", safeName)
     ];
-    const allCandidates = [...dataCandidates, ...appBundledCandidates];
-    for (const filePath of allCandidates) {
+    for (const filePath of [...dataCandidates, ...appBundledCandidates]) {
       try {
         if (fs.existsSync(filePath)) return filePath;
       } catch {
@@ -94,10 +99,10 @@ function createDocumentTemplatesService(deps) {
   /**
    * Transforme un libellé métier en segment de nom de fichier (ASCII, underscores, max 80 car.).
    *
-   * @param {string} label - Libellé portée (site, profil, etc.).
+   * @param {string} label
    * @returns {string} Slug ; `profil` si vide après normalisation.
    */
-  function sanitizeProfileLabelForWordTemplateFilename(label) {
+  function sanitizeTemplateSlug(label) {
     const raw = String(label || "").trim();
     if (!raw) return "";
     try {
@@ -119,21 +124,11 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Alias de sanitization pour les noms de modèles scopés (`scopedTemplateFileName`).
-   *
-   * @param {string} label
-   * @returns {string}
-   */
-  function sanitizeTemplateSlug(label) {
-    return sanitizeProfileLabelForWordTemplateFilename(label || "template");
-  }
-
-  /**
    * Construit un nom de fichier modèle lié à un flux et une portée : `{flux}_{scope}_{slug}.docx`.
    *
-   * @param {string} flowKind - Ex. type de flux export.
-   * @param {string} scopeKind - Ex. `site`, `profil`.
-   * @param {string} scopeLabel - Libellé affiché (sanitisé en slug).
+   * @param {string} flowKind
+   * @param {string} scopeKind
+   * @param {string} scopeLabel
    * @returns {string}
    */
   function scopedTemplateFileName(flowKind, scopeKind, scopeLabel) {
@@ -144,16 +139,14 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Identifiant d’aide Word déduit du nom de fichier (modèle par défaut ou attribution scopée).
-   * Un modèle personnalisé d’intervention / gardiennage / ronde réutilise l’aide du flux par défaut.
+   * Identifiant d'aide Word déduit du nom de fichier.
    *
-   * @param {string} fileName - Nom du fichier `.docx`.
-   * @returns {string} Clé d’aide (`intervention`, `gardiennage`, `ronde`, alias ronde, ou `custom-docx`).
+   * @param {string} fileName
+   * @returns {string}
    */
   function helpIdFromTemplateFileName(fileName) {
     const name = String(fileName || "").trim().toLowerCase();
     if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
-    if (name === "gardiennage-template.docx" || name.startsWith("gardiennage_")) return "gardiennage";
     if (name === "main-courante-template.docx") return "main-courante";
     if (name === "ronde-template.docx") return "ronde";
     if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
@@ -164,14 +157,13 @@ function createDocumentTemplatesService(deps) {
   /**
    * Titre liste pour un `.docx` hors modèles embarqués.
    *
-   * @param {string} fileName - Nom du fichier.
-   * @param {string} helpId - Identifiant d’aide déduit.
-   * @returns {string} Libellé affiché (flux + nom de fichier).
+   * @param {string} fileName
+   * @param {string} helpId
+   * @returns {string}
    */
   function customTemplateTitle(fileName, helpId) {
     const labels = {
       intervention: "Intervention",
-      gardiennage: "Gardiennage",
       ronde: "Ronde",
       "ronde-planifiee": "Ronde contractuelle",
       "ronde-exceptionnelle": "Ronde exceptionnelle",
@@ -184,14 +176,12 @@ function createDocumentTemplatesService(deps) {
 
   /**
    * Retourne (et crée si besoin) le dossier `{dataRoot}/templates` writable du poste.
-   * Utilise la première racine de `getDataRootCandidates` (plus de fichier `.db`).
    *
-   * @returns {string} Chemin absolu du répertoire templates.
+   * @returns {string}
    * @throws {Error} Si aucune racine données n'est disponible.
    */
   function resolveWritableTemplatesDirectory() {
-    const roots = getDataRootCandidates();
-    const dataRoot = roots[0];
+    const dataRoot = getDataRootCandidates()[0];
     if (!dataRoot) {
       throw new Error("Aucun dossier de données disponible pour les modèles documentaires.");
     }
@@ -201,22 +191,35 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Liste les modèles intégrés et personnalisés pour l'écran Paramètres → Modèles documentaires.
+   * Ouvre le sélecteur de fichier `.docx`.
    *
-   * Inclut pour chaque entrée : existence sur disque, chemin résolu, chemin d'installation cible.
-   * Les `.docx` temporaires Word (`~$...`) sont ignorés.
+   * @param {string} title
+   * @returns {Promise<string|null>} Chemin source, ou `null` si annulé.
+   */
+  async function pickDocxSourceFile(title) {
+    const result = await dialog.showOpenDialog({
+      title,
+      properties: ["openFile"],
+      filters: DOCX_OPEN_FILTERS
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const src = result.filePaths[0];
+    if (path.extname(src).toLowerCase() !== ".docx") {
+      throw new Error("Le fichier doit être au format .docx.");
+    }
+    return src;
+  }
+
+  /**
+   * Liste les modèles intégrés et personnalisés (Paramètres → Modèles documentaires).
    *
-   * @returns {{
-   *   templates: Array<object>,
-   *   writableTemplatesDir: string|null
-   * }}
+   * @returns {{ templates: Array<object>, writableTemplatesDir: string|null }}
    */
   function listDocumentTemplatesPayload() {
     const builtins = [
       { kind: "builtin", templateKey: "main-courante", title: "Main courante — export Word", fileName: "main-courante-template.docx", helpId: "main-courante" },
       { kind: "builtin", templateKey: "intervention", title: "Intervention — export Word", fileName: "intervention-template.docx", helpId: "intervention" },
-      { kind: "builtin", templateKey: "ronde", title: "Ronde contractuelle — modèle par défaut (.docx)", fileName: "ronde-template.docx", helpId: "ronde" },
-      { kind: "builtin", templateKey: "gardiennage", title: "Gardiennage — export Word", fileName: "gardiennage-template.docx", helpId: "gardiennage" }
+      { kind: "builtin", templateKey: "ronde", title: "Ronde contractuelle — modèle par défaut (.docx)", fileName: "ronde-template.docx", helpId: "ronde" }
     ];
     let writableDir = null;
     try {
@@ -267,39 +270,28 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Copie un fichier `.docx` choisi par l'utilisateur vers le dossier templates writable (remplacement par nom).
+   * Copie un fichier `.docx` choisi par l'utilisateur vers le dossier templates writable.
    *
-   * RBAC : `ensureDataReaderRole`. Audit : `DATA_DOCUMENT_TEMPLATE_INSTALL`.
+   * RBAC : `ensureDataManagerRole`. Audit : `DATA_DOCUMENT_TEMPLATE_INSTALL`.
    *
    * @param {object} payload
    * @param {string} payload.requesterRole
    * @param {string} payload.requesterUsername
-   * @param {string} payload.targetFileName - Nom cible sous `templates/` (doit finir par `.docx`).
+   * @param {string} payload.targetFileName
    * @returns {Promise<{ canceled: boolean, success: boolean, fileName?: string, resolvedPath?: string, templatesRelativePath?: string }>}
    */
   async function installDocumentTemplateCopy(payload) {
     ensureStore();
     const userStore = getUserStore();
     const { requesterRole, requesterUsername, targetFileName } = payload;
-    userStore.ensureDataReaderRole(requesterRole);
+    userStore.ensureDataManagerRole(requesterRole);
     const safeName = path.basename(String(targetFileName || "").trim());
     if (!safeName.toLowerCase().endsWith(".docx")) {
       throw new Error("Le nom cible doit se terminer par .docx.");
     }
-    const result = await dialog.showOpenDialog({
-      title: "Choisir un fichier modèle Word (.docx)",
-      properties: ["openFile"],
-      filters: [
-        { name: "Document Word", extensions: ["docx"] },
-        { name: "Tous les fichiers", extensions: ["*"] }
-      ]
-    });
-    if (result.canceled || !result.filePaths[0]) {
+    const src = await pickDocxSourceFile("Choisir un fichier modèle Word (.docx)");
+    if (!src) {
       return { canceled: true, success: false };
-    }
-    const src = result.filePaths[0];
-    if (path.extname(src).toLowerCase() !== ".docx") {
-      throw new Error("Le fichier doit être au format .docx.");
     }
     const templatesDir = resolveWritableTemplatesDirectory();
     const dest = path.join(templatesDir, safeName);
@@ -320,7 +312,7 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Enregistre un modèle Word scopé (nom dérivé du flux/portée) et crée l'assignation en base.
+   * Enregistre un modèle Word scopé et crée l'assignation en base.
    *
    * RBAC : `ensureDataManagerRole`. Persiste via `userStore.upsertTemplateAssignment`.
    *
@@ -329,10 +321,9 @@ function createDocumentTemplatesService(deps) {
    * @param {string} payload.requesterUsername
    * @param {string} payload.flowKind
    * @param {string} payload.scopeKind
-   * @param {string} payload.scopeValue - Identifiant technique de portée (stocké en BDD, non affiché UI export).
-   * @param {string} payload.scopeLabel - Libellé métier obligatoire pour le nom de fichier.
+   * @param {string} payload.scopeValue
+   * @param {string} payload.scopeLabel
    * @returns {Promise<{ canceled: boolean, success: boolean, fileName?: string, assignment?: object, templatesRelativePath?: string }>}
-   * @throws {Error} Libellé vide ou fichier non `.docx`.
    */
   async function upsertScopedDocumentTemplate(payload) {
     ensureStore();
@@ -343,20 +334,9 @@ function createDocumentTemplatesService(deps) {
     if (!normalizedLabel) {
       throw new Error("Libellé de portée obligatoire.");
     }
-    const result = await dialog.showOpenDialog({
-      title: "Choisir un modèle Word (.docx)",
-      properties: ["openFile"],
-      filters: [
-        { name: "Document Word", extensions: ["docx"] },
-        { name: "Tous les fichiers", extensions: ["*"] }
-      ]
-    });
-    if (result.canceled || !result.filePaths[0]) {
+    const src = await pickDocxSourceFile("Choisir un modèle Word (.docx)");
+    if (!src) {
       return { canceled: true, success: false };
-    }
-    const src = result.filePaths[0];
-    if (path.extname(src).toLowerCase() !== ".docx") {
-      throw new Error("Le fichier doit être au format .docx.");
     }
     const templatesDir = resolveWritableTemplatesDirectory();
     const fileName = scopedTemplateFileName(flowKind, scopeKind, normalizedLabel);

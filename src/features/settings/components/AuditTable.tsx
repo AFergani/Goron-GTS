@@ -422,6 +422,32 @@ function formatOldValuesTooltip(log: AuditLog) {
       ...(topLines.length ? ["Détail des erreurs:", ...topLines] : ["Aucune erreur détaillée enregistrée dans ce log."])
     ].join("\n");
   }
+  if (log.action.startsWith("DATA_SITE_PENDING_") || log.action.startsWith("DATA_INTERVENANT_PENDING_")) {
+    const details = (log.details || {}) as Record<string, unknown>;
+    if (log.action.endsWith("_RESOLVE")) {
+      const pending = (details.pendingSite || details.pendingIntervenant || {}) as Record<string, unknown>;
+      const created = (details.createdSite || details.createdIntervenant || {}) as Record<string, unknown>;
+      return [
+        "Détails validation d'entrée en attente",
+        `Mode: ${String(details.mode || "created")}`,
+        `Entrée en attente: ${String(pending.code || pending.name || "-")}`,
+        `Entrée référentiel: ${String(created.code || created.name || "-")}`
+      ].join("\n");
+    }
+    if (log.action.endsWith("_DELETE")) {
+      const deleted = (details.deleted || details.pendingSite || details.pendingIntervenant || {}) as Record<string, unknown>;
+      return [
+        "Détails suppression d'entrée en attente",
+        `Entrée: ${String(deleted.code || deleted.name || "-")}`,
+        `Motif: ${String(details.reason || "-")}`
+      ].join("\n");
+    }
+    const pending = (details.pendingSite || details.pendingIntervenant || {}) as Record<string, unknown>;
+    return [
+      "Détails proposition en attente",
+      `Entrée: ${String(pending.code || pending.name || "-")}`
+    ].join("\n");
+  }
   if (log.action.startsWith("INTERVENTION_")) {
     const details = (log.details || {}) as Record<string, unknown>;
     const before = (details.before || {}) as Record<string, unknown>;
@@ -487,24 +513,6 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Heure demande: ${String(existing.requestTime || "-")}`,
         `Prestataire: ${String(existing.intervenantName || "-")}`,
         `Statut conservé: ${String(existing.status || "-")}`
-      ].join("\n");
-    }
-    if (log.action === "INTERVENTION_SITE_PENDING_RESOLVE" || log.action === "INTERVENTION_INTERVENANT_PENDING_RESOLVE") {
-      const pending = (details.pendingSite || details.pendingIntervenant || {}) as Record<string, unknown>;
-      const created = (details.createdSite || details.createdIntervenant || {}) as Record<string, unknown>;
-      return [
-        "Détails validation d'entrée en attente",
-        `Mode: ${String(details.mode || "created")}`,
-        `Entrée en attente: ${String(pending.code || pending.name || pending.id || "-")}`,
-        `Entrée référentiel: ${String(created.code || created.name || details.resolvedSiteId || details.resolvedIntervenantId || "-")}`
-      ].join("\n");
-    }
-    if (log.action === "INTERVENTION_SITE_PENDING_DELETE" || log.action === "INTERVENTION_INTERVENANT_PENDING_DELETE") {
-      const deleted = (details.deleted || details.pendingSite || details.pendingIntervenant || {}) as Record<string, unknown>;
-      return [
-        "Détails suppression d'entrée en attente",
-        `Entrée: ${String(deleted.code || deleted.name || deleted.id || "-")}`,
-        `Motif: ${String(details.reason || "-")}`
       ].join("\n");
     }
     return undefined;

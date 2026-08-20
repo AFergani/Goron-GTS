@@ -1,14 +1,16 @@
 /**
  * Génération d'identifiants techniques stables pour les entités métier (UUID v4).
- * Point unique pour éviter des stratégies d'ID divergentes entre domaines et schémas.
+ * Point unique côté store : les domaines Electron passent par ici, pas par `crypto.randomUUID` direct.
  *
- * Les UUID restent internes (BDD, IPC) ; l'UI affiche des libellés métier selon les règles projet.
+ * Les UUID restent internes (BDD, IPC) ; l'UI affiche des libellés métier.
+ *
+ * @module electron/store/core/ids
  */
 
 const crypto = require("crypto");
 
 /**
- * Produit un identifiant unique pour une nouvelle ligne (création référentiel, utilisateur, gardiennage, etc.).
+ * Produit un identifiant unique pour une nouvelle ligne métier.
  *
  * @returns {string} UUID v4 (`crypto.randomUUID`).
  */

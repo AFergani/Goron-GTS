@@ -1,14 +1,14 @@
 /**
  * Tableau des gardiennages (tri colonnes, badges type et statut).
  *
- * Actions : clôturer (si actif/planifié), modifier, export Word (clôturé/annulé), supprimer.
+ * Actions : clôturer (si actif/planifié), modifier, supprimer.
  * Colonne Période optionnelle (affichage liste).
  * Vue journée : `hoursForDate` affiche la portion horaire du jour, pas le créneau entier.
  * Date de création + badge de type (H24 / récurrent / ponctuel, jour ou nuit) dans les deux vues.
  * Colonne Site : clic pour copier le code (comme les autres tableaux métier).
  */
 
-import { Check, FileText, Infinity, Moon, Pencil, Trash2 } from "lucide-react";
+import { Check, Infinity, Moon, Pencil, Trash2 } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -96,8 +96,6 @@ type GardiennageTableProps = {
   onEdit: (entry: GardiennageEntry) => void;
   onDelete: (entry: GardiennageEntry) => void;
   onClose?: (entry: GardiennageEntry) => void;
-  /** Export Word de la fiche */
-  onExportWord?: (entry: GardiennageEntry) => void;
   onNotify?: NotifyToast;
 };
 
@@ -148,14 +146,15 @@ export function GardiennageTable({
   onEdit,
   onDelete,
   onClose,
-  onExportWord,
   onNotify
 }: GardiennageTableProps) {
   if (!entries.length) {
     return <p className="muted">Aucun gardiennage à afficher.</p>;
   }
 
-  const comparators = {
+  type GardiennageSortKey = "createdAt" | "site" | "periode" | "horaires" | "prestataire" | "statut";
+
+  const comparators: Record<GardiennageSortKey, (a: GardiennageEntry, b: GardiennageEntry) => number> = {
     createdAt: (a: GardiennageEntry, b: GardiennageEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     site: (a: GardiennageEntry, b: GardiennageEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     periode: (a: GardiennageEntry, b: GardiennageEntry) =>
@@ -163,12 +162,12 @@ export function GardiennageTable({
     horaires: (a: GardiennageEntry, b: GardiennageEntry) => `${a.startTime || ""}|${a.endTime || ""}`.localeCompare(`${b.startTime || ""}|${b.endTime || ""}`),
     prestataire: (a: GardiennageEntry, b: GardiennageEntry) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
     statut: (a: GardiennageEntry, b: GardiennageEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
-  } as const;
-  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort(entries, comparators, {
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<GardiennageEntry, GardiennageSortKey>(entries, comparators, {
     key: "createdAt",
     direction: "desc"
   });
-  const sortLabel = (key: keyof typeof comparators) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+  const sortLabel = (key: GardiennageSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   return (
     <div className="main-courante-table-wrap">
@@ -293,17 +292,6 @@ export function GardiennageTable({
                     >
                       <Pencil size={15} />
                     </button>
-                    {onExportWord && (entry.status === "CLOTURE" || entry.status === "ANNULE") ? (
-                      <button
-                        type="button"
-                        className="mc-table-action-btn mc-table-action-btn--word"
-                        title="Exporter Word"
-                        aria-label="Exporter la fiche Word"
-                        onClick={() => onExportWord(entry)}
-                      >
-                        <FileText size={15} />
-                      </button>
-                    ) : null}
                     <button
                       type="button"
                       className="mc-table-action-btn mc-table-action-btn--danger"

@@ -3,11 +3,15 @@
  *
  * Contrat : `run` / `get` / `all` / `exec` / `transaction` / `open` / `close` / `isOpen`.
  * Convertit les placeholders `?` en `$1…$n` (SQL métier historique).
+ * Fabriqué par `openPostgresPersistence` ; consommé via `UserStore` / domaines.
  *
  * @module electron/store/persistence/postgresPersistence
  */
 
 const { Pool } = require("pg");
+
+const DEFAULT_CONNECTION_TIMEOUT_MS = 2500;
+const DEFAULT_POOL_MAX = 4;
 
 /**
  * Remplace les `?` positionnels par des placeholders PostgreSQL `$1`, `$2`, …
@@ -25,8 +29,8 @@ function toPgPlaceholders(sql) {
 
 /**
  * Normalise les paramètres pour PostgreSQL.
- * Les booléens JS deviennent `0`/`1` : le schéma métier reprend le modèle SQLite
- * (`INTEGER` pour `is_locked`, `is_active`, etc.) — sinon `pg` envoie `"false"` et PG refuse.
+ * Les booléens JS deviennent `0`/`1` : le schéma métier stocke ces flags en
+ * `INTEGER` (`is_locked`, `is_active`, etc.) — sinon `pg` envoie `"false"` et PG refuse.
  *
  * @param {unknown[]} [params]
  * @returns {unknown[]}
@@ -36,6 +40,27 @@ function normalizePgParams(params = []) {
     if (typeof value === "boolean") return value ? 1 : 0;
     return value;
   });
+}
+
+/**
+ * Découpe un script SQL en instructions (commentaires SQL ignorés).
+ *
+ * @param {string} sql
+ * @returns {string[]}
+ */
+function splitSqlStatements(sql) {
+  const withoutBlockComments = String(sql || "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const withoutLineComments = withoutBlockComments
+    .split("\n")
+    .map((line) => {
+      const idx = line.indexOf("--");
+      return idx >= 0 ? line.slice(0, idx) : line;
+    })
+    .join("\n");
+  return withoutLineComments
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -49,7 +74,47 @@ async function queryOn(client, sql, params = []) {
 }
 
 /**
- * Crée un adaptateur PostgreSQL à partir d'une config labo / pool.
+ * Exécute un script (plusieurs instructions) sur un client / pool.
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} client
+ * @param {string} sql
+ * @returns {Promise<void>}
+ */
+async function execOn(client, sql) {
+  for (const statement of splitSqlStatements(sql)) {
+    await client.query(statement);
+  }
+}
+
+/**
+ * API `run` / `get` / `all` liée à un client (pool ou connexion de transaction).
+ *
+ * @param {() => import('pg').Pool|import('pg').PoolClient} getClient
+ * @returns {{
+ *   run: (sql: string, params?: unknown[]) => Promise<import('./persistenceContract').PersistenceRunResult>,
+ *   get: (sql: string, params?: unknown[]) => Promise<object|undefined>,
+ *   all: (sql: string, params?: unknown[]) => Promise<object[]>
+ * }}
+ */
+function bindQueryApi(getClient) {
+  return {
+    async run(sql, params = []) {
+      const result = await queryOn(getClient(), sql, params);
+      return { changes: Number(result.rowCount || 0) };
+    },
+    async get(sql, params = []) {
+      const result = await queryOn(getClient(), sql, params);
+      return result.rows[0];
+    },
+    async all(sql, params = []) {
+      const result = await queryOn(getClient(), sql, params);
+      return Array.isArray(result.rows) ? result.rows : [];
+    }
+  };
+}
+
+/**
+ * Crée un adaptateur PostgreSQL à partir d'une config de connexion.
  *
  * @param {object} config
  * @param {string} config.host
@@ -95,8 +160,8 @@ function createPostgresPersistence(config) {
         database: config.database,
         user: config.user,
         password: config.password,
-        connectionTimeoutMillis: config.connectionTimeoutMillis || 2500,
-        max: config.max || 4
+        connectionTimeoutMillis: config.connectionTimeoutMillis || DEFAULT_CONNECTION_TIMEOUT_MS,
+        max: config.max || DEFAULT_POOL_MAX
       });
       // Obligatoire : un client idle tué par PG (docker stop, reload) émet `error`
       // hors requête — sans listener Node/Electron affiche la boîte « Uncaught Exception ».
@@ -114,7 +179,6 @@ function createPostgresPersistence(config) {
     });
     try {
       await openPromise;
-      // Vérifie immédiatement la joignabilité.
       await requirePool().query("SELECT 1 AS ok");
     } catch (error) {
       if (pool) {
@@ -157,56 +221,10 @@ function createPostgresPersistence(config) {
    * @returns {Promise<void>}
    */
   async function exec(sql) {
-    const withoutBlockComments = String(sql || "").replace(/\/\*[\s\S]*?\*\//g, "");
-    const withoutLineComments = withoutBlockComments
-      .split("\n")
-      .map((line) => {
-        const idx = line.indexOf("--");
-        return idx >= 0 ? line.slice(0, idx) : line;
-      })
-      .join("\n");
-    const statements = withoutLineComments
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean);
-    const client = requirePool();
-    for (const statement of statements) {
-      await client.query(statement);
-    }
+    await execOn(requirePool(), sql);
   }
 
-  /**
-   * @param {string} sql
-   * @param {unknown[]} [params=[]]
-   * @returns {Promise<import('./persistenceContract').PersistenceRunResult>}
-   */
-  async function run(sql, params = []) {
-    const result = await queryOn(requirePool(), sql, params);
-    return {
-      changes: Number(result.rowCount || 0),
-      lastInsertRowid: null
-    };
-  }
-
-  /**
-   * @param {string} sql
-   * @param {unknown[]} [params=[]]
-   * @returns {Promise<object|undefined>}
-   */
-  async function get(sql, params = []) {
-    const result = await queryOn(requirePool(), sql, params);
-    return result.rows[0];
-  }
-
-  /**
-   * @param {string} sql
-   * @param {unknown[]} [params=[]]
-   * @returns {Promise<object[]>}
-   */
-  async function all(sql, params = []) {
-    const result = await queryOn(requirePool(), sql, params);
-    return Array.isArray(result.rows) ? result.rows : [];
-  }
+  const { run, get, all } = bindQueryApi(requirePool);
 
   /**
    * Transaction sur une connexion dédiée du pool.
@@ -219,23 +237,8 @@ function createPostgresPersistence(config) {
     try {
       await client.query("BEGIN");
       const tx = {
-        exec: async (sql) => {
-          const text = String(sql || "").trim();
-          if (!text) return;
-          await client.query(text);
-        },
-        run: async (sql, params = []) => {
-          const result = await queryOn(client, sql, params);
-          return { changes: Number(result.rowCount || 0), lastInsertRowid: null };
-        },
-        get: async (sql, params = []) => {
-          const result = await queryOn(client, sql, params);
-          return result.rows[0];
-        },
-        all: async (sql, params = []) => {
-          const result = await queryOn(client, sql, params);
-          return Array.isArray(result.rows) ? result.rows : [];
-        }
+        exec: (sql) => execOn(client, sql),
+        ...bindQueryApi(() => client)
       };
       const value = await fn(tx);
       await client.query("COMMIT");
@@ -266,6 +269,5 @@ function createPostgresPersistence(config) {
 }
 
 module.exports = {
-  createPostgresPersistence,
-  toPgPlaceholders
+  createPostgresPersistence
 };

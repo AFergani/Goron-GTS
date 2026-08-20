@@ -1,7 +1,7 @@
 /**
  * Consultation du journal technique local des événements PostgreSQL (`gts-pg-events.log`).
  *
- * Affiché dans Paramètres → Journal (section technique). Plus de table SQLite `error_logs`.
+ * Affiché dans Paramètres → Journal (section technique).
  *
  * @module electron/store/domains/journals/techErrorLogs
  */

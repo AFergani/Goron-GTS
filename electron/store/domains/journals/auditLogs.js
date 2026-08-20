@@ -1,10 +1,10 @@
 /**
  * Consultation du journal d'audit (`audit_logs`) pour l'écran Paramètres.
  *
- * Lecture seule : les écritures passent par `store/core/audit.js` (`logAudit` / `writeAudit`).
+ * Lecture seule : les écritures passent par `UserStore.logAudit` → `writeAudit` (`store/core/audit.js`).
  * Accès restreint aux profils station admin (DEV ou RESPONSABLE avec profil métier autorisé).
  * Les lignes viennent de PostgreSQL uniquement via `store.getAuditPersistence()`.
- * Si PG est injoignable : refus explicite (pas de repli SQLite silencieux).
+ * Si PG est injoignable : refus explicite.
  * Les noms d'affichage des acteurs restent enrichis depuis `users` (PostgreSQL).
  *
  * @module electron/store/domains/journals/auditLogs

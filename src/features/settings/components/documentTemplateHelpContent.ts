@@ -49,28 +49,13 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{heureDepart}", description: "Heure de départ." },
       { token: "{delaiMinutes}", description: "Délai en minutes ou « — »." },
       { token: "{delaiMinutesLabel}", description: "Libellé délai (ex. « 15 Minutes »)." },
-      { token: "{numeroBonIntervention}", description: "Numéro de bon." },
+      { token: "{numeroBonIntervention}", description: "Numéro de bon, ou « Pas de bon » s’il n’a pas été saisi." },
       { token: "{compteRendu}", description: "Compte rendu / observation." },
       { token: "{statut}", description: "Statut (En cours / Clôturée / Annulée)." },
       { token: "{facturation}", description: "Facturable / Non facturable." }
     ],
     footerNote:
       "Les variables définies dans « Champs complémentaires export » utilisent exactement le nom de variable indiqué (ex. {ma_reference})."
-  },
-  gardiennage: {
-    title: "Gardiennage — variables du modèle Word",
-    intro:
-      "Syntaxe {nom_du_jeton}. Fichier : gardiennage-template.docx dans data/templates. Les variables custom du sous-onglet Variables affectées à ce template sont listées automatiquement ci-dessous.",
-    variables: [
-      { token: "{site}", description: "Site (libellé affiché)." },
-      { token: "{prestataire}", description: "Prestataire." },
-      { token: "{dateDebut}", description: "Date de début de prestation." },
-      { token: "{heureDebut}", description: "Heure de début prévue." },
-      { token: "{dateFin}", description: "Date de fin de prestation." },
-      { token: "{heureFin}", description: "Heure de fin prévue." },
-      { token: "{statut}", description: "Statut (Planifié / Actif / Clôturé / Annulé)." },
-      { token: "{consigne}", description: "Consignes / notes de la fiche." }
-    ]
   },
   ronde: {
     title: "Ronde contractuelle — modèle par défaut (ronde-template.docx)",
@@ -130,7 +115,6 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
 export function helpIdFromFlowKind(flowKind: TemplateFlowKind | string): string {
   const kind = String(flowKind || "").trim().toUpperCase();
   if (kind === "INTERVENTION") return "intervention";
-  if (kind === "GARDIENNAGE") return "gardiennage";
   if (kind === "RONDE_PLANIFIEE") return "ronde-planifiee";
   if (kind === "RONDE_EXCEPTIONNELLE") return "ronde-exceptionnelle";
   return "custom-docx";
@@ -145,7 +129,6 @@ export function helpIdFromFlowKind(flowKind: TemplateFlowKind | string): string 
 export function helpIdFromTemplateFileName(fileName: string): string {
   const name = String(fileName || "").trim().toLowerCase();
   if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
-  if (name === "gardiennage-template.docx" || name.startsWith("gardiennage_")) return "gardiennage";
   if (name === "main-courante-template.docx") return "main-courante";
   if (name === "ronde-template.docx") return "ronde";
   if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
@@ -162,7 +145,6 @@ export function helpIdFromTemplateFileName(fileName: string): string {
 export function helpIdToFormTargets(helpId: string): FormTarget[] {
   if (helpId === "main-courante") return ["MAIN_COURANTE"];
   if (helpId === "intervention") return ["INTERVENTION"];
-  if (helpId === "gardiennage") return ["GARDIENNAGE"];
   if (helpId === "ronde-planifiee") return ["RONDE_PLANIFIEE"];
   if (helpId === "ronde-exceptionnelle") return ["RONDE_EXCEPTIONNELLE"];
   if (helpId === "ronde" || helpId === "custom-docx") return ["RONDE_PLANIFIEE", "RONDE_EXCEPTIONNELLE"];

@@ -712,13 +712,13 @@ export function AppShell() {
               onClick={openSettingsAtFirstTabs}
             >
               <Settings size={16} />
-              {(settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length) > 0 ? (
+              {(settings.pendingSites.length + settings.pendingIntervenants.length) > 0 ? (
                 <span
                   className="icon-btn-badge"
-                  title={`${settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length} élément(s) en attente de validation`}
-                  aria-label={`${settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length} élément(s) en attente de validation`}
+                  title={`${settings.pendingSites.length + settings.pendingIntervenants.length} élément(s) en attente de validation`}
+                  aria-label={`${settings.pendingSites.length + settings.pendingIntervenants.length} élément(s) en attente de validation`}
                 >
-                  {settings.interventionPendingSites.length + settings.interventionPendingIntervenants.length}
+                  {settings.pendingSites.length + settings.pendingIntervenants.length}
                 </span>
               ) : null}
             </button>
@@ -777,8 +777,8 @@ export function AppShell() {
             rondeMotifTypes={settings.rondeMotifTypes}
             rondePlannedProfiles={settings.rondePlannedProfiles}
             fransorResponsables={settings.fransorResponsables}
-            interventionPendingSites={settings.interventionPendingSites}
-            interventionPendingIntervenants={settings.interventionPendingIntervenants}
+            pendingSites={settings.pendingSites}
+            pendingIntervenants={settings.pendingIntervenants}
             currentUsername={session.user.username}
             onTabChange={settings.setActiveSettingsTab}
             activeDataTab={settings.activeDataTab}

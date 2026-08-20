@@ -1,16 +1,18 @@
 /**
- * CRUD, statuts et opérations de lot des rondes dans PostgreSQL.
+ * CRUD, statuts et opérations de lot des rondes en PostgreSQL.
+ *
+ * Aucun chemin SQLite ni historique local n'est conservé dans ce module.
  *
  * @module electron/store/domains/ronde/entries
  */
 
-const crypto = require("crypto");
 const holidaysDomain = require("../data/holidays");
 const interventionDomain = require("../intervention");
 const exceptionalSlots = require("./exceptionalSlotsEngine");
 const { autoCloseExpiredExceptionalRondes } = require("./autoClose");
 const { mapRondeRow, parseJsonObject, toRondeAuditSnapshot } = require("./mapping");
 const { requireRondePersistence } = require("./persistence");
+const { generateEntityId } = require("../../core/ids");
 
 const ORIGIN_KINDS = new Set(["TELESURVEILLANCE", "CLIENT", "AUTRE"]);
 const SOURCES = new Set(["URGENCE", "LIEE_INTERVENTION", "PLANIFIE"]);
@@ -419,7 +421,7 @@ function assertCoherentExceptionalBatch(store, rows) {
   const snapshots = rows.map((row) => String(row.request_planning_snapshot_json || "").trim());
   const sites = rows.map((row) => String(row.site_id || ""));
   if (rows.length === 1 || (snapshots.every(Boolean) && new Set(snapshots).size === 1 && new Set(sites).size === 1)) return;
-  store.fail("ronde:batch", "Impossible de regrouper automatiquement ces fiches.", "RONDE_BATCH_LEGACY_INCOHERENT");
+  store.fail("ronde:batch", "Impossible de regrouper automatiquement ces fiches.", "RONDE_BATCH_INCOHERENT");
 }
 
 /** @param {object} db @param {string[]} ids @returns {Promise<object[]>} */
@@ -491,7 +493,7 @@ async function updateRondeBatchSharedFields(store, payload) {
         for (const [slotKey, quantity] of [...multiset.entries()].sort()) {
           for (let index = 0; index < quantity; index += 1) {
             const [requestDate, requestedTime = ""] = slotKey.split("|");
-            const id = crypto.randomUUID();
+            const id = generateEntityId();
             const now = new Date().toISOString();
             const observation = [
               formatDemandContext(snapshot.requestDate || requestDate, TIME_RE.test(snapshot.requestTime) ? snapshot.requestTime : "00:00"),

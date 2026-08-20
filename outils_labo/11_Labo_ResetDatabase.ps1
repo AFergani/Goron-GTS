@@ -77,18 +77,38 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "   schema.sql applique." -ForegroundColor Green
 
 Write-Host ""
-Write-Host "3/3 Droits pour $($script:LaboAppUser)..." -ForegroundColor Cyan
-$grantSql = @"
+Write-Host "3/3 Propriete + droits pour $($script:LaboAppUser) ..." -ForegroundColor Cyan
+$ownershipSql = @"
+ALTER SCHEMA public OWNER TO $($script:LaboAppUser);
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT table_schema, table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+  LOOP
+    EXECUTE format('ALTER TABLE %I.%I OWNER TO $($script:LaboAppUser);', r.table_schema, r.table_name);
+  END LOOP;
+
+  FOR r IN
+    SELECT sequence_schema, sequence_name
+    FROM information_schema.sequences
+    WHERE sequence_schema = 'public'
+  LOOP
+    EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO $($script:LaboAppUser);', r.sequence_schema, r.sequence_name);
+  END LOOP;
+END $$;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $($script:LaboAppUser);
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $($script:LaboAppUser);
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $($script:LaboAppUser);
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $($script:LaboAppUser);
 "@
-$grantSql | docker exec -i $script:LaboContainerName psql -U $script:LaboPgSuperUser -d $script:LaboDatabaseName -v ON_ERROR_STOP=1
+$ownershipSql | docker exec -i $script:LaboContainerName psql -U $script:LaboPgSuperUser -d $script:LaboDatabaseName -v ON_ERROR_STOP=1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Echec des GRANT (schema peut etre OK, verifier a la main)." -ForegroundColor Yellow
+    Write-Host "Echec de la reprise de propriete/droits (schema peut etre OK, verifier a la main)." -ForegroundColor Yellow
 } else {
-    Write-Host "   Droits OK." -ForegroundColor Green
+    Write-Host "   Propriete + droits OK." -ForegroundColor Green
 }
 
 Write-Host ""

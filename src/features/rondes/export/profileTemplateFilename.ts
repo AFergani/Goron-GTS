@@ -1,8 +1,7 @@
 /**
  * Nom de fichier modèle Word par libellé de profil planifié.
  *
- * Doit rester aligné avec `sanitizeProfileLabelForWordTemplateFilename` dans `electron/main.js`
- * (copie du fichier vers data/templates).
+ * Doit rester aligné avec `sanitizeTemplateSlug` dans `electron/main/documentTemplates.js`.
  */
 export function sanitizeProfileLabelForWordTemplateFilename(label: string): string {
   const raw = String(label || "").trim();

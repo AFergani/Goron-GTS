@@ -1,5 +1,8 @@
 /**
- * Application du schéma SQL PostgreSQL (fichier unique `schema.sql`).
+ * Application du schéma SQL PostgreSQL (`migrations/schema.sql`).
+ *
+ * Idempotent (`IF NOT EXISTS`). Appelé à l'ouverture du pool
+ * (`openPostgresPersistence`).
  *
  * @module electron/store/persistence/postgresMigrations
  */
@@ -7,33 +10,25 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const SCHEMA_FILE_NAME = "schema.sql";
+
 /**
- * Applique les fichiers `.sql` du dossier `migrations/` (ordre alphabétique).
- * En V1 : un seul `schema.sql` idempotent (`IF NOT EXISTS`).
+ * Applique `schema.sql` sur l'adaptateur PostgreSQL.
  *
- * @param {import('./persistenceContract').PersistenceAdapter} persistence - Adaptateur `engine=postgres`.
- * @returns {Promise<{ applied: string[] }>}
+ * @param {import('./persistenceContract').PersistenceAdapter} persistence
+ * @returns {Promise<void>}
+ * @throws {Error} Si l'adaptateur est invalide ou si `schema.sql` est introuvable.
  */
 async function applyPostgresMigrations(persistence) {
-  if (!persistence || persistence.engine !== "postgres") {
+  if (!persistence || typeof persistence.exec !== "function") {
     throw new Error("applyPostgresMigrations exige un adaptateur PostgreSQL.");
   }
-  const dir = path.join(__dirname, "migrations");
-  if (!fs.existsSync(dir)) {
-    return { applied: [] };
+  const schemaPath = path.join(__dirname, "migrations", SCHEMA_FILE_NAME);
+  if (!fs.existsSync(schemaPath)) {
+    throw new Error(`Schéma PostgreSQL introuvable : ${schemaPath}`);
   }
-  const files = fs
-    .readdirSync(dir)
-    .filter((name) => name.endsWith(".sql"))
-    .sort();
-  const applied = [];
-  for (const file of files) {
-    const fullPath = path.join(dir, file);
-    const sql = fs.readFileSync(fullPath, "utf8");
-    await persistence.exec(sql);
-    applied.push(file);
-  }
-  return { applied };
+  const sql = fs.readFileSync(schemaPath, "utf8");
+  await persistence.exec(sql);
 }
 
 module.exports = {

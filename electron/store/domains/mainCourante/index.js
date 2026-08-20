@@ -1,5 +1,8 @@
 /**
- * Domaine Main courante — PostgreSQL only.
+ * Domaine Main courante — PostgreSQL seulement.
+ *
+ * La façade exporte les fonctions métier actives et le mapper SQL → API.
+ * Aucune trace de compatibilité legacy ou SQLite n'est conservée ici.
  *
  * @module electron/store/domains/mainCourante
  */

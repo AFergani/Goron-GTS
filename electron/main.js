@@ -1,15 +1,11 @@
 const path = require("path");
 const fs = require("fs");
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
 const { UserStore, AppError } = require("./userStore");
 const sessionMain = require("./store/core/session");
-const { writeEncryptedAdminCode, ADMIN_ENC_FILE_NAME } = require("./store/core/adminAccess");
 const { createDocumentTemplatesService } = require("./main/documentTemplates");
-const { createDatabaseAdminService } = require("./main/databaseAdmin");
 const { createPostgresAdminService } = require("./main/postgresAdminService");
 const { createAppConfigService } = require("./main/appConfigService");
-const { createTrayService } = require("./main/trayService");
-const { createDbAccessControlService } = require("./main/dbAccessControl");
 const { createWindowService } = require("./main/windowService");
 const { registerAuthIpcHandlers } = require("./main/ipcAuthHandlers");
 const { registerDomainIpcHandlers } = require("./main/ipcDomainHandlers");
@@ -22,8 +18,8 @@ const { registerSystemIpcHandlers } = require("./main/ipcSystemHandlers");
  * (`UserStore` / PostgreSQL connexion directe, badge DB), les planificateurs
  * (clôture auto gardiennage/rondes) et le pont IPC vers le renderer.
  *
- * Boot PostgreSQL-only : plus de fichier `store.db` / SQLite métier, plus de pont
- * writer Master/Backup. La logique détaillée vit dans `electron/main/*` ; ce fichier
+ * Boot PostgreSQL-only : connexion directe au serveur, badge DB.
+ * La logique détaillée vit dans `electron/main/*` ; ce fichier
  * compose les services, tient l'état mutable (`userStore`) et enregistre les handlers IPC.
  *
  * @module electron/main
@@ -86,33 +82,6 @@ let mainWindow = null;
 let isAppQuitting = false;
 let devToolsAccessEnabled = false;
 
-const trayService = createTrayService({
-  path,
-  app,
-  Tray,
-  Menu,
-  iconDirname: __dirname,
-  getMainWindow: () => mainWindow,
-  setIsAppQuitting: (value) => {
-    isAppQuitting = value;
-  }
-});
-const dbAccessControlService = createDbAccessControlService({
-  getUserStore: () => userStore
-});
-function shouldEnableTrayBackgroundMode() {
-  return trayService.shouldEnableTrayBackgroundMode();
-}
-function ensureAppTray() {
-  return trayService.ensureAppTray();
-}
-function refreshTrayMenu() {
-  return trayService.refreshTrayMenu();
-}
-function setupTrayIfNeeded() {
-  return trayService.setupTrayIfNeeded();
-}
-
 const appConfigService = createAppConfigService({ fs, appConfigPath });
 const readAppConfig = appConfigService.readAppConfig;
 const writeAppConfig = appConfigService.writeAppConfig;
@@ -140,40 +109,35 @@ function initUserStore() {
   userStore._pgAttachPromise = userStore.attachPostgresAuditLab().catch(() => ({ attached: false }));
 }
 
-/** Vérifie que l'utilisateur peut modifier la configuration de la base de données. */
+/**
+ * Droit de gérer la connexion PostgreSQL (DEV, directeur ou responsable de station).
+ *
+ * @param {string} requesterUsername
+ * @returns {boolean}
+ */
 function canManageDatabase(requesterUsername) {
-  return dbAccessControlService.canManageDatabase(requesterUsername);
+  if (!userStore) return false;
+  return Boolean(userStore.canManagePostgresConfig(requesterUsername));
 }
 
 /**
- * Racines `data/` candidates pour modèles Word et assets locaux (sans fichier `.db`).
+ * Racines `data/` pour les modèles Word du poste.
+ * Dev : `cwd/data`. Packagé portable : dossier de l'exe. Sinon : userData Electron.
  *
  * @returns {string[]}
  */
 function getDataRootCandidates() {
-  const exeDir = path.dirname(app.getPath("exe"));
-  const exeParentDir = path.dirname(exeDir);
-  const exeGrandParentDir = path.dirname(exeParentDir);
   const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR || null;
-  const portableExeParentDir = portableExeDir ? path.dirname(portableExeDir) : null;
-  const portableExeGrandParentDir = portableExeParentDir ? path.dirname(portableExeParentDir) : null;
   const preferredRoot = !app.isPackaged
     ? path.join(process.cwd(), "data")
     : portableExeDir
       ? path.join(portableExeDir, "data")
       : path.join(app.getPath("userData"), "data");
-  const candidates = [
+  return [...new Set([
     preferredRoot,
     path.join(process.cwd(), "data"),
-    path.join(app.getPath("userData"), "data"),
-    path.join(exeDir, "data"),
-    path.join(exeParentDir, "data"),
-    path.join(exeGrandParentDir, "data"),
-    portableExeDir ? path.join(portableExeDir, "data") : null,
-    portableExeParentDir ? path.join(portableExeParentDir, "data") : null,
-    portableExeGrandParentDir ? path.join(portableExeGrandParentDir, "data") : null
-  ];
-  return [...new Set(candidates.filter(Boolean))];
+    path.join(app.getPath("userData"), "data")
+  ].filter(Boolean))];
 }
 
 const documentTemplates = createDocumentTemplatesService({
@@ -187,18 +151,23 @@ const documentTemplates = createDocumentTemplatesService({
   getUserStore: () => userStore
 });
 
-const databaseAdmin = createDatabaseAdminService({
-  isDev,
-  isStoreReady: () => Boolean(userStore)
-});
-
 const postgresAdmin = createPostgresAdminService({
   getUserStore: () => userStore,
   canManageDatabase
 });
 
+/**
+ * Indicateurs de boot du poste (pas un diagnostic PostgreSQL).
+ * - `configured` : `UserStore` instancié (après `initUserStore`).
+ * - `isDev` : appli non packagée (restauration de session locale côté renderer).
+ *
+ * @returns {{ configured: boolean, isDev: boolean }}
+ */
 function getDbConfig() {
-  return databaseAdmin.getDbConfig();
+  return {
+    configured: Boolean(userStore),
+    isDev: Boolean(isDev)
+  };
 }
 
 function ensureStore() {
@@ -246,13 +215,13 @@ const windowService = createWindowService({
   isDev,
   readAppConfig,
   writeAppConfig,
-  setupTrayIfNeeded,
   getIsDevToolsAllowed: () => isDev || devToolsAccessEnabled,
   getIsAppQuitting: () => isAppQuitting,
   setMainWindow: (win) => {
     mainWindow = win;
   },
-  baseDirname: __dirname
+  baseDirname: __dirname,
+  app
 });
 function createWindow() {
   return windowService.createWindow();
@@ -371,18 +340,14 @@ registerSystemIpcHandlers({
   handleIpcAuth,
   getOptionalAuthContext,
   getDbConfig,
-  ensureStore,
   getUserStore: () => userStore,
   documentTemplates,
-  fs,
   shell,
   app,
   setIsAppQuitting: (value) => {
     isAppQuitting = value;
   },
   getMainWindow: () => mainWindow,
-  shouldEnableTrayBackgroundMode,
-  setupTrayIfNeeded,
   canManageDatabase,
   setDevToolsAccessEnabled: (enabled) => {
     devToolsAccessEnabled = Boolean(enabled);
@@ -396,15 +361,10 @@ registerAuthIpcHandlers({
   ensureStore,
   getUserStore: () => userStore,
   createSession: sessionMain.createSession,
-  revokeSession: sessionMain.revokeSession,
-  path,
-  app,
-  ADMIN_ENC_FILE_NAME,
-  writeEncryptedAdminCode
+  revokeSession: sessionMain.revokeSession
 });
 registerDomainIpcHandlers({
   handleIpcAuth,
-  ensureStore,
   getUserStore: () => userStore,
   getActiveUsernames: sessionMain.getActiveUsernames
 });
@@ -421,6 +381,6 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   stopGardiennageAutoCloseScheduler();
-  // Windows/Linux : dernière fenêtre fermée = quitter (la réduction tray utilise hide(), pas destroy).
+  // Windows/Linux : dernière fenêtre fermée = quitter.
   if (process.platform !== "darwin") app.quit();
 });

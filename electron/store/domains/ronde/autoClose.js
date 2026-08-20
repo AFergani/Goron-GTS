@@ -1,9 +1,10 @@
 /**
  * Clôture automatique PostgreSQL des rondes exceptionnelles expirées.
  *
- * Délai : 5 jours après `request_date` (hors rondes `PLANIFIE`). Appelé avant `listRondes`,
- * par timer `electron/main.js` et via `UserStore` / façade `ronde/index.js`.
- * Compte rendu système aligné sur le gardiennage ; audit `RONDE_EXCEPTIONAL_AUTO_CLOSE_BATCH`.
+ * Délai : 5 jours après `request_date` pour les sources hors `PLANIFIE`.
+ * Le traitement est branché via `electron/main.js` et la façade `ronde/index.js`.
+ *
+ * @module electron/store/domains/ronde/autoClose
  */
 
 /** Libellé enregistré en compte rendu (homogène avec `gardiennageAutoClose.js`). */

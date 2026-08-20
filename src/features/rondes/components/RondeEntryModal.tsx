@@ -8,23 +8,22 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 import type { SiteRef, IntervenantRef } from "../../../types";
-import type {
-  RondeEntry,
-  RondeMotifTypeRef,
-  RondeOriginKind,
-  RondeSavePayload,
-  RondeSource,
-  isRondeAutoClosureReport
+import {
+  isRondeAutoClosureReport,
+  type RondeEntry,
+  type RondeMotifTypeRef,
+  type RondeOriginKind,
+  type RondeSavePayload,
+  type RondeSource
 } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
-import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
 import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
+import { SearchEntry } from "../../common/components/SearchEntry";
+import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
@@ -622,105 +621,91 @@ export function RondeEntryModal({
         </div>
       </CreateFormSection>
 
-      <CreateFormSection title="Site et prestataire">
-        <div className="mc-form-grid mc-form-grid-main">
-          {isCreateMode ? (
-            <>
-              <SiteSearchInput
-                sites={sites}
-                disabled={false}
-                selectedSite={selectedSite}
-                onSelectedSiteChange={(site) => {
-                  setSiteId(site?.id || "");
-                  if (site) {
-                    setShowPendingSiteForm(false);
-                    setPendingCode("");
-                    setPendingName("");
-                  }
-                }}
-                copyNotify={onNotify}
-              />
+      {isCreateMode ? (
+        <SearchEntry
+          sites={sites}
+          intervenants={intervenants}
+          selectedSite={selectedSite}
+          selectedIntervenant={selectedIntervenant}
+          onSelectedSiteChange={(site) => {
+            setSiteId(site?.id || "");
+            if (site) {
+              setShowPendingSiteForm(false);
+              setPendingCode("");
+              setPendingName("");
+            }
+          }}
+          onSelectedIntervenantChange={(item) => {
+            setIntervenantId(item?.id || "");
+            if (item) {
+              setShowPendingIntervenantForm(false);
+              setPendingIntervenantName("");
+            }
+          }}
+          showPendingSiteForm={showPendingSiteForm}
+          showPendingIntervenantForm={showPendingIntervenantForm}
+          onTogglePendingSite={() => setShowPendingSiteForm((c) => !c)}
+          onTogglePendingIntervenant={() => setShowPendingIntervenantForm((c) => !c)}
+          pendingSiteForm={(
+            <div className="mc-form-grid mc-form-grid-main">
+              <label className="mc-field">
+                <span>Nouveau code site</span>
+                <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+              </label>
+              <label className="mc-field">
+                <span>Nouveau nom de site</span>
+                <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+              </label>
+            </div>
+          )}
+          pendingIntervenantForm={(
+            <div className="mc-form-grid mc-form-grid-main">
+              <label className="mc-field mc-field-full">
+                <span>Nouveau prestataire</span>
+                <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
+              </label>
+            </div>
+          )}
+          onNotify={onNotify}
+          siteButtonLabel="À créer ?"
+          intervenantButtonLabel="À créer ?"
+          showSiteAction={!selectedSite}
+          showIntervenantAction={!selectedIntervenant}
+        />
+      ) : (
+        <>
+          <label className="mc-field">
+            <span>Site</span>
+            <SiteDisplayCopyButton
+              siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+              onNotify={onNotify}
+            />
+          </label>
+          {entry?.source === "PLANIFIE" ? (
+            <div className="mc-field mc-field-full">
+              <p className="muted mc-ref-hint" style={{ marginBottom: 8 }}>
+                Prestataire défini à la <strong>création</strong> du passage planifié. Modifiez uniquement si une autre équipe est intervenue
+                ou en cas d&apos;erreur de saisie.
+              </p>
               <IntervenantSearchInput
                 intervenants={intervenants}
-                disabled={false}
+                disabled={lockFields}
                 selectedIntervenant={selectedIntervenant}
-                onSelectedIntervenantChange={(item) => {
-                  setIntervenantId(item?.id || "");
-                  if (item) {
-                    setShowPendingIntervenantForm(false);
-                    setPendingIntervenantName("");
-                  }
-                }}
+                onSelectedIntervenantChange={(item) => setIntervenantId(item?.id || "")}
               />
-            </>
+            </div>
           ) : (
-            <>
-              <label className="mc-field">
-                <span>Site</span>
-                <SiteDisplayCopyButton
-                  siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
-                  onNotify={onNotify}
-                />
-              </label>
-              {entry?.source === "PLANIFIE" ? (
-                <div className="mc-field mc-field-full">
-                  <p className="muted mc-ref-hint" style={{ marginBottom: 8 }}>
-                    Prestataire défini à la <strong>création</strong> du passage planifié. Modifiez uniquement si une autre équipe est intervenue
-                    ou en cas d&apos;erreur de saisie.
-                  </p>
-                  <IntervenantSearchInput
-                    intervenants={intervenants}
-                    disabled={lockFields}
-                    selectedIntervenant={selectedIntervenant}
-                    onSelectedIntervenantChange={(item) => setIntervenantId(item?.id || "")}
-                  />
-                </div>
-              ) : (
-                <label className="mc-field">
-                  <span>Prestataire</span>
-                  <input
-                    value={selectedIntervenant?.name || entry?.intervenantName || "—"}
-                    readOnly
-                    className="mc-input-readonly"
-                  />
-                </label>
-              )}
-            </>
+            <label className="mc-field">
+              <span>Prestataire</span>
+              <input
+                value={selectedIntervenant?.name || entry?.intervenantName || "—"}
+                readOnly
+                className="mc-input-readonly"
+              />
+            </label>
           )}
-        </div>
-
-        {isCreateMode ? (
-          <PendingSiteIntervenantRefActions
-            selectedSite={selectedSite}
-            selectedIntervenant={selectedIntervenant}
-            showPendingSiteForm={showPendingSiteForm}
-            showPendingIntervenantForm={showPendingIntervenantForm}
-            onTogglePendingSite={() => setShowPendingSiteForm((c) => !c)}
-            onTogglePendingIntervenant={() => setShowPendingIntervenantForm((c) => !c)}
-            intervenantButtonLabel="Prestataire introuvable"
-            pendingSiteForm={(
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field">
-                  <span>Nouveau code site</span>
-                  <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                </label>
-                <label className="mc-field">
-                  <span>Nouveau nom de site</span>
-                  <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                </label>
-              </div>
-            )}
-            pendingIntervenantForm={(
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field mc-field-full">
-                  <span>Nouveau prestataire</span>
-                  <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
-                </label>
-              </div>
-            )}
-          />
-        ) : null}
-      </CreateFormSection>
+        </>
+      )}
 
       {!rondeMotifs.length ? (
         <p className="error mc-field-error">

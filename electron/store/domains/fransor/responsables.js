@@ -1,45 +1,32 @@
 /**
  * Référentiel des responsables Fransor (`fransor_responsables`).
  *
- * CRUD Paramètres (Gestion des données) ; soft delete (`is_active = 0`).
+ * CRUD Paramètres (Gestion des données) ; désactivation logique (`is_active = 0`).
  * Accès **PostgreSQL uniquement**. Consommé aussi par la page Fransor (récap / saisies).
  *
  * @module electron/store/domains/fransor/responsables
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { actorName } = require("../../core/actorName");
+const { sqlFoldExpr } = require("../../core/textFold");
 const { requireFransorPersistence } = require("./persistence");
 
 /**
- * Recharge le cache id → { id, name } des responsables actifs.
- *
- * @param {import('../../../userStore')} store
- * @returns {Promise<Map<string, { id: string, name: string }>>}
+ * @param {object} row - Ligne SQL.
+ * @returns {{ id: string, name: string, createdAt: string, updatedAt: string|null }}
  */
-async function refreshFransorResponsablesCache(store) {
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) {
-    return store._fransorResponsablesByIdCache instanceof Map
-      ? store._fransorResponsablesByIdCache
-      : new Map();
-  }
-  const rows = await db.all(
-    `SELECT id, name FROM fransor_responsables WHERE is_active = 1 ORDER BY name ASC`,
-    []
-  );
-  const map = new Map(
-    rows.map((row) => [
-      String(row.id),
-      { id: String(row.id), name: String(row.name || "") }
-    ])
-  );
-  store._fransorResponsablesByIdCache = map;
-  return map;
+function mapRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || null
+  };
 }
 
 /**
- * Responsable actif par id (cache PG, sinon lecture PG directe).
+ * Responsable actif par id (lecture PostgreSQL).
  *
  * @param {import('../../../userStore')} store
  * @param {string} id
@@ -48,13 +35,7 @@ async function refreshFransorResponsablesCache(store) {
 async function getActiveFransorResponsable(store, id) {
   const cleanId = String(id || "").trim();
   if (!cleanId) return null;
-  if (store._fransorResponsablesByIdCache instanceof Map) {
-    const cached = store._fransorResponsablesByIdCache.get(cleanId);
-    if (cached) return cached;
-  }
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) return null;
+  const db = requireFransorPersistence(store, "fransor:responsables");
   const row = await db.get(
     `SELECT id, name FROM fransor_responsables WHERE id = ? AND is_active = 1`,
     [cleanId]
@@ -80,12 +61,7 @@ async function listFransorResponsables(store, { requesterRole }) {
      ORDER BY name ASC`,
     []
   );
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at || null
-  }));
+  return rows.map(mapRow);
 }
 
 /**
@@ -103,30 +79,36 @@ async function createFransorResponsable(store, { requesterRole, requesterUsernam
     store.fail("fransor:responsables:create", "Nom responsable obligatoire.", "FRANSOR_RESPONSABLE_REQUIRED");
   }
   const exists = await db.get(
-    "SELECT id FROM fransor_responsables WHERE lower(name) = lower(?) AND is_active = 1",
+    `SELECT id FROM fransor_responsables WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")} AND is_active = 1`,
     [cleanName]
   );
   if (exists) {
-    store.fail("fransor:responsables:create", "Ce responsable existe deja.", "FRANSOR_RESPONSABLE_EXISTS");
+    store.fail("fransor:responsables:create", "Ce responsable existe déjà.", "FRANSOR_RESPONSABLE_EXISTS");
   }
   const id = generateEntityId();
   const now = new Date().toISOString();
+  const actor = actorName(requesterUsername);
   await db.run("INSERT INTO fransor_responsables (id, name, is_active, created_at) VALUES (?, ?, 1, ?)", [
     id,
     cleanName,
     now
   ]);
+  await store.recordEntityChange({
+    entityType: "fransor_responsables",
+    entityId: id,
+    changedBy: actor,
+    snapshot: { name: cleanName }
+  });
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actor,
     action: "FRANSOR_RESPONSABLE_CREATE",
     details: { id, name: cleanName }
   });
-  await refreshFransorResponsablesCache(store);
   return { success: true };
 }
 
 /**
- * Met à jour un responsable (audit before/after).
+ * Met à jour un responsable (audit before/after + `historyBefore`).
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -135,32 +117,52 @@ async function createFransorResponsable(store, { requesterRole, requesterUsernam
 async function updateFransorResponsable(store, { requesterRole, requesterUsername, id, name }) {
   store.ensureDataManagerRole(requesterRole);
   const db = requireFransorPersistence(store, "fransor:responsables:update");
+  const cleanId = String(id || "").trim();
   const cleanName = String(name || "").trim();
-  if (!id || !cleanName) {
+  if (!cleanId || !cleanName) {
     store.fail("fransor:responsables:update", "Données responsable invalides.", "FRANSOR_RESPONSABLE_REQUIRED");
   }
-  const existing = await db.get("SELECT id, name FROM fransor_responsables WHERE id = ? AND is_active = 1", [id]);
+  const existing = await db.get(
+    "SELECT id, name FROM fransor_responsables WHERE id = ? AND is_active = 1",
+    [cleanId]
+  );
   if (!existing) {
     store.fail("fransor:responsables:update", "Responsable introuvable.", "FRANSOR_RESPONSABLE_NOT_FOUND");
   }
   const duplicate = await db.get(
-    "SELECT id FROM fransor_responsables WHERE lower(name) = lower(?) AND id <> ? AND is_active = 1",
-    [cleanName, id]
+    `SELECT id FROM fransor_responsables
+     WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")} AND id <> ? AND is_active = 1`,
+    [cleanName, cleanId]
   );
   if (duplicate) {
-    store.fail("fransor:responsables:update", "Ce responsable existe deja.", "FRANSOR_RESPONSABLE_EXISTS");
+    store.fail("fransor:responsables:update", "Ce responsable existe déjà.", "FRANSOR_RESPONSABLE_EXISTS");
   }
+  if (String(existing.name || "") === cleanName) {
+    return { success: true };
+  }
+  const actor = actorName(requesterUsername);
   await db.run("UPDATE fransor_responsables SET name = ?, updated_at = ? WHERE id = ?", [
     cleanName,
     new Date().toISOString(),
-    id
+    cleanId
   ]);
+  const historyBefore = await store.getEntityChangeHistory("fransor_responsables", cleanId, 3);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actor,
     action: "FRANSOR_RESPONSABLE_UPDATE",
-    details: { id, before: { name: existing.name }, after: { name: cleanName } }
+    details: {
+      id: cleanId,
+      before: { name: String(existing.name || "") },
+      after: { name: cleanName },
+      historyBefore
+    }
   });
-  await refreshFransorResponsablesCache(store);
+  await store.recordEntityChange({
+    entityType: "fransor_responsables",
+    entityId: cleanId,
+    changedBy: actor,
+    snapshot: { name: cleanName }
+  });
   return { success: true };
 }
 
@@ -174,24 +176,30 @@ async function updateFransorResponsable(store, { requesterRole, requesterUsernam
 async function deleteFransorResponsable(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
   const db = requireFransorPersistence(store, "fransor:responsables:delete");
+  const cleanId = String(id || "").trim();
   const cleanReason = String(reason || "").trim();
+  if (!cleanId) {
+    store.fail("fransor:responsables:delete", "Responsable introuvable.", "FRANSOR_RESPONSABLE_NOT_FOUND");
+  }
   if (!cleanReason) {
     store.fail("fransor:responsables:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const existing = await db.get("SELECT id, name FROM fransor_responsables WHERE id = ? AND is_active = 1", [id]);
+  const existing = await db.get(
+    "SELECT id, name FROM fransor_responsables WHERE id = ? AND is_active = 1",
+    [cleanId]
+  );
   if (!existing) {
     store.fail("fransor:responsables:delete", "Responsable introuvable.", "FRANSOR_RESPONSABLE_NOT_FOUND");
   }
   await db.run("UPDATE fransor_responsables SET is_active = 0, updated_at = ? WHERE id = ?", [
     new Date().toISOString(),
-    id
+    cleanId
   ]);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "FRANSOR_RESPONSABLE_DELETE",
-    details: { id, deleted: { name: existing.name }, reason: cleanReason }
+    details: { id: cleanId, deleted: { name: String(existing.name || "") }, reason: cleanReason }
   });
-  await refreshFransorResponsablesCache(store);
   return { success: true };
 }
 
@@ -200,6 +208,5 @@ module.exports = {
   createFransorResponsable,
   updateFransorResponsable,
   deleteFransorResponsable,
-  refreshFransorResponsablesCache,
   getActiveFransorResponsable
 };

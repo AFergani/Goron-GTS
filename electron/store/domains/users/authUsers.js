@@ -1,8 +1,9 @@
 /**
  * Authentification et gestion PostgreSQL des comptes utilisateurs (`users`).
  *
- * La connexion, les mutations et les préférences utilisent l'adaptateur async dédié.
+ * La connexion, les mutations et les préférences utilisent l'adaptateur PostgreSQL dédié.
  * Les contrôles RBAC appelés par des domaines synchrones lisent un cache PostgreSQL.
+ * Aucune compatibilité historique ou ancien chemin de migration n'est conservé ici.
  *
  * @module electron/store/domains/users/authUsers
  */
@@ -116,8 +117,7 @@ function assertPasswordNotBlacklisted(password) {
 }
 
 /**
- * Lit sans repli SQLite les liens PostgreSQL, tout en conservant les contrôles
- * temporaires des domaines métier non migrés dans SQLite, et Fransor en PostgreSQL.
+ * Vérifie les liens PostgreSQL d'un compte avant suppression (audit, users, domaines métier).
  *
  * @param {import('../../../userStore')} store
  * @param {string} username
@@ -153,12 +153,12 @@ async function hasRelatedDataForUserDeletion(store, username) {
       "SELECT 1 FROM fransor_accompagnements WHERE created_by = ? OR updated_by = ? LIMIT 1",
       [u, u]
     ),
-    interventionPendingSites: await pgHas(
-      "SELECT 1 FROM intervention_site_pending WHERE created_by = ? LIMIT 1",
+    pendingSites: await pgHas(
+      "SELECT 1 FROM data_site_pending WHERE created_by = ? LIMIT 1",
       [u]
     ),
-    interventionPendingIntervenants: await pgHas(
-      "SELECT 1 FROM intervention_intervenant_pending WHERE created_by = ? LIMIT 1",
+    pendingIntervenants: await pgHas(
+      "SELECT 1 FROM data_intervenant_pending WHERE created_by = ? LIMIT 1",
       [u]
     )
   };
@@ -206,7 +206,13 @@ function getRequesterRow(store, requesterUsername) {
   return getCachedUserRow(store, requesterUsername);
 }
 
-/** @returns {boolean} */
+/**
+ * Indique si le compte a le profil station admin (DEV, directeur ou responsable de station).
+ *
+ * @param {object|null} requester - Ligne utilisateur du cache.
+ * @param {{ DEV: string, RESPONSABLE: string }} roles
+ * @returns {boolean}
+ */
 function isStationAdminRequester(requester, roles) {
   if (!requester) return false;
   if (requester.role === roles.DEV) return true;
@@ -844,24 +850,16 @@ async function ensureDevUser(store, { roles }) {
     await refreshUsersCache(store);
     return;
   }
-  const legacyDev = await db.get("SELECT id FROM users WHERE username = ? AND role = ?", ["alexandre", roles.DEV]);
-  if (legacyDev) {
-    await db.run(
-      "UPDATE users SET username = ?, full_name = ?, updated_by = ?, updated_at = ? WHERE id = ?",
-      ["admin", "Admin", "system", new Date().toISOString(), legacyDev.id]
-    );
-  } else {
-    await db.run(
-      `INSERT INTO users (
-        id, username, full_name, role, password_hash, must_change_password,
-        is_active, created_by, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        crypto.randomUUID(), "admin", "Admin", roles.DEV, hashPassword(crypto.randomUUID()),
-        false, true, "system", new Date().toISOString()
-      ]
-    );
-  }
+  await db.run(
+    `INSERT INTO users (
+      id, username, full_name, role, password_hash, must_change_password,
+      is_active, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      generateEntityId(), "admin", "Admin", roles.DEV, hashPassword(crypto.randomUUID()),
+      false, true, "system", new Date().toISOString()
+    ]
+  );
   await refreshUsersCache(store);
 }
 
@@ -871,5 +869,5 @@ module.exports = {
   generateUniqueTemporaryPasswordForFullName, generateUniqueUsername, sanitizeUser,
   login, completeFirstLogin, listUsers, createUser, deactivateUser, updateUserProfile,
   reactivateUser, unlockUser, ensureDevUser, ensureStationAdminAccess, refreshUsersCache,
-  getCachedUserRow
+  getCachedUserRow, isStationAdminRequester
 };

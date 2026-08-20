@@ -58,6 +58,16 @@ function normalizeOriginDetail(entry: RondeEntry): string {
   return raw;
 }
 
+type RondeSortKey =
+  | "requestDate"
+  | "siteDisplay"
+  | "origin"
+  | "intervenant"
+  | "arrival"
+  | "departure"
+  | "duration"
+  | "status";
+
 type RondeTableProps = {
   entries: RondeEntry[];
   onOpen: (entry: RondeEntry) => void;
@@ -71,7 +81,7 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
     return <p className="muted">Aucune ronde.</p>;
   }
 
-  const comparators = {
+  const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
     requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     origin: (a: RondeEntry, b: RondeEntry) => originSummary(a).localeCompare(originSummary(b), "fr"),
@@ -80,14 +90,14 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
     departure: (a: RondeEntry, b: RondeEntry) => (a.departureTime || "").localeCompare(b.departureTime || ""),
     duration: (a: RondeEntry, b: RondeEntry) => (a.durationMinutes || 0) - (b.durationMinutes || 0),
     status: (a: RondeEntry, b: RondeEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
-  } as const;
+  };
 
-  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort(entries, comparators, {
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<RondeEntry, RondeSortKey>(entries, comparators, {
     key: "requestDate",
     direction: "desc"
   });
 
-  const sortLabel = (key: keyof typeof comparators) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+  const sortLabel = (key: RondeSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   return (
     <div className="main-courante-table-wrap">

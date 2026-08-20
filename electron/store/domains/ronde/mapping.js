@@ -1,6 +1,9 @@
 /**
  * Mapping PostgreSQL et snapshots d'audit du domaine Rondes.
  *
+ * Ce module est strictement aligné sur le stockage PostgreSQL et ne conserve pas
+ * d'ancien chemin de migration ou de compatibilité historique.
+ *
  * @module electron/store/domains/ronde/mapping
  */
 

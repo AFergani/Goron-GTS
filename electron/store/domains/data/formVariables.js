@@ -2,13 +2,14 @@
  * Référentiel des variables de formulaires dynamiques (Paramètres → Variables).
  *
  * Tables `data_form_variables` et `data_form_variable_assignments`.
- * Accès **PostgreSQL uniquement** via `store.getReferentialsPersistence()`.
- * Consommé par les modales métier et les exports (via IPC async).
+ * Accès PostgreSQL via `store.getReferentialsPersistence()`.
+ * Consommé par les modales métier et l'aide modèles (IPC async).
  *
  * @module electron/store/domains/data/formVariables
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { actorName } = require("../../core/actorName");
 
 /** Clé technique : minuscule, commence par une lettre, `_` et chiffres autorisés. */
 const KEY_RE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -43,7 +44,18 @@ function requirePersistence(store) {
 }
 
 /**
- * @param {string} raw - JSON tableau d'options (liste déroulante).
+ * @param {import('../../../userStore')} store
+ * @param {number} index
+ * @param {string} messageFr
+ * @param {string} code
+ * @returns {void}
+ */
+function failSave(store, index, messageFr, code) {
+  store.fail("data:formVariables:save", `Ligne ${index + 1} : ${messageFr}`, code);
+}
+
+/**
+ * @param {string|object} raw - JSON tableau d'options (liste déroulante).
  * @returns {string[]}
  */
 function parseOptionsJson(raw) {
@@ -80,45 +92,35 @@ async function listFormVariables(store, payload) {
     []
   );
   const byVar = new Map();
-  assignmentRows.forEach((row) => {
-    const k = String(row.variable_id || "");
-    if (!k) return;
-    const list = byVar.get(k) || [];
-    list.push({
-      kind: String(row.assignment_kind || "").toUpperCase(),
-      value: String(row.assignment_value || "")
-    });
-    byVar.set(k, list);
-  });
-  return vars.map((row) => {
-    const assignments = byVar.get(String(row.id || "")) || [];
-    return {
-      id: row.id,
-      sortOrder: Number(row.sort_order || 0),
-      fieldKey: String(row.field_key || ""),
-      label: String(row.label || ""),
-      fieldType: FIELD_TYPES.has(String(row.field_type || "")) ? String(row.field_type || "") : "text",
-      placeholder: String(row.placeholder || ""),
-      required: Boolean(Number(row.required)),
-      options: parseOptionsJson(row.options_json),
-      assignments: assignments
-        .filter((a) => ASSIGNMENT_KINDS.has(a.kind))
-        .map((a) => ({
-          kind: a.kind,
-          value: a.value
-        })),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
-  });
+  for (const row of assignmentRows) {
+    const kind = String(row.assignment_kind || "").toUpperCase();
+    if (!ASSIGNMENT_KINDS.has(kind)) continue;
+    const variableId = String(row.variable_id || "");
+    if (!variableId) continue;
+    const list = byVar.get(variableId) || [];
+    list.push({ kind, value: String(row.assignment_value || "") });
+    byVar.set(variableId, list);
+  }
+  return vars.map((row) => ({
+    id: row.id,
+    sortOrder: Number(row.sort_order || 0),
+    fieldKey: String(row.field_key || ""),
+    label: String(row.label || ""),
+    fieldType: FIELD_TYPES.has(String(row.field_type || "")) ? String(row.field_type || "") : "text",
+    placeholder: String(row.placeholder || ""),
+    required: Boolean(Number(row.required)),
+    options: parseOptionsJson(row.options_json),
+    assignments: byVar.get(String(row.id || "")) || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }));
 }
 
 /**
  * @param {object} input - Variable saisie côté UI.
- * @param {number} index - Ordre d'affichage / `sort_order`.
- * @returns {object}
+ * @returns {{ fieldKey: string, label: string, fieldType: string, placeholder: string, required: boolean, options: string[], assignments: Array<{ kind: string, value: string }> }}
  */
-function normalizeVariable(input, index) {
+function normalizeVariable(input) {
   const fieldKey = String(input?.fieldKey || "").trim().toLowerCase();
   const label = String(input?.label || "").trim();
   const fieldType = String(input?.fieldType || "text").trim().toLowerCase();
@@ -127,83 +129,62 @@ function normalizeVariable(input, index) {
   const options = Array.isArray(input?.options)
     ? input.options.map((v) => String(v || "").trim()).filter(Boolean)
     : [];
-  const assignments = Array.isArray(input?.assignments)
+  let assignments = Array.isArray(input?.assignments)
     ? input.assignments.map((a) => ({
         kind: String(a?.kind || "").trim().toUpperCase(),
         value: String(a?.value || "").trim()
       }))
     : [];
-  return { fieldKey, label, fieldType, placeholder, required, options, assignments, sortOrder: index };
+  const hasContractuelle = assignments.some((a) => a.kind === "FORM" && a.value === "RONDE_PLANIFIEE");
+  if (!hasContractuelle) {
+    assignments = assignments.filter((a) => a.kind !== "PROFILE");
+  }
+  return { fieldKey, label, fieldType, placeholder, required, options, assignments };
 }
 
 /**
  * @param {import('../../../userStore')} store
- * @param {object} item
+ * @param {ReturnType<typeof normalizeVariable>} item
  * @param {number} index
  * @returns {void}
  */
 function validateVariable(store, item, index) {
-  const p = `Ligne ${index + 1} : `;
   if (!item.fieldKey) {
-    store.fail("data:formVariables:save", `${p}Nom de variable obligatoire.`, "DATA_FORM_VARIABLE_KEY_REQUIRED");
+    failSave(store, index, "Nom de variable obligatoire.", "DATA_FORM_VARIABLE_KEY_REQUIRED");
   }
   if (!KEY_RE.test(item.fieldKey)) {
-    store.fail(
-      "data:formVariables:save",
-      `${p}Nom de variable invalide (minuscule, chiffre, _, commence par une lettre).`,
+    failSave(
+      store,
+      index,
+      "Nom de variable invalide (minuscule, chiffre, _, commence par une lettre).",
       "DATA_FORM_VARIABLE_KEY_INVALID"
     );
   }
   if (!item.label) {
-    store.fail("data:formVariables:save", `${p}Libellé obligatoire.`, "DATA_FORM_VARIABLE_LABEL_REQUIRED");
+    failSave(store, index, "Libellé obligatoire.", "DATA_FORM_VARIABLE_LABEL_REQUIRED");
   }
   if (!FIELD_TYPES.has(item.fieldType)) {
-    store.fail("data:formVariables:save", `${p}Type de variable invalide.`, "DATA_FORM_VARIABLE_TYPE_INVALID");
+    failSave(store, index, "Type de variable invalide.", "DATA_FORM_VARIABLE_TYPE_INVALID");
   }
   if (item.fieldType === "select" && item.options.length < 1) {
-    store.fail(
-      "data:formVariables:save",
-      `${p}Une liste déroulante doit contenir au moins une option.`,
+    failSave(
+      store,
+      index,
+      "Une liste déroulante doit contenir au moins une option.",
       "DATA_FORM_VARIABLE_OPTIONS_REQUIRED"
     );
   }
-  item.assignments.forEach((a) => {
+  for (const a of item.assignments) {
     if (!ASSIGNMENT_KINDS.has(a.kind)) {
-      store.fail(
-        "data:formVariables:save",
-        `${p}Type d'attribution invalide.`,
-        "DATA_FORM_VARIABLE_ASSIGNMENT_KIND_INVALID"
-      );
+      failSave(store, index, "Type d'attribution invalide.", "DATA_FORM_VARIABLE_ASSIGNMENT_KIND_INVALID");
     }
     if (!a.value) {
-      store.fail(
-        "data:formVariables:save",
-        `${p}Valeur d'attribution vide.`,
-        "DATA_FORM_VARIABLE_ASSIGNMENT_VALUE_REQUIRED"
-      );
+      failSave(store, index, "Valeur d'attribution vide.", "DATA_FORM_VARIABLE_ASSIGNMENT_VALUE_REQUIRED");
     }
     if (a.kind === "FORM" && !FORM_TARGETS.has(a.value)) {
-      store.fail(
-        "data:formVariables:save",
-        `${p}Formulaire cible invalide.`,
-        "DATA_FORM_VARIABLE_FORM_TARGET_INVALID"
-      );
+      failSave(store, index, "Formulaire cible invalide.", "DATA_FORM_VARIABLE_FORM_TARGET_INVALID");
     }
-    if (a.kind === "SITE" && !a.value) {
-      store.fail(
-        "data:formVariables:save",
-        `${p}Portée site invalide.`,
-        "DATA_FORM_VARIABLE_SITE_TARGET_INVALID"
-      );
-    }
-    if (a.kind === "FAMILLE" && !a.value) {
-      store.fail(
-        "data:formVariables:save",
-        `${p}Portée famille invalide.`,
-        "DATA_FORM_VARIABLE_FAMILLE_TARGET_INVALID"
-      );
-    }
-  });
+  }
 }
 
 /**
@@ -217,21 +198,15 @@ async function saveFormVariables(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const db = requirePersistence(store);
   const raw = Array.isArray(payload.variables) ? payload.variables : [];
-  const normalized = raw.map((v, index) => normalizeVariable(v, index)).map((item) => {
-    const hasContractuelle = item.assignments.some((a) => a.kind === "FORM" && a.value === "RONDE_PLANIFIEE");
-    if (hasContractuelle) return item;
-    return {
-      ...item,
-      assignments: item.assignments.filter((a) => a.kind !== "PROFILE")
-    };
-  });
+  const normalized = raw.map((v) => normalizeVariable(v));
   const keys = new Set();
   normalized.forEach((item, index) => {
     validateVariable(store, item, index);
     if (keys.has(item.fieldKey)) {
-      store.fail(
-        "data:formVariables:save",
-        `Ligne ${index + 1} : nom de variable déjà utilisé (${item.fieldKey}).`,
+      failSave(
+        store,
+        index,
+        `Nom de variable déjà utilisé (${item.fieldKey}).`,
         "DATA_FORM_VARIABLE_KEY_DUPLICATE"
       );
     }
@@ -274,7 +249,7 @@ async function saveFormVariables(store, payload) {
   });
 
   store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
+    actorUsername: actorName(payload.requesterUsername),
     action: "DATA_FORM_VARIABLES_SAVE",
     details: {
       count: normalized.length,

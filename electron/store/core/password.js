@@ -1,28 +1,36 @@
 /**
- * Hachage et vérification des mots de passe utilisateurs (scrypt + migration depuis SHA-256 legacy).
- * Utilisé par `authUsers.js` (login, création compte, première connexion, unicité nom affiché + mot de passe).
+ * Hachage et vérification des mots de passe utilisateurs (scrypt + migration SHA-256 legacy).
  *
- * Format stocké courant : `scrypt1$<sel base64>$<hash base64>` ; ancien format : 64 caractères hex SHA-256.
+ * Consommé uniquement par `authUsers.js` (login, création, première connexion, unicité nom + mot de passe).
+ * Format courant : `scrypt1$<sel base64>$<hash base64>` ; ancien : 64 caractères hex SHA-256.
  * Historique : jusqu'à 3 hash précédents (`users.password_history_json`) — refus de réutilisation.
+ *
+ * @module electron/store/core/password
  */
 
 const crypto = require("crypto");
 
-/** Paramètres scrypt (alignés OWASP recommandations desktop). */
+/** Paramètres scrypt (alignés OWASP desktop). */
 const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const PREFIX_SCRYPT = "scrypt1";
-
+const LEGACY_SHA256_RE = /^[a-f0-9]{64}$/i;
 /** Nombre max de hash précédents conservés pour refus de réutilisation. */
 const PASSWORD_HISTORY_MAX = 3;
 
 /**
- * Ancien algorithme SHA-256 hex — conservé pour vérification et détection de migration uniquement.
- *
  * @param {string} rawPassword
- * @returns {string} Empreinte hex 64 caractères.
+ * @returns {string} Empreinte hex 64 caractères (vérification / migration uniquement).
  */
 function hashPasswordLegacySha256(rawPassword) {
   return crypto.createHash("sha256").update(String(rawPassword || ""), "utf8").digest("hex");
+}
+
+/**
+ * @param {unknown} stored
+ * @returns {boolean}
+ */
+function isLegacySha256Hash(stored) {
+  return typeof stored === "string" && LEGACY_SHA256_RE.test(stored);
 }
 
 /**
@@ -66,7 +74,7 @@ function verifyPassword(rawPassword, stored) {
   if (!stored || typeof stored !== "string") return false;
   if (stored.startsWith(`${PREFIX_SCRYPT}$`)) {
     const parts = stored.split("$");
-    if (parts.length !== 3 || parts[0] !== PREFIX_SCRYPT) return false;
+    if (parts.length !== 3) return false;
     const salt = Buffer.from(parts[1], "base64");
     const expected = Buffer.from(parts[2], "base64");
     let hash;
@@ -78,7 +86,7 @@ function verifyPassword(rawPassword, stored) {
     if (hash.length !== expected.length) return false;
     return crypto.timingSafeEqual(hash, expected);
   }
-  if (/^[a-f0-9]{64}$/i.test(stored)) {
+  if (isLegacySha256Hash(stored)) {
     return timingSafeEqualHex(stored, hashPasswordLegacySha256(rawPassword));
   }
   return false;
@@ -91,7 +99,7 @@ function verifyPassword(rawPassword, stored) {
  * @returns {boolean} `true` pour un hash SHA-256 hex legacy.
  */
 function needsPasswordMigration(stored) {
-  return Boolean(stored && typeof stored === "string" && /^[a-f0-9]{64}$/i.test(stored));
+  return isLegacySha256Hash(stored);
 }
 
 /**
@@ -128,7 +136,7 @@ function isPasswordRecentlyUsed(rawPassword, currentHash, historyJson) {
 }
 
 /**
- * Empile le hash courant en tête de l'historique (max {@link PASSWORD_HISTORY_MAX}).
+ * Empile le hash courant en tête de l'historique (max 3).
  *
  * @param {string|null|undefined} previousHash - Hash remplacé (exclu s'il est vide).
  * @param {string|null|undefined} historyJson - Historique actuel.
@@ -145,8 +153,6 @@ module.exports = {
   hashPassword,
   verifyPassword,
   needsPasswordMigration,
-  parsePasswordHistory,
   isPasswordRecentlyUsed,
-  pushPasswordHistory,
-  PASSWORD_HISTORY_MAX
+  pushPasswordHistory
 };

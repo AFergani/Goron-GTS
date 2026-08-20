@@ -7,13 +7,12 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { SearchEntry } from "../../common/components/SearchEntry";
 import type { MainCouranteCreatePayload, MainCouranteEntry, MainCouranteSavePayload } from "../model/mainCourante.types";
 import { formatSiteSelectedLabel } from "../model/siteSearch";
 import type { AnomalyTypeRef, SiteRef } from "../../../types";
-import { SiteSearchInput } from "./SiteSearchInput";
 import { createPendingSiteIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
@@ -483,46 +482,44 @@ export function MainCouranteEntryModal({
               </div>
             </CreateFormSection>
 
-            <CreateFormSection title="Site">
+            {mode === "create" ? (
+              <SearchEntry
+                sites={sites}
+                selectedSite={selectedSite}
+                onSelectedSiteChange={(site) => {
+                  setSelectedSite(site);
+                  if (site) {
+                    setShowPendingSiteForm(false);
+                    setPendingCode("");
+                    setPendingName("");
+                  }
+                }}
+                showPendingSiteForm={showPendingSiteForm}
+                onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
+                pendingSiteForm={(
+                  <div className="mc-form-grid mc-form-grid-main">
+                    <label className="mc-field">
+                      <span>Nouveau code site</span>
+                      <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+                    </label>
+                    <label className="mc-field">
+                      <span>Nouveau nom de site</span>
+                      <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+                    </label>
+                  </div>
+                )}
+                showIntervenantField={false}
+                onNotify={onNotify}
+                showSiteAction={!selectedSite}
+              />
+            ) : (
               <div className="mc-form-grid mc-form-grid-main">
-                <SiteSearchInput
-                  sites={sites}
-                  disabled={referencesLoading}
-                  selectedSite={selectedSite}
-                  onSelectedSiteChange={(site) => {
-                    setSelectedSite(site);
-                    if (site) {
-                      setShowPendingSiteForm(false);
-                      setPendingCode("");
-                      setPendingName("");
-                    }
-                  }}
-                  copyNotify={onNotify}
-                  optional
+                <SiteDisplayCopyButton
+                  siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+                  onNotify={onNotify}
                 />
               </div>
-
-              {mode === "create" ? (
-                <PendingSiteIntervenantRefActions
-                  withIntervenant={false}
-                  selectedSite={selectedSite}
-                  showPendingSiteForm={showPendingSiteForm}
-                  onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
-                  pendingSiteForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field">
-                        <span>Nouveau code site</span>
-                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                      </label>
-                      <label className="mc-field">
-                        <span>Nouveau nom de site</span>
-                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                      </label>
-                    </div>
-                  )}
-                />
-              ) : null}
-            </CreateFormSection>
+            )}
 
             <CreateFormSection title="Type et observation (opérateur)">
               <div className="mc-form-grid mc-form-grid-main">
@@ -561,12 +558,6 @@ export function MainCouranteEntryModal({
 
             {mode === "create" ? (
               <CreateEntryModalFooter
-                hintContent={
-                  <p>
-                    En validant la création de l&apos;entrée, la proposition de site sera ajoutée en attente de validation si le code et le nom
-                    sont renseignés.
-                  </p>
-                }
                 onCancel={createCloseGuard.requestClose}
                 submitDisabled={missingTypes || Boolean(referencesError)}
                 submitLabel={submitLabel}

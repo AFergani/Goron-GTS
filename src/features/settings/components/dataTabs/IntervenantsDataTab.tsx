@@ -4,12 +4,12 @@
 
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { IntervenantRef } from "../../../../types";
-import type { PendingInterventionIntervenant } from "../../../intervention/model/intervention.types";
+import type { PendingIntervenant } from "../../../common/model/pendingRefs.types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
 
 type IntervenantsDataTabProps = {
   canDeleteData: boolean;
-  interventionPendingIntervenants: PendingInterventionIntervenant[];
+  pendingIntervenants: PendingIntervenant[];
   pagedIntervenants: IntervenantRef[];
   filteredIntervenants: IntervenantRef[];
   editingIntervenantId: string | null;
@@ -18,7 +18,7 @@ type IntervenantsDataTabProps = {
   setEditingIntervenantName: (value: string) => void;
   onUpdateIntervenant: (id: string, name: string) => SyncOrAsync;
   onDeleteIntervenant: (id: string, reason: string) => void;
-  onOpenPendingIntervenantValidation: (item: PendingInterventionIntervenant) => void;
+  onOpenPendingIntervenantValidation: (item: PendingIntervenant) => void;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
   openDeleteReasonModal: OpenDeleteReasonModal;
 };
@@ -26,10 +26,10 @@ type IntervenantsDataTabProps = {
 export function IntervenantsDataTab(props: IntervenantsDataTabProps) {
   return (
     <>
-      {props.interventionPendingIntervenants.length ? (
+      {props.pendingIntervenants.length ? (
         <>
           <div className="data-inline-pending-box">
-            <strong>Intervenants en attente:</strong> {props.interventionPendingIntervenants.length} soumission(s) à traiter.
+            <strong>Intervenants en attente:</strong> {props.pendingIntervenants.length} soumission(s) à traiter.
           </div>
           <div className="table-scroll-x">
             <table className="data-table-fixed data-table-intervenants">
@@ -42,7 +42,7 @@ export function IntervenantsDataTab(props: IntervenantsDataTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {props.interventionPendingIntervenants.map((item) => (
+                {props.pendingIntervenants.map((item) => (
                   <tr key={item.id}>
                     <td>{item.name}</td>
                     <td>{item.createdBy}</td>

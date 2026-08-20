@@ -50,7 +50,7 @@ export function useGardiennageReferenceData(requesterRole: Role, requesterUserna
 
   const createPendingSite = async (code: string, name: string) => {
     try {
-      const response = await gtsApiClient.createPendingInterventionSite({
+      const response = await gtsApiClient.createPendingSite({
         requesterRole,
         requesterUsername,
         code,
@@ -71,7 +71,7 @@ export function useGardiennageReferenceData(requesterRole: Role, requesterUserna
 
   const createPendingIntervenant = async (name: string) => {
     try {
-      const response = await gtsApiClient.createPendingInterventionIntervenant({
+      const response = await gtsApiClient.createPendingIntervenant({
         requesterRole,
         requesterUsername,
         name

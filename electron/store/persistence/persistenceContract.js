@@ -1,8 +1,8 @@
 /**
- * Contrat de la couche de persistance async Goron-GTS (PostgreSQL).
+ * Contrat JSDoc de la couche de persistance async Goron-GTS (PostgreSQL).
  *
- * Toutes les implémentations doivent exposer cette surface (`run` / `get` / `all` /
- * `exec` / `transaction` / `open` / `close` / `isOpen`).
+ * Fichier de types uniquement (aucun runtime). Les implémentations exposent
+ * `run` / `get` / `all` / `exec` / `transaction` / `open` / `close` / `isOpen`.
  *
  * @module electron/store/persistence/persistenceContract
  */
@@ -11,13 +11,12 @@
  * Résultat d'une instruction d'écriture (`INSERT` / `UPDATE` / `DELETE`).
  *
  * @typedef {object} PersistenceRunResult
- * @property {number} changes - Nombre de lignes affectées.
- * @property {number|bigint|null} lastInsertRowid - Dernier identifiant auto-incrémenté si pertinent ; sinon `null`.
+ * @property {number} changes - Nombre de lignes affectées (`rowCount` PostgreSQL).
  */
 
 /**
- * Handle de transaction : même API que l'adaptateur, mais lié à **une** connexion
- * (obligatoire avec un pool PostgreSQL).
+ * Handle de transaction : même API SQL que l'adaptateur, lié à **une** connexion
+ * du pool (obligatoire avec PostgreSQL).
  *
  * @typedef {object} PersistenceTransaction
  * @property {(sql: string) => Promise<void>} exec
@@ -32,8 +31,8 @@
  * @typedef {object} PersistenceAdapter
  * @property {"postgres"} engine - Moteur sous-jacent.
  * @property {() => Promise<void>} open - Ouvre / vérifie la connexion (no-op si déjà ouverte).
- * @property {() => Promise<void>} close - Ferme la connexion / le pool.
- * @property {() => boolean} isOpen - Indique si la connexion est utilisable.
+ * @property {() => Promise<void>} close - Ferme le pool.
+ * @property {() => boolean} isOpen - Indique si le pool est utilisable.
  * @property {(sql: string) => Promise<void>} exec - Exécute un script SQL (plusieurs instructions possibles).
  * @property {(sql: string, params?: unknown[]) => Promise<PersistenceRunResult>} run - Écriture paramétrée.
  * @property {(sql: string, params?: unknown[]) => Promise<object|undefined>} get - Lecture d'une ligne.

@@ -3,13 +3,13 @@
  */
 
 import { Pencil, Trash2 } from "lucide-react";
-import type { PendingInterventionSite } from "../../../intervention/model/intervention.types";
+import type { PendingSite } from "../../../common/model/pendingRefs.types";
 
 type PendingSitesDataTabProps = {
-  pagedPendingSites: PendingInterventionSite[];
+  pagedPendingSites: PendingSite[];
   hasAnyPendingSites: boolean;
-  onValidate: (site: PendingInterventionSite) => void;
-  onDelete: (site: PendingInterventionSite) => void;
+  onValidate: (site: PendingSite) => void;
+  onDelete: (site: PendingSite) => void;
 };
 
 export function PendingSitesDataTab(props: PendingSitesDataTabProps) {

@@ -3,7 +3,10 @@
  */
 
 import * as XLSX from "xlsx";
-import type { InterventionEntry } from "../model/intervention.types";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry
+} from "../model/intervention.types";
 import { exportTimestampFrForFilename } from "./interventionExportFormat";
 
 const HEADERS = [
@@ -57,7 +60,7 @@ export function exportInterventionToExcel(entries: InterventionEntry[]): void {
       entry.arrivalTime || "",
       entry.departureTime || "",
       entry.delayMinutes ?? "",
-      entry.workOrderNumber || "",
+      entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL,
       entry.report || "",
       statusLabelFr(entry.status),
       billingLabelFr(entry.billingStatus)

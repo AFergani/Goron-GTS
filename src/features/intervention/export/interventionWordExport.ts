@@ -7,7 +7,10 @@
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
-import type { InterventionEntry } from "../model/intervention.types";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry
+} from "../model/intervention.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { downloadBlob } from "../../mainCourante/export/downloadBlob";
 import { safeExportFilenamePart } from "../../mainCourante/export/mainCouranteExportFormat";
@@ -127,7 +130,7 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       heureDepart: safeText(entry.departureTime),
       delaiMinutes: safeText(entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`),
       delaiMinutesLabel: safeText(entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`),
-      numeroBonIntervention: safeText(entry.workOrderNumber),
+      numeroBonIntervention: safeText(entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL),
       compteRendu: safeText(entry.report),
       statut: safeText(statusLabelFr(entry.status)),
       facturation: safeText(billingLabelFr(entry.billingStatus)),
@@ -170,7 +173,7 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure d'arrivée : ${safeText(entry.arrivalTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de départ : ${safeText(entry.departureTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Délai d'arrivée : ${safeText(entry.delayMinutes)} min`)] }),
-          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Numéro du bon : ${safeText(entry.workOrderNumber)}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Numéro du bon : ${safeText(entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL)}`)] }),
           new Paragraph({ spacing: { before: 220, after: 80 }, children: [new TextRun({ text: "Observation :", bold: true })] }),
           new Paragraph({ spacing: { after: 80 }, children: [new TextRun(safeText(entry.report))] })
         ]

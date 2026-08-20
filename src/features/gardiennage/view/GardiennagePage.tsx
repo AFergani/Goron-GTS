@@ -1,7 +1,7 @@
 /**
  * Page Gardiennage : onglets « Du jour » (navigation date) et « Planification » (liste filtrée).
  *
- * Orchestration presenters + modales création/édition/clôture, exports Excel/Word,
+ * Orchestration presenters + modales création/édition/clôture, export Excel de la liste,
  * filtres statut/famille/prestataire. Mode d’affichage jour/liste mémorisé en localStorage.
  * Affichage liste : filtre Statut par défaut « En cours » (planifié + actif).
  * Montée depuis `AppShell` si permission `gardiennage`.
@@ -24,7 +24,6 @@ import { GardiennageTable } from "../components/GardiennageTable";
 import { GardiennageCloseModal } from "../components/GardiennageCloseModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { exportGardiennageToExcel } from "../export/gardiennageExcelExport";
-import { exportGardiennageEntryToWord } from "../export/gardiennageWordExport";
 
 const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v1";
 
@@ -234,15 +233,6 @@ export function GardiennagePage({
     }
   };
 
-  const handleExportWord = async (entry: GardiennageEntry) => {
-    try {
-      await exportGardiennageEntryToWord(entry);
-      onToast?.("Document Word téléchargé.");
-    } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
-    }
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY, displayMode);
@@ -373,7 +363,6 @@ export function GardiennagePage({
                 onEdit={openEdit}
                 onDelete={openDeleteConfirm}
                 onClose={openCloseModal}
-                onExportWord={handleExportWord}
                 onNotify={onToast}
               />
             ) : (
@@ -406,7 +395,6 @@ export function GardiennagePage({
                 onEdit={openEdit}
                 onDelete={openDeleteConfirm}
                 onClose={openCloseModal}
-                onExportWord={handleExportWord}
                 onNotify={onToast}
               />
             ) : null}

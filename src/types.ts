@@ -126,7 +126,7 @@ export type FransorEntry = {
   updatedAt: string;
 };
 
-/** Agrégat mensuel pour export récap Fransor. */
+/** Agrégat mensuel du récap Fransor (copie presse-papiers). */
 export type FransorMonthlyRecap = {
   responsableId: string;
   responsableName: string;

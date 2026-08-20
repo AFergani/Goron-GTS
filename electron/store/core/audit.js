@@ -1,13 +1,15 @@
 /**
- * Écriture centralisée dans la table `audit_logs` (journal des actions métier sensibles).
- * Point d'entrée bas niveau : les domaines passent en général par `UserStore.logAudit`, qui délègue ici.
+ * Écriture SQL unique dans `audit_logs` (journal des actions métier).
  *
- * Ne journalise pas les simples consultations ; réservé aux écritures et opérations tracées (CRUD, imports, etc.).
- * Utilise l'adaptateur async PostgreSQL (`persistence`).
+ * Chaîne réelle : domaines → `UserStore.logAudit` → `auditPersistence.write` → `writeAudit`.
+ * Ne journalise pas les lectures ; réservé aux écritures tracées (CRUD, imports, etc.).
+ * Un seul consommateur : `electron/store/persistence/auditPersistence.js`.
+ *
+ * @module electron/store/core/audit
  */
 
 /**
- * Insère une ligne d'audit via l'adaptateur de persistance.
+ * Insère une ligne d'audit via l'adaptateur PostgreSQL.
  *
  * @param {import('../persistence/persistenceContract').PersistenceAdapter} persistence
  * @param {object} entry
@@ -16,9 +18,13 @@
  * @param {string|null} [entry.targetUsername=null] - Utilisateur cible si l'action concerne un compte.
  * @param {string} [entry.status="SUCCESS"] - Résultat (`SUCCESS`, `FAILED`, etc.).
  * @param {object|null} [entry.details=null] - Objet sérialisé en JSON (`before`/`after`, compteurs import, etc.).
+ * @param {string|null} [entry.occurredAt=null] - Horodatage ISO ; défaut : maintenant.
  * @returns {Promise<void>}
  */
-async function writeAudit(persistence, { actorUsername, action, targetUsername = null, status = "SUCCESS", details = null, occurredAt = null }) {
+async function writeAudit(
+  persistence,
+  { actorUsername, action, targetUsername = null, status = "SUCCESS", details = null, occurredAt = null }
+) {
   if (!persistence || typeof persistence.run !== "function") {
     throw new Error("Adaptateur de persistance indisponible pour l'audit.");
   }

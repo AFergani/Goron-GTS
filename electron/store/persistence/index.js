@@ -1,35 +1,28 @@
 /**
- * Fabrique des adaptateurs de persistance Goron-GTS (PostgreSQL only).
+ * Point d'entrée persistance PostgreSQL : ouverture du pool + schéma,
+ * routeur d'audit, sonde surveillée (badge DB).
  *
- * Point d'entrée pour ouvrir / sonder PostgreSQL, le routeur d'audit et le journal
- * local des événements PG (`gts-pg-events.log`).
+ * Les autres modules (`postgresConnectionConfig`, journal d'événements, sonde
+ * brute) s'importent directement depuis leur fichier.
  *
  * @module electron/store/persistence
  */
 
 const { createPostgresPersistence } = require("./postgresPersistence");
 const { applyPostgresMigrations } = require("./postgresMigrations");
-const { getPostgresLabConfig } = require("./postgresLabConfig");
-const {
-  getPostgresConnectionConfig,
-  getPublicPostgresConnectionConfig
-} = require("./postgresConnectionConfig");
+const { getPostgresConnectionConfig } = require("./postgresConnectionConfig");
 const { createAuditPersistenceRouter } = require("./auditPersistence");
-const {
-  appendPostgresEvent,
-  readPostgresEvents,
-  resolvePostgresEventLogPath
-} = require("./postgresEventLog");
+const { probePostgresLabMonitored } = require("./postgresLabMonitor");
 
 /**
- * Ouvre un adaptateur PostgreSQL (labo) et applique le schéma SQL.
+ * Ouvre un adaptateur PostgreSQL et applique le schéma SQL.
  *
- * @param {object} [config] - Surcharge de `getPostgresLabConfig()` ; omis = config labo.
+ * @param {object} [config] - Surcharge de `getPostgresConnectionConfig()` ; omis = config résolue.
  * @param {(error: unknown) => void} [config.onIdleClientError]
  * @returns {Promise<import('./persistenceContract').PersistenceAdapter>}
  */
 async function openPostgresPersistence(config) {
-  const cfg = { ...getPostgresLabConfig(), ...(config || {}) };
+  const cfg = { ...getPostgresConnectionConfig(), ...(config || {}) };
   const adapter = createPostgresPersistence(cfg);
   await adapter.open();
   await applyPostgresMigrations(adapter);
@@ -37,7 +30,7 @@ async function openPostgresPersistence(config) {
 }
 
 /**
- * Tente d'ouvrir PostgreSQL labo ; retourne `null` si injoignable (pas d'exception).
+ * Tente d'ouvrir PostgreSQL ; retourne `null` si injoignable (pas d'exception).
  *
  * @param {object} [config] - Surcharge optionnelle (ex. `onIdleClientError`).
  * @returns {Promise<import('./persistenceContract').PersistenceAdapter|null>}
@@ -50,35 +43,8 @@ async function tryOpenPostgresLabPersistence(config) {
   }
 }
 
-/**
- * Ouvre un adaptateur PostgreSQL (seule option supportée).
- *
- * @param {object} [options]
- * @param {object} [options.postgres] - Config PG.
- * @returns {Promise<import('./persistenceContract').PersistenceAdapter>}
- */
-async function openPersistence(options = {}) {
-  const engine = String(options.engine || "postgres").toLowerCase();
-  if (engine === "postgres") {
-    return openPostgresPersistence(options.postgres);
-  }
-  throw new Error(`Moteur de persistance non supporté: ${engine} (PostgreSQL uniquement).`);
-}
-
 module.exports = {
-  openPersistence,
-  openPostgresPersistence,
   tryOpenPostgresLabPersistence,
-  createPostgresPersistence,
   createAuditPersistenceRouter,
-  applyPostgresMigrations,
-  appendPostgresEvent,
-  readPostgresEvents,
-  resolvePostgresEventLogPath,
-  probePostgresLab: require("./postgresLabProbe").probePostgresLab,
-  probePostgresLabMonitored: require("./postgresLabMonitor").probePostgresLabMonitored,
-  resetPostgresLabMonitor: require("./postgresLabMonitor").resetPostgresLabMonitor,
-  getPostgresLabConfig,
-  getPostgresConnectionConfig,
-  getPublicPostgresConnectionConfig
+  probePostgresLabMonitored
 };

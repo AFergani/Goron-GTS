@@ -1,8 +1,8 @@
 /**
  * Journal local des événements PostgreSQL (perte / retour de connexion) — par poste.
  *
- * Fichier append-only JSON Lines dans le userData Electron (`gts-pg-events.log`).
- * Remplace l'ancienne table SQLite `error_logs` pour ce besoin opérationnel.
+ * Fichier append-only JSON Lines : `{userData}/gts-pg-events.log`.
+ * Écriture : `postgresLabMonitor`. Lecture : journal technique Paramètres.
  *
  * @module electron/store/persistence/postgresEventLog
  */
@@ -14,18 +14,38 @@ const DEFAULT_FILE_NAME = "gts-pg-events.log";
 const MAX_READ_LINES = 500;
 
 /**
- * Résout le chemin du fichier journal (dossier userData ou repli cwd).
+ * @param {unknown} value
+ * @returns {object|null}
+ */
+function normalizeDetails(value) {
+  return value && typeof value === "object" ? value : null;
+}
+
+/**
+ * Résout le chemin du fichier journal.
+ *
+ * Priorité : `userDataPath` explicite, puis `app.getPath("userData")`,
+ * puis `%APPDATA%/goron-gts` (scripts labo hors Electron), puis `cwd/data`.
  *
  * @param {string} [userDataPath]
  * @returns {string}
  */
 function resolvePostgresEventLogPath(userDataPath) {
-  const base =
-    String(userDataPath || "").trim() ||
-    (typeof process.env.APPDATA === "string" && process.env.APPDATA
+  const explicit = String(userDataPath || "").trim();
+  if (explicit) return path.join(explicit, DEFAULT_FILE_NAME);
+  try {
+    const { app } = require("electron");
+    if (app && typeof app.getPath === "function") {
+      return path.join(app.getPath("userData"), DEFAULT_FILE_NAME);
+    }
+  } catch {
+    // hors Electron
+  }
+  const fallbackBase =
+    typeof process.env.APPDATA === "string" && process.env.APPDATA
       ? path.join(process.env.APPDATA, "goron-gts")
-      : path.join(process.cwd(), "data"));
-  return path.join(base, DEFAULT_FILE_NAME);
+      : path.join(process.cwd(), "data");
+  return path.join(fallbackBase, DEFAULT_FILE_NAME);
 }
 
 /**
@@ -41,9 +61,8 @@ function resolvePostgresEventLogPath(userDataPath) {
  */
 function appendPostgresEvent(entry, filePath) {
   const target = filePath || resolvePostgresEventLogPath();
-  const dir = path.dirname(target);
   try {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
   } catch {
     // ignore
   }
@@ -52,7 +71,7 @@ function appendPostgresEvent(entry, filePath) {
     source: String(entry?.source || "system:postgres"),
     code: String(entry?.code || "PG_EVENT"),
     messageFr: String(entry?.messageFr || ""),
-    details: entry?.details && typeof entry.details === "object" ? entry.details : null
+    details: normalizeDetails(entry?.details)
   });
   try {
     fs.appendFileSync(target, `${line}\n`, "utf8");
@@ -90,7 +109,7 @@ function readPostgresEvents(options = {}) {
         source: String(parsed.source || ""),
         code: String(parsed.code || ""),
         messageFr: String(parsed.messageFr || ""),
-        details: parsed.details && typeof parsed.details === "object" ? parsed.details : null
+        details: normalizeDetails(parsed.details)
       });
     } catch {
       // ignore lignes corrompues
@@ -100,7 +119,6 @@ function readPostgresEvents(options = {}) {
 }
 
 module.exports = {
-  DEFAULT_FILE_NAME,
   resolvePostgresEventLogPath,
   appendPostgresEvent,
   readPostgresEvents

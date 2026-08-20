@@ -6,7 +6,9 @@
 
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { IntervenantRef } from "../../../types";
+import type { ReactNode } from "react";
+import type { IntervenantRef, SiteRef } from "../../../types";
+import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 
 function filterIntervenantsByName(intervenants: IntervenantRef[], query: string, limit = 50): IntervenantRef[] {
   const text = String(query || "").trim().toLowerCase();
@@ -19,13 +21,27 @@ type IntervenantSearchInputProps = {
   disabled?: boolean;
   selectedIntervenant: IntervenantRef | null;
   onSelectedIntervenantChange: (intervenant: IntervenantRef | null) => void;
+  selectedSite?: SiteRef | null;
+  showPendingIntervenantForm?: boolean;
+  onTogglePendingIntervenant?: () => void;
+  pendingIntervenantForm?: ReactNode;
+  intervenantButtonLabel?: string;
+  showIntervenantAction?: boolean;
+  labelText?: string | null;
 };
 
 export function IntervenantSearchInput({
   intervenants,
   disabled,
   selectedIntervenant,
-  onSelectedIntervenantChange
+  onSelectedIntervenantChange,
+  selectedSite = null,
+  showPendingIntervenantForm = false,
+  onTogglePendingIntervenant,
+  pendingIntervenantForm,
+  intervenantButtonLabel = "À créer ?",
+  showIntervenantAction,
+  labelText = "Prestataire"
 }: IntervenantSearchInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -65,55 +81,87 @@ export function IntervenantSearchInput({
 
   return (
     <div className="mc-site-field-wrap">
-      <label className="mc-field">
-        <span>Prestataire</span>
-        <div className={`mc-site-input-inner${showClear ? " mc-site-input-inner--with-clear" : ""}`}>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => onInputChange(e.target.value)}
-            onFocus={() => setOpen(true)}
-            onBlur={() => {
-              window.setTimeout(() => setOpen(false), 180);
-            }}
-            placeholder="Prestataire — 3 caractères minimum"
-            title="Saisissez au moins 3 caractères pour rechercher un prestataire."
-            disabled={disabled}
-            autoComplete="off"
-            aria-autocomplete="list"
-            aria-expanded={showList && filtered.length > 0}
-            className="mc-site-code-input"
+      <div className="mc-field-with-inline-action">
+        <label className="mc-field">
+          {labelText !== null && labelText !== undefined ? <span>{labelText}</span> : null}
+          <div className={`mc-site-input-inner${showClear ? " mc-site-input-inner--with-clear" : ""}`}>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => onInputChange(e.target.value)}
+              onFocus={() => setOpen(true)}
+              onBlur={() => {
+                window.setTimeout(() => setOpen(false), 180);
+              }}
+              placeholder="Prestataire — 3 caractères minimum"
+              title="Saisissez au moins 3 caractères pour rechercher un prestataire."
+              disabled={disabled}
+              autoComplete="off"
+              aria-autocomplete="list"
+              aria-expanded={showList && filtered.length > 0}
+              className="mc-site-code-input"
+            />
+            {showClear ? (
+              <button
+                type="button"
+                className="mc-site-clear-icon-btn action-icon-btn"
+                title="Effacer la recherche prestataire"
+                aria-label="Effacer la recherche prestataire"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={clearField}
+              >
+                <X size={16} aria-hidden />
+              </button>
+            ) : null}
+            {showList && filtered.length > 0 ? (
+              <ul className="mc-site-suggest app-scrollbar" role="listbox">
+                {filtered.map((item) => (
+                  <li key={item.id} role="option">
+                    <button
+                      type="button"
+                      className="mc-site-suggest-item"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pick(item)}
+                    >
+                      <span className="mc-site-suggest-name">{item.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </label>
+        {onTogglePendingIntervenant ? (
+          <PendingSiteIntervenantRefActions
+            withIntervenant={true}
+            selectedSite={selectedSite}
+            selectedIntervenant={selectedIntervenant}
+            showPendingSiteForm={false}
+            showPendingIntervenantForm={showPendingIntervenantForm}
+            onTogglePendingSite={() => {}}
+            onTogglePendingIntervenant={onTogglePendingIntervenant}
+            pendingSiteForm={<></>}
+            pendingIntervenantForm={pendingIntervenantForm ?? <></>}
+            showSiteAction={false}
+            showIntervenantAction={showIntervenantAction ?? !selectedIntervenant}
+            intervenantButtonLabel={intervenantButtonLabel}
           />
-          {showClear ? (
-            <button
-              type="button"
-              className="mc-site-clear-icon-btn action-icon-btn"
-              title="Effacer la recherche prestataire"
-              aria-label="Effacer la recherche prestataire"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={clearField}
-            >
-              <X size={16} aria-hidden />
-            </button>
-          ) : null}
-          {showList && filtered.length > 0 ? (
-            <ul className="mc-site-suggest app-scrollbar" role="listbox">
-              {filtered.map((item) => (
-                <li key={item.id} role="option">
-                  <button
-                    type="button"
-                    className="mc-site-suggest-item"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pick(item)}
-                  >
-                    <span className="mc-site-suggest-name">{item.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+        ) : null}
+      </div>
+      {showPendingIntervenantForm && !selectedIntervenant ? (
+        <div className="pending-ref-inline-form-layout pending-ref-inline-form-layout--full">
+          <div className="pending-ref-inline-form-column pending-ref-inline-form-column--full">
+            {pendingIntervenantForm ?? (
+              <div className="pending-ref-inline-grid pending-ref-inline-grid--single">
+                <label className="mc-field mc-field-full">
+                  <span>Nouveau prestataire</span>
+                  <input value="" onChange={() => {}} />
+                </label>
+              </div>
+            )}
+          </div>
         </div>
-      </label>
+      ) : null}
       {showNoResultsHint ? <p className="muted mc-site-hint">Aucun prestataire ne correspond à cette recherche.</p> : null}
     </div>
   );

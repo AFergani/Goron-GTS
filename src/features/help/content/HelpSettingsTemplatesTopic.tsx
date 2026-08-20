@@ -6,12 +6,11 @@ export function HelpSettingsTemplatesTopic() {
       <p className="help-center-lead">
         L&apos;onglet <strong>Modèles et variables</strong> (accessible dans les <em>Paramètres</em>) regroupe deux sous-onglets, comme{" "}
         <em>Gestion des données</em> : <strong>Modèles Word</strong> (fichiers <strong>.docx</strong> d&apos;export) et{" "}
-        <strong>Variables</strong> (champs personnalisés des formulaires). Il couvre les flux mains courantes, interventions, rondes,
-        gardiennages et le récapitulatif mensuel Fransor.
+        <strong>Variables</strong> (champs personnalisés des formulaires). Il couvre les flux mains courantes, interventions et rondes.
       </p>
       <p className="help-center-lead">
         Dans le sous-onglet <strong>Modèles Word</strong>, vous vérifiez la présence des fichiers, remplacez les trames standards, et définissez des
-        attributions par site ou par famille. Un modèle personnalisé d&apos;un flux (intervention, gardiennage, ronde, etc.) utilise{" "}
+        attributions par site ou par famille. Un modèle personnalisé d&apos;un flux (intervention, ronde, etc.) utilise{" "}
         <strong>les mêmes champs Word</strong> que le modèle par défaut de ce flux. Le sous-onglet <strong>Variables</strong> gère les champs
         personnalisés des formulaires. Toutes ces opérations sont consignées dans le <strong>journal d&apos;audit</strong> de la station.
       </p>
@@ -136,14 +135,6 @@ export function HelpSettingsTemplatesTopic() {
                   <code>ronde-template.docx</code>
                 </td>
               </tr>
-              <tr>
-                <td>
-                  <strong>Gardiennage</strong>
-                </td>
-                <td>
-                  <code>gardiennage-template.docx</code>
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -165,7 +156,7 @@ export function HelpSettingsTemplatesTopic() {
         <h3 className="help-center-card-title">🔗 Tableau 2 : les attributions personnalisées (par site ou famille)</h3>
         <p className="muted">
           Ce second tableau permet d&apos;automatiser l&apos;utilisation d&apos;une trame spécifique selon le client ou le lieu concerné. Flux
-          disponibles : <em>Intervention</em>, <em>Ronde contractuelle</em>, <em>Ronde exceptionnelle</em>, <em>Gardiennage</em>.
+          disponibles : <em>Intervention</em>, <em>Ronde contractuelle</em>, <em>Ronde exceptionnelle</em>.
         </p>
         <p className="muted">
           <strong>Supprimer</strong> sur une ligne retire uniquement cette attribution (confirmation, enregistrement dans le journal d&apos;audit).
@@ -176,7 +167,7 @@ export function HelpSettingsTemplatesTopic() {
           <li>
             Cliquez sur <strong>Ajouter un modèle personnalisé</strong> dans la barre d&apos;actions.
           </li>
-          <li>Choisissez le <strong>Flux</strong> concerné. La liste des champs Word affichée est identique à celle du modèle par défaut de ce flux (intervention, gardiennage, ronde contractuelle ou exceptionnelle).</li>
+          <li>Choisissez le <strong>Flux</strong> concerné. La liste des champs Word affichée est identique à celle du modèle par défaut de ce flux (intervention, ronde contractuelle ou exceptionnelle).</li>
           <li>
             Définissez la <strong>Portée</strong> : soit un <strong>Site</strong> précis (recherche dans votre référentiel), soit une{" "}
             <strong>Famille</strong> de sites (suggestions automatiques).

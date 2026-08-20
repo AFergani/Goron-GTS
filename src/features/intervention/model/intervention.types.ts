@@ -2,8 +2,11 @@
  * Types métier interventions : fiche unique, statuts, facturation, référentiels en attente.
  *
  * Cycle EN_COURS → CLOTURE / ANNULE. Champs passage (arrivée/départ) avec dates civiles.
- * `exportExtraValues` : variables Word configurées. Types pending partagés avec Paramètres.
+ * `exportExtraValues` : variables Word configurées.
  */
+
+/** Libellé lorsque aucun bon d'intervention n'est saisi (aligné backend). */
+export const INTERVENTION_NO_WORK_ORDER_LABEL = "Pas de bon";
 
 export type InterventionStatus = "EN_COURS" | "CLOTURE" | "ANNULE";
 export type InterventionBillingStatus = "FACTURABLE" | "NON_FACTURABLE";
@@ -56,21 +59,4 @@ export type InterventionSavePayload = {
   intervenantId: string | null;
   intervenantName: string;
   exportExtraValues?: Record<string, string>;
-};
-
-/** Site proposé hors référentiel (validation Paramètres). */
-export type PendingInterventionSite = {
-  id: string;
-  code: string;
-  name: string;
-  createdBy: string;
-  createdAt: string;
-};
-
-/** Prestataire proposé hors référentiel (validation Paramètres). */
-export type PendingInterventionIntervenant = {
-  id: string;
-  name: string;
-  createdBy: string;
-  createdAt: string;
 };

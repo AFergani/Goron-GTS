@@ -1,27 +1,46 @@
 /**
- * Mapping PostgreSQL et snapshots d'audit du Gardiennage.
+ * Mapping PostgreSQL, identifiant de fiche et snapshots d'audit du Gardiennage.
+ *
+ * Appelé par `entries.js` et `entriesLifecycle.js`.
  *
  * @module electron/store/domains/gardiennage/mapping
  */
 
+const { parsePlanningSnapshotJson } = require("./helpers");
+
+/**
+ * Colonnes métier de `gardiennage_entries` (évite `SELECT *`).
+ * @type {string}
+ */
+const GARDIENNAGE_ENTRY_SELECT = `id, site_id, site_display, start_time, end_time, crosses_midnight,
+  recurrence_start_date, recurrence_end_date, recurrence_days, is_ponctuel,
+  intervenant_id, intervenant_name, intervention_id, notes, closure_report,
+  actual_start_time, actual_end_time, work_order_number, cancellation_reason,
+  linked_ronde_id, planning_batch_id, planning_snapshot_json, planning_slot_start,
+  planning_slot_end, status, created_at, updated_at`;
+
+/**
+ * Identifiant de fiche gardiennage (trim) ; refuse une valeur vide.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @param {string} source
+ * @returns {string}
+ */
+function requireEntryId(store, payload, source) {
+  const id = String(payload?.id || "").trim();
+  if (!id) store.fail(source, "Identifiant manquant.", "GARDIENNAGE_ID_REQUIRED");
+  return id;
+}
+
 /**
  * Convertit une ligne SQL en contrat public Gardiennage.
+ * Snapshot de planification : uniquement V1 (sinon `null`).
  *
  * @param {object} row
  * @returns {object}
  */
 function mapGardiennageRow(row) {
-  const rawSnapshot = row?.planning_snapshot_json;
-  let planningSnapshot = null;
-  if (rawSnapshot && typeof rawSnapshot === "object") {
-    planningSnapshot = rawSnapshot;
-  } else if (String(rawSnapshot || "").trim()) {
-    try {
-      planningSnapshot = JSON.parse(String(rawSnapshot));
-    } catch {
-      planningSnapshot = null;
-    }
-  }
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -48,12 +67,13 @@ function mapGardiennageRow(row) {
     planningBatchId: row.planning_batch_id || null,
     planningSlotStart: row.planning_slot_start || "",
     planningSlotEnd: row.planning_slot_end || "",
-    planningSnapshot
+    planningSnapshot: parsePlanningSnapshotJson(row?.planning_snapshot_json)
   };
 }
 
 /**
- * Produit les champs métier utiles à l'audit.
+ * Champs métier utiles à l'audit (libellés, pas d'identifiants de fiche).
+ * Les liens intervention/ronde restent en audit support.
  *
  * @param {object} row - Contrat public mappé.
  * @returns {object}
@@ -74,15 +94,16 @@ function toGardiennageAuditSnapshot(row) {
 }
 
 /**
- * Parse les détails d'une ligne d'audit PostgreSQL.
+ * Parse les détails d'une ligne d'audit PostgreSQL (`jsonb` ou texte).
  *
  * @param {unknown} raw
  * @returns {object}
  */
 function parseAuditDetails(raw) {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (raw == null || raw === "") return {};
   try {
-    const parsed = JSON.parse(String(raw || "{}"));
+    const parsed = JSON.parse(String(raw));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -90,7 +111,9 @@ function parseAuditDetails(raw) {
 }
 
 module.exports = {
+  GARDIENNAGE_ENTRY_SELECT,
   mapGardiennageRow,
   parseAuditDetails,
+  requireEntryId,
   toGardiennageAuditSnapshot
 };

@@ -13,14 +13,18 @@ import { Link2 } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
-import type { InterventionEntry, InterventionSavePayload } from "../model/intervention.types";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry,
+  type InterventionSavePayload
+} from "../model/intervention.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
-import { IntervenantSearchInput } from "./IntervenantSearchInput";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
+import { SearchEntry } from "../../common/components/SearchEntry";
+import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
+import { IntervenantSearchInput } from "./IntervenantSearchInput";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
@@ -103,7 +107,6 @@ function getMissingInterventionClosureFields(params: {
   arrivalTime: string;
   departureDate: string;
   departureTime: string;
-  workOrderNumber: string;
   report: string;
 }): string[] {
   const missing: string[] = [];
@@ -122,7 +125,6 @@ function getMissingInterventionClosureFields(params: {
   if (!isIsoDate(departureDate) || !departureNorm || !isValidTime(departureNorm)) {
     missing.push("date et heure de départ");
   }
-  if (!String(params.workOrderNumber || "").trim()) missing.push("N° du bon d'intervention");
   if (!String(params.report || "").trim()) missing.push("compte-rendu");
   return missing;
 }
@@ -241,7 +243,11 @@ export function InterventionEntryModal({
     setArrivalTime(entry.arrivalTime || "");
     setDepartureDate(inferDepartureDateFromEntry(entry) || requestDateIso);
     setDepartureTime(entry.departureTime || "");
-    setWorkOrderNumber(entry.workOrderNumber || "");
+    setWorkOrderNumber(
+      !entry.workOrderNumber || entry.workOrderNumber === INTERVENTION_NO_WORK_ORDER_LABEL
+        ? ""
+        : entry.workOrderNumber
+    );
     setReport(entry.report || "");
     setIntervenantId(entry.intervenantId || "");
     setExportExtraValues({ ...(entry.exportExtraValues ?? {}) });
@@ -601,37 +607,58 @@ export function InterventionEntryModal({
             </CreateFormSection>
 
             <CreateFormSection title="Site et prestataire">
-              <div className="mc-form-grid mc-form-grid-main">
-                {isCreateMode ? (
-                  <>
-                    <SiteSearchInput
-                      sites={sites}
-                      disabled={false}
-                      selectedSite={selectedSite}
-                      onSelectedSiteChange={(site) => {
-                        setSiteId(site?.id || "");
-                        if (site) {
-                          setShowPendingSiteForm(false);
-                          setPendingCode("");
-                          setPendingName("");
-                        }
-                      }}
-                      copyNotify={onNotify}
-                    />
-                    <IntervenantSearchInput
-                      intervenants={intervenants}
-                      disabled={false}
-                      selectedIntervenant={selectedIntervenant}
-                      onSelectedIntervenantChange={(item) => {
-                        setIntervenantId(item?.id || "");
-                        if (item) {
-                          setShowPendingIntervenantForm(false);
-                          setPendingIntervenantName("");
-                        }
-                      }}
-                    />
-                  </>
-                ) : canFixKnownReferences ? (
+              {isCreateMode ? (
+                <SearchEntry
+                  sites={sites}
+                  intervenants={intervenants}
+                  selectedSite={selectedSite}
+                  selectedIntervenant={selectedIntervenant}
+                  onSelectedSiteChange={(site) => {
+                    setSiteId(site?.id || "");
+                    if (site) {
+                      setShowPendingSiteForm(false);
+                      setPendingCode("");
+                      setPendingName("");
+                    }
+                  }}
+                  onSelectedIntervenantChange={(item) => {
+                    setIntervenantId(item?.id || "");
+                    if (item) {
+                      setShowPendingIntervenantForm(false);
+                      setPendingIntervenantName("");
+                    }
+                  }}
+                  showPendingSiteForm={showPendingSiteForm}
+                  showPendingIntervenantForm={showPendingIntervenantForm}
+                  onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
+                  onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
+                  pendingSiteForm={(
+                    <div className="mc-form-grid mc-form-grid-main">
+                      <label className="mc-field">
+                        <span>Nouveau code site</span>
+                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+                      </label>
+                      <label className="mc-field">
+                        <span>Nouveau nom de site</span>
+                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+                      </label>
+                    </div>
+                  )}
+                  pendingIntervenantForm={(
+                    <div className="mc-form-grid mc-form-grid-main">
+                      <label className="mc-field mc-field-full">
+                        <span>Nouveau prestataire</span>
+                        <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
+                      </label>
+                    </div>
+                  )}
+                  onNotify={onNotify}
+                  siteButtonLabel="À créer ?"
+                  intervenantButtonLabel="À créer ?"
+                  showSiteAction={!selectedSite}
+                  showIntervenantAction={!selectedIntervenant}
+                />
+              ) : canFixKnownReferences ? (
                   <>
                     <SiteSearchInput
                       sites={sites}
@@ -662,38 +689,6 @@ export function InterventionEntryModal({
                     </label>
                   </>
                 )}
-              </div>
-              {isCreateMode ? (
-                <PendingSiteIntervenantRefActions
-                  selectedSite={selectedSite}
-                  selectedIntervenant={selectedIntervenant}
-                  showPendingSiteForm={showPendingSiteForm}
-                  showPendingIntervenantForm={showPendingIntervenantForm}
-                  onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
-                  onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
-                  intervenantButtonLabel="Prestataire introuvable"
-                  pendingSiteForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field">
-                        <span>Nouveau code site</span>
-                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                      </label>
-                      <label className="mc-field">
-                        <span>Nouveau nom de site</span>
-                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                      </label>
-                    </div>
-                  )}
-                  pendingIntervenantForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field mc-field-full">
-                        <span>Nouveau prestataire</span>
-                        <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
-                      </label>
-                    </div>
-                  )}
-                />
-              ) : null}
             </CreateFormSection>
 
             <CreateFormSection title="Motif de l'intervention">
@@ -755,6 +750,7 @@ export function InterventionEntryModal({
                     <input
                       value={workOrderNumber}
                       disabled={formLockedClosed}
+                      placeholder={INTERVENTION_NO_WORK_ORDER_LABEL}
                       onChange={(e) => setWorkOrderNumber(e.target.value)}
                     />
                   </label>
@@ -943,7 +939,6 @@ export function InterventionEntryModal({
                           arrivalTime,
                           departureDate: passageDatesResolved.departureDate,
                           departureTime,
-                          workOrderNumber,
                           report
                         });
                         if (missingForClose.length) {

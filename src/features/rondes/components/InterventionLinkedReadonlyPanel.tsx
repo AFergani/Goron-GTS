@@ -3,7 +3,10 @@
  */
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-import type { InterventionEntry } from "../../intervention/model/intervention.types";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry
+} from "../../intervention/model/intervention.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 
 function formatDateFr(dateIso: string) {
@@ -48,7 +51,7 @@ export function InterventionLinkedReadonlyPanel({ entry, onNotify }: Interventio
       </div>
       <div className="linked-intervention-ro-field">
         <span>N° bon</span>
-        {entry.workOrderNumber || "—"}
+        {entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL}
       </div>
       <div className="linked-intervention-ro-field">
         <span>Compte rendu intervention</span>

@@ -73,7 +73,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
 
   const createEntry = async (payload: InterventionSavePayload) => {
     try {
-      await gtsApiClient.createInterventionEntry({
+      await gtsApiClient.createIntervention({
         requesterRole,
         requesterUsername,
         id: makeInterventionId(),
@@ -89,7 +89,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
 
   const updateEntry = async (id: string, expectedUpdatedAt: string, payload: InterventionSavePayload) => {
     try {
-      const updated = await gtsApiClient.updateInterventionEntry({
+      const updated = await gtsApiClient.updateIntervention({
         requesterRole,
         requesterUsername,
         id,

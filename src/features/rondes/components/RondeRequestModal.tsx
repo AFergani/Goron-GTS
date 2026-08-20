@@ -22,6 +22,7 @@ import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT, type RondePlannedRoundKind } fr
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { TimeInput } from "../../common/components/TimeInput";
 import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
+import { SearchEntry } from "../../common/components/SearchEntry";
 import { RondeLinkedBatchPanel } from "./RondeLinkedBatchPanel";
 import { addDaysIso, dateIsoToWeekdayMask, generateRandomSlotSpecs } from "../model/rondePlannedSlotEngine";
 import { formatLocalDateIso, formatLocalTimeHm } from "../model/rondeCalendarLocal";
@@ -486,6 +487,13 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
   ]);
 
   const isContract = origin === "CONTRAT";
+  const isOriginFixed = Boolean(props.fixedOrigin || props.initialInterventionId);
+  const originLabel = useMemo(() => {
+    if (origin === "APPEL_CLIENT") return "Client";
+    if (origin === "CONTRAT") return "Contrat";
+    if (origin === "SUITE_INTERVENTION") return "Suite intervention";
+    return "Autre";
+  }, [origin]);
   const canCreatePendingRefs = Boolean(props.onCreatePendingSite && props.onCreatePendingIntervenant);
   const holidayMatch = holidayMatchers(props.holidays);
 
@@ -750,7 +758,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           motifTypeId: motifTypeId.trim(),
           consigne: consigne.trim(),
           siteId: selectedSite?.id ?? null,
-          intervenantId: selectedIntervenant?.id ?? null,
+          intervenantId: selectedIntervenant?.id ?? "",
           createRoundsEnabled: true,
           lines: linesForSubmit.map((ln) => ({
             roundKind: ln.roundKind,
@@ -807,7 +815,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           motifTypeId: motifTypeId.trim(),
           consigne: consigne.trim(),
           siteId: selectedSite?.id ?? null,
-          intervenantId: selectedIntervenant?.id ?? null,
+          intervenantId: selectedIntervenant?.id ?? "",
           createRoundsEnabled: true,
           lines: linesForSubmit.map((ln) => ({
             roundKind: ln.roundKind,
@@ -848,7 +856,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             horairesDemandeObs: scheduleDetails,
             originKind: mappedOrigin,
             originDetail,
-            intervenantId: selectedIntervenant?.id ?? null,
+            intervenantId: selectedIntervenant?.id ?? "",
             intervenantName: selectedIntervenant?.name || pendingIntervenantDisplay || "",
             arrivalTime: "",
             departureTime: "",
@@ -897,7 +905,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           ...(isEdit && props.editProfile ? { id: props.editProfile.id } : {}),
           label: selectedSite ? formatSiteSelectedLabel(selectedSite) : pendingSiteDisplay || "",
           siteId: selectedSite?.id ?? null,
-          intervenantId: selectedIntervenant?.id ?? null,
+          intervenantId: selectedIntervenant?.id ?? "",
           notes: consigne.trim(),
           planningValidFrom: validFrom,
           planningValidTo: effectiveValidTo,
@@ -946,23 +954,51 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           </div>
         </header>
         <div className="form">
-          <div className="ronde-planned-profile-modal__date-range-row">
-            <label>
-              Date de la demande
+          <div className="ronde-planned-profile-modal__schedule-row">
+            <label className="ronde-planned-profile-modal__schedule-field">
+              <span>Date de la demande</span>
               <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} />
             </label>
-            <label>
-              Heure de la demande
+            <label className="ronde-planned-profile-modal__schedule-field">
+              <span>Heure de la demande</span>
               <TimeInput value={requestTime} onChange={setRequestTime} />
             </label>
+            <label className="ronde-planned-profile-modal__schedule-field ronde-planned-profile-modal__schedule-field--motif">
+              <span>Motif de la demande</span>
+              <select
+                value={motifTypeId}
+                disabled={isEdit || isLinkedExistingBatch}
+                onChange={(e) => setMotifTypeId(e.target.value)}
+              >
+                {props.rondeMotifs.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="ronde-planned-profile-modal__schedule-field ronde-planned-profile-modal__schedule-field--origin">
+              <span>Origine</span>
+              {isOriginFixed ? (
+                <span className="ronde-origin-badge" title={originLabel}>{originLabel}</span>
+              ) : (
+                <select
+                  value={origin}
+                  onChange={(e) => setOrigin(e.target.value as RequestOrigin)}
+                >
+                  <option value="CONTRAT">Contrat</option>
+                  <option value="APPEL_CLIENT">Client</option>
+                  <option value="SUITE_INTERVENTION">Suite intervention</option>
+                  <option value="AUTRE">Autre</option>
+                </select>
+              )}
+            </label>
           </div>
-          <div className="ronde-planned-profile-modal__site-prest-row">
-            <SiteSearchInput
+          {!isEdit && !isLinkedExistingBatch && !isContract && canCreatePendingRefs ? (
+            <SearchEntry
               sites={props.sites}
-              disabled={false}
+              intervenants={props.intervenants}
               selectedSite={selectedSite}
-              copyNotify={props.onNotify}
-              onSelectedSiteChange={(s) => {
+              selectedIntervenant={selectedIntervenant}
+              onSelectedSiteChange={(s: SiteRef | null) => {
                 setSiteId(s?.id ?? null);
                 if (s) {
                   setShowPendingSiteForm(false);
@@ -970,24 +1006,13 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                   setPendingName("");
                 }
               }}
-            />
-            <IntervenantSearchInput
-              intervenants={props.intervenants}
-              disabled={false}
-              selectedIntervenant={selectedIntervenant}
-              onSelectedIntervenantChange={(i) => {
+              onSelectedIntervenantChange={(i: IntervenantRef | null) => {
                 setIntervenantId(i?.id ?? "");
                 if (i) {
                   setShowPendingIntervenantForm(false);
                   setPendingIntervenantName("");
                 }
               }}
-            />
-          </div>
-          {!isEdit && !isLinkedExistingBatch && !isContract && canCreatePendingRefs ? (
-            <PendingSiteIntervenantRefActions
-              selectedSite={selectedSite}
-              selectedIntervenant={selectedIntervenant}
               showPendingSiteForm={showPendingSiteForm}
               showPendingIntervenantForm={showPendingIntervenantForm}
               onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
@@ -1012,35 +1037,42 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                   </label>
                 </div>
               )}
+              onNotify={props.onNotify}
+              showSiteAction={!selectedSite}
+              showIntervenantAction={!selectedIntervenant}
             />
-          ) : null}
-          <div className="ronde-planned-profile-line__grid-schedule">
-            <label>
-              Motif de la demande
-              <select
-                value={motifTypeId}
-                disabled={isEdit || isLinkedExistingBatch}
-                onChange={(e) => setMotifTypeId(e.target.value)}
-              >
-                {props.rondeMotifs.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Origine de la demande
-              <select
-                value={origin}
-                disabled={Boolean(props.fixedOrigin || props.initialInterventionId)}
-                onChange={(e) => setOrigin(e.target.value as RequestOrigin)}
-              >
-                <option value="CONTRAT">Contrat</option>
-                <option value="APPEL_CLIENT">Clients</option>
-                <option value="SUITE_INTERVENTION">Suite intervention</option>
-                <option value="AUTRE">Autre</option>
-              </select>
-            </label>
-          </div>
+          ) : (
+            <div className="ronde-planned-profile-modal__site-prest-row">
+              <SiteSearchInput
+                sites={props.sites}
+                disabled={false}
+                selectedSite={selectedSite}
+                copyNotify={props.onNotify}
+                labelText="Site"
+                onSelectedSiteChange={(s) => {
+                  setSiteId(s?.id ?? null);
+                  if (s) {
+                    setShowPendingSiteForm(false);
+                    setPendingCode("");
+                    setPendingName("");
+                  }
+                }}
+              />
+              <IntervenantSearchInput
+                intervenants={props.intervenants}
+                disabled={false}
+                selectedIntervenant={selectedIntervenant}
+                labelText="Prestataire"
+                onSelectedIntervenantChange={(i) => {
+                  setIntervenantId(i?.id ?? "");
+                  if (i) {
+                    setShowPendingIntervenantForm(false);
+                    setPendingIntervenantName("");
+                  }
+                }}
+              />
+            </div>
+          )}
           <label>
             Consigne de ronde
             <textarea

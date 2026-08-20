@@ -25,12 +25,8 @@ import type {
   FransorMonthlyRecap
 } from "./types";
 import type { MainCouranteEntry, MainCouranteSavePayload } from "./features/mainCourante/model/mainCourante.types";
-import type {
-  InterventionEntry,
-  InterventionSavePayload,
-  PendingInterventionIntervenant,
-  PendingInterventionSite
-} from "./features/intervention/model/intervention.types";
+import type { InterventionEntry, InterventionSavePayload } from "./features/intervention/model/intervention.types";
+import type { PendingIntervenant, PendingSite } from "./features/common/model/pendingRefs.types";
 import type {
   RondeEntry,
   RondeMotifTypeRef,
@@ -45,6 +41,7 @@ import type {
   RondePlannedProfileRef
 } from "./features/rondes/model/rondePlanned.types";
 import type { FormVariableDef, FormVariablePayload } from "./features/settings/model/formVariables.types";
+import type { TemplateFlowKind } from "./features/settings/model/documentTemplates.types";
 import type {
   GardiennageClosePayload,
   GardiennageEntry,
@@ -57,7 +54,7 @@ declare global {
     /** Pont preload Electron ; signatures des appels `ipcRenderer.invoke`. */
     gtsApi: {
       // --- Système : boot PG / mode dev, modèles Word, fenêtre ---
-      getDbConfig: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; dbPath: string | null; isDev?: boolean }>;
+      getDbConfig: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; isDev?: boolean }>;
       setDevToolsEnabled: (payload: { enabled: boolean; sessionToken?: string | null }) => Promise<{ success: boolean; enabled: boolean }>;
       getDocumentTemplate: (payload: {
         templateName: string;
@@ -88,7 +85,7 @@ declare global {
       listTemplateAssignments: (payload: { sessionToken: string; requesterRole: Role }) => Promise<
         Array<{
           id: string;
-          flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+          flowKind: TemplateFlowKind;
           scopeKind: "SITE" | "FAMILLE";
           scopeValue: string;
           scopeLabel: string;
@@ -101,7 +98,7 @@ declare global {
         sessionToken: string;
         requesterRole: Role;
         requesterUsername: string;
-        flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+        flowKind: TemplateFlowKind;
         scopeKind: "SITE" | "FAMILLE";
         scopeValue: string;
         scopeLabel: string;
@@ -112,7 +109,7 @@ declare global {
         templatesRelativePath?: string;
         assignment?: {
           id: string;
-          flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+          flowKind: TemplateFlowKind;
           scopeKind: "SITE" | "FAMILLE";
           scopeValue: string;
           scopeLabel: string;
@@ -131,7 +128,7 @@ declare global {
       resolveTemplateFileForContext: (payload: {
         sessionToken: string;
         requesterRole: Role;
-        flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+        flowKind: TemplateFlowKind;
         siteId?: string | null;
         famille?: string | null;
       }) => Promise<{ templateFileName: string | null }>;
@@ -385,6 +382,54 @@ declare global {
         id: string;
         reason: string;
       }) => Promise<{ success: boolean }>;
+      listPendingSites: (payload: { requesterRole: Role }) => Promise<PendingSite[]>;
+      createPendingSite: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        code: string;
+        name: string;
+      }) => Promise<{ success: boolean; alreadyExists: boolean }>;
+      resolvePendingSite: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        pendingId: string;
+        parc: string;
+        famille: string;
+      }) => Promise<{
+        success: boolean;
+        siteId: string;
+        alreadyExists: boolean;
+        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
+      }>;
+      deletePendingSite: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        pendingId: string;
+        reason: string;
+      }) => Promise<{ success: boolean }>;
+      listPendingIntervenants: (payload: { requesterRole: Role }) => Promise<PendingIntervenant[]>;
+      createPendingIntervenant: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        name: string;
+      }) => Promise<{ success: boolean; alreadyExists: boolean }>;
+      resolvePendingIntervenant: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        pendingId: string;
+        name?: string;
+      }) => Promise<{
+        success: boolean;
+        intervenantId: string;
+        alreadyExists: boolean;
+        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
+      }>;
+      deletePendingIntervenant: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        pendingId: string;
+        reason: string;
+      }) => Promise<{ success: boolean }>;
       listAnomalyTypes: (payload: { requesterRole: Role }) => Promise<AnomalyTypeRef[]>;
       createAnomalyType: (payload: {
         requesterRole: Role;
@@ -523,12 +568,12 @@ declare global {
       // --- Interventions ---
       listInterventions: (payload: { requesterRole: Role }) => Promise<InterventionEntry[]>;
       getInterventionOpenCount: (payload: { requesterRole: Role }) => Promise<{ count: number }>;
-      createInterventionEntry: (payload: {
+      createIntervention: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
       } & InterventionSavePayload) => Promise<InterventionEntry>;
-      updateInterventionEntry: (payload: {
+      updateIntervention: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
@@ -550,54 +595,6 @@ declare global {
         billingStatus: "FACTURABLE" | "NON_FACTURABLE";
         reason?: string;
       }) => Promise<InterventionEntry>;
-      listPendingInterventionSites: (payload: { requesterRole: Role }) => Promise<PendingInterventionSite[]>;
-      createPendingInterventionSite: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        code: string;
-        name: string;
-      }) => Promise<{ success: boolean; alreadyExists: boolean }>;
-      resolvePendingInterventionSite: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        pendingId: string;
-        parc: string;
-        famille: string;
-      }) => Promise<{
-        success: boolean;
-        siteId: string;
-        alreadyExists: boolean;
-        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
-      }>;
-      deletePendingInterventionSite: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        pendingId: string;
-        reason: string;
-      }) => Promise<{ success: boolean }>;
-      listPendingInterventionIntervenants: (payload: { requesterRole: Role }) => Promise<PendingInterventionIntervenant[]>;
-      createPendingInterventionIntervenant: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        name: string;
-      }) => Promise<{ success: boolean; alreadyExists: boolean }>;
-      resolvePendingInterventionIntervenant: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        pendingId: string;
-        name?: string;
-      }) => Promise<{
-        success: boolean;
-        intervenantId: string;
-        alreadyExists: boolean;
-        propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
-      }>;
-      deletePendingInterventionIntervenant: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        pendingId: string;
-        reason: string;
-      }) => Promise<{ success: boolean }>;
       // --- Rondes ---
       listRondes: (payload: { requesterRole: Role }) => Promise<RondeEntry[]>;
       getRondeTodayInProgressCounts: (payload: { requesterRole: Role; todayIso: string }) => Promise<{

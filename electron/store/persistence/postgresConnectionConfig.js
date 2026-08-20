@@ -11,8 +11,12 @@
  * @module electron/store/persistence/postgresConnectionConfig
  */
 
-const fs = require("fs");
 const path = require("path");
+const {
+  isEncryptionAvailable,
+  readEncryptedString,
+  writeEncryptedString
+} = require("../core/safeStorageFile");
 
 /** Nom du fichier chiffré dans `userData`. */
 const PG_ENC_FILE_NAME = "gts-pg.enc";
@@ -46,7 +50,7 @@ const DEFAULT_CONNECTION_TIMEOUT_MS = 2500;
  */
 
 /**
- * Valeurs labo Docker (sans secret en dur côté UI — utilisé seulement en repli technique).
+ * Valeurs labo Docker (repli technique, pas d'exposition UI du secret).
  *
  * @returns {Omit<PostgresConnectionConfig, "source">}
  */
@@ -99,15 +103,10 @@ function resolvePgEncFilePath(encFilePath) {
  * @returns {{ host: string, port: number, database: string, user: string, password: string }|null}
  */
 function readEncryptedPostgresConfig(encFilePath) {
+  const plain = readEncryptedString(resolvePgEncFilePath(encFilePath));
+  if (!plain) return null;
   try {
-    const { safeStorage } = require("electron");
-    if (!safeStorage.isEncryptionAvailable()) return null;
-    const filePath = resolvePgEncFilePath(encFilePath);
-    if (!fs.existsSync(filePath)) return null;
-    const encryptedBase64 = fs.readFileSync(filePath, "utf-8").trim();
-    if (!encryptedBase64) return null;
-    const plain = safeStorage.decryptString(Buffer.from(encryptedBase64, "base64"));
-    const parsed = JSON.parse(String(plain || "{}"));
+    const parsed = JSON.parse(plain);
     if (!parsed || typeof parsed !== "object") return null;
     return {
       host: String(parsed.host || "").trim(),
@@ -132,13 +131,9 @@ function readEncryptedPostgresConfig(encFilePath) {
  * @param {string} config.password - Mot de passe en clair (obligatoire à la première saisie).
  * @param {string} [encFilePath]
  * @returns {void}
- * @throws {Error} Si le chiffrement système est indisponible.
+ * @throws {Error} Si le chiffrement système est indisponible ou le mot de passe vide.
  */
 function writeEncryptedPostgresConfig(config, encFilePath) {
-  const { safeStorage } = require("electron");
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("Le chiffrement système (safeStorage) n'est pas disponible sur ce poste.");
-  }
   const payload = {
     host: String(config.host || "").trim() || "127.0.0.1",
     port: Number(config.port) || 5432,
@@ -149,24 +144,7 @@ function writeEncryptedPostgresConfig(config, encFilePath) {
   if (!payload.password) {
     throw new Error("Le mot de passe technique PostgreSQL est obligatoire.");
   }
-  const encryptedBuffer = safeStorage.encryptString(JSON.stringify(payload));
-  const filePath = resolvePgEncFilePath(encFilePath);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, encryptedBuffer.toString("base64"), "utf-8");
-}
-
-/**
- * Indique si `safeStorage` est utilisable sur ce poste.
- *
- * @returns {boolean}
- */
-function isPostgresEncryptionAvailable() {
-  try {
-    const { safeStorage } = require("electron");
-    return Boolean(safeStorage.isEncryptionAvailable());
-  } catch {
-    return false;
-  }
+  writeEncryptedString(resolvePgEncFilePath(encFilePath), JSON.stringify(payload));
 }
 
 /**
@@ -178,9 +156,8 @@ function isPostgresEncryptionAvailable() {
  */
 function getPostgresConnectionConfig(options = {}) {
   const defaults = getLabDefaults();
-  const envActive = hasEnvOverrides();
 
-  if (envActive) {
+  if (hasEnvOverrides()) {
     return {
       host: String(process.env.GTS_PG_HOST || defaults.host).trim() || defaults.host,
       port: Number(process.env.GTS_PG_PORT || defaults.port) || defaults.port,
@@ -229,19 +206,15 @@ function getPublicPostgresConnectionConfig(options = {}) {
     user: cfg.user,
     hasPassword: Boolean(cfg.password),
     source: cfg.source,
-    encryptionAvailable: isPostgresEncryptionAvailable(),
+    encryptionAvailable: isEncryptionAvailable(),
     envOverridesActive: cfg.source === "env"
   };
 }
 
 module.exports = {
-  PG_ENC_FILE_NAME,
-  getLabDefaults,
   getPostgresConnectionConfig,
   getPublicPostgresConnectionConfig,
   readEncryptedPostgresConfig,
   writeEncryptedPostgresConfig,
-  isPostgresEncryptionAvailable,
-  resolvePgEncFilePath,
   hasEnvOverrides
 };

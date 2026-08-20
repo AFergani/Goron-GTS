@@ -3,7 +3,7 @@
  *
  * Règles d’affichage : jours ouvrés (hors week-end et fériés) sauf exception calendrier
  * (mode OPEN force ouvert, CLOSED force fermé). Saisie par responsable, récap par mois,
- * export texte, gestion des périodes exceptionnelles.
+ * copie du récap mensuel, gestion des périodes exceptionnelles.
  *
  * Montée depuis `AppShell` si la permission page `fransor` est active.
  * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
@@ -366,7 +366,7 @@ export function FransorPage({
     setClosureModalSelectedMonth(currentMonth);
   };
 
-  /* --- Récap texte / export Word --- */
+  /* --- Récap texte (copie presse-papiers) --- */
   const recapPlainText = useMemo(() => {
     const lines = [
       `Mois en cours : ${formatMonthFr(presenter.month)}`,

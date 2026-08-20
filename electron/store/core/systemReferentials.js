@@ -3,6 +3,7 @@
  *
  * Garantit un libellé universel pour la saisie main courante et rondes
  * même si aucun référentiel métier n'a encore été créé.
+ * Consommé par `data/referentials` et `data/rondeMotifTypes`.
  *
  * @module electron/store/core/systemReferentials
  */
@@ -22,8 +23,6 @@ const SYSTEM_RONDE_MOTIF_ID = "sys-ronde-motif-voir-consigne";
 const SYSTEM_RONDE_MOTIF_COLOR = "#5c6bc0";
 
 /**
- * Normalise un libellé référentiel pour comparaison (casse / espaces).
- *
  * @param {unknown} value
  * @returns {string}
  */
@@ -31,14 +30,18 @@ function normalizeRefLabel(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+const SYSTEM_ANOMALY_TYPE_LABEL_NORM = normalizeRefLabel(SYSTEM_ANOMALY_TYPE_LABEL);
+const SYSTEM_RONDE_MOTIF_LABEL_NORM = normalizeRefLabel(SYSTEM_RONDE_MOTIF_LABEL);
+
 /**
- * Indique si le libellé correspond au type d'anomalie système.
- *
- * @param {unknown} label
+ * @param {{ id?: unknown, label?: unknown }|null|undefined} row
+ * @param {string} systemId
+ * @param {string} systemLabelNorm
  * @returns {boolean}
  */
-function isSystemAnomalyTypeLabel(label) {
-  return normalizeRefLabel(label) === normalizeRefLabel(SYSTEM_ANOMALY_TYPE_LABEL);
+function isSystemRefRow(row, systemId, systemLabelNorm) {
+  if (!row) return false;
+  return String(row.id || "") === systemId || normalizeRefLabel(row.label) === systemLabelNorm;
 }
 
 /**
@@ -48,18 +51,7 @@ function isSystemAnomalyTypeLabel(label) {
  * @returns {boolean}
  */
 function isSystemAnomalyType(row) {
-  if (!row) return false;
-  return String(row.id || "") === SYSTEM_ANOMALY_TYPE_ID || isSystemAnomalyTypeLabel(row.label);
-}
-
-/**
- * Indique si le libellé correspond au motif de ronde système.
- *
- * @param {unknown} label
- * @returns {boolean}
- */
-function isSystemRondeMotifLabel(label) {
-  return normalizeRefLabel(label) === normalizeRefLabel(SYSTEM_RONDE_MOTIF_LABEL);
+  return isSystemRefRow(row, SYSTEM_ANOMALY_TYPE_ID, SYSTEM_ANOMALY_TYPE_LABEL_NORM);
 }
 
 /**
@@ -69,8 +61,7 @@ function isSystemRondeMotifLabel(label) {
  * @returns {boolean}
  */
 function isSystemRondeMotifType(row) {
-  if (!row) return false;
-  return String(row.id || "") === SYSTEM_RONDE_MOTIF_ID || isSystemRondeMotifLabel(row.label);
+  return isSystemRefRow(row, SYSTEM_RONDE_MOTIF_ID, SYSTEM_RONDE_MOTIF_LABEL_NORM);
 }
 
 module.exports = {
@@ -80,9 +71,6 @@ module.exports = {
   SYSTEM_RONDE_MOTIF_LABEL,
   SYSTEM_RONDE_MOTIF_ID,
   SYSTEM_RONDE_MOTIF_COLOR,
-  normalizeRefLabel,
-  isSystemAnomalyTypeLabel,
   isSystemAnomalyType,
-  isSystemRondeMotifLabel,
   isSystemRondeMotifType
 };

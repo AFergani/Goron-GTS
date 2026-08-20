@@ -2,15 +2,16 @@
  * Référentiels Paramètres : sites, intervenants, types d'anomalie (main courante).
  *
  * Tables `data_sites`, `data_intervenants`, `data_anomaly_types`.
- * Accès **PostgreSQL uniquement** via `store.getReferentialsPersistence()` (pilote Phase C).
- * Si PG est inaccessible : refus explicite (pas de dual-write SQLite silencieux).
- * `auditMode: "batch"` désactive l'audit unitaire (imports en masse via `importAudit.js`).
+ * Accès PostgreSQL via `store.getReferentialsPersistence()`.
+ * `auditMode: "batch"` : pas de log unitaire (imports via `importAudit.js`).
  * Modifications : `entityHistory` + audit before/after ; suppressions : motif obligatoire.
  *
  * @module electron/store/domains/data/referentials
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { actorName } = require("../../core/actorName");
+const { sqlFoldExpr } = require("../../core/textFold");
 const {
   SYSTEM_ANOMALY_TYPE_COLOR,
   SYSTEM_ANOMALY_TYPE_ID,
@@ -22,10 +23,10 @@ const {
  * Normalise une couleur hexadécimale `#rrggbb`.
  *
  * @param {unknown} value
- * @param {string} [fallback="#1f5fcf"]
+ * @param {string} [fallback]
  * @returns {string}
  */
-function normalizeColorHex(value, fallback = "#1f5fcf") {
+function normalizeColorHex(value, fallback = SYSTEM_ANOMALY_TYPE_COLOR) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
@@ -46,8 +47,6 @@ function normalizeUpperText(value) {
 }
 
 /**
- * Exige PostgreSQL joignable pour les référentiels (pas de repli SQLite silencieux).
- *
  * @param {import('../../../userStore')} store
  * @returns {import('../../persistence/persistenceContract').PersistenceAdapter}
  */
@@ -67,6 +66,34 @@ function requirePersistence(store) {
   return refDb;
 }
 
+/**
+ * @param {{ code?: unknown, name?: unknown, address?: unknown, parc?: unknown, famille?: unknown }} row
+ * @returns {{ code: string, name: string, address: string, parc: string, famille: string }}
+ */
+function toSiteSnapshot(row) {
+  return {
+    code: String(row.code || ""),
+    name: String(row.name || ""),
+    address: String(row.address || ""),
+    parc: String(row.parc || ""),
+    famille: String(row.famille || "")
+  };
+}
+
+/**
+ * @param {object} input
+ * @returns {{ code: string, name: string, address: string, parc: string, famille: string }}
+ */
+function normalizeSiteInput(input) {
+  return {
+    code: String(input.code || "").trim(),
+    name: String(input.name || "").trim(),
+    address: String(input.address || "").trim(),
+    parc: normalizeUpperText(input.parc),
+    famille: normalizeUpperText(input.famille)
+  };
+}
+
 /** --- Sites (`data_sites`) --- */
 
 /**
@@ -82,15 +109,12 @@ async function listSites(store, { requesterRole }) {
   const rows = await db.all(
     `SELECT id, code, name, address, parc, famille, created_at, updated_at
      FROM data_sites
-     ORDER BY name ASC`
+     ORDER BY name ASC`,
+    []
   );
   return rows.map((row) => ({
     id: row.id,
-    code: row.code,
-    name: row.name,
-    address: row.address || "",
-    parc: row.parc || "",
-    famille: row.famille || "",
+    ...toSiteSnapshot(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at || null
   }));
@@ -109,22 +133,21 @@ async function createSite(
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requirePersistence(store);
-  const cleanCode = String(code || "").trim();
-  const cleanName = String(name || "").trim();
-  const cleanAddress = String(address || "").trim();
-  const cleanParc = normalizeUpperText(parc);
-  const cleanFamille = normalizeUpperText(famille);
-  if (!cleanCode || !cleanName) {
+  const fields = normalizeSiteInput({ code, name, address, parc, famille });
+  if (!fields.code || !fields.name) {
     store.fail("data:sites:create", "Code site et nom de site obligatoires.", "DATA_SITE_REQUIRED");
   }
-  const existsRow = await db.get("SELECT name FROM data_sites WHERE code = ?", [cleanCode]);
+  const existsRow = await db.get(
+    `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")}`,
+    [fields.code]
+  );
   if (existsRow) {
     const nomRef = String(existsRow.name || "").trim() || "sans nom";
     store.fail(
       "data:sites:create",
-      `Le code site « ${cleanCode} » existe deja en referentiel (fiche actuelle : « ${nomRef} »).`,
+      `Le code site « ${fields.code} » existe déjà en référentiel (fiche actuelle : « ${nomRef} »).`,
       "DATA_SITE_EXISTS",
-      { code: cleanCode, existingName: nomRef }
+      { code: fields.code, existingName: nomRef }
     );
   }
   const id = generateEntityId();
@@ -132,19 +155,19 @@ async function createSite(
   await db.run(
     `INSERT INTO data_sites (id, code, name, address, parc, famille, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, cleanCode, cleanName, cleanAddress || null, cleanParc || null, cleanFamille || null, now]
+    [id, fields.code, fields.name, fields.address || null, fields.parc || null, fields.famille || null, now]
   );
   await store.recordEntityChange({
     entityType: "data_sites",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
-    snapshot: { code: cleanCode, name: cleanName, address: cleanAddress, parc: cleanParc, famille: cleanFamille }
+    changedBy: actorName(requesterUsername),
+    snapshot: fields
   });
   if (auditMode !== "batch") {
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_SITE_CREATE",
-      details: { id, code: cleanCode, name: cleanName }
+      details: { id, code: fields.code, name: fields.name }
     });
   }
   return { success: true };
@@ -163,12 +186,8 @@ async function updateSite(
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requirePersistence(store);
-  const cleanCode = String(code || "").trim();
-  const cleanName = String(name || "").trim();
-  const cleanAddress = String(address || "").trim();
-  const cleanParc = normalizeUpperText(parc);
-  const cleanFamille = normalizeUpperText(famille);
-  if (!id || !cleanCode || !cleanName) {
+  const fields = normalizeSiteInput({ code, name, address, parc, famille });
+  if (!id || !fields.code || !fields.name) {
     store.fail("data:sites:update", "Données site invalides.", "DATA_SITE_REQUIRED");
   }
   const existingSite = await db.get(
@@ -178,37 +197,34 @@ async function updateSite(
   if (!existingSite) {
     store.fail("data:sites:update", "Site introuvable.", "DATA_SITE_NOT_FOUND");
   }
-  const dupSite = await db.get("SELECT name FROM data_sites WHERE code = ? AND id <> ?", [cleanCode, id]);
+  const dupSite = await db.get(
+    `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")} AND id <> ?`,
+    [fields.code, id]
+  );
   if (dupSite) {
     const nomRef = String(dupSite.name || "").trim() || "sans nom";
     store.fail(
       "data:sites:update",
-      `Le code site « ${cleanCode} » est deja attribue au site « ${nomRef} ».`,
+      `Le code site « ${fields.code} » est déjà attribué au site « ${nomRef} ».`,
       "DATA_SITE_EXISTS",
-      { code: cleanCode, existingName: nomRef }
+      { code: fields.code, existingName: nomRef }
     );
   }
   await db.run(
     `UPDATE data_sites
      SET code = ?, name = ?, address = ?, parc = ?, famille = ?, updated_at = ?
      WHERE id = ?`,
-    [cleanCode, cleanName, cleanAddress || null, cleanParc || null, cleanFamille || null, new Date().toISOString(), id]
+    [fields.code, fields.name, fields.address || null, fields.parc || null, fields.famille || null, new Date().toISOString(), id]
   );
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_sites", id, 3);
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_SITE_UPDATE",
       details: {
         id,
-        before: {
-          code: String(existingSite.code || ""),
-          name: String(existingSite.name || ""),
-          address: String(existingSite.address || ""),
-          parc: String(existingSite.parc || ""),
-          famille: String(existingSite.famille || "")
-        },
-        after: { code: cleanCode, name: cleanName, address: cleanAddress, parc: cleanParc, famille: cleanFamille },
+        before: toSiteSnapshot(existingSite),
+        after: fields,
         historyBefore
       }
     });
@@ -216,8 +232,8 @@ async function updateSite(
   await store.recordEntityChange({
     entityType: "data_sites",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
-    snapshot: { code: cleanCode, name: cleanName, address: cleanAddress, parc: cleanParc, famille: cleanFamille }
+    changedBy: actorName(requesterUsername),
+    snapshot: fields
   });
   return { success: true };
 }
@@ -245,19 +261,9 @@ async function deleteSite(store, { requesterRole, requesterUsername, id, reason 
   }
   await db.run("DELETE FROM data_sites WHERE id = ?", [id]);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "DATA_SITE_DELETE",
-    details: {
-      id,
-      deleted: {
-        code: String(existing.code || ""),
-        name: String(existing.name || ""),
-        address: String(existing.address || ""),
-        parc: String(existing.parc || ""),
-        famille: String(existing.famille || "")
-      },
-      reason: cleanReason
-    }
+    details: { id, deleted: toSiteSnapshot(existing), reason: cleanReason }
   });
   return { success: true };
 }
@@ -275,7 +281,8 @@ async function listIntervenants(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const db = requirePersistence(store);
   const rows = await db.all(
-    `SELECT id, name, created_at, updated_at FROM data_intervenants ORDER BY name ASC`
+    `SELECT id, name, created_at, updated_at FROM data_intervenants ORDER BY name ASC`,
+    []
   );
   return rows.map((row) => ({
     id: row.id,
@@ -299,11 +306,14 @@ async function createIntervenant(store, { requesterRole, requesterUsername, name
   if (!cleanName) {
     store.fail("data:intervenants:create", "Nom intervenant obligatoire.", "DATA_INTERVENANT_REQUIRED");
   }
-  const exists = await db.get("SELECT id FROM data_intervenants WHERE name = ?", [cleanName]);
+  const exists = await db.get(
+    `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")}`,
+    [cleanName]
+  );
   if (exists) {
     store.fail(
       "data:intervenants:create",
-      "Ce nom d'intervenant / societe est deja present dans le referentiel (meme libelle : pas de doublon).",
+      "Ce nom d'intervenant / société est déjà présent dans le référentiel (même libellé : pas de doublon).",
       "DATA_INTERVENANT_EXISTS"
     );
   }
@@ -313,12 +323,12 @@ async function createIntervenant(store, { requesterRole, requesterUsername, name
   await store.recordEntityChange({
     entityType: "data_intervenants",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
+    changedBy: actorName(requesterUsername),
     snapshot: { name: cleanName }
   });
   if (auditMode !== "batch") {
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_INTERVENANT_CREATE",
       details: { id, name: cleanName }
     });
@@ -344,11 +354,14 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
   if (!existingIntervenant) {
     store.fail("data:intervenants:update", "Intervenant introuvable.", "DATA_INTERVENANT_NOT_FOUND");
   }
-  const duplicate = await db.get("SELECT id FROM data_intervenants WHERE name = ? AND id <> ?", [cleanName, id]);
+  const duplicate = await db.get(
+    `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")} AND id <> ?`,
+    [cleanName, id]
+  );
   if (duplicate) {
     store.fail(
       "data:intervenants:update",
-      "Un autre intervenant du referentiel porte deja ce libelle.",
+      "Un autre intervenant du référentiel porte déjà ce libellé.",
       "DATA_INTERVENANT_EXISTS"
     );
   }
@@ -360,7 +373,7 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_intervenants", id, 3);
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_INTERVENANT_UPDATE",
       details: {
         id,
@@ -373,7 +386,7 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
   await store.recordEntityChange({
     entityType: "data_intervenants",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
+    changedBy: actorName(requesterUsername),
     snapshot: { name: cleanName }
   });
   return { success: true };
@@ -399,7 +412,7 @@ async function deleteIntervenant(store, { requesterRole, requesterUsername, id, 
   }
   await db.run("DELETE FROM data_intervenants WHERE id = ?", [id]);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "DATA_INTERVENANT_DELETE",
     details: { id, deleted: { name: String(existing.name || "") }, reason: cleanReason }
   });
@@ -413,13 +426,14 @@ async function deleteIntervenant(store, { requesterRole, requesterUsername, id, 
  *
  * @param {import('../../../userStore')} store
  * @param {{ requesterRole: string }} payload
- * @returns {Promise<Array<{ id: string, label: string, colorHex: string, createdAt: string, updatedAt: string|null }>>}
+ * @returns {Promise<Array<{ id: string, label: string, colorHex: string, createdAt: string, updatedAt: string|null, isSystem: boolean }>>}
  */
 async function listAnomalyTypes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const db = requirePersistence(store);
   const rows = await db.all(
-    `SELECT id, label, color_hex, created_at, updated_at FROM data_anomaly_types ORDER BY label ASC`
+    `SELECT id, label, color_hex, created_at, updated_at FROM data_anomaly_types ORDER BY label ASC`,
+    []
   );
   return rows.map((row) => ({
     id: row.id,
@@ -443,7 +457,7 @@ async function ensureSystemAnomalyType(store) {
     typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
   if (!db || !db.isOpen()) return;
   const existing = await db.get(
-    "SELECT id FROM data_anomaly_types WHERE lower(trim(label)) = lower(?)",
+    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
     [SYSTEM_ANOMALY_TYPE_LABEL]
   );
   if (existing) return;
@@ -473,9 +487,12 @@ async function createAnomalyType(
   if (!cleanLabel) {
     store.fail("data:types:create", "Libellé du type obligatoire.", "DATA_TYPE_REQUIRED");
   }
-  const exists = await db.get("SELECT id FROM data_anomaly_types WHERE label = ?", [cleanLabel]);
+  const exists = await db.get(
+    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
+    [cleanLabel]
+  );
   if (exists) {
-    store.fail("data:types:create", "Ce type existe deja.", "DATA_TYPE_EXISTS");
+    store.fail("data:types:create", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
   }
   const id = generateEntityId();
   const now = new Date().toISOString();
@@ -488,12 +505,12 @@ async function createAnomalyType(
   await store.recordEntityChange({
     entityType: "data_anomaly_types",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
+    changedBy: actorName(requesterUsername),
     snapshot: { label: cleanLabel, colorHex: cleanColorHex }
   });
   if (auditMode !== "batch") {
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_TYPE_CREATE",
       details: { id, label: cleanLabel, colorHex: cleanColorHex }
     });
@@ -530,12 +547,12 @@ async function updateAnomalyType(
       "DATA_TYPE_SYSTEM_PROTECTED"
     );
   }
-  const duplicate = await db.get("SELECT id FROM data_anomaly_types WHERE label = ? AND id <> ?", [
-    cleanLabel,
-    id
-  ]);
+  const duplicate = await db.get(
+    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")} AND id <> ?`,
+    [cleanLabel, id]
+  );
   if (duplicate) {
-    store.fail("data:types:update", "Ce type existe deja.", "DATA_TYPE_EXISTS");
+    store.fail("data:types:update", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
   }
   await db.run("UPDATE data_anomaly_types SET label = ?, color_hex = ?, updated_at = ? WHERE id = ?", [
     cleanLabel,
@@ -546,7 +563,7 @@ async function updateAnomalyType(
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_anomaly_types", id, 3);
     store.logAudit({
-      actorUsername: requesterUsername || "unknown",
+      actorUsername: actorName(requesterUsername),
       action: "DATA_TYPE_UPDATE",
       details: {
         id,
@@ -559,7 +576,7 @@ async function updateAnomalyType(
   await store.recordEntityChange({
     entityType: "data_anomaly_types",
     entityId: id,
-    changedBy: requesterUsername || "unknown",
+    changedBy: actorName(requesterUsername),
     snapshot: { label: cleanLabel, colorHex: cleanColorHex }
   });
   return { success: true };
@@ -592,7 +609,7 @@ async function deleteAnomalyType(store, { requesterRole, requesterUsername, id, 
   }
   await db.run("DELETE FROM data_anomaly_types WHERE id = ?", [id]);
   store.logAudit({
-    actorUsername: requesterUsername || "unknown",
+    actorUsername: actorName(requesterUsername),
     action: "DATA_TYPE_DELETE",
     details: {
       id,

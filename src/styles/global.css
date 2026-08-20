@@ -62,13 +62,15 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
-/* Champs simples : même hauteur visuelle (texte, nombre, date, heure, select, etc.) */
+button,
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
-select {
+select,
+textarea {
   background: var(--surf);
   color: var(--text);
   border: 1px solid var(--border);
@@ -79,6 +81,17 @@ select {
   padding: 0 var(--gts-control-padding-x);
   font-size: var(--gts-control-font-size);
   line-height: var(--gts-control-line-height);
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0 12px;
 }
 
 input[type="date"],
@@ -121,7 +134,7 @@ button {
   border: 1px solid var(--accent);
   color: #fff;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 0 12px;
   cursor: pointer;
 }
 

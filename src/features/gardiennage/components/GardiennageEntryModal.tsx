@@ -38,10 +38,8 @@ import {
   GARDIENNAGE_WEEKDAYS_ALL_MASK,
   isIsoDate as isPlanningIsoDate
 } from "../model/gardiennagePlanningCalendar";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
-import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
+import { SearchEntry } from "../../common/components/SearchEntry";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { TimeInput } from "../../common/components/TimeInput";
@@ -613,244 +611,213 @@ export function GardiennageEntryModal({
             <form className="mc-entry-form" onSubmit={(e) => void onSubmit(e)}>
 
               {/* SITE + PRESTATAIRE — même ligne */}
-              <CreateFormSection title="Site * / Prestataire *">
-                <div className="gardiennage-site-presta-row">
-                  <div className="gardiennage-site-presta-col">
-                    <SiteSearchInput
-                      sites={sites}
-                      selectedSite={selectedSite}
-                      copyNotify={onNotify}
-                      disabled={isSaving || isAnnule || isReadOnlyByRole}
-                      onSelectedSiteChange={(site) => {
-                        if (site) {
-                          setShowPendingSiteForm(false);
-                          setPendingCode("");
-                          setPendingName("");
-                        }
-                        setForm((f) => ({
-                          ...f,
-                          siteId: site?.id ?? null,
-                          siteDisplay: site ? `${site.name} (${site.code})` : ""
-                        }));
-                      }}
-                    />
-                    {!form.siteId && (
-                      <p className="muted mc-ref-hint">Le site est obligatoire.</p>
-                    )}
+              <SearchEntry
+                sites={sites}
+                intervenants={intervenants}
+                selectedSite={selectedSite}
+                selectedIntervenant={selectedIntervenant}
+                onSelectedSiteChange={(site) => {
+                  if (site) {
+                    setShowPendingSiteForm(false);
+                    setPendingCode("");
+                    setPendingName("");
+                  }
+                  setForm((f) => ({
+                    ...f,
+                    siteId: site?.id ?? null,
+                    siteDisplay: site ? `${site.name} (${site.code})` : ""
+                  }));
+                }}
+                onSelectedIntervenantChange={(intervenant) => {
+                  if (intervenant) {
+                    setShowPendingIntervenantForm(false);
+                    setPendingIntervenantName("");
+                  }
+                  setForm((f) => ({
+                    ...f,
+                    intervenantId: intervenant?.id ?? null,
+                    intervenantName: intervenant?.name ?? ""
+                  }));
+                }}
+                showPendingSiteForm={canCreatePendingRefs && showPendingSiteForm}
+                showPendingIntervenantForm={canCreatePendingRefs && showPendingIntervenantForm}
+                onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
+                onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
+                pendingSiteForm={(
+                  <div className="mc-form-grid mc-form-grid-main">
+                    <label className="mc-field">
+                      <span>Nouveau code site</span>
+                      <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+                    </label>
+                    <label className="mc-field">
+                      <span>Nouveau nom de site</span>
+                      <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+                    </label>
                   </div>
-                  <div className="gardiennage-site-presta-col">
-                    <IntervenantSearchInput
-                      intervenants={intervenants}
-                      selectedIntervenant={selectedIntervenant}
-                      disabled={isSaving || isAnnule || isReadOnlyByRole}
-                      onSelectedIntervenantChange={(intervenant) => {
-                        if (intervenant) {
-                          setShowPendingIntervenantForm(false);
-                          setPendingIntervenantName("");
-                        }
-                        setForm((f) => ({
-                          ...f,
-                          intervenantId: intervenant?.id ?? null,
-                          intervenantName: intervenant?.name ?? ""
-                        }));
-                      }}
-                    />
-                    {!form.intervenantId && (
-                      <p className="muted mc-ref-hint">Le prestataire est obligatoire.</p>
-                    )}
+                )}
+                pendingIntervenantForm={(
+                  <div className="mc-form-grid mc-form-grid-main">
+                    <label className="mc-field mc-field-full">
+                      <span>Nouvel intervenant</span>
+                      <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
+                    </label>
                   </div>
-                </div>
-                {canCreatePendingRefs ? (
-                  <PendingSiteIntervenantRefActions
-                    selectedSite={selectedSite}
-                    selectedIntervenant={selectedIntervenant}
-                    showPendingSiteForm={showPendingSiteForm}
-                    showPendingIntervenantForm={showPendingIntervenantForm}
-                    onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
-                    onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
-                    pendingSiteForm={(
-                      <div className="mc-form-grid mc-form-grid-main">
-                        <label className="mc-field">
-                          <span>Nouveau code site</span>
-                          <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                        </label>
-                        <label className="mc-field">
-                          <span>Nouveau nom de site</span>
-                          <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                        </label>
-                      </div>
-                    )}
-                    pendingIntervenantForm={(
-                      <div className="mc-form-grid mc-form-grid-main">
-                        <label className="mc-field mc-field-full">
-                          <span>Nouvel intervenant</span>
-                          <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
-                        </label>
-                      </div>
-                    )}
-                  />
-                ) : null}
-              </CreateFormSection>
+                )}
+                onNotify={onNotify}
+                showSiteAction={canCreatePendingRefs ? !form.siteId : false}
+                showIntervenantAction={canCreatePendingRefs ? !form.intervenantId : false}
+              />
 
               {/* PLANIFICATION */}
               <CreateFormSection title="Planification">
-                <label className="mc-field" style={{ maxWidth: 260 }}>
-                  <span>Type de planification</span>
-                  <select
-                    value={planningMode}
-                    disabled={isSaving || isAnnule || isReadOnlyByRole}
-                    onChange={(e) => applyPlanningMode(e.target.value as GardiennagePlanningFormMode)}
-                  >
-                    <option value="recurring">Planification libre</option>
-                    <option value="ponctuel">Journée unique</option>
-                    <option value="h24">H24</option>
-                  </select>
-                </label>
-
-                {planningMode === "ponctuel" && (
-                  <div className="gardiennage-planning-validity">
-                    <span className="gardiennage-validity-lead">Validité</span>
-                    <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date</span>
-                      <input
-                        type="date"
-                        value={form.validFromDate}
+                <div className="gardiennage-planning-layout">
+                  <div className="gardiennage-planning-layout__mode">
+                    <div className="gardiennage-planning-mode">
+                      <span className="gardiennage-validity-lead">Type</span>
+                      <select
+                        value={planningMode}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({ ...f, validFromDate: e.target.value }))}
-                      />
-                    </label>
-                    <span className="gardiennage-date-sep">de</span>
-                    <label className="gardiennage-time-field">
-                      <span className="gardiennage-date-label">Début</span>
-                      <TimeInput
-                        value={form.validFromTime}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
-                      />
-                    </label>
-                    <span className="gardiennage-date-sep">à</span>
-                    <label className="gardiennage-time-field">
-                      <span className="gardiennage-date-label">Fin</span>
-                      <TimeInput
-                        value={form.validToTime}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
-                      />
-                    </label>
+                        onChange={(e) => applyPlanningMode(e.target.value as GardiennagePlanningFormMode)}
+                      >
+                        <option value="recurring">Planification libre</option>
+                        <option value="ponctuel">Journée unique</option>
+                        <option value="h24">H24</option>
+                      </select>
+                    </div>
                   </div>
-                )}
 
-                {planningMode === "h24" && (
-                  <div className="gardiennage-planning-validity">
-                    <span className="gardiennage-validity-lead">Validité du</span>
-                    <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date</span>
-                      <input
-                        type="date"
-                        value={form.validFromDate}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({
-                          ...f,
-                          validFromDate: e.target.value,
-                          validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
-                        }))}
-                      />
-                    </label>
-                    <label className="gardiennage-time-field">
-                      <span className="gardiennage-date-label">Heure</span>
-                      <TimeInput
-                        value={form.validFromTime}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
-                      />
-                    </label>
-                    <span className="gardiennage-date-sep">au</span>
-                    <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date fin (optionnelle)</span>
-                      <span className="gardiennage-date-input-wrap">
-                        <input
-                          type="date"
-                          className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
-                          value={form.validToDate}
-                          disabled={isSaving || isAnnule || isReadOnlyByRole}
-                          min={form.validFromDate || undefined}
-                          aria-label="Date de fin (optionnelle)"
-                          onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                        />
-                        {!form.validToDate.trim() ? (
-                          <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
-                        ) : null}
-                      </span>
-                    </label>
-                    <label className="gardiennage-time-field">
-                      <span className="gardiennage-date-label">Heure (optionnelle)</span>
-                      <span className="gardiennage-date-input-wrap">
-                        <TimeInput
-                          className={form.validToTime.trim() ? "" : "gardiennage-date-input--empty"}
-                          value={form.validToTime}
-                          disabled={isSaving || isAnnule || isReadOnlyByRole}
-                          aria-label="Heure de fin (optionnelle)"
-                          onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
-                        />
-                        {!form.validToTime.trim() ? (
-                          <span className="gardiennage-date-placeholder" aria-hidden="true">--:--</span>
-                        ) : null}
-                      </span>
-                    </label>
-                  </div>
-                )}
+                  <div className="gardiennage-planning-layout__validity">
+                    {planningMode === "ponctuel" && (
+                      <div className="gardiennage-planning-validity">
+                        <span className="gardiennage-validity-lead">Validité</span>
+                        <label className="gardiennage-date-field">
+                          <span className="gardiennage-date-label">Date</span>
+                          <input
+                            type="date"
+                            value={form.validFromDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(e) => setForm((f) => ({ ...f, validFromDate: e.target.value }))}
+                          />
+                        </label>
+                        <span className="gardiennage-date-sep">de</span>
+                        <label className="gardiennage-time-field">
+                          <span className="gardiennage-date-label">Début</span>
+                          <TimeInput
+                            value={form.validFromTime}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
+                          />
+                        </label>
+                        <span className="gardiennage-date-sep">à</span>
+                        <label className="gardiennage-time-field">
+                          <span className="gardiennage-date-label">Fin</span>
+                          <TimeInput
+                            value={form.validToTime}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
+                          />
+                        </label>
+                      </div>
+                    )}
 
-                {planningMode === "recurring" && (
-                  <div className="gardiennage-planning-validity">
-                    <span className="gardiennage-validity-lead">Validité du</span>
-                    <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date</span>
-                      <input
-                        type="date"
-                        value={form.validFromDate}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => setForm((f) => ({
-                          ...f,
-                          validFromDate: e.target.value,
-                          validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
-                        }))}
-                      />
-                    </label>
-                    <span className="gardiennage-date-sep">au</span>
-                    <label className="gardiennage-date-field">
-                      <span className="gardiennage-date-label">Date</span>
-                      <input
-                        type="date"
-                        value={form.validToDate}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        min={form.validFromDate || undefined}
-                        onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                      />
-                    </label>
+                    {planningMode === "h24" && (
+                      <div className="gardiennage-planning-validity">
+                        <span className="gardiennage-validity-lead">Validité du</span>
+                        <label className="gardiennage-date-field">
+                          <span className="gardiennage-date-label">Date</span>
+                          <input
+                            type="date"
+                            value={form.validFromDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              validFromDate: e.target.value,
+                              validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
+                            }))}
+                          />
+                        </label>
+                        <label className="gardiennage-time-field">
+                          <span className="gardiennage-date-label">Heure</span>
+                          <TimeInput
+                            value={form.validFromTime}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
+                          />
+                        </label>
+                        <span className="gardiennage-date-sep">au</span>
+                        <label className="gardiennage-date-field">
+                          <span className="gardiennage-date-label">Date fin</span>
+                          <span className="gardiennage-date-input-wrap">
+                            <input
+                              type="date"
+                              className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
+                              value={form.validToDate}
+                              disabled={isSaving || isAnnule || isReadOnlyByRole}
+                              min={form.validFromDate || undefined}
+                              aria-label="Date de fin (optionnelle)"
+                              onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                            />
+                            {!form.validToDate.trim() ? (
+                              <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
+                            ) : null}
+                          </span>
+                        </label>
+                        <label className="gardiennage-time-field">
+                          <span className="gardiennage-date-label">Heure fin</span>
+                          <span className="gardiennage-date-input-wrap">
+                            <TimeInput
+                              className={form.validToTime.trim() ? "" : "gardiennage-date-input--empty"}
+                              value={form.validToTime}
+                              disabled={isSaving || isAnnule || isReadOnlyByRole}
+                              aria-label="Heure de fin (optionnelle)"
+                              onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
+                            />
+                            {!form.validToTime.trim() ? (
+                              <span className="gardiennage-date-placeholder" aria-hidden="true">--:--</span>
+                            ) : null}
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
+                    {planningMode === "recurring" && (
+                      <div className="gardiennage-planning-validity">
+                        <span className="gardiennage-validity-lead">Validité du</span>
+                        <label className="gardiennage-date-field">
+                          <span className="gardiennage-date-label">Date</span>
+                          <input
+                            type="date"
+                            value={form.validFromDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              validFromDate: e.target.value,
+                              validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
+                            }))}
+                          />
+                        </label>
+                        <span className="gardiennage-date-sep">au</span>
+                        <label className="gardiennage-date-field">
+                          <span className="gardiennage-date-label">Date</span>
+                          <input
+                            type="date"
+                            value={form.validToDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            min={form.validFromDate || undefined}
+                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {planningMode === "ponctuel" && ponctuelCrossesMidnight && (
                   <p className="muted mc-ref-hint">La fin est le lendemain (passage après minuit géré automatiquement).</p>
                 )}
-                {planningMode === "h24" && (
-                  <p className="muted mc-ref-hint">
-                    Couverture continue sur la période indiquée. Laissez la date de fin vide pour une prestation jusqu&apos;à nouvel ordre :
-                    le système maintient un horizon glissant de {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours (prolongation automatique lorsque la
-                    fin approche à {GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT} jours ou moins, tant que la demande reste planifiée ou active).
-                    L&apos;heure de fin est optionnelle : si elle est vide, elle reprend l&apos;heure de début.
-                    Pour clôturer une prestation jusqu&apos;à nouvel ordre : saisissez d&apos;abord une date de fin ici, enregistrez, puis clôturez après cette fin.
-                    Pour combiner H24 et horaires récurrents, créez deux demandes distinctes.
-                  </p>
-                )}
                 {!isCreateMode && entry?.planningBatchId && entry.planningSnapshot && !isCloture && !isAnnule && (
                   <p className="muted mc-ref-hint" role="note">
                     La modification resynchronise tous les créneaux du lot non clôturés. Les créneaux déjà clôturés ne sont pas modifiés.
-                  </p>
-                )}
-                {planningMode === "recurring" && (
-                  <p className="muted mc-ref-hint">
-                    Définissez les horaires dans les lignes ci-dessous (dates seules sur la validité).
                   </p>
                 )}
               </CreateFormSection>
@@ -992,7 +959,6 @@ export function GardiennageEntryModal({
                             size={14}
                             className="gardiennage-planning-preview-row__check"
                             aria-label="Créneau clôturé"
-                            title="Créneau clôturé"
                           />
                         ) : (
                           <span className="gardiennage-planning-preview-row__check-spacer" aria-hidden />

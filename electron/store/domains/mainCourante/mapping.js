@@ -1,5 +1,8 @@
 /**
- * Helpers d'affichage et mapping SQL → API Main courante.
+ * Helpers de mapping et d'affichage Main courante.
+ *
+ * Ce module est strictement dédié au flux PostgreSQL SQL → API.
+ * Les anciens chemins SQLite / fallback historiques ont été supprimés.
  *
  * @module electron/store/domains/mainCourante/mapping
  */

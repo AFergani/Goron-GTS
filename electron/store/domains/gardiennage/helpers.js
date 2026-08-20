@@ -1,34 +1,85 @@
 /**
- * Helpers synchrones de validation, dates et créneaux du Gardiennage.
+ * Helpers synchrones de dates, horaires et créneaux du Gardiennage.
  *
- * Ce module ne réalise aucun accès à une base de données.
+ * Aucun accès base. Appelé par `entries.js`, `entriesLifecycle.js`,
+ * `autoClose.js` et `openEndedHorizon.js`.
  *
  * @module electron/store/domains/gardiennage/helpers
  */
 
+const { addDaysIso, normalizeDateIso, normalizeTimeHm } = require("../../core/isoDate");
 const {
   buildHolidayMatchers,
   collectActiveDatesForLine
 } = require("./plannerEngine");
 
-/** @param {unknown} value @returns {string} Date ISO ou chaîne vide. */
-function toIsoDate(value) {
-  const raw = String(value || "").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+/** Nombre de jours après la fin prévue avant clôture automatique. */
+const GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS = 3;
+/** Horizon de génération / glissement pour H24 sans date de fin. */
+const GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS = 90;
+/** Statuts encore ouverts (clôture auto / horizon glissant). */
+const OPEN_STATUSES_SQL = "status IN ('PLANIFIE', 'ACTIF')";
+const MS_PER_DAY = 86400000;
+
+/**
+ * @param {number} value
+ * @returns {string}
+ */
+function pad2(value) {
+  return String(value).padStart(2, "0");
 }
 
-/** @param {unknown} value @returns {string} Heure HH:mm ou chaîne vide. */
+/**
+ * Date calendaire locale `AAAA-MM-JJ` (évite le décalage UTC de `toISOString`).
+ *
+ * @param {Date} [date]
+ * @returns {string}
+ */
+function localDateIso(date = new Date()) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/**
+ * Acteur des jobs de fond (clôture auto, horizon H24).
+ * Distinct de `actorName` (repli `"unknown"`).
+ *
+ * @param {unknown} username
+ * @param {string} fallback
+ * @returns {string}
+ */
+function resolveSystemActor(username, fallback) {
+  return String(username || fallback).trim() || fallback;
+}
+
+/**
+ * Heure `HH:mm` (00:00–23:59) ou chaîne vide.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 function toIsoTime(value) {
-  const raw = String(value || "").trim();
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(raw) ? raw : "";
+  return normalizeTimeHm(value);
 }
 
-/** @param {unknown} value @returns {boolean} */
-function isIsoDate(value) {
-  return Boolean(toIsoDate(value));
+/**
+ * Fin d'horizon H24 ouvert : max(début + 90 j, référence + 90 j).
+ *
+ * @param {unknown} validFromDate
+ * @param {unknown} [referenceDateIso]
+ * @returns {string}
+ */
+function computeOpenEndedHorizonEndDate(validFromDate, referenceDateIso) {
+  const reference = normalizeDateIso(referenceDateIso) || localDateIso();
+  const from = normalizeDateIso(validFromDate) || reference;
+  const fromHorizon = addDaysIso(from, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
+  const referenceHorizon = addDaysIso(reference, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
+  return fromHorizon > referenceHorizon ? fromHorizon : referenceHorizon;
 }
 
-/** @param {string} value @returns {number} Minutes depuis minuit, ou -1. */
+/**
+ * @param {string} value
+ * @returns {number} Minutes depuis minuit, ou -1.
+ */
 function parseTimeToMinutes(value) {
   const hhmm = toIsoTime(value);
   if (!hhmm) return -1;
@@ -36,39 +87,25 @@ function parseTimeToMinutes(value) {
   return hours * 60 + minutes;
 }
 
-/** @param {string} isoDate @param {number} amount @returns {string} */
-function addDaysIso(isoDate, amount) {
-  const date = new Date(`${isoDate}T12:00:00`);
-  date.setDate(date.getDate() + amount);
-  const pad2 = (value) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-/** @param {string} validFromDate @returns {string} */
-function computeInitialOpenEndedDate(validFromDate) {
-  const today = new Date().toISOString().slice(0, 10);
-  const fromHorizon = addDaysIso(validFromDate, 90);
-  const todayHorizon = addDaysIso(today, 90);
-  return fromHorizon > todayHorizon ? fromHorizon : todayHorizon;
-}
-
 /**
- * Refuse les chevauchements entre lignes d'un snapshot.
+ * Refuse les chevauchements entre lignes d'un snapshot (hors H24 continu).
  *
  * @param {object|null} snapshot
  * @param {string[]} holidayDateIsos
  * @returns {void}
+ * @throws {{ code: string }} `GARDIENNAGE_PLANNER_OVERLAP` si deux segments se recouvrent.
  */
 function validatePlanningLinesNoOverlap(snapshot, holidayDateIsos) {
   if (!snapshot || snapshot.isContinuous) return;
   const holiday = buildHolidayMatchers(holidayDateIsos);
   const anchoredStartDates = new Set(
     (snapshot.lines || [])
-      .map((line) => (isIsoDate(line.anchorDate) ? line.anchorDate : ""))
+      .map((line) => normalizeDateIso(line.anchorDate))
       .filter(Boolean)
   );
   const daySegments = {};
   const pushSegment = (isoDate, segment) => {
+    if (!isoDate) return;
     if (!daySegments[isoDate]) daySegments[isoDate] = [];
     daySegments[isoDate].push(segment);
   };
@@ -107,7 +144,7 @@ function validatePlanningLinesNoOverlap(snapshot, holidayDateIsos) {
 }
 
 /**
- * Normalise le snapshot de planification V1.
+ * Normalise le snapshot de planification V1 (dates calendaires réelles).
  *
  * @param {object} payload
  * @returns {object|null}
@@ -115,13 +152,13 @@ function validatePlanningLinesNoOverlap(snapshot, holidayDateIsos) {
 function normalizePlanningSnapshot(payload) {
   const snapshot = payload.planningSnapshot;
   if (!snapshot || Number(snapshot.version) !== 1) return null;
-  const validFromDate = toIsoDate(snapshot.validFromDate);
+  const validFromDate = normalizeDateIso(snapshot.validFromDate);
   const validFromTime = toIsoTime(snapshot.validFromTime);
   const isContinuous = Boolean(snapshot.isContinuous);
   const validToTime = toIsoTime(snapshot.validToTime) || (isContinuous ? validFromTime : "");
   const isOpenEnded = Boolean(snapshot.isOpenEnded);
-  const validToDate = toIsoDate(snapshot.validToDate)
-    || (isOpenEnded ? computeInitialOpenEndedDate(validFromDate) : "");
+  const validToDate = normalizeDateIso(snapshot.validToDate)
+    || (isOpenEnded ? computeOpenEndedHorizonEndDate(validFromDate) : "");
   if (!validFromDate || !validFromTime || !validToDate || !validToTime) return null;
   return {
     version: 1,
@@ -135,7 +172,7 @@ function normalizePlanningSnapshot(payload) {
       ? snapshot.lines.map((line, index) => ({
         id: String(line.id || `line-${index + 1}`),
         label: String(line.label || `Ligne ${index + 1}`),
-        anchorDate: toIsoDate(line.anchorDate),
+        anchorDate: normalizeDateIso(line.anchorDate),
         startTime: toIsoTime(line.startTime),
         endTime: toIsoTime(line.endTime),
         weekdaysMask: Number.isFinite(Number(line.weekdaysMask)) ? Number(line.weekdaysMask) : 127,
@@ -146,7 +183,10 @@ function normalizePlanningSnapshot(payload) {
   };
 }
 
-/** @param {object|null} snapshot @returns {boolean} */
+/**
+ * @param {object|null} snapshot
+ * @returns {boolean}
+ */
 function isPonctuelPlanningSnapshot(snapshot) {
   if (!snapshot || snapshot.isContinuous) return false;
   return Array.isArray(snapshot.lines)
@@ -154,7 +194,11 @@ function isPonctuelPlanningSnapshot(snapshot) {
     && snapshot.lines[0]?.id === "ponctuel-slot";
 }
 
-/** @param {object} slot @param {object} closedRow @returns {boolean} */
+/**
+ * @param {object} slot
+ * @param {object} closedRow
+ * @returns {boolean}
+ */
 function slotConflictsWithClosedRow(slot, closedRow) {
   const closedStart = String(closedRow.planning_slot_start || "").trim();
   const closedEnd = String(closedRow.planning_slot_end || "").trim();
@@ -164,19 +208,22 @@ function slotConflictsWithClosedRow(slot, closedRow) {
     && String(closedRow.end_time || "") === slot.endTime;
 }
 
-/** @param {object[]} slots @param {object[]} closedRows @returns {object[]} */
+/**
+ * Écarte les créneaux qui recouvrent une ligne déjà clôturée (régénération de lot).
+ *
+ * @param {object[]} slots
+ * @param {object[]} closedRows
+ * @returns {object[]}
+ */
 function filterSlotsPreservingClosed(slots, closedRows) {
-  return closedRows.length
-    ? slots.filter((slot) => !closedRows.some((row) => slotConflictsWithClosedRow(slot, row)))
+  const closed = Array.isArray(closedRows) ? closedRows : [];
+  return closed.length
+    ? slots.filter((slot) => !closed.some((row) => slotConflictsWithClosedRow(slot, row)))
     : slots;
 }
 
-/** Nombre de jours après la fin prévue avant clôture automatique. */
-const GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS = 3;
-const MS_PER_DAY = 86400000;
-
 /**
- * Parse le snapshot de planification d'une ligne SQL.
+ * Parse le snapshot de planification d'une ligne SQL (`jsonb` ou texte).
  *
  * @param {unknown} raw
  * @returns {object|null}
@@ -184,20 +231,34 @@ const MS_PER_DAY = 86400000;
 function parsePlanningSnapshotJson(raw) {
   try {
     const snapshot = raw && typeof raw === "object" ? raw : JSON.parse(String(raw || ""));
-    return snapshot && Number(snapshot.version) === 1 ? snapshot : null;
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+    return Number(snapshot.version) === 1 ? snapshot : null;
   } catch {
     return null;
   }
 }
 
 /**
- * H24 jusqu'à nouvel ordre : pas de clôture manuelle ni automatique tant qu'une date de fin n'est pas enregistrée.
+ * H24 jusqu'à nouvel ordre : pas de clôture tant qu'une date de fin n'est pas enregistrée.
  *
  * @param {object|null} snapshot
  * @returns {boolean}
  */
 function isOpenEndedContinuousSnapshot(snapshot) {
   return Boolean(snapshot?.isOpenEnded && snapshot?.isContinuous);
+}
+
+/**
+ * Instant (ms) depuis un horodatage ISO (`AAAA-MM-JJTHH:mm` ou avec secondes).
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function parseIsoDateTimeMs(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const timestamp = new Date(raw.length === 16 ? `${raw}:00` : raw).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 /**
@@ -211,21 +272,20 @@ function isOpenEndedContinuousRow(row) {
 /**
  * Instant de fin du créneau (ms), ou `null` si indéterminable.
  *
- * @param {object} row
+ * @param {object} row - Ligne SQL
  * @returns {number|null}
  */
 function resolveSlotEndMs(row) {
-  const slotEnd = String(row.planning_slot_end || "").trim();
-  if (slotEnd) {
-    const timestamp = new Date(slotEnd.length === 16 ? `${slotEnd}:00` : slotEnd).getTime();
-    return Number.isNaN(timestamp) ? null : timestamp;
-  }
-  const activeDate = toIsoDate(row.recurrence_start_date);
+  const fromSlot = parseIsoDateTimeMs(row?.planning_slot_end);
+  if (fromSlot != null) return fromSlot;
+  const activeDate = normalizeDateIso(row.recurrence_start_date);
   const endTime = toIsoTime(row.end_time);
   if (!activeDate || !endTime) return null;
-  const endDate = row.crosses_midnight ? addDaysIso(activeDate, 1) : (toIsoDate(row.recurrence_end_date) || activeDate);
-  const timestamp = new Date(`${endDate}T${endTime}:00`).getTime();
-  return Number.isNaN(timestamp) ? null : timestamp;
+  const endDate = row.crosses_midnight
+    ? addDaysIso(activeDate, 1)
+    : (normalizeDateIso(row.recurrence_end_date) || activeDate);
+  if (!endDate) return null;
+  return parseIsoDateTimeMs(`${endDate}T${endTime}`);
 }
 
 /**
@@ -262,18 +322,21 @@ function isAutoCloseDue(row, nowMs = Date.now()) {
 }
 
 module.exports = {
-  addDaysIso,
+  computeOpenEndedHorizonEndDate,
   filterSlotsPreservingClosed,
   GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS,
+  GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
   isAutoCloseDue,
-  isIsoDate,
   isManualCloseAllowed,
   isOpenEndedContinuousRow,
+  isOpenEndedContinuousSnapshot,
   isPonctuelPlanningSnapshot,
   normalizePlanningSnapshot,
-  parseTimeToMinutes,
+  OPEN_STATUSES_SQL,
+  parseIsoDateTimeMs,
+  parsePlanningSnapshotJson,
   resolveSlotEndMs,
-  toIsoDate,
+  resolveSystemActor,
   toIsoTime,
   validatePlanningLinesNoOverlap
 };

@@ -9,8 +9,7 @@ import type { AnomalyTypeRef, FransorResponsableRef, HolidayRef, IntervenantRef,
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
 import type { Role } from "../../../types";
 import type { DataTab } from "../model/settings.types";
-import type { PendingInterventionSite } from "../../intervention/model/intervention.types";
-import type { PendingInterventionIntervenant } from "../../intervention/model/intervention.types";
+import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import { SitesDataTab } from "./dataTabs/SitesDataTab";
 import { IntervenantsDataTab } from "./dataTabs/IntervenantsDataTab";
 import { TypesDataTab } from "./dataTabs/TypesDataTab";
@@ -24,6 +23,7 @@ import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLo
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import { ReferenceInlineField } from "./shared/ReferenceInlineField";
 import "./DataManagementPanel.css";
 
 type DataManagementPanelProps = {
@@ -36,8 +36,8 @@ type DataManagementPanelProps = {
   holidays: HolidayRef[];
   rondeMotifTypes: RondeMotifTypeRef[];
   fransorResponsables: FransorResponsableRef[];
-  interventionPendingSites: PendingInterventionSite[];
-  interventionPendingIntervenants: PendingInterventionIntervenant[];
+  pendingSites: PendingSite[];
+  pendingIntervenants: PendingIntervenant[];
   onCreateSite: (payload: { code: string; name: string; address: string; parc: string; famille: string }) => void | Promise<void>;
   onUpdateSite: (payload: { id: string; code: string; name: string; address: string; parc: string; famille: string }) => void | Promise<void>;
   onDeleteSite: (id: string, reason: string) => void;
@@ -85,8 +85,8 @@ const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
   holidays: "",
   documentTemplates: "",
   fransorResponsables: "",
-  interventionPendingSites: "",
-  interventionPendingIntervenants: ""
+  pendingSites: "",
+  pendingIntervenants: ""
 };
 
 function normalizeHeader(value: string) {
@@ -364,9 +364,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         ? "Colonne attendue: nom (alias: intervenant, intervenants, société, prestataire, entreprise). Sélection multiple de fichiers : traitement séquentiel."
       : props.activeDataTab === "types"
         ? "Colonne attendue: type anomalie (ou libellé)."
-        : props.activeDataTab === "interventionPendingSites"
+        : props.activeDataTab === "pendingSites"
           ? "Consolidation par les responsables dans cette section."
-          : props.activeDataTab === "interventionPendingIntervenants"
+          : props.activeDataTab === "pendingIntervenants"
             ? "Consolidation par les responsables dans cette section."
           : props.activeDataTab === "rondeMotifs"
             ? "Libellés utilisés dans les formulaires de ronde (gestion par les responsables)."
@@ -430,9 +430,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       ? "Rechercher un site (code, nom, parc, famille)"
       : props.activeDataTab === "intervenants"
         ? "Rechercher un intervenant (nom)"
-        : props.activeDataTab === "interventionPendingSites"
+        : props.activeDataTab === "pendingSites"
           ? "Rechercher un site en attente (code, nom)"
-          : props.activeDataTab === "interventionPendingIntervenants"
+          : props.activeDataTab === "pendingIntervenants"
             ? "Rechercher un intervenant en attente (nom)"
           : props.activeDataTab === "rondeMotifs"
             ? "Rechercher par libellé"
@@ -441,12 +441,12 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           : props.activeDataTab === "documentTemplates"
             ? "Recherche (non utilisée sur cet onglet)"
         : "Rechercher un type d'anomalie";
-  const filteredPendingSites = props.interventionPendingSites.filter((site) => {
+  const filteredPendingSites = props.pendingSites.filter((site) => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return site.code.toLowerCase().includes(query) || site.name.toLowerCase().includes(query);
   });
-  const filteredPendingIntervenants = props.interventionPendingIntervenants.filter((item) => {
+  const filteredPendingIntervenants = props.pendingIntervenants.filter((item) => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return item.name.toLowerCase().includes(query);
@@ -464,9 +464,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
             ? filteredRondeMotifs.length
             : props.activeDataTab === "holidays"
               ? filteredHolidays.length
-          : props.activeDataTab === "interventionPendingSites"
+          : props.activeDataTab === "pendingSites"
             ? filteredPendingSites.length
-            : props.activeDataTab === "interventionPendingIntervenants"
+            : props.activeDataTab === "pendingIntervenants"
               ? filteredPendingIntervenants.length
           : props.fransorResponsables.filter((resp) => {
               const query = searchQuery.trim().toLowerCase();
@@ -583,9 +583,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       <div className="tabs">
         <button className={props.activeDataTab === "sites" ? "tab active" : "tab"} onClick={() => props.onDataTabChange("sites")}>
           Sites
-          {props.interventionPendingSites.length > 0 ? (
-            <span className="tab-badge" title={`${props.interventionPendingSites.length} site(s) en attente`}>
-              {props.interventionPendingSites.length}
+          {props.pendingSites.length > 0 ? (
+            <span className="tab-badge" title={`${props.pendingSites.length} site(s) en attente`}>
+              {props.pendingSites.length}
             </span>
           ) : null}
         </button>
@@ -594,9 +594,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           onClick={() => props.onDataTabChange("intervenants")}
         >
           Intervenants
-          {props.interventionPendingIntervenants.length > 0 ? (
-            <span className="tab-badge" title={`${props.interventionPendingIntervenants.length} intervenant(s) en attente`}>
-              {props.interventionPendingIntervenants.length}
+          {props.pendingIntervenants.length > 0 ? (
+            <span className="tab-badge" title={`${props.pendingIntervenants.length} intervenant(s) en attente`}>
+              {props.pendingIntervenants.length}
             </span>
           ) : null}
         </button>
@@ -655,11 +655,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
             props.activeDataTab !== "types" &&
             props.activeDataTab !== "holidays" &&
             props.activeDataTab !== "rondeMotifs" &&
-            props.activeDataTab !== "interventionPendingSites" &&
-            props.activeDataTab !== "interventionPendingIntervenants"
+            props.activeDataTab !== "pendingSites" &&
+            props.activeDataTab !== "pendingIntervenants"
           }
           showCreate={
-            props.activeDataTab !== "interventionPendingSites" && props.activeDataTab !== "interventionPendingIntervenants"
+            props.activeDataTab !== "pendingSites" && props.activeDataTab !== "pendingIntervenants"
           }
         />
       </div>
@@ -678,7 +678,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "sites" && (
         <SitesDataTab
           canDeleteData={props.canDeleteData}
-          interventionPendingSites={props.interventionPendingSites}
+          pendingSites={props.pendingSites}
           pagedSites={pagedSites}
           filteredSites={filteredSites}
           editingSiteId={editingSiteId}
@@ -715,7 +715,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "intervenants" && (
         <IntervenantsDataTab
           canDeleteData={props.canDeleteData}
-          interventionPendingIntervenants={props.interventionPendingIntervenants}
+          pendingIntervenants={props.pendingIntervenants}
           pagedIntervenants={pagedIntervenants}
           filteredIntervenants={filteredIntervenants}
           editingIntervenantId={editingIntervenantId}
@@ -806,10 +806,10 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         />
       )}
 
-      {props.activeDataTab === "interventionPendingSites" && (
+      {props.activeDataTab === "pendingSites" && (
         <PendingSitesDataTab
           pagedPendingSites={pagedPendingSites}
-          hasAnyPendingSites={Boolean(props.interventionPendingSites.length)}
+          hasAnyPendingSites={Boolean(props.pendingSites.length)}
           onValidate={(site) => {
             setCreateModalTarget("sites");
             setPendingSiteToResolveId(site.id);
@@ -828,10 +828,10 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           }}
         />
       )}
-      {props.activeDataTab === "interventionPendingIntervenants" && (
+      {props.activeDataTab === "pendingIntervenants" && (
         <PendingIntervenantsDataTab
           pagedPendingIntervenants={pagedPendingIntervenants}
-          hasAnyPendingIntervenants={Boolean(props.interventionPendingIntervenants.length)}
+          hasAnyPendingIntervenants={Boolean(props.pendingIntervenants.length)}
           onValidate={(item) => {
             setCreateModalTarget("intervenants");
             setPendingIntervenantToResolveId(item.id);
@@ -895,57 +895,57 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
                 </>
               )}
               {createModalTarget === "intervenants" && (
-                <input
-                  placeholder="Nom"
+                <ReferenceInlineField
+                  variant="labelOnly"
+                  label="Nom"
                   value={intervenantName}
-                  onChange={(e) => setIntervenantName(e.target.value)}
+                  onChange={setIntervenantName}
+                  placeholder="Nom"
                 />
               )}
               {createModalTarget === "types" && (
-                <div className="data-management-create-ref-form data-management-create-ref-form--anomaly-inline">
-                  <label className="data-management-create-ref-form__label">
-                    Libellé
-                    <input placeholder="Type d'anomalie" value={typeLabel} onChange={(e) => setTypeLabel(e.target.value)} />
-                  </label>
-                  <label className="data-type-color-field">
-                    Couleur du badge
-                    <input type="color" value={typeColor} onChange={(e) => setTypeColor(e.target.value)} />
-                  </label>
-                </div>
+                <ReferenceInlineField
+                  variant="labelColor"
+                  label="Libellé"
+                  value={typeLabel}
+                  onChange={setTypeLabel}
+                  placeholder="Type d'anomalie"
+                  colorValue={typeColor}
+                  onColorChange={setTypeColor}
+                  colorLabel="Couleur du badge"
+                />
               )}
               {createModalTarget === "rondeMotifs" && (
-                <div className="data-management-create-ref-form">
-                  <label className="data-management-create-ref-form__label">
-                    Libellé
-                    <input placeholder="Libellé du motif" value={rondeMotifLabel} onChange={(e) => setRondeMotifLabel(e.target.value)} />
-                  </label>
-                  <label className="data-type-color-field">
-                    Couleur du badge
-                    <input type="color" value={rondeMotifColor} onChange={(e) => setRondeMotifColor(e.target.value)} />
-                  </label>
-                </div>
+                <ReferenceInlineField
+                  variant="labelColor"
+                  label="Libellé"
+                  value={rondeMotifLabel}
+                  onChange={setRondeMotifLabel}
+                  placeholder="Libellé du motif"
+                  colorValue={rondeMotifColor}
+                  onColorChange={setRondeMotifColor}
+                  colorLabel="Couleur du badge"
+                />
               )}
               {createModalTarget === "holidays" && (
-                <div className="data-management-create-ref-form data-management-create-ref-form--anomaly-inline">
-                  <label className="data-management-create-ref-form__label data-management-create-ref-form__label--date">
-                    Date
-                    <input type="date" value={holidayDateIso} onChange={(e) => setHolidayDateIso(e.target.value)} />
-                  </label>
-                  <label className="data-management-create-ref-form__label data-management-create-ref-form__label--grow">
-                    Libellé
-                    <input
-                      placeholder="Ex. : pont local, fermeture exceptionnelle"
-                      value={holidayLabel}
-                      onChange={(e) => setHolidayLabel(e.target.value)}
-                    />
-                  </label>
-                </div>
+                <ReferenceInlineField
+                  variant="labelDate"
+                  label="Libellé"
+                  value={holidayLabel}
+                  onChange={setHolidayLabel}
+                  placeholder="Ex. : pont local, fermeture exceptionnelle"
+                  dateValue={holidayDateIso}
+                  onDateChange={setHolidayDateIso}
+                  dateLabel="Date"
+                />
               )}
               {createModalTarget === "fransorResponsables" && (
-                <input
-                  placeholder="Nom du responsable Fransor"
+                <ReferenceInlineField
+                  variant="labelOnly"
+                  label="Nom du responsable Fransor"
                   value={fransorResponsableName}
-                  onChange={(e) => setFransorResponsableName(e.target.value)}
+                  onChange={setFransorResponsableName}
+                  placeholder="Nom du responsable Fransor"
                 />
               )}
             </div>

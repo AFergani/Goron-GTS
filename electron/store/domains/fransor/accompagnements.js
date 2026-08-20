@@ -2,12 +2,14 @@
  * Accompagnements quotidiens Fransor (`fransor_accompagnements`) + récap mensuel.
  *
  * Accès **PostgreSQL uniquement**. Les responsables viennent du module `responsables`.
+ * Les fiches déjà saisies restent rattachées à l'id responsable (soft delete côté référentiel).
  *
  * @module electron/store/domains/fransor/accompagnements
  */
 
 const { generateEntityId } = require("../../core/ids");
-const { parseMonthRange } = require("./monthRange");
+const { actorName } = require("../../core/actorName");
+const { normalizeDateIso, parseMonthRange } = require("../../core/isoDate");
 const { requireFransorPersistence } = require("./persistence");
 const responsablesDomain = require("./responsables");
 
@@ -17,6 +19,35 @@ const responsablesDomain = require("./responsables");
  */
 function asBool(value) {
   return Boolean(Number(value));
+}
+
+/**
+ * @param {object} row - Ligne SQL.
+ * @returns {object}
+ */
+function mapRow(row) {
+  return {
+    id: row.id,
+    date: row.date,
+    responsableId: row.responsable_id,
+    ouvertureDone: asBool(row.ouverture_done),
+    fermetureDone: asBool(row.fermeture_done),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+/**
+ * @param {{ ouverture_done?: unknown, fermeture_done?: unknown }} row
+ * @returns {{ ouvertureDone: boolean, fermetureDone: boolean }}
+ */
+function toEntrySnapshot(row) {
+  return {
+    ouvertureDone: asBool(row.ouverture_done),
+    fermetureDone: asBool(row.fermeture_done)
+  };
 }
 
 /**
@@ -40,17 +71,7 @@ async function listFransorEntriesByMonth(store, { requesterRole, month }) {
      ORDER BY date ASC`,
     [range.from, range.to]
   );
-  return rows.map((row) => ({
-    id: row.id,
-    date: row.date,
-    responsableId: row.responsable_id,
-    ouvertureDone: asBool(row.ouverture_done),
-    fermetureDone: asBool(row.fermeture_done),
-    createdBy: row.created_by,
-    updatedBy: row.updated_by,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }));
+  return rows.map(mapRow);
 }
 
 /**
@@ -66,10 +87,13 @@ async function upsertFransorEntry(
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireFransorPersistence(store, "fransor:entries:upsert");
-  const cleanDate = String(date || "").trim();
+  const cleanDate = normalizeDateIso(date);
   const cleanResponsableId = String(responsableId || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate) || !cleanResponsableId) {
-    store.fail("fransor:entries:upsert", "Date et responsable obligatoires.", "FRANSOR_ENTRY_REQUIRED");
+  if (!cleanDate) {
+    store.fail("fransor:entries:upsert", "Date invalide.", "FRANSOR_ENTRY_REQUIRED");
+  }
+  if (!cleanResponsableId) {
+    store.fail("fransor:entries:upsert", "Responsable obligatoire.", "FRANSOR_ENTRY_REQUIRED");
   }
   const responsable = await responsablesDomain.getActiveFransorResponsable(store, cleanResponsableId);
   if (!responsable) {
@@ -77,8 +101,9 @@ async function upsertFransorEntry(
   }
   const opening = ouvertureDone ? 1 : 0;
   const closing = fermetureDone ? 1 : 0;
+  const after = { ouvertureDone: Boolean(opening), fermetureDone: Boolean(closing) };
   const now = new Date().toISOString();
-  const actor = requesterUsername || "unknown";
+  const actor = actorName(requesterUsername);
   const existing = await db.get(
     `SELECT id, ouverture_done, fermeture_done
      FROM fransor_accompagnements
@@ -86,26 +111,34 @@ async function upsertFransorEntry(
     [cleanDate, cleanResponsableId]
   );
   if (existing) {
+    const before = toEntrySnapshot(existing);
+    if (before.ouvertureDone === after.ouvertureDone && before.fermetureDone === after.fermetureDone) {
+      return { success: true };
+    }
     await db.run(
       `UPDATE fransor_accompagnements
        SET ouverture_done = ?, fermeture_done = ?, updated_by = ?, updated_at = ?
        WHERE id = ?`,
       [opening, closing, actor, now, existing.id]
     );
+    const historyBefore = await store.getEntityChangeHistory("fransor_accompagnements", existing.id, 3);
     store.logAudit({
       actorUsername: actor,
       action: "FRANSOR_ENTRY_UPDATE",
       details: {
         id: existing.id,
         date: cleanDate,
-        responsableId: cleanResponsableId,
         responsableName: responsable.name,
-        before: {
-          ouvertureDone: asBool(existing.ouverture_done),
-          fermetureDone: asBool(existing.fermeture_done)
-        },
-        after: { ouvertureDone: Boolean(opening), fermetureDone: Boolean(closing) }
+        before,
+        after,
+        historyBefore
       }
+    });
+    await store.recordEntityChange({
+      entityType: "fransor_accompagnements",
+      entityId: existing.id,
+      changedBy: actor,
+      snapshot: after
     });
     return { success: true };
   }
@@ -116,23 +149,27 @@ async function upsertFransorEntry(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, cleanDate, cleanResponsableId, opening, closing, actor, actor, now, now]
   );
+  await store.recordEntityChange({
+    entityType: "fransor_accompagnements",
+    entityId: id,
+    changedBy: actor,
+    snapshot: after
+  });
   store.logAudit({
     actorUsername: actor,
     action: "FRANSOR_ENTRY_CREATE",
     details: {
       id,
       date: cleanDate,
-      responsableId: cleanResponsableId,
       responsableName: responsable.name,
-      ouvertureDone: Boolean(opening),
-      fermetureDone: Boolean(closing)
+      ...after
     }
   });
   return { success: true };
 }
 
 /**
- * Récapitulatif mensuel par responsable (totaux ouvertures / fermetures).
+ * Récapitulatif mensuel par responsable actif (totaux ouvertures / fermetures).
  *
  * @param {import('../../../userStore')} store
  * @param {{ requesterRole: string, month: string }} payload

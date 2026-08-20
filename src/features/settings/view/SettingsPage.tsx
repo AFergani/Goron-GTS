@@ -33,8 +33,7 @@ import type {
   SiteRef,
   User
 } from "../../../types";
-import type { PendingInterventionSite } from "../../intervention/model/intervention.types";
-import type { PendingInterventionIntervenant } from "../../intervention/model/intervention.types";
+import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
 import type { RondePlannedProfileRef } from "../../rondes/model/rondePlanned.types";
 import { formatAuditActionLabel } from "../model/auditActionLabels";
@@ -83,8 +82,8 @@ type SettingsPageProps = {
   rondeMotifTypes: RondeMotifTypeRef[];
   rondePlannedProfiles: RondePlannedProfileRef[];
   fransorResponsables: FransorResponsableRef[];
-  interventionPendingSites: PendingInterventionSite[];
-  interventionPendingIntervenants: PendingInterventionIntervenant[];
+  pendingSites: PendingSite[];
+  pendingIntervenants: PendingIntervenant[];
   currentUsername: string;
   postgresConfig: PublicPostgresConfig | null;
   postgresDraft: PostgresConfigDraft;
@@ -245,9 +244,9 @@ export function SettingsPage(props: SettingsPageProps) {
         {props.canManageData && (
           <button className={activeTab === "data" ? "tab active" : "tab"} onClick={() => props.onTabChange("data")}>
             Gestion des données
-            {(props.interventionPendingSites.length + props.interventionPendingIntervenants.length) > 0 ? (
+            {(props.pendingSites.length + props.pendingIntervenants.length) > 0 ? (
               <span className="tab-badge">
-                {props.interventionPendingSites.length + props.interventionPendingIntervenants.length}
+                {props.pendingSites.length + props.pendingIntervenants.length}
               </span>
             ) : null}
           </button>
@@ -537,8 +536,8 @@ export function SettingsPage(props: SettingsPageProps) {
           holidays={props.holidays}
           rondeMotifTypes={props.rondeMotifTypes}
           fransorResponsables={props.fransorResponsables}
-          interventionPendingSites={props.interventionPendingSites}
-          interventionPendingIntervenants={props.interventionPendingIntervenants}
+          pendingSites={props.pendingSites}
+          pendingIntervenants={props.pendingIntervenants}
           onCreateSite={props.onCreateSite}
           onUpdateSite={props.onUpdateSite}
           onDeleteSite={props.onDeleteSite}

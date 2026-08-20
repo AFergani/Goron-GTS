@@ -1,7 +1,7 @@
-﻿-- Goron-GTS — schéma PostgreSQL unique (labo / production V1)
+-- Goron-GTS — schéma PostgreSQL unique (labo / production V1)
 -- Appliqué au branchement du pool (applyPostgresMigrations).
 -- Idempotent : CREATE TABLE / INDEX IF NOT EXISTS.
--- Drapeaux booléens : INTEGER 0/1 (héritage SQLite). Horodatages : TEXT ISO.
+-- Drapeaux booléens : INTEGER 0/1. Horodatages : TEXT ISO.
 
 -- ---------------------------------------------------------------------------
 -- Section : audit_error_logs
@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_entity_change_history_lookup
 -- ---------------------------------------------------------------------------
 -- Section : referentials
 -- ---------------------------------------------------------------------------
--- Sites, intervenants, types d'anomalie — parité SQLite (TEXT ISO).
+-- Sites, intervenants, types d'anomalie — identifiants TEXT, horodatages TEXT ISO.
 
 CREATE TABLE IF NOT EXISTS data_sites (
   id TEXT PRIMARY KEY,
@@ -64,6 +64,27 @@ CREATE TABLE IF NOT EXISTS data_intervenants (
   updated_at TEXT
 );
 
+-- Files d'attente partagées (anciennement intervention_*_pending).
+ALTER TABLE IF EXISTS intervention_site_pending RENAME TO data_site_pending;
+ALTER TABLE IF EXISTS intervention_intervenant_pending RENAME TO data_intervenant_pending;
+ALTER INDEX IF EXISTS idx_intervention_site_pending_created RENAME TO idx_data_site_pending_created;
+ALTER INDEX IF EXISTS idx_intervention_intervenant_pending_created RENAME TO idx_data_intervenant_pending_created;
+
+CREATE TABLE IF NOT EXISTS data_site_pending (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS data_intervenant_pending (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS data_anomaly_types (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL UNIQUE,
@@ -75,6 +96,8 @@ CREATE TABLE IF NOT EXISTS data_anomaly_types (
 CREATE INDEX IF NOT EXISTS idx_data_sites_name ON data_sites (name);
 CREATE INDEX IF NOT EXISTS idx_data_intervenants_name ON data_intervenants (name);
 CREATE INDEX IF NOT EXISTS idx_data_anomaly_types_label ON data_anomaly_types (label);
+CREATE INDEX IF NOT EXISTS idx_data_site_pending_created ON data_site_pending (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_intervenant_pending_created ON data_intervenant_pending (created_at DESC);
 
 
 -- ---------------------------------------------------------------------------
@@ -318,21 +341,6 @@ CREATE TABLE IF NOT EXISTS intervention_entries (
   archived_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS intervention_site_pending (
-  id TEXT PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  created_by TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS intervention_intervenant_pending (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  created_by TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS data_intervention_word_extra_fields (
   id TEXT PRIMARY KEY,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -353,10 +361,6 @@ CREATE INDEX IF NOT EXISTS idx_intervention_site_id
   ON intervention_entries (site_id);
 CREATE INDEX IF NOT EXISTS idx_intervention_intervenant_id
   ON intervention_entries (intervenant_id);
-CREATE INDEX IF NOT EXISTS idx_intervention_site_pending_created
-  ON intervention_site_pending (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_intervention_intervenant_pending_created
-  ON intervention_intervenant_pending (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_intervention_word_extra_sort
   ON data_intervention_word_extra_fields (sort_order, label);
 

@@ -1,55 +1,70 @@
 /**
  * Contrôles RBAC transverses pour la gestion des données (référentiels, paramètres, modèles, imports).
- * Complète les droits par page côté UI : ici, rôles applicatifs `OPERATEUR`, `RESPONSABLE`, `DEV`.
+ * Complète les droits par page côté UI : rôles applicatifs `OPERATEUR`, `RESPONSABLE`, `DEV`.
  *
- * Les fonctions reçoivent `fail` (typiquement `store.fail`) pour journaliser et lever `AppError` à code `AUTH_FORBIDDEN`.
- * Exposées via `UserStore.ensureData*Role`, appelées dans les domaines et `documentTemplates` / IPC système.
+ * Les fonctions reçoivent `fail` (typiquement `store.fail`) pour journaliser et lever `AppError`
+ * à code `AUTH_FORBIDDEN`. Exposées via `UserStore.ensureData*Role`.
+ *
+ * @module electron/store/core/rbac
  */
 
 /**
- * Exige le rôle responsable ou dev (création / modification référentiels, imports, modèles scopés, etc.).
+ * @param {string} requesterRole
+ * @returns {boolean} `true` si responsable ou DEV.
+ */
+function isDataManagerRole(requesterRole) {
+  return requesterRole === "RESPONSABLE" || requesterRole === "DEV";
+}
+
+/**
+ * @param {string} requesterRole
+ * @returns {boolean} `true` si opérateur, responsable ou DEV.
+ */
+function isDataReaderRole(requesterRole) {
+  return requesterRole === "OPERATEUR" || isDataManagerRole(requesterRole);
+}
+
+/**
+ * Exige le rôle responsable ou DEV (création / modification référentiels, imports, modèles scopés).
  *
- * @param {string} requesterRole - Rôle de la session (`ROLE.*`).
- * @param {(source: string, message: string, code: string, details?: object) => never} fail - Callback d'échec (`store.fail`).
- * @param {{ OPERATEUR: string, RESPONSABLE: string, DEV: string }} role - Constantes de rôles (`UserStore` / `ROLE`).
+ * @param {string} requesterRole - Rôle de la session.
+ * @param {(source: string, message: string, code: string, details?: object) => never} fail
  * @returns {void}
  * @throws {import('./errors').AppError} Via `fail` si rôle opérateur ou inconnu.
  */
-function ensureDataManagerRole(requesterRole, fail, role) {
-  if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
-    fail("data:forbidden", "Acces refuse: droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
+function ensureDataManagerRole(requesterRole, fail) {
+  if (!isDataManagerRole(requesterRole)) {
+    fail("data:forbidden", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
 }
 
 /**
- * Exige le rôle responsable ou dev pour une suppression référentielle.
+ * Exige le rôle responsable ou DEV pour une suppression référentielle.
  *
  * @param {string} requesterRole
  * @param {(source: string, message: string, code: string, details?: object) => never} fail
- * @param {{ OPERATEUR: string, RESPONSABLE: string, DEV: string }} role
  * @returns {void}
  * @throws {import('./errors').AppError} Via `fail` avec source `data:delete:forbidden`.
  */
-function ensureDataDeleteRole(requesterRole, fail, role) {
-  if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
-    fail("data:delete:forbidden", "Acces refuse: suppression reservee au responsable.", "AUTH_FORBIDDEN", {
+function ensureDataDeleteRole(requesterRole, fail) {
+  if (!isDataManagerRole(requesterRole)) {
+    fail("data:delete:forbidden", "Accès refusé : suppression réservée au responsable.", "AUTH_FORBIDDEN", {
       requesterRole
     });
   }
 }
 
 /**
- * Exige au minimum un rôle authentifié métier (lecture : opérateur, responsable ou dev).
+ * Exige un rôle métier authentifié (lecture : opérateur, responsable ou DEV).
  *
  * @param {string} requesterRole
  * @param {(source: string, message: string, code: string, details?: object) => never} fail
- * @param {{ OPERATEUR: string, RESPONSABLE: string, DEV: string }} role
  * @returns {void}
  * @throws {import('./errors').AppError} Via `fail` si rôle absent ou non reconnu.
  */
-function ensureDataReaderRole(requesterRole, fail, role) {
-  if (requesterRole !== role.OPERATEUR && requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
-    fail("data:forbidden", "Acces refuse: droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
+function ensureDataReaderRole(requesterRole, fail) {
+  if (!isDataReaderRole(requesterRole)) {
+    fail("data:forbidden", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
 }
 

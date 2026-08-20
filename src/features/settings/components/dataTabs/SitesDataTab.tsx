@@ -4,14 +4,14 @@
 
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { SiteRef } from "../../../../types";
-import type { PendingInterventionSite } from "../../../intervention/model/intervention.types";
+import type { PendingSite } from "../../../common/model/pendingRefs.types";
 import { SiteDisplayCopyButton } from "../../../common/components/SiteDisplayCopyButton";
 import type { NotifyToast } from "../../../common/model/toast.types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
 
 type SitesDataTabProps = {
   canDeleteData: boolean;
-  interventionPendingSites: PendingInterventionSite[];
+  pendingSites: PendingSite[];
   pagedSites: SiteRef[];
   filteredSites: SiteRef[];
   editingSiteId: string | null;
@@ -28,7 +28,7 @@ type SitesDataTabProps = {
   setEditingSiteFamille: (value: string) => void;
   onUpdateSite: (payload: { id: string; code: string; name: string; address: string; parc: string; famille: string }) => SyncOrAsync;
   onDeleteSite: (id: string, reason: string) => void;
-  onOpenPendingSiteValidation: (site: PendingInterventionSite) => void;
+  onOpenPendingSiteValidation: (site: PendingSite) => void;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
   openDeleteReasonModal: OpenDeleteReasonModal;
   onNotify?: NotifyToast;
@@ -37,10 +37,10 @@ type SitesDataTabProps = {
 export function SitesDataTab(props: SitesDataTabProps) {
   return (
     <>
-      {props.interventionPendingSites.length ? (
+      {props.pendingSites.length ? (
         <>
           <div className="data-inline-pending-box">
-            <strong>Sites en attente:</strong> {props.interventionPendingSites.length} soumission(s) à traiter.
+            <strong>Sites en attente:</strong> {props.pendingSites.length} soumission(s) à traiter.
           </div>
           <div className="table-scroll-x">
             <table className="data-table-fixed data-table-sites">
@@ -54,7 +54,7 @@ export function SitesDataTab(props: SitesDataTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {props.interventionPendingSites.map((site) => (
+                {props.pendingSites.map((site) => (
                   <tr key={site.id}>
                     <td>{site.code}</td>
                     <td>{site.name}</td>

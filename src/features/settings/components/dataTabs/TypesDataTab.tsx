@@ -2,9 +2,9 @@
  * Onglet types d’anomalie main courante (libellé, couleur).
  */
 
-import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { AnomalyTypeRef } from "../../../../types";
 import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
+import { ReferenceLabelColorRow } from "../shared/ReferenceLabelColorRow";
 
 type TypesDataTabProps = {
   canDeleteData: boolean;
@@ -37,85 +37,28 @@ export function TypesDataTab(props: TypesDataTabProps) {
         </thead>
         <tbody>
           {props.pagedTypes.map((typeItem) => (
-            <tr key={typeItem.id}>
-              <td>
-                {props.editingTypeId === typeItem.id ? (
-                  <div className="data-type-edit-fields">
-                    <input value={props.editingTypeLabel} onChange={(e) => props.setEditingTypeLabel(e.target.value)} />
-                    <input
-                      type="color"
-                      value={props.editingTypeColor}
-                      onChange={(e) => props.setEditingTypeColor(e.target.value)}
-                      title="Couleur du badge"
-                      aria-label="Couleur du badge"
-                    />
-                  </div>
-                ) : (
-                  <span className="data-type-label-with-color">
-                    <span className="data-type-color-dot" style={{ backgroundColor: typeItem.colorHex }} aria-hidden />
-                    {typeItem.label}
-                  </span>
-                )}
-              </td>
-              <td>
-                {typeItem.isSystem ? (
-                  <span className="muted" title="Type système : non modifiable ni supprimable">
-                    Type système
-                  </span>
-                ) : (
-                  <div className="table-actions">
-                    {props.editingTypeId === typeItem.id ? (
-                      <>
-                        <button
-                          className="btn-light action-icon-btn"
-                          title="Sauvegarder"
-                          aria-label="Sauvegarder"
-                          onClick={() => {
-                            void props.onUpdateType(typeItem.id, props.editingTypeLabel, props.editingTypeColor);
-                            props.setEditingTypeId(null);
-                          }}
-                        >
-                          <Save size={14} />
-                        </button>
-                        <button
-                          className="btn-light action-icon-btn"
-                          title="Annuler"
-                          aria-label="Annuler"
-                          onClick={() => props.setEditingTypeId(null)}
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Modifier"
-                        aria-label="Modifier"
-                        onClick={() => {
-                          props.setEditingTypeId(typeItem.id);
-                          props.setEditingTypeLabel(typeItem.label);
-                          props.setEditingTypeColor(typeItem.colorHex || "#1f5fcf");
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    )}
-                    {props.canDeleteData && (
-                      <button
-                        className="btn-danger action-icon-btn"
-                        title="Supprimer"
-                        aria-label="Supprimer"
-                        onClick={() => {
-                          props.openDeleteReasonModal(`type ${typeItem.label}`, (reason) => props.onDeleteType(typeItem.id, reason));
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </td>
-            </tr>
+            <ReferenceLabelColorRow
+              key={typeItem.id}
+              item={typeItem}
+              isEditing={props.editingTypeId === typeItem.id}
+              editingLabel={props.editingTypeLabel}
+              editingColor={props.editingTypeColor}
+              canDeleteData={props.canDeleteData}
+              onEditStart={(item) => {
+                props.setEditingTypeId(item.id);
+                props.setEditingTypeLabel(item.label);
+                props.setEditingTypeColor(item.colorHex || "#1f5fcf");
+              }}
+              onEditCancel={() => props.setEditingTypeId(null)}
+              onUpdate={(item, label, colorHex) => props.onUpdateType(item.id, label, colorHex)}
+              onDelete={(item) => {
+                props.openDeleteReasonModal(`type ${item.label}`, (reason) => props.onDeleteType(item.id, reason));
+              }}
+              setEditingLabel={props.setEditingTypeLabel}
+              setEditingColor={props.setEditingTypeColor}
+              systemLabel="Type système"
+              colorDefault="#1f5fcf"
+            />
           ))}
           {!props.filteredTypes.length && (
             <tr>

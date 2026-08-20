@@ -22,12 +22,8 @@ import type {
   User
 } from "../../types";
 import type { MainCouranteEntry, MainCouranteSavePayload } from "../../features/mainCourante/model/mainCourante.types";
-import type {
-  InterventionEntry,
-  PendingInterventionIntervenant,
-  InterventionSavePayload,
-  PendingInterventionSite
-} from "../../features/intervention/model/intervention.types";
+import type { InterventionEntry, InterventionSavePayload } from "../../features/intervention/model/intervention.types";
+import type { PendingIntervenant, PendingSite } from "../../features/common/model/pendingRefs.types";
 import type {
   RondeEntry,
   RondeMotifTypeRef,
@@ -42,9 +38,10 @@ import type {
   RondePlannedProfileRef
 } from "../../features/rondes/model/rondePlanned.types";
 import type { FormVariableDef, FormVariablePayload } from "../../features/settings/model/formVariables.types";
+import type { TemplateFlowKind } from "../../features/settings/model/documentTemplates.types";
 import type { GardiennageEntry, GardiennageSavePayload } from "../../features/gardiennage/model/gardiennage.types";
 
-export type DbConfig = { configured: boolean; dbPath: string | null; isDev?: boolean };
+export type DbConfig = { configured: boolean; isDev?: boolean };
 export type DbHealth = { configured: boolean; writable: boolean };
 export type TechErrorLog = {
   occurredAt: string;
@@ -174,7 +171,7 @@ export const gtsApiClient = {
   listTemplateAssignments(payload: { requesterRole: Role }): Promise<
     Array<{
       id: string;
-      flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+      flowKind: TemplateFlowKind;
       scopeKind: "SITE" | "FAMILLE";
       scopeValue: string;
       scopeLabel: string;
@@ -188,7 +185,7 @@ export const gtsApiClient = {
   upsertScopedDocumentTemplate(payload: {
     requesterRole: Role;
     requesterUsername: string;
-    flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+    flowKind: TemplateFlowKind;
     scopeKind: "SITE" | "FAMILLE";
     scopeValue: string;
     scopeLabel: string;
@@ -199,7 +196,7 @@ export const gtsApiClient = {
     templatesRelativePath?: string;
     assignment?: {
       id: string;
-      flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+      flowKind: TemplateFlowKind;
       scopeKind: "SITE" | "FAMILLE";
       scopeValue: string;
       scopeLabel: string;
@@ -215,7 +212,7 @@ export const gtsApiClient = {
   },
   resolveTemplateFileForContext(payload: {
     requesterRole: Role;
-    flowKind: "INTERVENTION" | "RONDE_EXCEPTIONNELLE" | "RONDE_PLANIFIEE" | "GARDIENNAGE";
+    flowKind: TemplateFlowKind;
     siteId?: string | null;
     famille?: string | null;
   }): Promise<{ templateFileName: string | null }> {
@@ -458,6 +455,70 @@ export const gtsApiClient = {
   deleteIntervenant(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }): Promise<{ success: boolean }> {
     return window.gtsApi.deleteIntervenant(withSession(payload));
   },
+  listPendingSites(payload: { requesterRole: Role }): Promise<PendingSite[]> {
+    return window.gtsApi.listPendingSites(withSession(payload));
+  },
+  createPendingSite(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    code: string;
+    name: string;
+  }): Promise<{ success: boolean; alreadyExists: boolean }> {
+    return window.gtsApi.createPendingSite(withSession(payload));
+  },
+  resolvePendingSite(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    pendingId: string;
+    parc: string;
+    famille: string;
+  }): Promise<{
+    success: boolean;
+    siteId: string;
+    alreadyExists: boolean;
+    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
+  }> {
+    return window.gtsApi.resolvePendingSite(withSession(payload));
+  },
+  deletePendingSite(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    pendingId: string;
+    reason: string;
+  }): Promise<{ success: boolean }> {
+    return window.gtsApi.deletePendingSite(withSession(payload));
+  },
+  listPendingIntervenants(payload: { requesterRole: Role }): Promise<PendingIntervenant[]> {
+    return window.gtsApi.listPendingIntervenants(withSession(payload));
+  },
+  createPendingIntervenant(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    name: string;
+  }): Promise<{ success: boolean; alreadyExists: boolean }> {
+    return window.gtsApi.createPendingIntervenant(withSession(payload));
+  },
+  resolvePendingIntervenant(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    pendingId: string;
+    name?: string;
+  }): Promise<{
+    success: boolean;
+    intervenantId: string;
+    alreadyExists: boolean;
+    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
+  }> {
+    return window.gtsApi.resolvePendingIntervenant(withSession(payload));
+  },
+  deletePendingIntervenant(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    pendingId: string;
+    reason: string;
+  }): Promise<{ success: boolean }> {
+    return window.gtsApi.deletePendingIntervenant(withSession(payload));
+  },
   listAnomalyTypes(payload: { requesterRole: Role }): Promise<AnomalyTypeRef[]> {
     return window.gtsApi.listAnomalyTypes(withSession(payload));
   },
@@ -646,20 +707,20 @@ export const gtsApiClient = {
   getInterventionOpenCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
     return window.gtsApi.getInterventionOpenCount(withSession(payload));
   },
-  createInterventionEntry(payload: {
+  createIntervention(payload: {
     requesterRole: Role;
     requesterUsername: string;
     id: string;
   } & InterventionSavePayload): Promise<InterventionEntry> {
-    return window.gtsApi.createInterventionEntry(withSession(payload));
+    return window.gtsApi.createIntervention(withSession(payload));
   },
-  updateInterventionEntry(payload: {
+  updateIntervention(payload: {
     requesterRole: Role;
     requesterUsername: string;
     id: string;
     expectedUpdatedAt: string;
   } & InterventionSavePayload): Promise<InterventionEntry> {
-    return window.gtsApi.updateInterventionEntry(withSession(payload));
+    return window.gtsApi.updateIntervention(withSession(payload));
   },
   setInterventionStatus(payload: {
     requesterRole: Role;
@@ -680,70 +741,6 @@ export const gtsApiClient = {
     reason?: string;
   }): Promise<InterventionEntry> {
     return window.gtsApi.setInterventionBillingStatus(withSession(payload));
-  },
-  listPendingInterventionSites(payload: { requesterRole: Role }): Promise<PendingInterventionSite[]> {
-    return window.gtsApi.listPendingInterventionSites(withSession(payload));
-  },
-  createPendingInterventionSite(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    code: string;
-    name: string;
-  }): Promise<{ success: boolean; alreadyExists: boolean }> {
-    return window.gtsApi.createPendingInterventionSite(withSession(payload));
-  },
-  resolvePendingInterventionSite(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    parc: string;
-    famille: string;
-  }): Promise<{
-    success: boolean;
-    siteId: string;
-    alreadyExists: boolean;
-    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
-  }> {
-    return window.gtsApi.resolvePendingInterventionSite(withSession(payload));
-  },
-  deletePendingInterventionSite(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deletePendingInterventionSite(withSession(payload));
-  },
-  listPendingInterventionIntervenants(payload: { requesterRole: Role }): Promise<PendingInterventionIntervenant[]> {
-    return window.gtsApi.listPendingInterventionIntervenants(withSession(payload));
-  },
-  createPendingInterventionIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    name: string;
-  }): Promise<{ success: boolean; alreadyExists: boolean }> {
-    return window.gtsApi.createPendingInterventionIntervenant(withSession(payload));
-  },
-  resolvePendingInterventionIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    name?: string;
-  }): Promise<{
-    success: boolean;
-    intervenantId: string;
-    alreadyExists: boolean;
-    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
-  }> {
-    return window.gtsApi.resolvePendingInterventionIntervenant(withSession(payload));
-  },
-  deletePendingInterventionIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deletePendingInterventionIntervenant(withSession(payload));
   },
   listRondes(payload: { requesterRole: Role }): Promise<RondeEntry[]> {
     return window.gtsApi.listRondes(withSession(payload));

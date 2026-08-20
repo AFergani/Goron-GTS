@@ -171,16 +171,21 @@ export function MainCouranteTable({
     return entry.status !== "EN_ATTENTE";
   };
 
-  const comparators = {
+  type MainCouranteSortKey = "date" | "operator" | "site" | "type" | "info" | "status";
+
+  const comparators: Record<MainCouranteSortKey, (a: MainCouranteEntry, b: MainCouranteEntry) => number> = {
     date: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     operator: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.operatorName || "").localeCompare(b.operatorName || "", "fr"),
     site: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     type: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.anomalyTypeLabel || "").localeCompare(b.anomalyTypeLabel || "", "fr"),
     info: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.information || "").localeCompare(b.information || "", "fr"),
     status: (a: MainCouranteEntry, b: MainCouranteEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
-  } as const;
-  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort(entries, comparators, { key: "date", direction: "desc" });
-  const sortLabel = (key: keyof typeof comparators) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<MainCouranteEntry, MainCouranteSortKey>(entries, comparators, {
+    key: "date",
+    direction: "desc"
+  });
+  const sortLabel = (key: MainCouranteSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   return (
     <div className="main-courante-table-wrap">

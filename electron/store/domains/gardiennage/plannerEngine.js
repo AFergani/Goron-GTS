@@ -1,49 +1,54 @@
 /**
  * Moteur pur de génération des créneaux de Gardiennage à partir d'un snapshot V1.
  *
- * Partagé conceptuellement avec la prévisualisation React ; aucune base n'est consultée ici.
+ * Aucune base consultée. Appelé par `entries.js`, `helpers.js` (chevauchements)
+ * et `openEndedHorizon.js`. La prévisualisation React a un équivalent séparé.
  *
  * @module electron/store/domains/gardiennage/plannerEngine
  */
 
-/** @param {number} value @returns {string} */
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
+const { addDaysIso, normalizeDateIso } = require("../../core/isoDate");
 
-/** @param {string} isoDate @returns {Date} */
+/**
+ * @param {string} isoDate
+ * @returns {Date}
+ */
 function atNoon(isoDate) {
   return new Date(`${isoDate}T12:00:00`);
 }
 
-/** @param {string} isoDate @param {number} amount @returns {string} */
-function addDays(isoDate, amount) {
-  const date = atNoon(isoDate);
-  date.setDate(date.getDate() + amount);
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-/** @param {string} isoDate @param {string} hhmm @returns {string} */
+/**
+ * @param {string} isoDate
+ * @param {string} hhmm
+ * @returns {string}
+ */
 function toIsoDateTime(isoDate, hhmm) {
   return `${isoDate}T${hhmm}:00`;
 }
 
-/** @param {string} isoDate @returns {number} */
+/**
+ * @param {string} isoDate
+ * @returns {number}
+ */
 function dayBitFromIsoDate(isoDate) {
   return 1 << atNoon(isoDate).getDay();
 }
 
-/** @param {unknown} value @returns {boolean} */
-function isIsoDate(value) {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(String(value)));
-}
-
-/** @param {unknown} value @returns {boolean} */
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 function isValidPlanningTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || "").trim());
 }
 
-/** @param {string} from @param {string} to @returns {string} */
+/**
+ * Heure de fin H24 : si absente, identique à l'heure de début.
+ *
+ * @param {string} from
+ * @param {string} to
+ * @returns {string}
+ */
 function resolveH24ValidToTime(from, to) {
   if (isValidPlanningTime(to)) return String(to).trim();
   return isValidPlanningTime(from) ? String(from).trim() : "";
@@ -53,25 +58,38 @@ function resolveH24ValidToTime(from, to) {
  * Construit les prédicats jour férié et veille de jour férié.
  *
  * @param {string[]} holidayDateIsos
- * @returns {{isHoliday:(iso:string)=>boolean,isHolidayEve:(iso:string)=>boolean}}
+ * @returns {{ isHoliday: (iso: string) => boolean, isHolidayEve: (iso: string) => boolean }}
  */
 function buildHolidayMatchers(holidayDateIsos) {
-  const dates = new Set((holidayDateIsos || []).map((iso) => String(iso || "").trim()).filter(Boolean));
+  const dates = new Set((holidayDateIsos || []).map((iso) => normalizeDateIso(iso)).filter(Boolean));
   return {
-    isHoliday: (iso) => dates.has(String(iso || "").trim()),
-    isHolidayEve: (iso) => dates.has(addDays(String(iso || "").trim(), 1))
+    isHoliday: (iso) => dates.has(normalizeDateIso(iso)),
+    isHolidayEve: (iso) => {
+      const next = addDaysIso(iso, 1);
+      return Boolean(next && dates.has(next));
+    }
   };
 }
 
-/** @param {object} line @param {string} dateIso @returns {boolean} */
+/**
+ * @param {object} line
+ * @param {string} dateIso
+ * @returns {boolean}
+ */
 function lineMatchesWeekday(line, dateIso) {
   const mask = Number(line.weekdaysMask ?? 0);
   return mask <= 0 || (mask & dayBitFromIsoDate(dateIso)) !== 0;
 }
 
-/** @param {object} line @param {string} dateIso @param {object} holiday @returns {boolean} */
+/**
+ * @param {object} line
+ * @param {string} dateIso
+ * @param {{ isHoliday: Function, isHolidayEve: Function }} holiday
+ * @returns {boolean}
+ */
 function lineAppliesOnDate(line, dateIso, holiday) {
-  if (isIsoDate(line.anchorDate)) return line.anchorDate === dateIso;
+  const anchor = normalizeDateIso(line.anchorDate);
+  if (anchor) return anchor === dateIso;
   if (holiday.isHoliday(dateIso) && !line.includeHolidays) return false;
   return lineMatchesWeekday(line, dateIso)
     || (holiday.isHoliday(dateIso) && line.includeHolidays)
@@ -85,28 +103,44 @@ function lineAppliesOnDate(line, dateIso, holiday) {
  * @param {string} validFromDate
  * @param {string} validToDate
  * @param {Set<string>} skipDates
- * @param {{isHoliday:Function,isHolidayEve:Function}} holiday
+ * @param {{ isHoliday: Function, isHolidayEve: Function }} holiday
  * @returns {string[]}
  */
 function collectActiveDatesForLine(line, validFromDate, validToDate, skipDates, holiday) {
-  if (isIsoDate(line.anchorDate)) {
-    return line.anchorDate >= validFromDate && line.anchorDate <= validToDate ? [line.anchorDate] : [];
+  const from = normalizeDateIso(validFromDate);
+  const to = normalizeDateIso(validToDate);
+  if (!from || !to || from > to) return [];
+  const anchor = normalizeDateIso(line.anchorDate);
+  if (anchor) {
+    return anchor >= from && anchor <= to ? [anchor] : [];
   }
   const dates = [];
-  let cursor = validFromDate;
-  while (cursor <= validToDate) {
+  let cursor = from;
+  while (cursor && cursor <= to) {
     if (!skipDates.has(cursor) && lineAppliesOnDate(line, cursor, holiday)) dates.push(cursor);
-    cursor = addDays(cursor, 1);
+    cursor = addDaysIso(cursor, 1);
   }
   return dates;
 }
 
-/** @param {string} aStart @param {string} aEnd @param {string} bStart @param {string} bEnd @returns {boolean} */
+/**
+ * @param {string} aStart
+ * @param {string} aEnd
+ * @param {string} bStart
+ * @param {string} bEnd
+ * @returns {boolean}
+ */
 function intersects(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
 }
 
-/** @returns {[string,string]|null} */
+/**
+ * @param {string} segmentStart
+ * @param {string} segmentEnd
+ * @param {string} rangeStart
+ * @param {string} rangeEnd
+ * @returns {[string, string]|null}
+ */
 function clipSegment(segmentStart, segmentEnd, rangeStart, rangeEnd) {
   if (!intersects(segmentStart, segmentEnd, rangeStart, rangeEnd)) return null;
   const start = segmentStart > rangeStart ? segmentStart : rangeStart;
@@ -118,17 +152,20 @@ function clipSegment(segmentStart, segmentEnd, rangeStart, rangeEnd) {
  * Génère les créneaux insérables depuis un snapshot normalisé.
  *
  * @param {object} snapshot
- * @param {{holidayDateIsos?:string[]}} [options]
- * @returns {Array<{lineLabel:string,startIso:string,endIso:string,startDate:string,endDate:string,startTime:string,endTime:string,crossesMidnight:boolean}>}
+ * @param {{ holidayDateIsos?: string[] }} [options]
+ * @returns {Array<{ lineLabel: string, startIso: string, endIso: string, startDate: string, endDate: string, startTime: string, endTime: string, crossesMidnight: boolean }>}
  */
 function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
+  if (!snapshot) return [];
+  const fromDate = normalizeDateIso(snapshot.validFromDate);
+  const toDate = normalizeDateIso(snapshot.validToDate);
   const fromTime = String(snapshot.validFromTime || "").trim();
   const toTime = snapshot.isContinuous
     ? resolveH24ValidToTime(fromTime, snapshot.validToTime)
     : String(snapshot.validToTime || "").trim();
-  if (!isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
-  const rangeStart = toIsoDateTime(snapshot.validFromDate, fromTime);
-  const rangeEnd = toIsoDateTime(snapshot.validToDate, toTime);
+  if (!fromDate || !toDate || !isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
+  const rangeStart = toIsoDateTime(fromDate, fromTime);
+  const rangeEnd = toIsoDateTime(toDate, toTime);
   if (rangeStart >= rangeEnd) return [];
   if (snapshot.isContinuous) {
     return [{
@@ -144,22 +181,18 @@ function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
   }
   const holiday = buildHolidayMatchers(options.holidayDateIsos);
   const anchoredDates = new Set(
-    (snapshot.lines || []).map((line) => (isIsoDate(line.anchorDate) ? line.anchorDate : "")).filter(Boolean)
+    (snapshot.lines || []).map((line) => normalizeDateIso(line.anchorDate)).filter(Boolean)
   );
   const slots = [];
   for (const line of snapshot.lines || []) {
-    if (!line.startTime || !line.endTime) continue;
-    const dates = collectActiveDatesForLine(
-      line,
-      snapshot.validFromDate,
-      snapshot.validToDate,
-      anchoredDates,
-      holiday
-    );
+    if (!isValidPlanningTime(line.startTime) || !isValidPlanningTime(line.endTime)) continue;
+    const dates = collectActiveDatesForLine(line, fromDate, toDate, anchoredDates, holiday);
     for (const date of dates) {
       const startIso = toIsoDateTime(date, line.startTime);
       const crossesMidnight = line.endTime <= line.startTime;
-      const endIso = toIsoDateTime(crossesMidnight ? addDays(date, 1) : date, line.endTime);
+      const endDate = crossesMidnight ? addDaysIso(date, 1) : date;
+      if (!endDate) continue;
+      const endIso = toIsoDateTime(endDate, line.endTime);
       const clipped = clipSegment(startIso, endIso, rangeStart, rangeEnd);
       if (!clipped) continue;
       slots.push({

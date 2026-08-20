@@ -3,13 +3,13 @@
  */
 
 import { Pencil, Trash2 } from "lucide-react";
-import type { PendingInterventionIntervenant } from "../../../intervention/model/intervention.types";
+import type { PendingIntervenant } from "../../../common/model/pendingRefs.types";
 
 type PendingIntervenantsDataTabProps = {
-  pagedPendingIntervenants: PendingInterventionIntervenant[];
+  pagedPendingIntervenants: PendingIntervenant[];
   hasAnyPendingIntervenants: boolean;
-  onValidate: (item: PendingInterventionIntervenant) => void;
-  onDelete: (item: PendingInterventionIntervenant) => void;
+  onValidate: (item: PendingIntervenant) => void;
+  onDelete: (item: PendingIntervenant) => void;
 };
 
 export function PendingIntervenantsDataTab(props: PendingIntervenantsDataTabProps) {

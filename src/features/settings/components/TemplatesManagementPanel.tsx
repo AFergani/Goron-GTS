@@ -115,7 +115,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const assignFlowHelpId = helpIdFromFlowKind(assignFlowKind);
   const assignFlowHelp = resolveDocumentTemplateHelpBlock(assignFlowHelpId);
 
-  const flowKindLabel = (flowKind: TemplateFlowKind) => {
+  const flowKindLabel = (flowKind: string) => {
     if (flowKind === "INTERVENTION") return "Intervention";
     if (flowKind === "RONDE_PLANIFIEE") return "Ronde contractuelle";
     if (flowKind === "GARDIENNAGE") return "Gardiennage";
@@ -207,8 +207,8 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
         </div>
         <p className="muted">
           Les fichiers effectifs sont cherchés d’abord dans <code>data/templates</code> (à côté de votre base), puis dans les modèles embarqués. Le{" "}
-          <strong>chemin résolu</strong> indique quel fichier est utilisé pour l’export. Pour modifier un modèle par défaut (Fransor,
-          Main courante, Intervention, Ronde contractuelle, Gardiennage), utilisez <strong>Remplacer</strong> sur la ligne concernée — le fichier copié doit garder le même nom (
+          <strong>chemin résolu</strong> indique quel fichier est utilisé pour l’export. Pour modifier un modèle par défaut (Main
+          courante, Intervention, Ronde contractuelle), utilisez <strong>Remplacer</strong> sur la ligne concernée — le fichier copié doit garder le même nom (
           ex. <code>ronde-template.docx</code>).
         </p>
         {writableDir ? (
@@ -373,7 +373,6 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                   <option value="INTERVENTION">Intervention</option>
                   <option value="RONDE_PLANIFIEE">Ronde contractuelle</option>
                   <option value="RONDE_EXCEPTIONNELLE">Ronde exceptionnelle</option>
-                  <option value="GARDIENNAGE">Gardiennage</option>
                 </select>
               </label>
               {assignFlowHelp ? (
