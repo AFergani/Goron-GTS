@@ -1438,6 +1438,10 @@ th {
   justify-content: flex-end;
 }
 
+.data-management-panel .table-actions {
+  min-height: 32px;
+}
+
 .action-icon-btn {
   width: 32px;
   min-width: 32px;

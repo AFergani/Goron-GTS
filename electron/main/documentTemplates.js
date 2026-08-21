@@ -1,6 +1,6 @@
 /**
  * Gestion des modèles Word (.docx) : lecture pour exports, inventaire, installation et modèles scopés.
- * Cherche d'abord sous `{dataRoot}/templates`, puis les modèles embarqués `dist/templates`.
+ * Cherche les modèles personnalisés sous `{userData}/templates`, puis les modèles embarqués.
  *
  * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js` et `gtsApiClient`
  * (Paramètres → modèles ; exports main courante, intervention, rondes).
@@ -175,7 +175,7 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
-   * Retourne (et crée si besoin) le dossier `{dataRoot}/templates` writable du poste.
+    * Retourne (et crée si besoin) le dossier `{userData}/templates` writable du poste.
    *
    * @returns {string}
    * @throws {Error} Si aucune racine données n'est disponible.
@@ -307,7 +307,7 @@ function createDocumentTemplatesService(deps) {
       success: true,
       fileName: safeName,
       resolvedPath,
-      templatesRelativePath: path.join("data", "templates", safeName)
+      templatesRelativePath: path.join("templates", safeName)
     };
   }
 
@@ -356,7 +356,7 @@ function createDocumentTemplatesService(deps) {
       success: true,
       fileName,
       assignment,
-      templatesRelativePath: path.join("data", "templates", fileName)
+      templatesRelativePath: path.join("templates", fileName)
     };
   }
 

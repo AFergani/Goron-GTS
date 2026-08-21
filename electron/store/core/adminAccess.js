@@ -52,7 +52,7 @@ function parseDotEnvFile(content) {
 }
 
 /**
- * Chemins candidats de `acces_admin.env` (dev : CWD ; packagé : CWD + voisin de l'exe).
+ * Chemins candidats de `acces_admin.env` (dev : CWD ; packagé : userData, CWD + voisin de l'exe).
  *
  * @param {object} options
  * @param {boolean} options.isPackaged - `true` si application Electron packagée.
@@ -66,6 +66,13 @@ function resolveAdminEnvCandidates({ isPackaged }) {
 
   push(path.join(process.cwd(), "data", ADMIN_ENV_FILE_NAME));
   if (!isPackaged) return [...candidates];
+
+  try {
+    const { app } = require("electron");
+    push(path.join(app.getPath("userData"), "data", ADMIN_ENV_FILE_NAME));
+  } catch {
+    /* tests hors Electron */
+  }
 
   const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR || "";
   if (portableExeDir) {

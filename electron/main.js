@@ -121,23 +121,12 @@ function canManageDatabase(requesterUsername) {
 }
 
 /**
- * Racines `data/` pour les modèles Word du poste.
- * Dev : `cwd/data`. Packagé portable : dossier de l'exe. Sinon : userData Electron.
+ * Racine unique des modèles Word : le dossier de données Electron de l'application.
  *
  * @returns {string[]}
  */
 function getDataRootCandidates() {
-  const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR || null;
-  const preferredRoot = !app.isPackaged
-    ? path.join(process.cwd(), "data")
-    : portableExeDir
-      ? path.join(portableExeDir, "data")
-      : path.join(app.getPath("userData"), "data");
-  return [...new Set([
-    preferredRoot,
-    path.join(process.cwd(), "data"),
-    path.join(app.getPath("userData"), "data")
-  ].filter(Boolean))];
+  return [app.getPath("userData")];
 }
 
 const documentTemplates = createDocumentTemplatesService({

@@ -420,8 +420,8 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   }, [props.holidays]);
   const filteredHolidays = holidaysForUi.filter((item) => {
     const itemYear = String(item.dateIso || "").slice(0, 4);
-    if (holidayYear.trim() && itemYear !== holidayYear.trim()) return false;
     const query = searchQuery.trim().toLowerCase();
+    if (!query && holidayYear.trim() && itemYear !== holidayYear.trim()) return false;
     if (!query) return true;
     return item.dateIso.toLowerCase().includes(query) || item.label.toLowerCase().includes(query);
   });
@@ -435,11 +435,13 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           : props.activeDataTab === "pendingIntervenants"
             ? "Rechercher un intervenant en attente (nom)"
           : props.activeDataTab === "rondeMotifs"
-            ? "Rechercher par libellé"
+            ? "Rechercher par motif"
           : props.activeDataTab === "holidays"
             ? "Rechercher un jour férié (date, libellé)"
           : props.activeDataTab === "documentTemplates"
             ? "Recherche (non utilisée sur cet onglet)"
+        : props.activeDataTab === "fransorResponsables"
+          ? "Rechercher un responsable"
         : "Rechercher un type d'anomalie";
   const filteredPendingSites = props.pendingSites.filter((site) => {
     const query = searchQuery.trim().toLowerCase();
@@ -579,7 +581,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   };
 
   return (
-    <section className="panel">
+    <section className="panel data-management-panel">
       <div className="tabs">
         <button className={props.activeDataTab === "sites" ? "tab active" : "tab"} onClick={() => props.onDataTabChange("sites")}>
           Sites

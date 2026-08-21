@@ -73,9 +73,11 @@ export function ReferenceLabelColorRow<T extends ReferenceItem>({
       </td>
       <td>
         {item.isSystem ? (
-          <span className="muted" title={`${systemLabel} : non modifiable ni supprimable`}>
-            {systemLabel}
-          </span>
+          <div className="table-actions">
+            <span className="muted" title={`${systemLabel} : non modifiable ni supprimable`}>
+              {systemLabel}
+            </span>
+          </div>
         ) : (
           <div className="table-actions">
             {isEditing ? (

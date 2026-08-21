@@ -206,7 +206,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
           </div>
         </div>
         <p className="muted">
-          Les fichiers effectifs sont cherchés d’abord dans <code>data/templates</code> (à côté de votre base), puis dans les modèles embarqués. Le{" "}
+          Les fichiers effectifs sont cherchés dans le dossier <code>templates</code> de l’application, puis dans les modèles embarqués. Le{" "}
           <strong>chemin résolu</strong> indique quel fichier est utilisé pour l’export. Pour modifier un modèle par défaut (Main
           courante, Intervention, Ronde contractuelle), utilisez <strong>Remplacer</strong> sur la ligne concernée — le fichier copié doit garder le même nom (
           ex. <code>ronde-template.docx</code>).
