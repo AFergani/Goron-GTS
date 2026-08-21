@@ -4,7 +4,8 @@
 -- Drapeaux booléens : INTEGER 0/1. Horodatages : TEXT ISO.
 
 -- ---------------------------------------------------------------------------
--- Section : audit_error_logs
+-- Section : audit_logs + historique d'entité
+-- Journal technique poste : fichier local `gts-pg-events.log` (pas de table SQL).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGSERIAL PRIMARY KEY,
@@ -16,17 +17,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details_json TEXT
 );
 
-CREATE TABLE IF NOT EXISTS error_logs (
-  id BIGSERIAL PRIMARY KEY,
-  occurred_at TEXT NOT NULL,
-  source TEXT NOT NULL,
-  code TEXT NOT NULL,
-  message_fr TEXT NOT NULL,
-  details_json TEXT
-);
+DROP TABLE IF EXISTS error_logs;
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_at ON audit_logs (occurred_at DESC);
-CREATE INDEX IF NOT EXISTS idx_error_logs_occurred_at ON error_logs (occurred_at DESC);
 
 CREATE TABLE IF NOT EXISTS entity_change_history (
   id BIGSERIAL PRIMARY KEY,
@@ -124,8 +117,11 @@ CREATE TABLE IF NOT EXISTS data_ronde_motif_types (
   color_hex TEXT NOT NULL DEFAULT '#5c6bc0',
   sort_order INTEGER NOT NULL DEFAULT 0,
   legacy_code TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  updated_at TEXT
 );
+
+ALTER TABLE data_ronde_motif_types ADD COLUMN IF NOT EXISTS updated_at TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_data_ronde_motif_types_label_lower
   ON data_ronde_motif_types (lower(trim(label)));
@@ -296,19 +292,21 @@ CREATE TABLE IF NOT EXISTS main_courante_entries (
   consulted_by_manager_name TEXT,
   prise_en_compte_at TEXT,
   closed_at TEXT,
-  archived_at TEXT,
-  archived_by TEXT,
-  archive_reason TEXT,
   updated_at TEXT NOT NULL
 );
 
 ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS consulted_by_operator_at TEXT;
+ALTER TABLE main_courante_entries DROP COLUMN IF EXISTS archived_at;
+ALTER TABLE main_courante_entries DROP COLUMN IF EXISTS archived_by;
+ALTER TABLE main_courante_entries DROP COLUMN IF EXISTS archive_reason;
 
 CREATE INDEX IF NOT EXISTS idx_main_courante_created
   ON main_courante_entries (created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_main_courante_status_archived
-  ON main_courante_entries (status, archived_at);
+CREATE INDEX IF NOT EXISTS idx_main_courante_status
+  ON main_courante_entries (status);
+
+DROP INDEX IF EXISTS idx_main_courante_status_archived;
 
 
 -- ---------------------------------------------------------------------------

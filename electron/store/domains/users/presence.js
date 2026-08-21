@@ -2,7 +2,7 @@
  * Présence utilisateurs multi-postes (table PostgreSQL `user_presence`).
  *
  * Chaque poste Goron-GTS enregistre / rafraîchit sa session active ; la liste
- * des connectés est lue depuis PG (plus seulement la mémoire locale Electron).
+ * des connectés est lue depuis PG. L'upsert est atomique (`ON CONFLICT`).
  *
  * @module electron/store/domains/users/presence
  */
@@ -99,7 +99,6 @@ async function listActivePresenceUsernames(store) {
 }
 
 module.exports = {
-  PRESENCE_TTL_MS,
   upsertPresence,
   clearPresence,
   listActivePresenceUsernames

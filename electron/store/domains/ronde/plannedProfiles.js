@@ -6,12 +6,25 @@
 
 const { generateEntityId } = require("../../core/ids");
 const { requireRondePersistence } = require("./persistence");
+const { RONDE_PLANNED_PROFILE_SELECT } = require("./mapping");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 
 const ROUND_KINDS = new Set(["OPENING", "CLOSING", "ACCOMPAGNEMENT", "RANDOM"]);
 const RECURRENCE_KINDS = new Set(["WEEKLY", "DAILY", "MONTHLY", "DATE_RANGE"]);
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLOSURE_FIELD_TYPES = new Set(["text", "textarea", "number", "time", "select", "toggle"]);
+
+/** Colonnes explicites des lignes de profil (préfixe `l.`). */
+const PROFILE_LINE_SELECT_L = `l.id, l.profile_id, l.sort_order, l.round_kind, l.recurrence_kind, l.weekdays_mask,
+  l.month_day, l.requested_time, l.interval_minutes, l.motif_type_id, l.random_period_mask,
+  l.range_start_date, l.range_end_date, l.random_window_start, l.random_window_end,
+  l.random_rounds_count, l.include_holidays, l.include_holiday_eves, l.created_at, l.updated_at`;
+
+/** Colonnes profil avec préfixe `p.` pour jointures d'affichage. */
+const PROFILE_SELECT_P = RONDE_PLANNED_PROFILE_SELECT.split(",")
+  .map((part) => `p.${part.trim()}`)
+  .join(", ");
 
 /** @param {unknown} raw @returns {object[]} */
 function parseClosureFields(raw) {
@@ -237,7 +250,7 @@ function canManagePlannedProfileCancellation(requesterRole, roles) {
 /** @param {object} db @param {string|null} id @returns {Promise<object|null>} */
 async function getProfileById(db, id) {
   const profile = await db.get(
-    `SELECT p.*, CASE WHEN s.id IS NULL THEN NULL
+    `SELECT ${PROFILE_SELECT_P}, CASE WHEN s.id IS NULL THEN NULL
        WHEN trim(COALESCE(s.code, '')) <> '' AND trim(COALESCE(s.name, '')) <> ''
          THEN concat(s.code, ' — ', s.name)
        ELSE COALESCE(NULLIF(trim(s.name), ''), NULLIF(trim(s.code), '')) END AS site_display,
@@ -250,7 +263,7 @@ async function getProfileById(db, id) {
   );
   if (!profile) return null;
   const lines = await db.all(
-    `SELECT l.*, m.label AS motif_type_label
+    `SELECT ${PROFILE_LINE_SELECT_L}, m.label AS motif_type_label
      FROM data_ronde_planned_profile_lines l
      LEFT JOIN data_ronde_motif_types m ON m.id = l.motif_type_id
      WHERE l.profile_id = ? ORDER BY l.sort_order ASC, l.created_at ASC`,
@@ -311,23 +324,35 @@ async function upsertRondePlannedProfile(store, payload) {
   const closureFormEnabled = Boolean(payload.closureFormEnabled);
   const closureFields = normalizeClosureFields(store, closureFormEnabled, payload.closureFields, source);
   const requestedId = String(payload.id || "").trim();
-  const existing = requestedId
-    ? await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [requestedId])
-    : null;
-  if (requestedId && !existing) store.fail(source, "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
   const id = requestedId || generateEntityId();
   const now = new Date().toISOString();
   const isManager = payload.requesterRole === "RESPONSABLE" || payload.requesterRole === "DEV";
   const autoValidate = Boolean(payload.autoValidate) && isManager;
-  await db.transaction(async (tx) => {
-    if (existing) {
+  const wasUpdate = await db.transaction(async (tx) => {
+    let existing = null;
+    if (requestedId) {
+      existing = await tx.get(
+        `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+        [requestedId]
+      );
+      if (!existing) store.fail(source, "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+      assertOptimisticLock(
+        store,
+        source,
+        existing,
+        payload.expectedUpdatedAt,
+        "DATA_RONDE_PLANNED_CONFLICT",
+        "Profil modifié ailleurs. Actualisez la liste."
+      );
       await tx.run(
         `UPDATE data_ronde_planned_profiles SET label = ?, site_id = ?, intervenant_id = ?,
          notes = ?, is_active = 1, create_rounds_enabled = ?, closure_form_enabled = ?,
-         closure_fields_json = ?, planning_valid_from = ?, planning_valid_to = ?, updated_at = ? WHERE id = ?`,
+         closure_fields_json = ?, planning_valid_from = ?, planning_valid_to = ?, updated_at = ?
+         WHERE id = ? AND updated_at = ?`,
         [label, siteId, intervenantId, String(payload.notes || "").trim() || null,
           payload.createRoundsEnabled !== false ? 1 : 0, closureFormEnabled ? 1 : 0,
-          JSON.stringify(closureFields), planningValidFrom, planningValidTo, now, id]
+          JSON.stringify(closureFields), planningValidFrom, planningValidTo, now, id,
+          payload.expectedUpdatedAt]
       );
     } else {
       await tx.run(
@@ -369,11 +394,12 @@ async function upsertRondePlannedProfile(store, payload) {
           line.includeHolidays ? 1 : 0, line.includeHolidayEves ? 1 : 0, now, now]
       );
     }
+    return Boolean(existing);
   });
   store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
-    action: existing ? "DATA_RONDE_PLANNED_PROFILE_UPDATE" : "DATA_RONDE_PLANNED_PROFILE_CREATE",
+    action: wasUpdate ? "DATA_RONDE_PLANNED_PROFILE_UPDATE" : "DATA_RONDE_PLANNED_PROFILE_CREATE",
     details: { id, label, siteId, createRoundsEnabled: payload.createRoundsEnabled !== false,
-      lineCount: lines.length, ...(!existing && autoValidate ? { autoValidated: true } : {}) } });
+      lineCount: lines.length, ...(!wasUpdate && autoValidate ? { autoValidated: true } : {}) } });
   return getProfileById(db, id);
 }
 
@@ -390,8 +416,6 @@ async function deleteRondePlannedProfile(store, payload) {
   const id = String(payload.id || "").trim();
   const reason = String(payload.reason || "").trim();
   if (!reason) store.fail("data:rondePlannedProfiles:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
-  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
-  if (!existing) store.fail("data:rondePlannedProfiles:delete", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
   const stats = await db.get(
     `SELECT COUNT(*) AS total,
       SUM(CASE WHEN status = 'CLOTURE' THEN 1 ELSE 0 END) AS closed_count
@@ -400,24 +424,42 @@ async function deleteRondePlannedProfile(store, payload) {
   );
   const total = Number(stats?.total || 0);
   const closed = Number(stats?.closed_count || 0);
-  if (closed > 0) {
-    await db.run(
-      "UPDATE data_ronde_planned_profiles SET is_active = 0, create_rounds_enabled = 0, updated_at = ? WHERE id = ?",
-      [new Date().toISOString(), id]
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+      [id]
     );
-    store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
-      action: "DATA_RONDE_PLANNED_PROFILE_DEACTIVATE",
-      details: { id, label: existing.label || "", reason, closedEntriesCount: closed, totalEntriesCount: total } });
-    return { success: true, action: "deactivated" };
-  }
-  await db.transaction(async (tx) => {
+    if (!existing) store.fail("data:rondePlannedProfiles:delete", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+    assertOptimisticLock(
+      store,
+      "data:rondePlannedProfiles:delete",
+      existing,
+      payload.expectedUpdatedAt,
+      "DATA_RONDE_PLANNED_CONFLICT",
+      "Profil modifié ailleurs. Actualisez la liste."
+    );
+    if (closed > 0) {
+      await tx.run(
+        `UPDATE data_ronde_planned_profiles SET is_active = 0, create_rounds_enabled = 0, updated_at = ?
+         WHERE id = ? AND updated_at = ?`,
+        [new Date().toISOString(), id, payload.expectedUpdatedAt]
+      );
+      return { action: "deactivated", existing };
+    }
     await tx.run("DELETE FROM ronde_entries WHERE planned_profile_id = ?", [id]);
     await tx.run("DELETE FROM data_ronde_planned_profile_lines WHERE profile_id = ?", [id]);
     await tx.run("DELETE FROM data_ronde_planned_profiles WHERE id = ?", [id]);
+    return { action: "deleted", existing };
   });
+  if (outcome.action === "deactivated") {
+    store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
+      action: "DATA_RONDE_PLANNED_PROFILE_DEACTIVATE",
+      details: { id, label: outcome.existing.label || "", reason, closedEntriesCount: closed, totalEntriesCount: total } });
+    return { success: true, action: "deactivated" };
+  }
   store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
     action: "DATA_RONDE_PLANNED_PROFILE_DELETE",
-    details: { id, deleted: { label: existing.label || "", reason, deletedRondeEntriesCount: total } } });
+    details: { id, deleted: { label: outcome.existing.label || "", reason, deletedRondeEntriesCount: total } } });
   return { success: true, action: "deleted" };
 }
 
@@ -447,31 +489,44 @@ async function requestRondePlannedProfileCancellation(store, payload) {
       "DATA_RONDE_PLANNED_CANCEL_REQUEST_NOT_NEEDED"
     );
   }
-  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
-  if (!existing) {
-    store.fail("data:rondePlannedProfiles:requestCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
-  }
-  if (existing.cancellation_requested_at) {
-    store.fail(
-      "data:rondePlannedProfiles:requestCancellation",
-      "Une demande d'annulation est déjà en attente pour ce flux.",
-      "DATA_RONDE_PLANNED_CANCEL_REQUEST_ALREADY_PENDING"
-    );
-  }
   const now = new Date().toISOString();
-  await db.run(
-    `UPDATE data_ronde_planned_profiles
-     SET cancellation_request_reason = ?, cancellation_requested_at = ?, cancellation_requested_by = ?, updated_at = ?
-     WHERE id = ?`,
-    [reason, now, String(payload.requesterUsername || "unknown"), now, id]
-  );
-  store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
-    action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST",
-    details: {
-      label: existing.label || "",
-      request: { reason, requestedAt: now, requestedBy: String(payload.requesterUsername || "unknown") }
+  await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!existing) {
+      store.fail("data:rondePlannedProfiles:requestCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
     }
+    assertOptimisticLock(
+      store,
+      "data:rondePlannedProfiles:requestCancellation",
+      existing,
+      payload.expectedUpdatedAt,
+      "DATA_RONDE_PLANNED_CONFLICT",
+      "Profil modifié ailleurs. Actualisez la liste."
+    );
+    if (existing.cancellation_requested_at) {
+      store.fail(
+        "data:rondePlannedProfiles:requestCancellation",
+        "Une demande d'annulation est déjà en attente pour ce flux.",
+        "DATA_RONDE_PLANNED_CANCEL_REQUEST_ALREADY_PENDING"
+      );
+    }
+    await tx.run(
+      `UPDATE data_ronde_planned_profiles
+       SET cancellation_request_reason = ?, cancellation_requested_at = ?, cancellation_requested_by = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [reason, now, String(payload.requesterUsername || "unknown"), now, id, payload.expectedUpdatedAt]
+    );
+    store.logAudit({
+      actorUsername: payload.requesterUsername || "unknown",
+      action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST",
+      details: {
+        label: existing.label || "",
+        request: { reason, requestedAt: now, requestedBy: String(payload.requesterUsername || "unknown") }
+      }
+    });
   });
   return getProfileById(db, id);
 }
@@ -499,33 +554,46 @@ async function setRondePlannedProfilePlanningEnd(store, payload) {
   const reason = String(payload.reason || "").trim();
   if (!endDate) store.fail("data:rondePlannedProfiles:planningEnd", "Indiquez la date de fin.", "DATA_RONDE_PLANNED_END_DATE_REQUIRED");
   if (!reason) store.fail("data:rondePlannedProfiles:planningEnd", "Motif obligatoire.", "DATA_RONDE_PLANNED_END_REASON_REQUIRED");
-  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
-  if (!existing) store.fail("data:rondePlannedProfiles:planningEnd", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
-  if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
-    store.fail("data:rondePlannedProfiles:planningEnd", "La date de fin doit suivre la date de début.", "DATA_RONDE_PLANNED_PLANNING_ORDER");
-  }
   const now = new Date().toISOString();
-  await db.run(
-    `UPDATE data_ronde_planned_profiles
-     SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
-         cancellation_requested_by = NULL, updated_at = ?
-     WHERE id = ?`,
-    [endDate, now, id]
-  );
-  store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
-    action: "DATA_RONDE_PLANNED_PROFILE_PLANNING_END",
-    details: {
-      label: existing.label || "",
-      reason,
-      before: {
-        planningValidTo: existing.planning_valid_to || null,
-        cancellationRequestReason: existing.cancellation_request_reason || null,
-        cancellationRequestedAt: existing.cancellation_requested_at || null,
-        cancellationRequestedBy: existing.cancellation_requested_by || null
-      },
-      after: { planningValidTo: endDate, cancellationRequestCleared: Boolean(existing.cancellation_requested_at) }
+  await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!existing) store.fail("data:rondePlannedProfiles:planningEnd", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+    assertOptimisticLock(
+      store,
+      "data:rondePlannedProfiles:planningEnd",
+      existing,
+      payload.expectedUpdatedAt,
+      "DATA_RONDE_PLANNED_CONFLICT",
+      "Profil modifié ailleurs. Actualisez la liste."
+    );
+    if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
+      store.fail("data:rondePlannedProfiles:planningEnd", "La date de fin doit suivre la date de début.", "DATA_RONDE_PLANNED_PLANNING_ORDER");
     }
+    await tx.run(
+      `UPDATE data_ronde_planned_profiles
+       SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
+           cancellation_requested_by = NULL, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [endDate, now, id, payload.expectedUpdatedAt]
+    );
+    store.logAudit({
+      actorUsername: payload.requesterUsername || "unknown",
+      action: "DATA_RONDE_PLANNED_PROFILE_PLANNING_END",
+      details: {
+        label: existing.label || "",
+        reason,
+        before: {
+          planningValidTo: existing.planning_valid_to || null,
+          cancellationRequestReason: existing.cancellation_request_reason || null,
+          cancellationRequestedAt: existing.cancellation_requested_at || null,
+          cancellationRequestedBy: existing.cancellation_requested_by || null
+        },
+        after: { planningValidTo: endDate, cancellationRequestCleared: Boolean(existing.cancellation_requested_at) }
+      }
+    });
   });
   return getProfileById(db, id);
 }
@@ -559,43 +627,79 @@ async function reviewRondePlannedProfileCancellationRequest(store, payload) {
       "DATA_RONDE_PLANNED_CANCEL_REVIEW_REASON_REQUIRED"
     );
   }
-  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
-  if (!existing) {
-    store.fail("data:rondePlannedProfiles:reviewCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
-  }
-  if (!existing.cancellation_requested_at) {
+  if (decision === "approve" && !endDate) {
     store.fail(
       "data:rondePlannedProfiles:reviewCancellation",
-      "Aucune demande d'annulation en attente pour ce flux.",
-      "DATA_RONDE_PLANNED_CANCEL_REQUEST_NOT_FOUND"
+      "Indiquez la date de fin du flux.",
+      "DATA_RONDE_PLANNED_END_DATE_REQUIRED"
     );
   }
-  if (decision === "approve") {
-    if (!endDate) {
-      store.fail(
-        "data:rondePlannedProfiles:reviewCancellation",
-        "Indiquez la date de fin du flux.",
-        "DATA_RONDE_PLANNED_END_DATE_REQUIRED"
-      );
+  await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!existing) {
+      store.fail("data:rondePlannedProfiles:reviewCancellation", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
     }
-    if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
+    assertOptimisticLock(
+      store,
+      "data:rondePlannedProfiles:reviewCancellation",
+      existing,
+      payload.expectedUpdatedAt,
+      "DATA_RONDE_PLANNED_CONFLICT",
+      "Profil modifié ailleurs. Actualisez la liste."
+    );
+    if (!existing.cancellation_requested_at) {
       store.fail(
         "data:rondePlannedProfiles:reviewCancellation",
-        "La date de fin doit suivre la date de début.",
-        "DATA_RONDE_PLANNED_PLANNING_ORDER"
+        "Aucune demande d'annulation en attente pour ce flux.",
+        "DATA_RONDE_PLANNED_CANCEL_REQUEST_NOT_FOUND"
       );
     }
     const now = new Date().toISOString();
-    await db.run(
+    if (decision === "approve") {
+      if (existing.planning_valid_from && endDate < existing.planning_valid_from) {
+        store.fail(
+          "data:rondePlannedProfiles:reviewCancellation",
+          "La date de fin doit suivre la date de début.",
+          "DATA_RONDE_PLANNED_PLANNING_ORDER"
+        );
+      }
+      await tx.run(
+        `UPDATE data_ronde_planned_profiles
+         SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
+             cancellation_requested_by = NULL, updated_at = ?
+         WHERE id = ? AND updated_at = ?`,
+        [endDate, now, id, payload.expectedUpdatedAt]
+      );
+      store.logAudit({
+        actorUsername: payload.requesterUsername || "unknown",
+        action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_APPROVE",
+        details: {
+          label: existing.label || "",
+          reviewReason,
+          request: {
+            reason: existing.cancellation_request_reason || "",
+            requestedAt: existing.cancellation_requested_at || null,
+            requestedBy: existing.cancellation_requested_by || null
+          },
+          before: { planningValidTo: existing.planning_valid_to || null },
+          after: { planningValidTo: endDate }
+        }
+      });
+      return;
+    }
+    await tx.run(
       `UPDATE data_ronde_planned_profiles
-       SET planning_valid_to = ?, cancellation_request_reason = NULL, cancellation_requested_at = NULL,
-           cancellation_requested_by = NULL, updated_at = ?
-       WHERE id = ?`,
-      [endDate, now, id]
+       SET cancellation_request_reason = NULL, cancellation_requested_at = NULL, cancellation_requested_by = NULL,
+           updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [now, id, payload.expectedUpdatedAt]
     );
     store.logAudit({
       actorUsername: payload.requesterUsername || "unknown",
-      action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_APPROVE",
+      action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_REJECT",
       details: {
         label: existing.label || "",
         reviewReason,
@@ -603,32 +707,9 @@ async function reviewRondePlannedProfileCancellationRequest(store, payload) {
           reason: existing.cancellation_request_reason || "",
           requestedAt: existing.cancellation_requested_at || null,
           requestedBy: existing.cancellation_requested_by || null
-        },
-        before: { planningValidTo: existing.planning_valid_to || null },
-        after: { planningValidTo: endDate }
+        }
       }
     });
-    return getProfileById(db, id);
-  }
-  await db.run(
-    `UPDATE data_ronde_planned_profiles
-     SET cancellation_request_reason = NULL, cancellation_requested_at = NULL, cancellation_requested_by = NULL,
-         updated_at = ?
-     WHERE id = ?`,
-    [new Date().toISOString(), id]
-  );
-  store.logAudit({
-    actorUsername: payload.requesterUsername || "unknown",
-    action: "DATA_RONDE_PLANNED_PROFILE_CANCEL_REQUEST_REJECT",
-    details: {
-      label: existing.label || "",
-      reviewReason,
-      request: {
-        reason: existing.cancellation_request_reason || "",
-        requestedAt: existing.cancellation_requested_at || null,
-        requestedBy: existing.cancellation_requested_by || null
-      }
-    }
   });
   return getProfileById(db, id);
 }
@@ -644,19 +725,33 @@ async function setRondePlannedProfileValidated(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
   const db = requireRondePersistence(store, "data:rondePlannedProfiles:validated");
   const id = String(payload.id || "").trim();
-  const existing = await db.get("SELECT * FROM data_ronde_planned_profiles WHERE id = ?", [id]);
-  if (!existing) store.fail("data:rondePlannedProfiles:validated", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
   const validated = Boolean(payload.validated);
   const now = new Date().toISOString();
   const actor = String(payload.requesterUsername || "unknown").trim();
-  await db.run(
-    `UPDATE data_ronde_planned_profiles SET validated_at = ?, validated_by = ?, updated_at = ? WHERE id = ?`,
-    [validated ? now : null, validated ? actor : null, now, id]
-  );
-  store.logAudit({ actorUsername: actor, action: "DATA_RONDE_PLANNED_PROFILE_VALIDATION",
-    details: { label: existing.label || "",
-      before: { validatedAt: existing.validated_at || null, validatedByUsername: existing.validated_by || null },
-      after: { validatedAt: validated ? now : null, validatedByUsername: validated ? actor : null } } });
+  await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_PLANNED_PROFILE_SELECT} FROM data_ronde_planned_profiles WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!existing) store.fail("data:rondePlannedProfiles:validated", "Profil introuvable.", "DATA_RONDE_PLANNED_NOT_FOUND");
+    assertOptimisticLock(
+      store,
+      "data:rondePlannedProfiles:validated",
+      existing,
+      payload.expectedUpdatedAt,
+      "DATA_RONDE_PLANNED_CONFLICT",
+      "Profil modifié ailleurs. Actualisez la liste."
+    );
+    await tx.run(
+      `UPDATE data_ronde_planned_profiles SET validated_at = ?, validated_by = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [validated ? now : null, validated ? actor : null, now, id, payload.expectedUpdatedAt]
+    );
+    store.logAudit({ actorUsername: actor, action: "DATA_RONDE_PLANNED_PROFILE_VALIDATION",
+      details: { label: existing.label || "",
+        before: { validatedAt: existing.validated_at || null, validatedByUsername: existing.validated_by || null },
+        after: { validatedAt: validated ? now : null, validatedByUsername: validated ? actor : null } } });
+  });
   return getProfileById(db, id);
 }
 

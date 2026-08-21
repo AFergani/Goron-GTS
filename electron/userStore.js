@@ -436,22 +436,6 @@ class UserStore {
 
   // --- Authentification et comptes (`authUsers`) ---
 
-  isFullNamePasswordPairUsedByAnotherUser(fullName, rawPassword, excludedUserId = null) {
-    return authUsersDomain.isFullNamePasswordPairUsedByAnotherUser(this, fullName, rawPassword, excludedUserId);
-  }
-
-  assertFullNamePasswordPairUnique(fullName, rawPassword, source, excludedUserId = null) {
-    return authUsersDomain.assertFullNamePasswordPairUnique(this, fullName, rawPassword, source, excludedUserId);
-  }
-
-  generateUniqueTemporaryPasswordForFullName(fullName, excludedUserId = null) {
-    return authUsersDomain.generateUniqueTemporaryPasswordForFullName(this, fullName, excludedUserId);
-  }
-
-  generateUniqueUsername() {
-    return authUsersDomain.generateUniqueUsername(this);
-  }
-
   sanitizeUser(user) {
     return authUsersDomain.sanitizeUser(user);
   }
@@ -485,7 +469,17 @@ class UserStore {
     });
   }
 
-  async updateUserProfile({ requesterRole, requesterUsername, username, fullName, newRole, managerProfile, pageAccess, mustResetPassword }) {
+  async updateUserProfile({
+    requesterRole,
+    requesterUsername,
+    username,
+    fullName,
+    newRole,
+    managerProfile,
+    pageAccess,
+    mustResetPassword,
+    expectedUpdatedAt
+  }) {
     await this.whenPostgresReady();
     return authUsersDomain.updateUserProfile(this, {
       requesterRole,
@@ -496,6 +490,7 @@ class UserStore {
       managerProfile,
       pageAccess,
       mustResetPassword,
+      expectedUpdatedAt,
       role: ROLE
     });
   }
@@ -537,7 +532,7 @@ class UserStore {
   }
 
   /**
-   * Journal technique (`error_logs`) — transitions PG, échecs métier loggés, etc.
+   * Journal technique local (`gts-pg-events.log`) — transitions PG du poste.
    * Réservé Admin / Responsable de station / Directeur de station.
    */
   async listTechErrorLogs({ requesterRole, requesterUsername, limit = 200 }) {
@@ -631,7 +626,18 @@ class UserStore {
     });
   }
 
-  async updateSite({ requesterRole, requesterUsername, id, code, name, address, parc, famille, auditMode = "single" }) {
+  async updateSite({
+    requesterRole,
+    requesterUsername,
+    id,
+    code,
+    name,
+    address,
+    parc,
+    famille,
+    expectedUpdatedAt,
+    auditMode = "single"
+  }) {
     return referentialsDomain.updateSite(this, {
       requesterRole,
       requesterUsername,
@@ -641,6 +647,7 @@ class UserStore {
       address,
       parc,
       famille,
+      expectedUpdatedAt,
       auditMode
     });
   }
@@ -657,8 +664,15 @@ class UserStore {
     return referentialsDomain.createIntervenant(this, { requesterRole, requesterUsername, name, auditMode });
   }
 
-  async updateIntervenant({ requesterRole, requesterUsername, id, name, auditMode = "single" }) {
-    return referentialsDomain.updateIntervenant(this, { requesterRole, requesterUsername, id, name, auditMode });
+  async updateIntervenant({ requesterRole, requesterUsername, id, name, expectedUpdatedAt, auditMode = "single" }) {
+    return referentialsDomain.updateIntervenant(this, {
+      requesterRole,
+      requesterUsername,
+      id,
+      name,
+      expectedUpdatedAt,
+      auditMode
+    });
   }
 
   async deleteIntervenant({ requesterRole, requesterUsername, id, reason }) {
@@ -713,8 +727,24 @@ class UserStore {
     return referentialsDomain.createAnomalyType(this, { requesterRole, requesterUsername, label, colorHex, auditMode });
   }
 
-  async updateAnomalyType({ requesterRole, requesterUsername, id, label, colorHex, auditMode = "single" }) {
-    return referentialsDomain.updateAnomalyType(this, { requesterRole, requesterUsername, id, label, colorHex, auditMode });
+  async updateAnomalyType({
+    requesterRole,
+    requesterUsername,
+    id,
+    label,
+    colorHex,
+    expectedUpdatedAt,
+    auditMode = "single"
+  }) {
+    return referentialsDomain.updateAnomalyType(this, {
+      requesterRole,
+      requesterUsername,
+      id,
+      label,
+      colorHex,
+      expectedUpdatedAt,
+      auditMode
+    });
   }
 
   async deleteAnomalyType({ requesterRole, requesterUsername, id, reason }) {
@@ -923,11 +953,6 @@ class UserStore {
       id,
       role: ROLE
     });
-  }
-
-  async hasMainCouranteEntry(id) {
-    await this.whenPostgresReady();
-    return mainCouranteDomain.hasMainCouranteEntry(this, id);
   }
 
   // --- Interventions (PostgreSQL only, dossier domains/intervention) ---

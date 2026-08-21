@@ -1,13 +1,45 @@
 /**
  * Mapping PostgreSQL et snapshots d'audit du domaine Rondes.
  *
- * Ce module est strictement aligné sur le stockage PostgreSQL et ne conserve pas
- * d'ancien chemin de migration ou de compatibilité historique.
+ * Appelé par `entries.js` (CRUD, lots, statuts). Colonnes explicites pour éviter `SELECT *`.
  *
  * @module electron/store/domains/ronde/mapping
  */
 
-/** @param {unknown} raw @param {object|null} fallback @returns {object|null} */
+/**
+ * Colonnes de `ronde_entries` (sans préfixe table).
+ * @type {string}
+ */
+const RONDE_ENTRY_SELECT = `id, created_at, updated_at, source, origin_intervention_id, site_id, site_display,
+  request_date, motif_type_id, motif_category, motif_other, horaires_demande_obs, origin_kind, origin_detail,
+  intervenant_id, intervenant_name, arrival_time, departure_time, duration_minutes, work_order_number, report,
+  status, cancellation_reason, closed_at, planned_profile_id, planned_round_kind, planned_slot_key,
+  closure_custom_values_json, request_planning_snapshot_json, request_batch_id`;
+
+/**
+ * Même colonnes avec préfixe `r.` pour les jointures motif.
+ * @type {string}
+ */
+const RONDE_ENTRY_SELECT_R = RONDE_ENTRY_SELECT.split(",")
+  .map((part) => `r.${part.trim()}`)
+  .join(", ");
+
+/**
+ * Colonnes de `data_ronde_planned_profiles` (sans jointures d'affichage).
+ * @type {string}
+ */
+const RONDE_PLANNED_PROFILE_SELECT = `id, label, site_id, intervenant_id, notes, is_active, closure_form_enabled,
+  create_rounds_enabled, closure_fields_json, planning_valid_from, planning_valid_to,
+  cancellation_request_reason, cancellation_requested_at, cancellation_requested_by,
+  validated_at, validated_by, created_at, updated_at`;
+
+/**
+ * Parse un JSON objet (pg / texte).
+ *
+ * @param {unknown} raw
+ * @param {object|null} [fallback={}]
+ * @returns {object|null}
+ */
 function parseJsonObject(raw, fallback = {}) {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
   if (raw == null || raw === "") return fallback;
@@ -19,10 +51,29 @@ function parseJsonObject(raw, fallback = {}) {
   }
 }
 
-/** @param {unknown} raw @returns {object|null} */
+/**
+ * Instantané de planification v1 (demande exceptionnelle).
+ *
+ * @param {unknown} raw
+ * @returns {object|null}
+ */
 function parsePlanningSnapshot(raw) {
   const parsed = parseJsonObject(raw, null);
   return parsed?.version === 1 ? parsed : null;
+}
+
+/**
+ * Identifiant de fiche ronde (trim).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @param {string} source
+ * @returns {string}
+ */
+function requireEntryId(store, payload, source) {
+  const id = String(payload?.id || "").trim();
+  if (!id) store.fail(source, "Identifiant manquant.", "RONDE_ID_REQUIRED");
+  return id;
 }
 
 /**
@@ -73,23 +124,32 @@ function mapRondeRow(row) {
   };
 }
 
-/** @param {object} row @returns {object} */
+/**
+ * Champs métier pour l'audit (libellés, pas d'UUID de fiche).
+ *
+ * @param {object} row - Ligne SQL
+ * @returns {object}
+ */
 function toRondeAuditSnapshot(row) {
   return {
     source: row.source || "URGENCE",
-    siteDisplay: row.site_display || "",
-    requestDate: row.request_date || "",
-    motifLabel: row.motif_category || "",
-    intervenantName: row.intervenant_name || "",
-    arrivalTime: row.arrival_time || "",
-    departureTime: row.departure_time || "",
+    siteDisplay: row.site_display || row.siteDisplay || "",
+    requestDate: row.request_date || row.requestDate || "",
+    motifLabel: row.motif_category || row.motifCategorySnapshot || row.motifLabel || "",
+    intervenantName: row.intervenant_name || row.intervenantName || "",
+    arrivalTime: row.arrival_time || row.arrivalTime || "",
+    departureTime: row.departure_time || row.departureTime || "",
     status: row.status || ""
   };
 }
 
 module.exports = {
+  RONDE_ENTRY_SELECT,
+  RONDE_ENTRY_SELECT_R,
+  RONDE_PLANNED_PROFILE_SELECT,
   mapRondeRow,
   parseJsonObject,
   parsePlanningSnapshot,
+  requireEntryId,
   toRondeAuditSnapshot
 };

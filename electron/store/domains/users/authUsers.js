@@ -11,7 +11,8 @@
 const crypto = require("crypto");
 const { hashPassword, verifyPassword, needsPasswordMigration, isPasswordRecentlyUsed, pushPasswordHistory } = require("../../core/password");
 const { generateEntityId } = require("../../core/ids");
-const { normalizePageAccess, sanitizeUser, toUserAuditSnapshot } = require("./userMapping");
+const { normalizePageAccess, sanitizeUser, toUserAuditSnapshot, USERS_SELECT } = require("./userMapping");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 
 const MANAGER_PROFILES = ["SUPERVISEUR", "RESPONSABLE_STATION", "DIRECTEUR_STATION"];
 const MAX_FAILED_ATTEMPTS = 5;
@@ -56,7 +57,7 @@ async function refreshUsersCache(store) {
   if (!db || !db.isOpen()) {
     return store._usersByUsernameCache instanceof Map ? store._usersByUsernameCache : new Map();
   }
-  const rows = await db.all(`SELECT * FROM users`, []);
+  const rows = await db.all(`SELECT ${USERS_SELECT} FROM users`, []);
   const map = new Map();
   for (const row of rows) {
     const key = String(row.username || "").trim().toLowerCase();
@@ -387,7 +388,7 @@ async function login(store, { username, password, role }) {
   if (!normalizedFullName) {
     store.fail("auth:login", "Veuillez saisir un nom affiché.", "AUTH_DISPLAY_NAME_REQUIRED");
   }
-  const rows = await db.all("SELECT * FROM users WHERE lower(full_name) = ?", [normalizedFullName]);
+  const rows = await db.all(`SELECT ${USERS_SELECT} FROM users WHERE lower(full_name) = ?`, [normalizedFullName]);
   const users = rows.filter((row) => isDatabaseBooleanTrue(row.is_active));
   if (!users.length) {
     store.fail("auth:login", "Nom affiché inconnu.", "AUTH_USER_NOT_FOUND", { fullName: normalizedFullName });
@@ -416,39 +417,55 @@ async function login(store, { username, password, role }) {
     if (password === store.devMasterCode) user = { ...devUser, must_change_password: false };
   }
   if (!user) {
-    for (const entry of standardUsers) {
-      const attempts = Number(entry.failed_login_attempts || 0) + 1;
-      const locked = attempts >= MAX_FAILED_ATTEMPTS;
-      await db.run(
-        "UPDATE users SET failed_login_attempts = ?, is_locked = ?, updated_at = ? WHERE username = ?",
-        [attempts, locked, new Date().toISOString(), entry.username]
-      );
-      if (locked) {
-        store.logAudit({
-          actorUsername: entry.username,
-          action: "AUTH_ACCOUNT_LOCKED",
-          targetUsername: entry.username,
-          details: { reason: "Trop de tentatives de connexion échouées", attempts }
-        });
+    await db.transaction(async (tx) => {
+      for (const entry of standardUsers) {
+        const lockedRow = await tx.get(
+          `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+          [entry.username]
+        );
+        if (!lockedRow || !isDatabaseBooleanTrue(lockedRow.is_active)) continue;
+        const attempts = Number(lockedRow.failed_login_attempts || 0) + 1;
+        const locked = attempts >= MAX_FAILED_ATTEMPTS;
+        await tx.run(
+          "UPDATE users SET failed_login_attempts = ?, is_locked = ?, updated_at = ? WHERE username = ?",
+          [attempts, locked, new Date().toISOString(), entry.username]
+        );
+        if (locked) {
+          store.logAudit({
+            actorUsername: entry.username,
+            action: "AUTH_ACCOUNT_LOCKED",
+            targetUsername: entry.username,
+            details: { reason: "Trop de tentatives de connexion échouées", attempts }
+          });
+        }
       }
-    }
+    });
     await refreshUsersCache(store);
     store.fail("auth:login", "Mot de passe invalide.", "AUTH_BAD_PASSWORD", { fullName: normalizedFullName });
   }
 
   if (authenticatedWithPassword) {
-    await db.run(
-      "UPDATE users SET failed_login_attempts = 0, is_locked = ?, updated_at = ? WHERE username = ?",
-      [false, new Date().toISOString(), user.username]
-    );
-    if (needsPasswordMigration(user.password_hash)) {
-      await db.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?", [
-        hashPassword(password),
-        new Date().toISOString(),
-        user.username
-      ]);
-    }
-    user = await db.get("SELECT * FROM users WHERE username = ?", [user.username]);
+    user = await db.transaction(async (tx) => {
+      const row = await tx.get(
+        `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+        [user.username]
+      );
+      if (!row) {
+        store.fail("auth:login", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND");
+      }
+      await tx.run(
+        "UPDATE users SET failed_login_attempts = 0, is_locked = ?, updated_at = ? WHERE username = ?",
+        [false, new Date().toISOString(), row.username]
+      );
+      if (needsPasswordMigration(row.password_hash)) {
+        await tx.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?", [
+          hashPassword(password),
+          new Date().toISOString(),
+          row.username
+        ]);
+      }
+      return tx.get(`SELECT ${USERS_SELECT} FROM users WHERE username = ?`, [row.username]);
+    });
   }
   await refreshUsersCache(store);
   store.logAudit({ actorUsername: user.username, action: "AUTH_LOGIN", targetUsername: user.username });
@@ -465,21 +482,26 @@ async function unlockUser(store, { requesterRole, requesterUsername, username, r
   await refreshUsersCache(store);
   const requester = getRequesterRow(store, requesterUsername);
   if (!isStationAdminRequester(requester, role) && !isSuperviseurRequester(requester, role)) {
-    store.fail("users:unlock", "Acces refuse: droits insuffisants.", "AUTH_FORBIDDEN", { requesterUsername });
+    store.fail("users:unlock", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterUsername });
   }
   const normalizedUsername = normalizeUsername(username);
-  const user = await db.get("SELECT * FROM users WHERE username = ?", [normalizedUsername]);
-  if (!user || !isDatabaseBooleanTrue(user.is_active)) {
-    store.fail("users:unlock", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { username: normalizedUsername });
-  }
-  if (user.role === role.DEV) {
-    store.fail("users:unlock", "Le compte Admin ne peut pas etre modifie.", "USER_PROTECTED");
-  }
-  assertHigherRankForPasswordOrUnlock(store, requester, user, role, "users:unlock");
-  await db.run(
-    "UPDATE users SET failed_login_attempts = 0, is_locked = ?, updated_at = ? WHERE username = ?",
-    [false, new Date().toISOString(), normalizedUsername]
-  );
+  await db.transaction(async (tx) => {
+    const user = await tx.get(
+      `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+      [normalizedUsername]
+    );
+    if (!user || !isDatabaseBooleanTrue(user.is_active)) {
+      store.fail("users:unlock", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { username: normalizedUsername });
+    }
+    if (user.role === role.DEV) {
+      store.fail("users:unlock", "Le compte Admin ne peut pas être modifié.", "USER_PROTECTED");
+    }
+    assertHigherRankForPasswordOrUnlock(store, requester, user, role, "users:unlock");
+    await tx.run(
+      "UPDATE users SET failed_login_attempts = 0, is_locked = ?, updated_at = ? WHERE username = ?",
+      [false, new Date().toISOString(), normalizedUsername]
+    );
+  });
   await refreshUsersCache(store);
   store.logAudit({
     actorUsername: requesterUsername,
@@ -498,23 +520,23 @@ async function unlockUser(store, { requesterRole, requesterUsername, username, r
 async function completeFirstLogin(store, { username, temporaryPassword, newPassword }) {
   const db = requirePersistence(store);
   const normalizedFullName = normalizeDisplayName(username);
-  const rows = await db.all("SELECT * FROM users WHERE lower(full_name) = ?", [normalizedFullName]);
-  const user = rows.find(
+  const rows = await db.all(`SELECT ${USERS_SELECT} FROM users WHERE lower(full_name) = ?`, [normalizedFullName]);
+  const candidate = rows.find(
     (entry) =>
       isDatabaseBooleanTrue(entry.is_active) &&
       isDatabaseBooleanTrue(entry.must_change_password) &&
       verifyPassword(temporaryPassword, entry.password_hash)
   );
-  if (!user) {
+  if (!candidate) {
     store.fail("auth:firstLogin", "Nom affiché ou mot de passe temporaire invalide.", "AUTH_TEMP_PASSWORD_INVALID", {
       fullName: normalizedFullName
     });
   }
   if (!newPassword || newPassword.length < 6) {
-    store.fail("auth:firstLogin", "Le mot de passe doit contenir au moins 6 caracteres.", "AUTH_PASSWORD_TOO_SHORT");
+    store.fail("auth:firstLogin", "Le mot de passe doit contenir au moins 6 caractères.", "AUTH_PASSWORD_TOO_SHORT");
   }
   assertPasswordNotBlacklisted(newPassword);
-  if (isPasswordRecentlyUsed(newPassword, user.password_hash, user.password_history_json)) {
+  if (isPasswordRecentlyUsed(newPassword, candidate.password_hash, candidate.password_history_json)) {
     store.fail(
       "auth:firstLogin",
       "Mot de passe déjà utilisé récemment.",
@@ -523,18 +545,34 @@ async function completeFirstLogin(store, { username, temporaryPassword, newPassw
   }
   const passwordHash = await assertFullNamePasswordPairUnique(
     store,
-    user.full_name,
+    candidate.full_name,
     newPassword,
     "auth:firstLogin",
-    user.id
+    candidate.id
   );
-  const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
-  await db.run(
-    "UPDATE users SET password_hash = ?, password_history_json = ?, must_change_password = ?, updated_at = ? WHERE username = ?",
-    [passwordHash, nextHistoryJson, false, new Date().toISOString(), user.username]
-  );
+  await db.transaction(async (tx) => {
+    const user = await tx.get(
+      `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+      [candidate.username]
+    );
+    if (!user || !isDatabaseBooleanTrue(user.is_active) || !isDatabaseBooleanTrue(user.must_change_password)) {
+      store.fail("auth:firstLogin", "Nom affiché ou mot de passe temporaire invalide.", "AUTH_TEMP_PASSWORD_INVALID");
+    }
+    if (!verifyPassword(temporaryPassword, user.password_hash)) {
+      store.fail("auth:firstLogin", "Nom affiché ou mot de passe temporaire invalide.", "AUTH_TEMP_PASSWORD_INVALID");
+    }
+    const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
+    await tx.run(
+      "UPDATE users SET password_hash = ?, password_history_json = ?, must_change_password = ?, updated_at = ? WHERE username = ?",
+      [passwordHash, nextHistoryJson, false, new Date().toISOString(), user.username]
+    );
+  });
   await refreshUsersCache(store);
-  store.logAudit({ actorUsername: user.username, action: "AUTH_FIRST_LOGIN_COMPLETED", targetUsername: user.username });
+  store.logAudit({
+    actorUsername: candidate.username,
+    action: "AUTH_FIRST_LOGIN_COMPLETED",
+    targetUsername: candidate.username
+  });
   return { success: true };
 }
 
@@ -547,7 +585,7 @@ async function listUsers(store, { requesterUsername, role }) {
   const db = requirePersistence(store);
   await refreshUsersCache(store);
   ensureCanListUsers(store, requesterUsername, role, "users:list");
-  return (await db.all("SELECT * FROM users ORDER BY created_at DESC", [])).map(sanitizeUser);
+  return (await db.all(`SELECT ${USERS_SELECT} FROM users ORDER BY created_at DESC`, [])).map(sanitizeUser);
 }
 
 /**
@@ -591,7 +629,7 @@ async function createUser(
       requesterUsername, now, normalizedManagerProfile, JSON.stringify(normalizedPageAccess)
     ]
   );
-  const user = await db.get("SELECT * FROM users WHERE id = ?", [id]);
+  const user = await db.get(`SELECT ${USERS_SELECT} FROM users WHERE id = ?`, [id]);
   await refreshUsersCache(store);
   store.logAudit({
     actorUsername: requesterUsername,
@@ -621,42 +659,50 @@ async function deactivateUser(store, { requesterRole, requesterUsername, usernam
   await refreshUsersCache(store);
   ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:deactivate");
   const normalizedUsername = normalizeUsername(username);
-  const user = await db.get("SELECT * FROM users WHERE username = ?", [normalizedUsername]);
-  if (!user || !isDatabaseBooleanTrue(user.is_active)) {
-    store.fail("users:deactivate", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { username: normalizedUsername });
-  }
-  if (user.role === role.DEV) {
-    store.fail("users:deactivate", "Le compte Admin ne peut pas etre supprime.", "USER_PROTECTED");
-  }
-  const normalizedReason = String(reason || "").trim() ||
-    "Désactivation demandée depuis la gestion des utilisateurs.";
-  const beforeAudit = toUserAuditSnapshot(user);
   const usage = await hasRelatedDataForUserDeletion(store, normalizedUsername);
-  if (!usage.hasRelated) {
-    await db.run("DELETE FROM users WHERE username = ?", [normalizedUsername]);
-    await refreshUsersCache(store);
+  const outcome = await db.transaction(async (tx) => {
+    const user = await tx.get(
+      `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+      [normalizedUsername]
+    );
+    if (!user || !isDatabaseBooleanTrue(user.is_active)) {
+      store.fail("users:deactivate", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { username: normalizedUsername });
+    }
+    if (user.role === role.DEV) {
+      store.fail("users:deactivate", "Le compte Admin ne peut pas être supprimé.", "USER_PROTECTED");
+    }
+    const beforeAudit = toUserAuditSnapshot(user);
+    const normalizedReason =
+      String(reason || "").trim() || "Désactivation demandée depuis la gestion des utilisateurs.";
+    if (!usage.hasRelated) {
+      await tx.run("DELETE FROM users WHERE username = ?", [normalizedUsername]);
+      return { mode: "hard_delete", beforeAudit, normalizedReason };
+    }
+    await tx.run(
+      "UPDATE users SET is_active = ?, updated_by = ?, updated_at = ? WHERE username = ?",
+      [false, requesterUsername, new Date().toISOString(), normalizedUsername]
+    );
+    return { mode: "deactivated", beforeAudit, normalizedReason };
+  });
+  await refreshUsersCache(store);
+  if (outcome.mode === "hard_delete") {
     store.logAudit({
       actorUsername: requesterUsername,
       action: "USER_DELETE_HARD",
       targetUsername: normalizedUsername,
-      details: { reason: normalizedReason, relatedUsage: usage.related, deleted: beforeAudit }
+      details: { reason: outcome.normalizedReason, relatedUsage: usage.related, deleted: outcome.beforeAudit }
     });
     return { success: true, mode: "hard_delete" };
   }
-  await db.run(
-    "UPDATE users SET is_active = ?, updated_by = ?, updated_at = ? WHERE username = ?",
-    [false, requesterUsername, new Date().toISOString(), normalizedUsername]
-  );
-  await refreshUsersCache(store);
   store.logAudit({
     actorUsername: requesterUsername,
     action: "USER_DEACTIVATE",
     targetUsername: normalizedUsername,
     details: {
-      reason: normalizedReason,
+      reason: outcome.normalizedReason,
       relatedUsage: usage.related,
-      before: beforeAudit,
-      after: { ...beforeAudit, isActive: false }
+      before: outcome.beforeAudit,
+      after: { ...outcome.beforeAudit, isActive: false }
     }
   });
   return { success: true, mode: "deactivated" };
@@ -675,34 +721,47 @@ async function reactivateUser(store, { requesterRole, requesterUsername, usernam
   await refreshUsersCache(store);
   ensureUserAdminPermission(store, requesterRole, requesterUsername, role, "users:reactivate");
   const normalizedUsername = normalizeUsername(username);
-  const user = await db.get("SELECT * FROM users WHERE username = ?", [normalizedUsername]);
-  if (!user || isDatabaseBooleanTrue(user.is_active)) {
-    store.fail("users:reactivate", "Utilisateur introuvable ou déjà actif.", "AUTH_USER_NOT_FOUND");
-  }
-  if (user.role === role.DEV) {
-    store.fail("users:reactivate", "Le compte Admin ne peut pas etre modifie.", "USER_PROTECTED");
-  }
   const normalizedReason = String(reason || "").trim();
   if (!normalizedReason) {
     store.fail("users:reactivate", "Le motif de réactivation est obligatoire.", "USER_REASON_REQUIRED");
   }
-  const cleanFullName = String(fullName != null ? fullName : user.full_name || "").trim();
+  const preview = await db.get(`SELECT ${USERS_SELECT} FROM users WHERE username = ?`, [normalizedUsername]);
+  if (!preview || isDatabaseBooleanTrue(preview.is_active)) {
+    store.fail("users:reactivate", "Utilisateur introuvable ou déjà actif.", "AUTH_USER_NOT_FOUND");
+  }
+  if (preview.role === role.DEV) {
+    store.fail("users:reactivate", "Le compte Admin ne peut pas être modifié.", "USER_PROTECTED");
+  }
+  const cleanFullName = String(fullName != null ? fullName : preview.full_name || "").trim();
   if (!cleanFullName) {
     store.fail("users:reactivate", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
-  await assertActiveFullNameUnique(store, cleanFullName, "users:reactivate", user.id);
-  const before = toUserAuditSnapshot(user);
-  const temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, user.id);
-  const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
+  await assertActiveFullNameUnique(store, cleanFullName, "users:reactivate", preview.id);
+  const temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, preview.id);
   const passwordHash = hashPassword(temporaryPassword);
   const now = new Date().toISOString();
-  await db.run(
-    `UPDATE users
-     SET is_active = ?, full_name = ?, password_hash = ?, password_history_json = ?, must_change_password = ?,
-         failed_login_attempts = 0, is_locked = ?, updated_by = ?, updated_at = ?
-     WHERE username = ?`,
-    [true, cleanFullName, passwordHash, nextHistoryJson, true, false, requesterUsername, now, normalizedUsername]
-  );
+  const before = await db.transaction(async (tx) => {
+    const user = await tx.get(
+      `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+      [normalizedUsername]
+    );
+    if (!user || isDatabaseBooleanTrue(user.is_active)) {
+      store.fail("users:reactivate", "Utilisateur introuvable ou déjà actif.", "AUTH_USER_NOT_FOUND");
+    }
+    if (user.role === role.DEV) {
+      store.fail("users:reactivate", "Le compte Admin ne peut pas être modifié.", "USER_PROTECTED");
+    }
+    const snapshot = toUserAuditSnapshot(user);
+    const nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
+    await tx.run(
+      `UPDATE users
+       SET is_active = ?, full_name = ?, password_hash = ?, password_history_json = ?, must_change_password = ?,
+           failed_login_attempts = 0, is_locked = ?, updated_by = ?, updated_at = ?
+       WHERE username = ?`,
+      [true, cleanFullName, passwordHash, nextHistoryJson, true, false, requesterUsername, now, normalizedUsername]
+    );
+    return snapshot;
+  });
   await refreshUsersCache(store);
   store.logAudit({
     actorUsername: requesterUsername,
@@ -725,7 +784,18 @@ async function reactivateUser(store, { requesterRole, requesterUsername, usernam
  */
 async function updateUserProfile(
   store,
-  { requesterRole, requesterUsername, username, fullName, newRole, role, managerProfile, pageAccess, mustResetPassword }
+  {
+    requesterRole,
+    requesterUsername,
+    username,
+    fullName,
+    newRole,
+    role,
+    managerProfile,
+    pageAccess,
+    mustResetPassword,
+    expectedUpdatedAt
+  }
 ) {
   const db = requirePersistence(store);
   await refreshUsersCache(store);
@@ -734,21 +804,21 @@ async function updateUserProfile(
   const station = isStationAdminRequester(requester, role);
   const superviseurOnly = isSuperviseurRequester(requester, role);
   if (!station && !superviseurOnly) {
-    store.fail("users:updateProfile", "Acces refuse: droits insuffisants.", "AUTH_FORBIDDEN");
+    store.fail("users:updateProfile", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN");
   }
-  const user = await db.get("SELECT * FROM users WHERE username = ?", [normalizedUsername]);
-  if (!user || !isDatabaseBooleanTrue(user.is_active)) {
+  const preview = await db.get(`SELECT ${USERS_SELECT} FROM users WHERE username = ?`, [normalizedUsername]);
+  if (!preview || !isDatabaseBooleanTrue(preview.is_active)) {
     store.fail("users:updateProfile", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND");
   }
-  if (user.role === role.DEV) {
-    store.fail("users:updateProfile", "Le compte Admin ne peut pas etre modifie.", "USER_PROTECTED");
+  if (preview.role === role.DEV) {
+    store.fail("users:updateProfile", "Le compte Admin ne peut pas être modifié.", "USER_PROTECTED");
   }
-  const before = sanitizeUser(user);
+  const before = sanitizeUser(preview);
   if (superviseurOnly && !station) {
     if (!mustResetPassword) {
       store.fail(
         "users:updateProfile",
-        "Seule la reinitialisation du mot de passe est autorisee pour votre profil.",
+        "Seule la réinitialisation du mot de passe est autorisée pour votre profil.",
         "AUTH_SUPERVISEUR_ONLY_PASSWORD_RESET"
       );
     }
@@ -759,7 +829,7 @@ async function updateUserProfile(
       String(nextManager || "") !== String(before.managerProfile || "") ||
       JSON.stringify(normalizePageAccess(pageAccess, newRole)) !== JSON.stringify(before.pageAccess)
     ) {
-      store.fail("users:updateProfile", "Modification du profil non autorisee.", "AUTH_FORBIDDEN");
+      store.fail("users:updateProfile", "Modification du profil non autorisée.", "AUTH_FORBIDDEN");
     }
   } else {
     ensureStationAdminAccess(store, requesterUsername, role, "users:updateProfile");
@@ -768,9 +838,9 @@ async function updateUserProfile(
   if (!cleanFullName) {
     store.fail("users:updateProfile", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
-  await assertActiveFullNameUnique(store, cleanFullName, "users:updateProfile", user.id);
+  await assertActiveFullNameUnique(store, cleanFullName, "users:updateProfile", preview.id);
   if (![role.OPERATEUR, role.RESPONSABLE].includes(newRole)) {
-    store.fail("users:updateProfile", "Role invalide.", "USER_BAD_ROLE", { newRole });
+    store.fail("users:updateProfile", "Rôle invalide.", "USER_BAD_ROLE", { newRole });
   }
   if (newRole === role.RESPONSABLE && !MANAGER_PROFILES.includes(managerProfile || "")) {
     store.fail("users:updateProfile", "Profil responsable invalide.", "USER_BAD_MANAGER_PROFILE");
@@ -780,28 +850,55 @@ async function updateUserProfile(
     ? normalizePageAccess(pageAccess, newRole)
     : normalizePageAccess(before.pageAccess, newRole);
   if (mustResetPassword) {
-    assertHigherRankForPasswordOrUnlock(store, requester, user, role, "users:updateProfile");
+    assertHigherRankForPasswordOrUnlock(store, requester, preview, role, "users:updateProfile");
   }
   let temporaryPassword = null;
-  let passwordHash = user.password_hash;
-  let nextMustChangePassword = isDatabaseBooleanTrue(user.must_change_password);
-  let nextHistoryJson = user.password_history_json || null;
+  let passwordHash = preview.password_hash;
+  let nextMustChangePassword = isDatabaseBooleanTrue(preview.must_change_password);
+  let nextHistoryJson = preview.password_history_json || null;
   if (mustResetPassword) {
-    temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, user.id);
-    nextHistoryJson = pushPasswordHistory(user.password_hash, user.password_history_json);
+    temporaryPassword = await generateUniqueTemporaryPasswordForFullName(store, cleanFullName, preview.id);
+    nextHistoryJson = pushPasswordHistory(preview.password_hash, preview.password_history_json);
     passwordHash = hashPassword(temporaryPassword);
     nextMustChangePassword = true;
   }
-  await db.run(
-    `UPDATE users
-     SET full_name = ?, role = ?, manager_profile = ?, page_access_json = ?, password_hash = ?,
-         password_history_json = ?, must_change_password = ?, updated_by = ?, updated_at = ?
-     WHERE username = ?`,
-    [
-      cleanFullName, newRole, nextManagerProfile, JSON.stringify(nextPageAccess), passwordHash,
-      nextHistoryJson, nextMustChangePassword, requesterUsername, new Date().toISOString(), normalizedUsername
-    ]
-  );
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const user = await tx.get(
+      `SELECT ${USERS_SELECT} FROM users WHERE username = ? FOR UPDATE`,
+      [normalizedUsername]
+    );
+    if (!user || !isDatabaseBooleanTrue(user.is_active)) {
+      store.fail("users:updateProfile", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND");
+    }
+    assertOptimisticLock(store, "users:updateProfile", user, expectedUpdatedAt, "USER_PROFILE_CONFLICT");
+    const result = await tx.run(
+      `UPDATE users
+       SET full_name = ?, role = ?, manager_profile = ?, page_access_json = ?, password_hash = ?,
+           password_history_json = ?, must_change_password = ?, updated_by = ?, updated_at = ?
+       WHERE username = ? AND updated_at IS NOT DISTINCT FROM ?`,
+      [
+        cleanFullName,
+        newRole,
+        nextManagerProfile,
+        JSON.stringify(nextPageAccess),
+        passwordHash,
+        nextHistoryJson,
+        nextMustChangePassword,
+        requesterUsername,
+        now,
+        normalizedUsername,
+        expectedUpdatedAt ?? null
+      ]
+    );
+    if (!result.changes) {
+      store.fail(
+        "users:updateProfile",
+        "Cette fiche a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "USER_PROFILE_CONFLICT"
+      );
+    }
+  });
   const verify = await db.get("SELECT full_name FROM users WHERE username = ?", [normalizedUsername]);
   if (!verify || String(verify.full_name || "").trim() !== cleanFullName) {
     store.fail(
@@ -864,10 +961,18 @@ async function ensureDevUser(store, { roles }) {
 }
 
 module.exports = {
-  isActiveFullNameUsedByAnotherUser, assertActiveFullNameUnique,
-  isFullNamePasswordPairUsedByAnotherUser, assertFullNamePasswordPairUnique,
-  generateUniqueTemporaryPasswordForFullName, generateUniqueUsername, sanitizeUser,
-  login, completeFirstLogin, listUsers, createUser, deactivateUser, updateUserProfile,
-  reactivateUser, unlockUser, ensureDevUser, ensureStationAdminAccess, refreshUsersCache,
-  getCachedUserRow, isStationAdminRequester
+  sanitizeUser,
+  login,
+  completeFirstLogin,
+  listUsers,
+  createUser,
+  deactivateUser,
+  updateUserProfile,
+  reactivateUser,
+  unlockUser,
+  ensureDevUser,
+  ensureStationAdminAccess,
+  refreshUsersCache,
+  getCachedUserRow,
+  isStationAdminRequester
 };

@@ -15,6 +15,7 @@ export type RondeMotifTypeRef = {
   colorHex: string;
   sortOrder: number;
   createdAt: string;
+  updatedAt?: string | null;
   /** Motif injecté en base, non modifiable ni supprimable. */
   isSystem?: boolean;
 };

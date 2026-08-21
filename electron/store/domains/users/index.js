@@ -1,7 +1,8 @@
 /**
- * Point d'entrée des domaines utilisateurs.
+ * Point d'entrée du domaine utilisateurs.
  *
- * Regroupe l'authentification, la gestion des comptes et les préférences utilisateur.
+ * Authentification / comptes (`authUsers`), préférences thème (`userPreferences`),
+ * présence multi-postes (`presence`).
  *
  * @module electron/store/domains/users
  */

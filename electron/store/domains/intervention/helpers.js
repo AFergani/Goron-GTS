@@ -228,8 +228,6 @@ function ensureInterventionPayload(store, payload) {
 
 module.exports = {
   ensureInterventionPayload,
-  getMissingClosureFields,
   getMissingClosureFieldsFromRow,
-  INTERVENTION_NO_WORK_ORDER_LABEL,
   resolveWorkOrderNumber
 };

@@ -86,23 +86,28 @@ async function createPendingIntervenant(store, { requesterRole, requesterUsernam
       "DATA_PENDING_INTERVENANT_NAME_REQUIRED"
     );
   }
-  if (await db.get(`SELECT id FROM data_intervenants WHERE ${FOLD_NAME} LIMIT 1`, [cleanName])) {
-    return { success: true, alreadyExists: true };
-  }
-  if (await db.get(`SELECT id FROM data_intervenant_pending WHERE ${FOLD_NAME} LIMIT 1`, [cleanName])) {
-    return { success: true, alreadyExists: true };
-  }
-  const id = generateEntityId();
-  await db.run(
-    `INSERT INTO data_intervenant_pending (${PENDING_SELECT}) VALUES (?, ?, ?, ?)`,
-    [id, cleanName, actor, new Date().toISOString()]
-  );
-  store.logAudit({
-    actorUsername: actor,
-    action: "DATA_INTERVENANT_PENDING_CREATE",
-    details: { pendingIntervenant: { name: cleanName } }
+  const outcome = await db.transaction(async (tx) => {
+    if (await tx.get(`SELECT id FROM data_intervenants WHERE ${FOLD_NAME} LIMIT 1`, [cleanName])) {
+      return { alreadyExists: true };
+    }
+    if (await tx.get(`SELECT id FROM data_intervenant_pending WHERE ${FOLD_NAME} LIMIT 1`, [cleanName])) {
+      return { alreadyExists: true };
+    }
+    const id = generateEntityId();
+    await tx.run(
+      `INSERT INTO data_intervenant_pending (${PENDING_SELECT}) VALUES (?, ?, ?, ?)`,
+      [id, cleanName, actor, new Date().toISOString()]
+    );
+    return { alreadyExists: false };
   });
-  return { success: true, alreadyExists: false };
+  if (!outcome.alreadyExists) {
+    store.logAudit({
+      actorUsername: actor,
+      action: "DATA_INTERVENANT_PENDING_CREATE",
+      details: { pendingIntervenant: { name: cleanName } }
+    });
+  }
+  return { success: true, alreadyExists: outcome.alreadyExists };
 }
 
 /**
@@ -152,13 +157,21 @@ async function resolvePendingIntervenant(store, { requesterRole, requesterUserna
        WHERE intervenant_id IS NULL AND ${FOLD_INTERVENANT_NAME}`,
       [intervenantId, finalName, pending.name]
     );
+    const other = await propagateIntervenantToOtherDomains(
+      store,
+      intervenantId,
+      finalName,
+      pending.name,
+      tx
+    );
     return {
       pending,
       finalName,
       intervenantId,
       created: !existing,
       alreadyExists: Boolean(existing),
-      interventionEntries: Number(result.changes || 0)
+      interventionEntries: Number(result.changes || 0),
+      propagation: { interventionEntries: Number(result.changes || 0), ...other }
     };
   });
   if (resolved.created) {
@@ -169,15 +182,7 @@ async function resolvePendingIntervenant(store, { requesterRole, requesterUserna
       snapshot: { name: resolved.finalName }
     });
   }
-  const propagation = {
-    interventionEntries: resolved.interventionEntries,
-    ...(await propagateIntervenantToOtherDomains(
-      store,
-      resolved.intervenantId,
-      resolved.finalName,
-      resolved.pending.name
-    ))
-  };
+  const propagation = resolved.propagation;
   store.logAudit({
     actorUsername: actor,
     action: "DATA_INTERVENANT_PENDING_RESOLVE",

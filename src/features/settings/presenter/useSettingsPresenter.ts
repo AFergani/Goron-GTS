@@ -600,7 +600,8 @@ export function useSettingsPresenter({
           newRole: createForm.role,
           managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
           pageAccess: payloadPageAccess,
-          mustResetPassword: createForm.mustResetPassword
+          mustResetPassword: createForm.mustResetPassword,
+          expectedUpdatedAt: existingUser?.updatedAt ?? null
         });
         onToast("Utilisateur modifié.");
         if (
@@ -697,10 +698,12 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
+      const current = sites.find((s) => s.id === payload.id);
       await gtsApiClient.updateSite({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
-        ...payload
+        ...payload,
+        expectedUpdatedAt: current?.updatedAt ?? null
       });
       onToast("Site modifié.");
       await loadSites();
@@ -741,11 +744,13 @@ export function useSettingsPresenter({
     if (!session) return;
     onError("");
     try {
+      const current = intervenants.find((item) => item.id === id);
       await gtsApiClient.updateIntervenant({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        name
+        name,
+        expectedUpdatedAt: current?.updatedAt ?? null
       });
       onToast("Intervenant modifié.");
       await loadIntervenants();
@@ -800,7 +805,8 @@ export function useSettingsPresenter({
         requesterUsername: session.user.username,
         id,
         label,
-        colorHex
+        colorHex,
+        expectedUpdatedAt: anomalyTypes.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Type d'anomalie modifié.");
       await loadAnomalyTypes();
@@ -835,7 +841,8 @@ export function useSettingsPresenter({
         requesterUsername: session.user.username,
         id,
         dateIso,
-        label
+        label,
+        expectedUpdatedAt: holidays.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Jour férié modifié.");
       await loadHolidays();
@@ -893,7 +900,8 @@ export function useSettingsPresenter({
         id,
         label,
         colorHex,
-        requiresFreeText: false
+        requiresFreeText: false,
+        expectedUpdatedAt: rondeMotifTypes.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Motif de ronde modifié.");
       await loadRondeMotifTypes();
@@ -930,7 +938,10 @@ export function useSettingsPresenter({
       await gtsApiClient.upsertRondePlannedProfile({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
-        ...payload
+        ...payload,
+        expectedUpdatedAt: payload.id
+          ? rondePlannedProfiles.find((item) => item.id === payload.id)?.updatedAt ?? null
+          : undefined
       });
       onToast(payload.id ? "Profil de planification mis à jour." : "Profil de planification créé.");
       await loadRondePlannedProfiles();
@@ -947,7 +958,8 @@ export function useSettingsPresenter({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        reason
+        reason,
+        expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Profil de planification supprimé.");
       await loadRondePlannedProfiles();
@@ -964,7 +976,8 @@ export function useSettingsPresenter({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        reason
+        reason,
+        expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Demande d'annulation envoyée.");
       await loadRondePlannedProfiles();
@@ -984,7 +997,8 @@ export function useSettingsPresenter({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        ...payload
+        ...payload,
+        expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast(payload.decision === "approve" ? "Demande d'annulation acceptée." : "Demande d'annulation refusée.");
       await loadRondePlannedProfiles();
@@ -1002,7 +1016,8 @@ export function useSettingsPresenter({
         requesterUsername: session.user.username,
         id,
         planningEndDate,
-        reason
+        reason,
+        expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Date de fin de planification enregistrée.");
       await loadRondePlannedProfiles();
@@ -1019,7 +1034,8 @@ export function useSettingsPresenter({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        validated
+        validated,
+        expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast(validated ? "Profil marqué comme validé." : "Validation du profil levée.");
       await loadRondePlannedProfiles();
@@ -1052,7 +1068,8 @@ export function useSettingsPresenter({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
-        name
+        name,
+        expectedUpdatedAt: fransorResponsables.find((item) => item.id === id)?.updatedAt ?? null
       });
       onToast("Responsable Fransor modifié.");
       await loadFransorResponsables();
@@ -1261,7 +1278,8 @@ export function useSettingsPresenter({
           newRole: user.role === "OPERATEUR" ? "OPERATEUR" : "RESPONSABLE",
           managerProfile: user.role === "RESPONSABLE" ? user.managerProfile ?? "SUPERVISEUR" : null,
           pageAccess: user.pageAccess,
-          mustResetPassword: true
+          mustResetPassword: true,
+          expectedUpdatedAt: user.updatedAt ?? null
         });
         onToast("Mot de passe réinitialisé.");
         if (result.temporaryPassword) {

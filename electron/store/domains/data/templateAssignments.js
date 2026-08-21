@@ -2,8 +2,8 @@
  * Attribution des modèles Word (.docx) par flux métier et portée (site ou famille).
  *
  * Table `data_document_template_assignments`. Les fichiers restent sur disque
- * (`data/templates`) ; seule la table d'attribution est en **PostgreSQL only**.
- * Résolution à l'export : site prioritaire sur famille pour un `flowKind` donné.
+ * (`data/templates`) ; seule la table d'attribution est en PostgreSQL.
+ * Écritures : transaction + `FOR UPDATE` ; updates : `expectedUpdatedAt` si fourni.
  *
  * @module electron/store/domains/data/templateAssignments
  */
@@ -11,6 +11,8 @@
 const { generateEntityId } = require("../../core/ids");
 const { actorName } = require("../../core/actorName");
 const { sqlFoldExpr } = require("../../core/textFold");
+const { assertOptimisticLock } = require("./optimisticLock");
+const { requireDataPersistence } = require("./persistence");
 
 /** Flux Word encore exportés : pas de gardiennage (export Word retiré). */
 const FLOW_KINDS = new Set(["INTERVENTION", "RONDE_EXCEPTIONNELLE", "RONDE_PLANIFIEE"]);
@@ -18,26 +20,6 @@ const SCOPE_KINDS = new Set(["SITE", "FAMILLE"]);
 
 const ASSIGNMENT_COLUMNS =
   "id, flow_kind, scope_kind, scope_value, scope_label, template_file_name, created_at, updated_at";
-
-/**
- * @param {import('../../../userStore')} store
- * @returns {import('../../persistence/persistenceContract').PersistenceAdapter}
- */
-function requirePersistence(store) {
-  if (typeof store.assertPostgresAvailableForReferentials === "function") {
-    store.assertPostgresAvailableForReferentials();
-  }
-  const refDb =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!refDb) {
-    store.fail(
-      "data:templateAssignments",
-      "Base PostgreSQL inaccessible. Les attributions de modèles Word ne peuvent pas être consultées ni modifiées tant que le serveur n'est pas disponible.",
-      "PG_UNAVAILABLE"
-    );
-  }
-  return refDb;
-}
 
 /**
  * @param {unknown} value
@@ -106,15 +88,17 @@ function toAssignmentSnapshot(row) {
  * @param {string} flowKind
  * @param {string} scopeKind
  * @param {string} scopeValue
+ * @param {boolean} [forUpdate=false]
  * @returns {Promise<object|undefined>}
  */
-async function findExistingAssignment(db, flowKind, scopeKind, scopeValue) {
+async function findExistingAssignment(db, flowKind, scopeKind, scopeValue, forUpdate = false) {
+  const lock = forUpdate ? " FOR UPDATE" : "";
   if (scopeKind === "FAMILLE") {
     return db.get(
       `SELECT ${ASSIGNMENT_COLUMNS}
        FROM data_document_template_assignments
        WHERE flow_kind = ? AND scope_kind = ? AND ${sqlFoldExpr("scope_value")} = ${sqlFoldExpr("?")}
-       LIMIT 1`,
+       LIMIT 1${lock}`,
       [flowKind, scopeKind, scopeValue]
     );
   }
@@ -122,7 +106,7 @@ async function findExistingAssignment(db, flowKind, scopeKind, scopeValue) {
     `SELECT ${ASSIGNMENT_COLUMNS}
      FROM data_document_template_assignments
      WHERE flow_kind = ? AND scope_kind = ? AND scope_value = ?
-     LIMIT 1`,
+     LIMIT 1${lock}`,
     [flowKind, scopeKind, scopeValue]
   );
 }
@@ -136,7 +120,7 @@ async function findExistingAssignment(db, flowKind, scopeKind, scopeValue) {
  */
 async function listTemplateAssignments(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "templates:assign:list");
   const rows = await db.all(
     `SELECT ${ASSIGNMENT_COLUMNS}
      FROM data_document_template_assignments
@@ -155,7 +139,7 @@ async function listTemplateAssignments(store, { requesterRole }) {
  */
 async function upsertTemplateAssignment(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "templates:assign:upsert");
   const actor = actorName(payload.requesterUsername);
   const flowKind = normalizeFlowKind(payload.flowKind);
   const scopeKind = normalizeScopeKind(payload.scopeKind);
@@ -178,71 +162,95 @@ async function upsertTemplateAssignment(store, payload) {
     store.fail("templates:assign:upsert", "Nom de modèle invalide.", "DATA_TEMPLATE_ASSIGN_TEMPLATE_REQUIRED");
   }
   const now = new Date().toISOString();
-  const existing = await findExistingAssignment(db, flowKind, scopeKind, scopeValue);
-  if (existing) {
-    await db.run(
-      `UPDATE data_document_template_assignments
-       SET scope_value = ?, scope_label = ?, template_file_name = ?, updated_at = ?
-       WHERE id = ?`,
-      [scopeValue, scopeLabel, templateFileName, now, existing.id]
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await findExistingAssignment(tx, flowKind, scopeKind, scopeValue, true);
+    if (existing) {
+      if (payload.expectedUpdatedAt !== undefined) {
+        assertOptimisticLock(
+          store,
+          "templates:assign:upsert",
+          existing,
+          payload.expectedUpdatedAt,
+          "DATA_TEMPLATE_ASSIGN_CONFLICT"
+        );
+      }
+      const result = await tx.run(
+        `UPDATE data_document_template_assignments
+         SET scope_value = ?, scope_label = ?, template_file_name = ?, updated_at = ?
+         WHERE id = ? AND updated_at IS NOT DISTINCT FROM ?`,
+        [
+          scopeValue,
+          scopeLabel,
+          templateFileName,
+          now,
+          existing.id,
+          payload.expectedUpdatedAt !== undefined ? payload.expectedUpdatedAt ?? null : existing.updated_at
+        ]
+      );
+      if (!result.changes) {
+        store.fail(
+          "templates:assign:upsert",
+          "Cette fiche a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+          "DATA_TEMPLATE_ASSIGN_CONFLICT"
+        );
+      }
+      return { kind: "update", existing };
+    }
+    const id = generateEntityId();
+    await tx.run(
+      `INSERT INTO data_document_template_assignments (
+        id, flow_kind, scope_kind, scope_value, scope_label, template_file_name, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName, now, now]
     );
-    const after = {
-      flowKind,
-      scopeKind,
-      scopeValue,
-      scopeLabel,
-      templateFileName
-    };
+    return { kind: "create", id };
+  });
+
+  const after = { flowKind, scopeKind, scopeValue, scopeLabel, templateFileName };
+  if (outcome.kind === "update") {
     const historyBefore = await store.getEntityChangeHistory(
       "data_document_template_assignments",
-      existing.id,
+      outcome.existing.id,
       3
     );
     store.logAudit({
       actorUsername: actor,
       action: "DATA_TEMPLATE_ASSIGNMENT_UPDATE",
       details: {
-        id: existing.id,
-        before: toAssignmentSnapshot(existing),
+        id: outcome.existing.id,
+        before: toAssignmentSnapshot(outcome.existing),
         after,
         historyBefore
       }
     });
     await store.recordEntityChange({
       entityType: "data_document_template_assignments",
-      entityId: existing.id,
+      entityId: outcome.existing.id,
       changedBy: actor,
       snapshot: after
     });
     return mapRow({
-      ...existing,
+      ...outcome.existing,
       scope_value: scopeValue,
       scope_label: scopeLabel,
       template_file_name: templateFileName,
       updated_at: now
     });
   }
-  const id = generateEntityId();
-  await db.run(
-    `INSERT INTO data_document_template_assignments (
-      id, flow_kind, scope_kind, scope_value, scope_label, template_file_name, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, flowKind, scopeKind, scopeValue, scopeLabel, templateFileName, now, now]
-  );
-  const snapshot = { flowKind, scopeKind, scopeValue, scopeLabel, templateFileName };
+
   await store.recordEntityChange({
     entityType: "data_document_template_assignments",
-    entityId: id,
+    entityId: outcome.id,
     changedBy: actor,
-    snapshot
+    snapshot: after
   });
   store.logAudit({
     actorUsername: actor,
     action: "DATA_TEMPLATE_ASSIGNMENT_CREATE",
-    details: { id, ...snapshot }
+    details: { id: outcome.id, ...after }
   });
   return mapRow({
-    id,
+    id: outcome.id,
     flow_kind: flowKind,
     scope_kind: scopeKind,
     scope_value: scopeValue,
@@ -262,7 +270,7 @@ async function upsertTemplateAssignment(store, payload) {
  */
 async function deleteTemplateAssignment(store, payload) {
   store.ensureDataManagerRole(payload.requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "templates:assign:delete");
   const id = String(payload.id || "").trim();
   const reason = String(payload.reason || "").trim();
   if (!id) {
@@ -271,14 +279,17 @@ async function deleteTemplateAssignment(store, payload) {
   if (!reason) {
     store.fail("templates:assign:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const existing = await db.get(
-    `SELECT ${ASSIGNMENT_COLUMNS} FROM data_document_template_assignments WHERE id = ?`,
-    [id]
-  );
-  if (!existing) {
-    store.fail("templates:assign:delete", "Attribution introuvable.", "DATA_TEMPLATE_ASSIGN_NOT_FOUND");
-  }
-  await db.run("DELETE FROM data_document_template_assignments WHERE id = ?", [id]);
+  const existing = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT ${ASSIGNMENT_COLUMNS} FROM data_document_template_assignments WHERE id = ? FOR UPDATE`,
+      [id]
+    );
+    if (!row) {
+      store.fail("templates:assign:delete", "Attribution introuvable.", "DATA_TEMPLATE_ASSIGN_NOT_FOUND");
+    }
+    await tx.run("DELETE FROM data_document_template_assignments WHERE id = ?", [id]);
+    return row;
+  });
   store.logAudit({
     actorUsername: actorName(payload.requesterUsername),
     action: "DATA_TEMPLATE_ASSIGNMENT_DELETE",
@@ -293,7 +304,6 @@ async function deleteTemplateAssignment(store, payload) {
 
 /**
  * Retourne le nom de fichier `.docx` applicable pour un export (site puis famille).
- * La famille du site est lue en PostgreSQL (`data_sites`) si absente du payload.
  *
  * @param {import('../../../userStore')} store
  * @param {{ requesterRole: string, flowKind: string, siteId?: string, famille?: string }} payload
@@ -301,7 +311,7 @@ async function deleteTemplateAssignment(store, payload) {
  */
 async function resolveTemplateFileForContext(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "templates:assign:resolve");
   const flowKind = normalizeFlowKind(payload.flowKind);
   if (!FLOW_KINDS.has(flowKind)) return { templateFileName: null };
   const siteId = String(payload.siteId || "").trim();

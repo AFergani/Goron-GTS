@@ -6,7 +6,7 @@
  * part vers le renderer, sans stack technique.
  *
  * `failWithLog` tente `store.logError` avant le throw. Aujourd'hui `UserStore.logError`
- * est un no-op (journal technique = `gts-pg-events.log`, pas `error_logs`).
+ * est un no-op : le journal technique PG du poste est `gts-pg-events.log`.
  *
  * @module electron/store/core/errors
  */

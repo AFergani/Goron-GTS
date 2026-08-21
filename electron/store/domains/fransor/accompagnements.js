@@ -104,54 +104,66 @@ async function upsertFransorEntry(
   const after = { ouvertureDone: Boolean(opening), fermetureDone: Boolean(closing) };
   const now = new Date().toISOString();
   const actor = actorName(requesterUsername);
-  const existing = await db.get(
-    `SELECT id, ouverture_done, fermeture_done
-     FROM fransor_accompagnements
-     WHERE date = ? AND responsable_id = ?`,
-    [cleanDate, cleanResponsableId]
-  );
-  if (existing) {
-    const before = toEntrySnapshot(existing);
-    if (before.ouvertureDone === after.ouvertureDone && before.fermetureDone === after.fermetureDone) {
-      return { success: true };
-    }
-    await db.run(
-      `UPDATE fransor_accompagnements
-       SET ouverture_done = ?, fermeture_done = ?, updated_by = ?, updated_at = ?
-       WHERE id = ?`,
-      [opening, closing, actor, now, existing.id]
+
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT id, ouverture_done, fermeture_done, updated_at
+       FROM fransor_accompagnements
+       WHERE date = ? AND responsable_id = ?
+       FOR UPDATE`,
+      [cleanDate, cleanResponsableId]
     );
-    const historyBefore = await store.getEntityChangeHistory("fransor_accompagnements", existing.id, 3);
+    if (existing) {
+      const before = toEntrySnapshot(existing);
+      if (before.ouvertureDone === after.ouvertureDone && before.fermetureDone === after.fermetureDone) {
+        return { kind: "noop" };
+      }
+      await tx.run(
+        `UPDATE fransor_accompagnements
+         SET ouverture_done = ?, fermeture_done = ?, updated_by = ?, updated_at = ?
+         WHERE id = ?`,
+        [opening, closing, actor, now, existing.id]
+      );
+      return { kind: "update", id: existing.id, before };
+    }
+    const id = generateEntityId();
+    await tx.run(
+      `INSERT INTO fransor_accompagnements
+       (id, date, responsable_id, ouverture_done, fermeture_done, created_by, updated_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, cleanDate, cleanResponsableId, opening, closing, actor, actor, now, now]
+    );
+    return { kind: "create", id };
+  });
+
+  if (outcome.kind === "noop") return { success: true };
+
+  if (outcome.kind === "update") {
+    const historyBefore = await store.getEntityChangeHistory("fransor_accompagnements", outcome.id, 3);
     store.logAudit({
       actorUsername: actor,
       action: "FRANSOR_ENTRY_UPDATE",
       details: {
-        id: existing.id,
+        id: outcome.id,
         date: cleanDate,
         responsableName: responsable.name,
-        before,
+        before: outcome.before,
         after,
         historyBefore
       }
     });
     await store.recordEntityChange({
       entityType: "fransor_accompagnements",
-      entityId: existing.id,
+      entityId: outcome.id,
       changedBy: actor,
       snapshot: after
     });
     return { success: true };
   }
-  const id = generateEntityId();
-  await db.run(
-    `INSERT INTO fransor_accompagnements
-     (id, date, responsable_id, ouverture_done, fermeture_done, created_by, updated_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, cleanDate, cleanResponsableId, opening, closing, actor, actor, now, now]
-  );
+
   await store.recordEntityChange({
     entityType: "fransor_accompagnements",
-    entityId: id,
+    entityId: outcome.id,
     changedBy: actor,
     snapshot: after
   });
@@ -159,7 +171,7 @@ async function upsertFransorEntry(
     actorUsername: actor,
     action: "FRANSOR_ENTRY_CREATE",
     details: {
-      id,
+      id: outcome.id,
       date: cleanDate,
       responsableName: responsable.name,
       ...after

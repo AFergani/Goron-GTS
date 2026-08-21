@@ -2,17 +2,19 @@
  * Clôture automatique PostgreSQL des rondes exceptionnelles expirées.
  *
  * Délai : 5 jours après `request_date` pour les sources hors `PLANIFIE`.
- * Le traitement est branché via `electron/main.js` et la façade `ronde/index.js`.
+ * Branché via `electron/main.js` et la façade `ronde/index.js`.
  *
  * @module electron/store/domains/ronde/autoClose
  */
 
-/** Libellé enregistré en compte rendu (homogène avec `gardiennageAutoClose.js`). */
+const { requireRondePersistence } = require("./persistence");
+const { RONDE_ENTRY_SELECT } = require("./mapping");
+
+/** Libellé enregistré en compte rendu (homogène avec gardiennage). */
 const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 const RONDE_AUTO_CLOSE_ACTOR = "system:ronde-exceptional-auto-close";
 /** Délai en jours après la date de passage avant clôture auto. */
 const EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS = 5;
-const { requireRondePersistence } = require("./persistence");
 
 /**
  * @param {unknown} value
@@ -44,7 +46,7 @@ function isExceptionalRondeSource(source) {
 }
 
 /**
- * Passage dont la date est dépassée depuis au moins N jours (date de passage = `request_date`).
+ * Passage dont la date est dépassée depuis au moins N jours.
  *
  * @param {string} requestDateIso
  * @param {string} todayIso
@@ -60,9 +62,8 @@ function isPassagePastAutoCloseDelay(requestDateIso, todayIso, delayDays) {
 
 /**
  * Clôture les rondes `URGENCE` / `LIEE_INTERVENTION` en `EN_COURS` dont le délai est dépassé.
- * Les rondes contractuelles (`PLANIFIE`) sont ignorées.
  *
- * @param {import('../userStore')} store
+ * @param {import('../../../userStore')} store
  * @param {object} [options]
  * @param {string} [options.requesterUsername="system:ronde-exceptional-auto-close"]
  * @returns {Promise<{ closedCount: number, closedIds: string[], delayDays: number }>}
@@ -72,35 +73,50 @@ async function autoCloseExpiredExceptionalRondes(store, { requesterUsername = RO
   const todayIso = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
 
-  const rows = await db.all(
-    "SELECT id, source, request_date, site_display, status FROM ronde_entries WHERE status = 'EN_COURS'",
+  const candidates = await db.all(
+    `SELECT id, source, request_date, site_display, status
+     FROM ronde_entries WHERE status = 'EN_COURS'`,
     []
+  );
+
+  const toClose = candidates.filter(
+    (row) => isExceptionalRondeSource(row.source)
+      && isPassagePastAutoCloseDelay(row.request_date, todayIso, EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS)
   );
 
   const closedIds = [];
   const closedSamples = [];
 
-  for (const row of rows) {
-    if (!isExceptionalRondeSource(row.source)) continue;
-    if (!isPassagePastAutoCloseDelay(row.request_date, todayIso, EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS)) continue;
+  if (toClose.length) {
+    await db.transaction(async (tx) => {
+      for (const candidate of toClose) {
+        const row = await tx.get(
+          `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id = ? FOR UPDATE`,
+          [candidate.id]
+        );
+        if (!row || row.status !== "EN_COURS") continue;
+        if (!isExceptionalRondeSource(row.source)) continue;
+        if (!isPassagePastAutoCloseDelay(row.request_date, todayIso, EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS)) continue;
 
-    const result = await db.run(
-      `UPDATE ronde_entries
-       SET status = 'CLOTURE', report = ?, closed_at = ?, updated_at = ?
-       WHERE id = ? AND status = 'EN_COURS'`,
-      [RONDE_AUTO_CLOSURE_REPORT, nowIso, nowIso, row.id]
-    );
-    if (!result.changes) continue;
+        const result = await tx.run(
+          `UPDATE ronde_entries
+           SET status = 'CLOTURE', report = ?, closed_at = ?, updated_at = ?
+           WHERE id = ? AND status = 'EN_COURS'`,
+          [RONDE_AUTO_CLOSURE_REPORT, nowIso, nowIso, row.id]
+        );
+        if (!result.changes) continue;
 
-    closedIds.push(row.id);
-    if (closedSamples.length < 20) {
-      closedSamples.push({
-        id: row.id,
-        source: row.source,
-        requestDate: row.request_date || "",
-        siteDisplay: row.site_display || ""
-      });
-    }
+        closedIds.push(row.id);
+        if (closedSamples.length < 20) {
+          closedSamples.push({
+            id: row.id,
+            source: row.source,
+            requestDate: row.request_date || "",
+            siteDisplay: row.site_display || ""
+          });
+        }
+      }
+    });
   }
 
   if (closedIds.length > 0) {

@@ -31,7 +31,6 @@ export type MainCouranteEntry = {
   /** Horodatage de la prise en compte (validation responsable) */
   priseEnCompteAt?: string;
   closedAt?: string;
-  archivedAt?: string;
 };
 
 export type MainCouranteSavePayload = {

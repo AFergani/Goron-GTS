@@ -1,13 +1,38 @@
 /**
- * Helpers de mapping et d'affichage Main courante.
+ * Mappage SQL / contrat public et helpers d'affichage du domaine Main courante.
  *
- * Ce module est strictement dédié au flux PostgreSQL SQL → API.
- * Les anciens chemins SQLite / fallback historiques ont été supprimés.
+ * Appelé par `entries.js` (CRUD, actions responsable, badges de consultation).
  *
  * @module electron/store/domains/mainCourante/mapping
  */
 
 /**
+ * Colonnes métier de `main_courante_entries` (évite `SELECT *`).
+ *
+ * @type {string}
+ */
+const MAIN_COURANTE_ENTRY_SELECT = `id, created_at, updated_at, operator_name, site_id, site_display,
+  anomaly_type_id, anomaly_type_label, information, status, manager_observation, manager_name,
+  consulted_by_manager_at, consulted_by_manager_name, consulted_by_operator_at,
+  prise_en_compte_at, closed_at`;
+
+/**
+ * Identifiant d'entrée (trim). Obligatoire aussi à la création (id client).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @param {string} source - Préfixe d'erreur (`mainCourante:create`, …)
+ * @returns {string}
+ */
+function requireEntryId(store, payload, source) {
+  const id = String(payload?.id || "").trim();
+  if (!id) store.fail(source, "Identifiant manquant.", "MAIN_COURANTE_ID_REQUIRED");
+  return id;
+}
+
+/**
+ * Normalise un nom affiché pour comparaison (trim + minuscules).
+ *
  * @param {unknown} value
  * @returns {string}
  */
@@ -16,6 +41,8 @@ function normalizeDisplayName(value) {
 }
 
 /**
+ * Compare deux noms opérateur/responsable en affichage (casse ignorée).
+ *
  * @param {unknown} a
  * @param {unknown} b
  * @returns {boolean}
@@ -25,6 +52,8 @@ function sameOperatorDisplay(a, b) {
 }
 
 /**
+ * Formate un ISO en date/heure française pour les observations encadrement.
+ *
  * @param {string} iso
  * @returns {string}
  */
@@ -39,9 +68,11 @@ function formatObservationDateFr(iso) {
 }
 
 /**
+ * Construit une ligne d'observation responsable horodatée.
+ *
  * @param {unknown} managerName
  * @param {unknown} observation
- * @returns {string}
+ * @returns {string} Chaîne vide si observation vide.
  */
 function formatManagerObservation(managerName, observation) {
   const cleanObs = String(observation || "").trim();
@@ -51,6 +82,8 @@ function formatManagerObservation(managerName, observation) {
 }
 
 /**
+ * Concatène une observation précédente et une nouvelle (séparateur `---`).
+ *
  * @param {unknown} previous
  * @param {unknown} managerName
  * @param {unknown} addition
@@ -65,7 +98,7 @@ function mergeMainCouranteObservations(previous, managerName, addition) {
 }
 
 /**
- * Mappe une ligne SQL vers l'objet API main courante.
+ * Convertit une ligne SQL en contrat public Main courante.
  *
  * @param {object} row
  * @returns {object}
@@ -88,12 +121,13 @@ function mapMainCouranteRow(row) {
     consultedByManagerName: row.consulted_by_manager_name || undefined,
     consultedByOperatorAt: row.consulted_by_operator_at || undefined,
     priseEnCompteAt: row.prise_en_compte_at || undefined,
-    closedAt: row.closed_at || undefined,
-    archivedAt: row.archived_at || undefined
+    closedAt: row.closed_at || undefined
   };
 }
 
 module.exports = {
+  MAIN_COURANTE_ENTRY_SELECT,
+  requireEntryId,
   sameOperatorDisplay,
   formatManagerObservation,
   mergeMainCouranteObservations,

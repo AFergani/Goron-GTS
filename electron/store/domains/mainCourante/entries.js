@@ -2,13 +2,17 @@
  * CRUD et workflow Main courante (`main_courante_entries`) — PostgreSQL seulement.
  *
  * Statuts : `EN_ATTENTE` → `EN_COURS` (suivi) ou `CLOTURE`.
- * Aucune compatibilité SQLite ou historique local n'est conservée dans ce module.
+ * Écritures concurrentes : transaction + `FOR UPDATE` + contrôle `updated_at`.
+ * Badges sidebar : consultation responsable / réponse encadrement côté opérateur.
+ * Propagation site pending : `propagateSiteIdToMainCouranteEntries` / `hasMainCouranteLinkedToPendingSiteDisplay`.
  *
  * @module electron/store/domains/mainCourante/entries
  */
 
 const { requireMainCourantePersistence } = require("./persistence");
 const {
+  MAIN_COURANTE_ENTRY_SELECT,
+  requireEntryId,
   sameOperatorDisplay,
   formatManagerObservation,
   mergeMainCouranteObservations,
@@ -25,7 +29,10 @@ const {
 async function listMainCouranteEntries(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireMainCourantePersistence(store, "mainCourante:list");
-  const rows = await db.all(`SELECT * FROM main_courante_entries ORDER BY created_at DESC`, []);
+  const rows = await db.all(
+    `SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries ORDER BY created_at DESC`,
+    []
+  );
   return rows.map((row) => mapMainCouranteRow(row));
 }
 
@@ -42,6 +49,7 @@ async function createMainCouranteEntry(
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireMainCourantePersistence(store, "mainCourante:create");
+  const entryId = requireEntryId(store, { id }, "mainCourante:create");
   const cleanInfo = String(information || "").trim();
   if (!cleanInfo) {
     store.fail("mainCourante:create", "Le texte d'information est obligatoire.", "MAIN_COURANTE_INFO_REQUIRED");
@@ -55,14 +63,43 @@ async function createMainCouranteEntry(
   if (!cleanTypeId || !cleanTypeLabel) {
     store.fail("mainCourante:create", "Le type d'anomalie est obligatoire.", "MAIN_COURANTE_TYPE_REQUIRED");
   }
-  const existing = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
-  if (existing) {
-    const existingMapped = mapMainCouranteRow(existing);
+
+  const now = new Date().toISOString();
+  const siteDisplayClean = String(siteDisplay || "").trim();
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (existing) return { existing };
+    await tx.run(
+      `INSERT INTO main_courante_entries (
+        id, created_at, operator_name, site_id, site_display,
+        anomaly_type_id, anomaly_type_label, information, status, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entryId,
+        now,
+        cleanOperator,
+        siteId || null,
+        siteDisplayClean,
+        cleanTypeId,
+        cleanTypeLabel,
+        cleanInfo,
+        "EN_ATTENTE",
+        now
+      ]
+    );
+    return { existing: null };
+  });
+
+  if (outcome.existing) {
+    const existingMapped = mapMainCouranteRow(outcome.existing);
     store.logAudit({
       actorUsername: requesterUsername || "unknown",
       action: "MAIN_COURANTE_CREATE_IDEMPOTENT",
       details: {
-        id,
+        id: entryId,
         existing: {
           operatorName: existingMapped.operatorName,
           siteDisplay: existingMapped.siteDisplay,
@@ -74,45 +111,29 @@ async function createMainCouranteEntry(
     });
     return existingMapped;
   }
-  const now = new Date().toISOString();
-  await db.run(
-    `INSERT INTO main_courante_entries (
-      id, created_at, operator_name, site_id, site_display,
-      anomaly_type_id, anomaly_type_label, information, status, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      now,
-      cleanOperator,
-      siteId || null,
-      String(siteDisplay || "").trim(),
-      cleanTypeId,
-      cleanTypeLabel,
-      cleanInfo,
-      "EN_ATTENTE",
-      now
-    ]
-  );
+
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "MAIN_COURANTE_CREATE",
     details: {
-      id,
+      id: entryId,
       created: {
         operatorName: cleanOperator,
-        siteDisplay: String(siteDisplay || "").trim(),
+        siteDisplay: siteDisplayClean,
         anomalyTypeLabel: cleanTypeLabel,
         information: cleanInfo,
         status: "EN_ATTENTE"
       }
     }
   });
-  const row = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
+  const row = await db.get(`SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ?`, [
+    entryId
+  ]);
   return mapMainCouranteRow(row);
 }
 
 /**
- * Modification opérateur : uniquement ses entrées `EN_ATTENTE`, non archivées.
+ * Modification opérateur : uniquement ses entrées `EN_ATTENTE`.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -135,6 +156,7 @@ async function updateMainCouranteEntryOperator(
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireMainCourantePersistence(store, "mainCourante:updateOp");
+  const entryId = requireEntryId(store, { id }, "mainCourante:updateOp");
   const cleanInfo = String(information || "").trim();
   if (!cleanInfo) {
     store.fail("mainCourante:updateOp", "Le texte d'information est obligatoire.", "MAIN_COURANTE_INFO_REQUIRED");
@@ -144,89 +166,93 @@ async function updateMainCouranteEntryOperator(
   if (!cleanTypeId || !cleanTypeLabel) {
     store.fail("mainCourante:updateOp", "Le type d'anomalie est obligatoire.", "MAIN_COURANTE_TYPE_REQUIRED");
   }
-  const row = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
-  if (!row) {
-    store.fail("mainCourante:updateOp", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
-  }
-  if (row.status !== "EN_ATTENTE") {
-    store.fail(
-      "mainCourante:updateOp",
-      "Seules les entrées en attente peuvent être modifiées par l'opérateur.",
-      "MAIN_COURANTE_BAD_STATUS"
+
+  const siteDisplayClean = String(siteDisplay || "").trim();
+  const before = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
     );
-  }
-  if (row.archived_at) {
-    store.fail(
-      "mainCourante:updateOp",
-      "Cette entrée est archivée et ne peut plus être modifiée.",
-      "MAIN_COURANTE_ARCHIVED_READONLY"
+    if (!row) {
+      store.fail("mainCourante:updateOp", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+    }
+    if (row.status !== "EN_ATTENTE") {
+      store.fail(
+        "mainCourante:updateOp",
+        "Seules les entrées en attente peuvent être modifiées par l'opérateur.",
+        "MAIN_COURANTE_BAD_STATUS"
+      );
+    }
+    if (!sameOperatorDisplay(row.operator_name, requesterFullName)) {
+      store.fail("mainCourante:updateOp", "Vous ne pouvez modifier que vos propres entrées.", "MAIN_COURANTE_FORBIDDEN");
+    }
+    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
+      store.fail(
+        "mainCourante:updateOp",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      `UPDATE main_courante_entries SET
+        site_id = ?,
+        site_display = ?,
+        anomaly_type_id = ?,
+        anomaly_type_label = ?,
+        information = ?,
+        updated_at = ?
+      WHERE id = ? AND updated_at = ?`,
+      [
+        siteId || null,
+        siteDisplayClean,
+        cleanTypeId,
+        cleanTypeLabel,
+        cleanInfo,
+        now,
+        entryId,
+        expectedUpdatedAt
+      ]
     );
-  }
-  if (!sameOperatorDisplay(row.operator_name, requesterFullName)) {
-    store.fail("mainCourante:updateOp", "Vous ne pouvez modifier que vos propres entrées.", "MAIN_COURANTE_FORBIDDEN");
-  }
-  if (row.updated_at !== expectedUpdatedAt) {
-    store.fail(
-      "mainCourante:updateOp",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
-    );
-  }
-  const now = new Date().toISOString();
-  const result = await db.run(
-    `UPDATE main_courante_entries SET
-      site_id = ?,
-      site_display = ?,
-      anomaly_type_id = ?,
-      anomaly_type_label = ?,
-      information = ?,
-      updated_at = ?
-    WHERE id = ? AND updated_at = ?`,
-    [
-      siteId || null,
-      String(siteDisplay || "").trim(),
-      cleanTypeId,
-      cleanTypeLabel,
-      cleanInfo,
-      now,
-      id,
-      expectedUpdatedAt
-    ]
-  );
-  if (!result.changes) {
-    store.fail(
-      "mainCourante:updateOp",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
-    );
-  }
+    if (!result.changes) {
+      store.fail(
+        "mainCourante:updateOp",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+    return row;
+  });
+
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "MAIN_COURANTE_UPDATE_OPERATOR",
     details: {
-      id,
+      id: entryId,
       before: {
-        siteId: row.site_id || null,
-        siteDisplay: String(row.site_display || ""),
-        anomalyTypeId: String(row.anomaly_type_id || ""),
-        anomalyTypeLabel: String(row.anomaly_type_label || ""),
-        information: String(row.information || "")
+        siteId: before.site_id || null,
+        siteDisplay: String(before.site_display || ""),
+        anomalyTypeId: String(before.anomaly_type_id || ""),
+        anomalyTypeLabel: String(before.anomaly_type_label || ""),
+        information: String(before.information || "")
       },
       after: {
         siteId: siteId || null,
-        siteDisplay: String(siteDisplay || "").trim(),
+        siteDisplay: siteDisplayClean,
         anomalyTypeId: cleanTypeId,
         anomalyTypeLabel: cleanTypeLabel,
         information: cleanInfo
       }
     }
   });
-  const updated = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
+  const updated = await db.get(`SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ?`, [
+    entryId
+  ]);
   return mapMainCouranteRow(updated);
 }
 
 /**
- * Action responsable : `decision` `suivre` (EN_COURS) ou clôture.
+ * Action responsable : `decision` `suivre` (EN_COURS) ou `cloture`.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -239,88 +265,85 @@ async function applyMainCouranteManagerAction(
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("mainCourante:manager", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
+  const normalizedDecision = String(decision || "").trim();
+  if (normalizedDecision !== "suivre" && normalizedDecision !== "cloture") {
+    store.fail(
+      "mainCourante:manager",
+      "Décision invalide (suivre ou clôture attendue).",
+      "MAIN_COURANTE_BAD_DECISION"
+    );
+  }
   const db = requireMainCourantePersistence(store, "mainCourante:manager");
-  const row = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
-  if (!row) {
-    store.fail("mainCourante:manager", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
-  }
-  if (row.status === "CLOTURE") {
-    store.fail("mainCourante:manager", "Cette entrée est déjà clôturée.", "MAIN_COURANTE_BAD_STATUS");
-  }
-  if (row.archived_at) {
-    store.fail(
-      "mainCourante:manager",
-      "Cette entrée est archivée et ne peut plus être modifiée.",
-      "MAIN_COURANTE_ARCHIVED_READONLY"
-    );
-  }
-  if (row.updated_at !== expectedUpdatedAt) {
-    store.fail(
-      "mainCourante:manager",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
-    );
-  }
-  const now = new Date().toISOString();
-  const newObs = String(managerObservation || "").trim();
-  let nextStatus = row.status;
-  let mergedObs = row.manager_observation || "";
-  let priseAt = row.prise_en_compte_at || null;
-  let closedAt = row.closed_at || null;
-
-  if (row.status === "EN_ATTENTE") {
-    if (decision === "suivre") {
-      nextStatus = "EN_COURS";
-      mergedObs = formatManagerObservation(managerName, newObs);
-      priseAt = priseAt || now;
-    } else {
-      nextStatus = "CLOTURE";
-      mergedObs = formatManagerObservation(managerName, newObs);
-      priseAt = priseAt || now;
-      closedAt = now;
-    }
-  } else if (row.status === "EN_COURS") {
-    if (decision === "suivre") {
-      mergedObs = mergeMainCouranteObservations(row.manager_observation, managerName, newObs);
-    } else {
-      nextStatus = "CLOTURE";
-      mergedObs = mergeMainCouranteObservations(row.manager_observation, managerName, newObs);
-      closedAt = now;
-    }
-  }
-
+  const entryId = requireEntryId(store, { id }, "mainCourante:manager");
   const mgrName = String(managerName || "").trim();
-  const result = await db.run(
-    `UPDATE main_courante_entries SET
-      status = ?,
-      manager_observation = ?,
-      manager_name = ?,
-      prise_en_compte_at = ?,
-      closed_at = ?,
-      updated_at = ?
-    WHERE id = ? AND updated_at = ?`,
-    [nextStatus, mergedObs || null, mgrName || null, priseAt, closedAt, now, id, expectedUpdatedAt]
-  );
-  if (!result.changes) {
-    store.fail(
-      "mainCourante:manager",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
+  const newObs = String(managerObservation || "").trim();
+
+  const outcome = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
     );
-  }
-  store.logAudit({
-    actorUsername: requesterUsername || "unknown",
-    action: decision === "cloture" ? "MAIN_COURANTE_MANAGER_CLOTURE" : "MAIN_COURANTE_MANAGER_SUIVRE",
-    details: {
-      id,
-      decision,
-      before: {
-        status: String(row.status || ""),
-        managerObservation: String(row.manager_observation || ""),
-        managerName: String(row.manager_name || ""),
-        priseEnCompteAt: row.prise_en_compte_at || null,
-        closedAt: row.closed_at || null
-      },
+    if (!row) {
+      store.fail("mainCourante:manager", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+    }
+    if (row.status === "CLOTURE") {
+      store.fail("mainCourante:manager", "Cette entrée est déjà clôturée.", "MAIN_COURANTE_BAD_STATUS");
+    }
+    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
+      store.fail(
+        "mainCourante:manager",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+
+    const now = new Date().toISOString();
+    let nextStatus = row.status;
+    let mergedObs = row.manager_observation || "";
+    let priseAt = row.prise_en_compte_at || null;
+    let closedAt = row.closed_at || null;
+
+    if (row.status === "EN_ATTENTE") {
+      if (normalizedDecision === "suivre") {
+        nextStatus = "EN_COURS";
+        mergedObs = formatManagerObservation(managerName, newObs);
+        priseAt = priseAt || now;
+      } else {
+        nextStatus = "CLOTURE";
+        mergedObs = formatManagerObservation(managerName, newObs);
+        priseAt = priseAt || now;
+        closedAt = now;
+      }
+    } else if (row.status === "EN_COURS") {
+      if (normalizedDecision === "suivre") {
+        mergedObs = mergeMainCouranteObservations(row.manager_observation, managerName, newObs);
+      } else {
+        nextStatus = "CLOTURE";
+        mergedObs = mergeMainCouranteObservations(row.manager_observation, managerName, newObs);
+        closedAt = now;
+      }
+    }
+
+    const result = await tx.run(
+      `UPDATE main_courante_entries SET
+        status = ?,
+        manager_observation = ?,
+        manager_name = ?,
+        prise_en_compte_at = ?,
+        closed_at = ?,
+        updated_at = ?
+      WHERE id = ? AND updated_at = ?`,
+      [nextStatus, mergedObs || null, mgrName || null, priseAt, closedAt, now, entryId, expectedUpdatedAt]
+    );
+    if (!result.changes) {
+      store.fail(
+        "mainCourante:manager",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+    return {
+      before: row,
       after: {
         status: nextStatus,
         managerObservation: mergedObs || "",
@@ -328,9 +351,28 @@ async function applyMainCouranteManagerAction(
         priseEnCompteAt: priseAt,
         closedAt
       }
+    };
+  });
+
+  store.logAudit({
+    actorUsername: requesterUsername || "unknown",
+    action: normalizedDecision === "cloture" ? "MAIN_COURANTE_MANAGER_CLOTURE" : "MAIN_COURANTE_MANAGER_SUIVRE",
+    details: {
+      id: entryId,
+      decision: normalizedDecision,
+      before: {
+        status: String(outcome.before.status || ""),
+        managerObservation: String(outcome.before.manager_observation || ""),
+        managerName: String(outcome.before.manager_name || ""),
+        priseEnCompteAt: outcome.before.prise_en_compte_at || null,
+        closedAt: outcome.before.closed_at || null
+      },
+      after: outcome.after
     }
   });
-  const updated = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
+  const updated = await db.get(`SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ?`, [
+    entryId
+  ]);
   return mapMainCouranteRow(updated);
 }
 
@@ -349,54 +391,56 @@ async function reopenMainCouranteEntry(
     store.fail("mainCourante:reopen", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
   const db = requireMainCourantePersistence(store, "mainCourante:reopen");
-  const row = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
-  if (!row) {
-    store.fail("mainCourante:reopen", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
-  }
-  if (row.status !== "CLOTURE") {
-    store.fail("mainCourante:reopen", "Seules les entrées clôturées peuvent être rouvertes.", "MAIN_COURANTE_BAD_STATUS");
-  }
-  if (row.archived_at) {
-    store.fail(
-      "mainCourante:reopen",
-      "Cette entrée est archivée et ne peut plus être rouverte.",
-      "MAIN_COURANTE_ARCHIVED_READONLY"
-    );
-  }
-  if (row.updated_at !== expectedUpdatedAt) {
-    store.fail(
-      "mainCourante:reopen",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
-    );
-  }
-  const now = new Date().toISOString();
+  const entryId = requireEntryId(store, { id }, "mainCourante:reopen");
   const mgrName = String(managerName || "").trim();
-  const result = await db.run(
-    `UPDATE main_courante_entries SET
-      status = ?,
-      manager_name = ?,
-      closed_at = ?,
-      updated_at = ?
-    WHERE id = ? AND updated_at = ?`,
-    ["EN_COURS", mgrName || null, null, now, id, expectedUpdatedAt]
-  );
-  if (!result.changes) {
-    store.fail(
-      "mainCourante:reopen",
-      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-      "MAIN_COURANTE_CONFLICT"
+
+  const before = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
     );
-  }
+    if (!row) {
+      store.fail("mainCourante:reopen", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+    }
+    if (row.status !== "CLOTURE") {
+      store.fail("mainCourante:reopen", "Seules les entrées clôturées peuvent être rouvertes.", "MAIN_COURANTE_BAD_STATUS");
+    }
+    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
+      store.fail(
+        "mainCourante:reopen",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      `UPDATE main_courante_entries SET
+        status = ?,
+        manager_name = ?,
+        closed_at = ?,
+        updated_at = ?
+      WHERE id = ? AND updated_at = ?`,
+      ["EN_COURS", mgrName || null, null, now, entryId, expectedUpdatedAt]
+    );
+    if (!result.changes) {
+      store.fail(
+        "mainCourante:reopen",
+        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "MAIN_COURANTE_CONFLICT"
+      );
+    }
+    return row;
+  });
+
   store.logAudit({
     actorUsername: requesterUsername || "unknown",
     action: "MAIN_COURANTE_MANAGER_REOPEN",
     details: {
-      id,
+      id: entryId,
       before: {
-        status: String(row.status || ""),
-        managerName: String(row.manager_name || ""),
-        closedAt: row.closed_at || null
+        status: String(before.status || ""),
+        managerName: String(before.manager_name || ""),
+        closedAt: before.closed_at || null
       },
       after: {
         status: "EN_COURS",
@@ -405,24 +449,10 @@ async function reopenMainCouranteEntry(
       }
     }
   });
-  const updated = await db.get("SELECT * FROM main_courante_entries WHERE id = ?", [id]);
+  const updated = await db.get(`SELECT ${MAIN_COURANTE_ENTRY_SELECT} FROM main_courante_entries WHERE id = ?`, [
+    entryId
+  ]);
   return mapMainCouranteRow(updated);
-}
-
-/**
- * Vérifie l'existence d'une entrée (corrélation idempotence / imports).
- *
- * @param {import('../../../userStore')} store
- * @param {string} id
- * @returns {Promise<boolean>}
- */
-async function hasMainCouranteEntry(store, id) {
-  if (!id) return false;
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) return false;
-  const row = await db.get("SELECT id FROM main_courante_entries WHERE id = ? LIMIT 1", [id]);
-  return Boolean(row);
 }
 
 /**
@@ -439,8 +469,7 @@ async function getMainCouranteUnconsultedCount(store, { requesterRole, role }) {
   const db = requireMainCourantePersistence(store, "mainCourante:unconsulted");
   const row = await db.get(
     `SELECT COUNT(*) AS count FROM main_courante_entries
-     WHERE consulted_by_manager_at IS NULL
-       AND archived_at IS NULL`,
+     WHERE consulted_by_manager_at IS NULL`,
     []
   );
   return { count: Number(row?.count || 0) };
@@ -476,8 +505,7 @@ async function getMainCouranteOperatorResponseCount(store, { requesterRole, requ
   if (!fullName) return { count: 0 };
   const row = await db.get(
     `SELECT COUNT(*) AS count FROM main_courante_entries
-     WHERE archived_at IS NULL
-       AND prise_en_compte_at IS NOT NULL
+     WHERE prise_en_compte_at IS NOT NULL
        AND consulted_by_operator_at IS NULL
        AND lower(trim(operator_name)) = lower(trim(?))`,
     [fullName]
@@ -497,31 +525,34 @@ async function markMainCouranteEntryConsultedByOperator(store, { requesterRole, 
     return { success: true };
   }
   const db = requireMainCourantePersistence(store, "mainCourante:operatorConsulted");
+  const entryId = requireEntryId(store, { id }, "mainCourante:operatorConsulted");
   const fullName = await resolveUserFullNameByUsername(store, requesterUsername);
-  const row = await db.get("SELECT id, operator_name, prise_en_compte_at, consulted_by_operator_at FROM main_courante_entries WHERE id = ?", [
-    String(id || "").trim()
-  ]);
-  if (!row) {
-    store.fail("mainCourante:operatorConsulted", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
-  }
-  if (!sameOperatorDisplay(row.operator_name, fullName)) {
-    store.fail("mainCourante:operatorConsulted", "Accès refusé.", "MAIN_COURANTE_FORBIDDEN");
-  }
-  if (!row.prise_en_compte_at) {
-    return { success: true };
-  }
-  if (row.consulted_by_operator_at) {
-    return { success: true };
-  }
-  await db.run("UPDATE main_courante_entries SET consulted_by_operator_at = ? WHERE id = ?", [
-    new Date().toISOString(),
-    row.id
-  ]);
+  await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT id, operator_name, prise_en_compte_at, consulted_by_operator_at
+       FROM main_courante_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (!row) {
+      store.fail("mainCourante:operatorConsulted", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+    }
+    if (!sameOperatorDisplay(row.operator_name, fullName)) {
+      store.fail("mainCourante:operatorConsulted", "Accès refusé.", "MAIN_COURANTE_FORBIDDEN");
+    }
+    if (!row.prise_en_compte_at || row.consulted_by_operator_at) {
+      return;
+    }
+    await tx.run("UPDATE main_courante_entries SET consulted_by_operator_at = ? WHERE id = ?", [
+      new Date().toISOString(),
+      row.id
+    ]);
+  });
   return { success: true };
 }
 
 /**
  * Marque une entrée comme consultée par le responsable (une seule fois).
+ * Stocke le nom affiché (pas le login) dans `consulted_by_manager_name`.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -532,21 +563,27 @@ async function markMainCouranteEntryConsulted(store, { requesterRole, requesterU
     store.fail("mainCourante:consulted", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
   }
   const db = requireMainCourantePersistence(store, "mainCourante:consulted");
-  const row = await db.get(
-    "SELECT id, consulted_by_manager_at, consulted_by_manager_name FROM main_courante_entries WHERE id = ?",
-    [id]
-  );
-  if (!row) {
-    store.fail("mainCourante:consulted", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
-  }
-  if (row.consulted_by_manager_at) {
-    return { success: true };
-  }
-  const now = new Date().toISOString();
-  await db.run(
-    "UPDATE main_courante_entries SET consulted_by_manager_at = ?, consulted_by_manager_name = ? WHERE id = ?",
-    [now, String(requesterUsername || "").trim() || null, id]
-  );
+  const entryId = requireEntryId(store, { id }, "mainCourante:consulted");
+  const displayName =
+    (await resolveUserFullNameByUsername(store, requesterUsername)) ||
+    String(requesterUsername || "").trim() ||
+    null;
+  await db.transaction(async (tx) => {
+    const row = await tx.get(
+      "SELECT id, consulted_by_manager_at FROM main_courante_entries WHERE id = ? FOR UPDATE",
+      [entryId]
+    );
+    if (!row) {
+      store.fail("mainCourante:consulted", "Entrée introuvable.", "MAIN_COURANTE_NOT_FOUND");
+    }
+    if (row.consulted_by_manager_at) {
+      return;
+    }
+    await tx.run(
+      "UPDATE main_courante_entries SET consulted_by_manager_at = ?, consulted_by_manager_name = ? WHERE id = ?",
+      [new Date().toISOString(), displayName, entryId]
+    );
+  });
   return { success: true };
 }
 
@@ -559,10 +596,18 @@ async function markMainCouranteEntryConsulted(store, { requesterRole, requesterU
  * @param {string} likePattern
  * @returns {Promise<number>} Nombre de lignes mises à jour.
  */
-async function propagateSiteIdToMainCouranteEntries(store, siteId, canonicalDisplay, likePattern) {
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) return 0;
+/**
+ * Propage un `site_id` vers les entrées orphelines (affichage libre sans id).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} siteId
+ * @param {string} canonicalDisplay
+ * @param {string} likePattern
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} [executor] - Tx/connexion partagée
+ * @returns {Promise<number>} Nombre de lignes mises à jour.
+ */
+async function propagateSiteIdToMainCouranteEntries(store, siteId, canonicalDisplay, likePattern, executor) {
+  const db = executor || requireMainCourantePersistence(store, "mainCourante:propagateSite");
   const result = await db.run(
     `UPDATE main_courante_entries
      SET site_id = ?, site_display = ?
@@ -581,9 +626,7 @@ async function propagateSiteIdToMainCouranteEntries(store, siteId, canonicalDisp
  * @returns {Promise<boolean>}
  */
 async function hasMainCouranteLinkedToPendingSiteDisplay(store, likePattern) {
-  const db =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!db || !db.isOpen()) return false;
+  const db = requireMainCourantePersistence(store, "mainCourante:linkedPendingSite");
   const row = await db.get(
     `SELECT id FROM main_courante_entries
      WHERE site_id IS NULL
@@ -604,7 +647,6 @@ module.exports = {
   getMainCouranteOperatorResponseCount,
   markMainCouranteEntryConsulted,
   markMainCouranteEntryConsultedByOperator,
-  hasMainCouranteEntry,
   propagateSiteIdToMainCouranteEntries,
   hasMainCouranteLinkedToPendingSiteDisplay
 };

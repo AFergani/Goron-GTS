@@ -3,8 +3,8 @@
  *
  * Tables `data_sites`, `data_intervenants`, `data_anomaly_types`.
  * Accès PostgreSQL via `store.getReferentialsPersistence()`.
+ * Écritures : transaction + `FOR UPDATE` ; updates : `expectedUpdatedAt`.
  * `auditMode: "batch"` : pas de log unitaire (imports via `importAudit.js`).
- * Modifications : `entityHistory` + audit before/after ; suppressions : motif obligatoire.
  *
  * @module electron/store/domains/data/referentials
  */
@@ -18,6 +18,8 @@ const {
   SYSTEM_ANOMALY_TYPE_LABEL,
   isSystemAnomalyType
 } = require("../../core/systemReferentials");
+const { assertOptimisticLock } = require("./optimisticLock");
+const { requireDataPersistence } = require("./persistence");
 
 /**
  * Normalise une couleur hexadécimale `#rrggbb`.
@@ -44,26 +46,6 @@ function normalizeUpperText(value) {
   return String(value || "")
     .trim()
     .toUpperCase();
-}
-
-/**
- * @param {import('../../../userStore')} store
- * @returns {import('../../persistence/persistenceContract').PersistenceAdapter}
- */
-function requirePersistence(store) {
-  if (typeof store.assertPostgresAvailableForReferentials === "function") {
-    store.assertPostgresAvailableForReferentials();
-  }
-  const refDb =
-    typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
-  if (!refDb) {
-    store.fail(
-      "data:referentials",
-      "Base PostgreSQL inaccessible. Les référentiels ne peuvent pas être consultés ni modifiés tant que le serveur n'est pas disponible.",
-      "PG_UNAVAILABLE"
-    );
-  }
-  return refDb;
 }
 
 /**
@@ -105,7 +87,7 @@ function normalizeSiteInput(input) {
  */
 async function listSites(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:sites:list");
   const rows = await db.all(
     `SELECT id, code, name, address, parc, famille, created_at, updated_at
      FROM data_sites
@@ -132,31 +114,33 @@ async function createSite(
   { requesterRole, requesterUsername, code, name, address, parc, famille, auditMode = "single" }
 ) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:sites:create");
   const fields = normalizeSiteInput({ code, name, address, parc, famille });
   if (!fields.code || !fields.name) {
     store.fail("data:sites:create", "Code site et nom de site obligatoires.", "DATA_SITE_REQUIRED");
   }
-  const existsRow = await db.get(
-    `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")}`,
-    [fields.code]
-  );
-  if (existsRow) {
-    const nomRef = String(existsRow.name || "").trim() || "sans nom";
-    store.fail(
-      "data:sites:create",
-      `Le code site « ${fields.code} » existe déjà en référentiel (fiche actuelle : « ${nomRef} »).`,
-      "DATA_SITE_EXISTS",
-      { code: fields.code, existingName: nomRef }
-    );
-  }
   const id = generateEntityId();
   const now = new Date().toISOString();
-  await db.run(
-    `INSERT INTO data_sites (id, code, name, address, parc, famille, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, fields.code, fields.name, fields.address || null, fields.parc || null, fields.famille || null, now]
-  );
+  await db.transaction(async (tx) => {
+    const existsRow = await tx.get(
+      `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")}`,
+      [fields.code]
+    );
+    if (existsRow) {
+      const nomRef = String(existsRow.name || "").trim() || "sans nom";
+      store.fail(
+        "data:sites:create",
+        `Le code site « ${fields.code} » existe déjà en référentiel (fiche actuelle : « ${nomRef} »).`,
+        "DATA_SITE_EXISTS",
+        { code: fields.code, existingName: nomRef }
+      );
+    }
+    await tx.run(
+      `INSERT INTO data_sites (id, code, name, address, parc, famille, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, fields.code, fields.name, fields.address || null, fields.parc || null, fields.famille || null, now]
+    );
+  });
   await store.recordEntityChange({
     entityType: "data_sites",
     entityId: id,
@@ -182,40 +166,72 @@ async function createSite(
  */
 async function updateSite(
   store,
-  { requesterRole, requesterUsername, id, code, name, address, parc, famille, auditMode = "single" }
+  {
+    requesterRole,
+    requesterUsername,
+    id,
+    code,
+    name,
+    address,
+    parc,
+    famille,
+    expectedUpdatedAt,
+    auditMode = "single"
+  }
 ) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:sites:update");
   const fields = normalizeSiteInput({ code, name, address, parc, famille });
   if (!id || !fields.code || !fields.name) {
     store.fail("data:sites:update", "Données site invalides.", "DATA_SITE_REQUIRED");
   }
-  const existingSite = await db.get(
-    "SELECT id, code, name, address, parc, famille FROM data_sites WHERE id = ?",
-    [id]
-  );
-  if (!existingSite) {
-    store.fail("data:sites:update", "Site introuvable.", "DATA_SITE_NOT_FOUND");
-  }
-  const dupSite = await db.get(
-    `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")} AND id <> ?`,
-    [fields.code, id]
-  );
-  if (dupSite) {
-    const nomRef = String(dupSite.name || "").trim() || "sans nom";
-    store.fail(
-      "data:sites:update",
-      `Le code site « ${fields.code} » est déjà attribué au site « ${nomRef} ».`,
-      "DATA_SITE_EXISTS",
-      { code: fields.code, existingName: nomRef }
+  const existingSite = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT id, code, name, address, parc, famille, updated_at FROM data_sites WHERE id = ? FOR UPDATE`,
+      [id]
     );
-  }
-  await db.run(
-    `UPDATE data_sites
-     SET code = ?, name = ?, address = ?, parc = ?, famille = ?, updated_at = ?
-     WHERE id = ?`,
-    [fields.code, fields.name, fields.address || null, fields.parc || null, fields.famille || null, new Date().toISOString(), id]
-  );
+    if (!row) {
+      store.fail("data:sites:update", "Site introuvable.", "DATA_SITE_NOT_FOUND");
+    }
+    assertOptimisticLock(store, "data:sites:update", row, expectedUpdatedAt, "DATA_SITE_CONFLICT");
+    const dupSite = await tx.get(
+      `SELECT name FROM data_sites WHERE ${sqlFoldExpr("code")} = ${sqlFoldExpr("?")} AND id <> ?`,
+      [fields.code, id]
+    );
+    if (dupSite) {
+      const nomRef = String(dupSite.name || "").trim() || "sans nom";
+      store.fail(
+        "data:sites:update",
+        `Le code site « ${fields.code} » est déjà attribué au site « ${nomRef} ».`,
+        "DATA_SITE_EXISTS",
+        { code: fields.code, existingName: nomRef }
+      );
+    }
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      `UPDATE data_sites
+       SET code = ?, name = ?, address = ?, parc = ?, famille = ?, updated_at = ?
+       WHERE id = ? AND updated_at IS NOT DISTINCT FROM ?`,
+      [
+        fields.code,
+        fields.name,
+        fields.address || null,
+        fields.parc || null,
+        fields.famille || null,
+        now,
+        id,
+        expectedUpdatedAt ?? null
+      ]
+    );
+    if (!result.changes) {
+      store.fail(
+        "data:sites:update",
+        "Cette fiche a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "DATA_SITE_CONFLICT"
+      );
+    }
+    return row;
+  });
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_sites", id, 3);
     store.logAudit({
@@ -247,19 +263,22 @@ async function updateSite(
  */
 async function deleteSite(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:sites:delete");
   const cleanReason = String(reason || "").trim();
   if (!cleanReason) {
     store.fail("data:sites:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const existing = await db.get(
-    "SELECT id, code, name, address, parc, famille FROM data_sites WHERE id = ?",
-    [id]
-  );
-  if (!existing) {
-    store.fail("data:sites:delete", "Site introuvable.", "DATA_SITE_NOT_FOUND");
-  }
-  await db.run("DELETE FROM data_sites WHERE id = ?", [id]);
+  const existing = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      "SELECT id, code, name, address, parc, famille FROM data_sites WHERE id = ? FOR UPDATE",
+      [id]
+    );
+    if (!row) {
+      store.fail("data:sites:delete", "Site introuvable.", "DATA_SITE_NOT_FOUND");
+    }
+    await tx.run("DELETE FROM data_sites WHERE id = ?", [id]);
+    return row;
+  });
   store.logAudit({
     actorUsername: actorName(requesterUsername),
     action: "DATA_SITE_DELETE",
@@ -279,7 +298,7 @@ async function deleteSite(store, { requesterRole, requesterUsername, id, reason 
  */
 async function listIntervenants(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:intervenants:list");
   const rows = await db.all(
     `SELECT id, name, created_at, updated_at FROM data_intervenants ORDER BY name ASC`,
     []
@@ -301,25 +320,27 @@ async function listIntervenants(store, { requesterRole }) {
  */
 async function createIntervenant(store, { requesterRole, requesterUsername, name, auditMode = "single" }) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:intervenants:create");
   const cleanName = String(name || "").trim();
   if (!cleanName) {
     store.fail("data:intervenants:create", "Nom intervenant obligatoire.", "DATA_INTERVENANT_REQUIRED");
   }
-  const exists = await db.get(
-    `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")}`,
-    [cleanName]
-  );
-  if (exists) {
-    store.fail(
-      "data:intervenants:create",
-      "Ce nom d'intervenant / société est déjà présent dans le référentiel (même libellé : pas de doublon).",
-      "DATA_INTERVENANT_EXISTS"
-    );
-  }
   const id = generateEntityId();
   const now = new Date().toISOString();
-  await db.run("INSERT INTO data_intervenants (id, name, created_at) VALUES (?, ?, ?)", [id, cleanName, now]);
+  await db.transaction(async (tx) => {
+    const exists = await tx.get(
+      `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")}`,
+      [cleanName]
+    );
+    if (exists) {
+      store.fail(
+        "data:intervenants:create",
+        "Ce nom d'intervenant / société est déjà présent dans le référentiel (même libellé : pas de doublon).",
+        "DATA_INTERVENANT_EXISTS"
+      );
+    }
+    await tx.run("INSERT INTO data_intervenants (id, name, created_at) VALUES (?, ?, ?)", [id, cleanName, now]);
+  });
   await store.recordEntityChange({
     entityType: "data_intervenants",
     entityId: id,
@@ -343,33 +364,47 @@ async function createIntervenant(store, { requesterRole, requesterUsername, name
  * @param {object} payload
  * @returns {Promise<{ success: true }>}
  */
-async function updateIntervenant(store, { requesterRole, requesterUsername, id, name, auditMode = "single" }) {
+async function updateIntervenant(
+  store,
+  { requesterRole, requesterUsername, id, name, expectedUpdatedAt, auditMode = "single" }
+) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:intervenants:update");
   const cleanName = String(name || "").trim();
   if (!id || !cleanName) {
     store.fail("data:intervenants:update", "Données intervenant invalides.", "DATA_INTERVENANT_REQUIRED");
   }
-  const existingIntervenant = await db.get("SELECT id, name FROM data_intervenants WHERE id = ?", [id]);
-  if (!existingIntervenant) {
-    store.fail("data:intervenants:update", "Intervenant introuvable.", "DATA_INTERVENANT_NOT_FOUND");
-  }
-  const duplicate = await db.get(
-    `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")} AND id <> ?`,
-    [cleanName, id]
-  );
-  if (duplicate) {
-    store.fail(
-      "data:intervenants:update",
-      "Un autre intervenant du référentiel porte déjà ce libellé.",
-      "DATA_INTERVENANT_EXISTS"
+  const existingIntervenant = await db.transaction(async (tx) => {
+    const row = await tx.get("SELECT id, name, updated_at FROM data_intervenants WHERE id = ? FOR UPDATE", [id]);
+    if (!row) {
+      store.fail("data:intervenants:update", "Intervenant introuvable.", "DATA_INTERVENANT_NOT_FOUND");
+    }
+    assertOptimisticLock(store, "data:intervenants:update", row, expectedUpdatedAt, "DATA_INTERVENANT_CONFLICT");
+    const duplicate = await tx.get(
+      `SELECT id FROM data_intervenants WHERE ${sqlFoldExpr("name")} = ${sqlFoldExpr("?")} AND id <> ?`,
+      [cleanName, id]
     );
-  }
-  await db.run("UPDATE data_intervenants SET name = ?, updated_at = ? WHERE id = ?", [
-    cleanName,
-    new Date().toISOString(),
-    id
-  ]);
+    if (duplicate) {
+      store.fail(
+        "data:intervenants:update",
+        "Un autre intervenant du référentiel porte déjà ce libellé.",
+        "DATA_INTERVENANT_EXISTS"
+      );
+    }
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      "UPDATE data_intervenants SET name = ?, updated_at = ? WHERE id = ? AND updated_at IS NOT DISTINCT FROM ?",
+      [cleanName, now, id, expectedUpdatedAt ?? null]
+    );
+    if (!result.changes) {
+      store.fail(
+        "data:intervenants:update",
+        "Cette fiche a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "DATA_INTERVENANT_CONFLICT"
+      );
+    }
+    return row;
+  });
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_intervenants", id, 3);
     store.logAudit({
@@ -401,16 +436,19 @@ async function updateIntervenant(store, { requesterRole, requesterUsername, id, 
  */
 async function deleteIntervenant(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:intervenants:delete");
   const cleanReason = String(reason || "").trim();
   if (!cleanReason) {
     store.fail("data:intervenants:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const existing = await db.get("SELECT id, name FROM data_intervenants WHERE id = ?", [id]);
-  if (!existing) {
-    store.fail("data:intervenants:delete", "Intervenant introuvable.", "DATA_INTERVENANT_NOT_FOUND");
-  }
-  await db.run("DELETE FROM data_intervenants WHERE id = ?", [id]);
+  const existing = await db.transaction(async (tx) => {
+    const row = await tx.get("SELECT id, name FROM data_intervenants WHERE id = ? FOR UPDATE", [id]);
+    if (!row) {
+      store.fail("data:intervenants:delete", "Intervenant introuvable.", "DATA_INTERVENANT_NOT_FOUND");
+    }
+    await tx.run("DELETE FROM data_intervenants WHERE id = ?", [id]);
+    return row;
+  });
   store.logAudit({
     actorUsername: actorName(requesterUsername),
     action: "DATA_INTERVENANT_DELETE",
@@ -430,7 +468,7 @@ async function deleteIntervenant(store, { requesterRole, requesterUsername, id, 
  */
 async function listAnomalyTypes(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:types:list");
   const rows = await db.all(
     `SELECT id, label, color_hex, created_at, updated_at FROM data_anomaly_types ORDER BY label ASC`,
     []
@@ -447,7 +485,6 @@ async function listAnomalyTypes(store, { requesterRole }) {
 
 /**
  * Garantit la présence du type d'anomalie système « Voir Observation ».
- * Réutilise une ligne existante au même libellé (insensible à la casse) ; sinon insertion.
  *
  * @param {import('../../../userStore')} store
  * @returns {Promise<void>}
@@ -456,17 +493,19 @@ async function ensureSystemAnomalyType(store) {
   const db =
     typeof store.getReferentialsPersistence === "function" ? store.getReferentialsPersistence() : null;
   if (!db || !db.isOpen()) return;
-  const existing = await db.get(
-    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
-    [SYSTEM_ANOMALY_TYPE_LABEL]
-  );
-  if (existing) return;
-  await db.run("INSERT INTO data_anomaly_types (id, label, color_hex, created_at) VALUES (?, ?, ?, ?)", [
-    SYSTEM_ANOMALY_TYPE_ID,
-    SYSTEM_ANOMALY_TYPE_LABEL,
-    SYSTEM_ANOMALY_TYPE_COLOR,
-    new Date().toISOString()
-  ]);
+  await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
+      [SYSTEM_ANOMALY_TYPE_LABEL]
+    );
+    if (existing) return;
+    await tx.run("INSERT INTO data_anomaly_types (id, label, color_hex, created_at) VALUES (?, ?, ?, ?)", [
+      SYSTEM_ANOMALY_TYPE_ID,
+      SYSTEM_ANOMALY_TYPE_LABEL,
+      SYSTEM_ANOMALY_TYPE_COLOR,
+      new Date().toISOString()
+    ]);
+  });
 }
 
 /**
@@ -481,27 +520,29 @@ async function createAnomalyType(
   { requesterRole, requesterUsername, label, colorHex, auditMode = "single" }
 ) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:types:create");
   const cleanLabel = String(label || "").trim();
   const cleanColorHex = normalizeColorHex(colorHex);
   if (!cleanLabel) {
     store.fail("data:types:create", "Libellé du type obligatoire.", "DATA_TYPE_REQUIRED");
   }
-  const exists = await db.get(
-    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
-    [cleanLabel]
-  );
-  if (exists) {
-    store.fail("data:types:create", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
-  }
   const id = generateEntityId();
   const now = new Date().toISOString();
-  await db.run("INSERT INTO data_anomaly_types (id, label, color_hex, created_at) VALUES (?, ?, ?, ?)", [
-    id,
-    cleanLabel,
-    cleanColorHex,
-    now
-  ]);
+  await db.transaction(async (tx) => {
+    const exists = await tx.get(
+      `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")}`,
+      [cleanLabel]
+    );
+    if (exists) {
+      store.fail("data:types:create", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
+    }
+    await tx.run("INSERT INTO data_anomaly_types (id, label, color_hex, created_at) VALUES (?, ?, ?, ?)", [
+      id,
+      cleanLabel,
+      cleanColorHex,
+      now
+    ]);
+  });
   await store.recordEntityChange({
     entityType: "data_anomaly_types",
     entityId: id,
@@ -527,39 +568,52 @@ async function createAnomalyType(
  */
 async function updateAnomalyType(
   store,
-  { requesterRole, requesterUsername, id, label, colorHex, auditMode = "single" }
+  { requesterRole, requesterUsername, id, label, colorHex, expectedUpdatedAt, auditMode = "single" }
 ) {
   store.ensureDataReaderRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:types:update");
   const cleanLabel = String(label || "").trim();
   const cleanColorHex = normalizeColorHex(colorHex);
   if (!id || !cleanLabel) {
     store.fail("data:types:update", "Données type invalides.", "DATA_TYPE_REQUIRED");
   }
-  const existingType = await db.get("SELECT id, label, color_hex FROM data_anomaly_types WHERE id = ?", [id]);
-  if (!existingType) {
-    store.fail("data:types:update", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
-  }
-  if (isSystemAnomalyType(existingType)) {
-    store.fail(
-      "data:types:update",
-      "Ce type d'anomalie est un type système et ne peut pas être modifié.",
-      "DATA_TYPE_SYSTEM_PROTECTED"
+  const existingType = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      "SELECT id, label, color_hex, updated_at FROM data_anomaly_types WHERE id = ? FOR UPDATE",
+      [id]
     );
-  }
-  const duplicate = await db.get(
-    `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")} AND id <> ?`,
-    [cleanLabel, id]
-  );
-  if (duplicate) {
-    store.fail("data:types:update", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
-  }
-  await db.run("UPDATE data_anomaly_types SET label = ?, color_hex = ?, updated_at = ? WHERE id = ?", [
-    cleanLabel,
-    cleanColorHex,
-    new Date().toISOString(),
-    id
-  ]);
+    if (!row) {
+      store.fail("data:types:update", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
+    }
+    if (isSystemAnomalyType(row)) {
+      store.fail(
+        "data:types:update",
+        "Ce type d'anomalie est un type système et ne peut pas être modifié.",
+        "DATA_TYPE_SYSTEM_PROTECTED"
+      );
+    }
+    assertOptimisticLock(store, "data:types:update", row, expectedUpdatedAt, "DATA_TYPE_CONFLICT");
+    const duplicate = await tx.get(
+      `SELECT id FROM data_anomaly_types WHERE ${sqlFoldExpr("label")} = ${sqlFoldExpr("?")} AND id <> ?`,
+      [cleanLabel, id]
+    );
+    if (duplicate) {
+      store.fail("data:types:update", "Ce type existe déjà.", "DATA_TYPE_EXISTS");
+    }
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      "UPDATE data_anomaly_types SET label = ?, color_hex = ?, updated_at = ? WHERE id = ? AND updated_at IS NOT DISTINCT FROM ?",
+      [cleanLabel, cleanColorHex, now, id, expectedUpdatedAt ?? null]
+    );
+    if (!result.changes) {
+      store.fail(
+        "data:types:update",
+        "Cette fiche a été modifiée ailleurs. Actualisez la liste puis réessayez.",
+        "DATA_TYPE_CONFLICT"
+      );
+    }
+    return row;
+  });
   if (auditMode !== "batch") {
     const historyBefore = await store.getEntityChangeHistory("data_anomaly_types", id, 3);
     store.logAudit({
@@ -591,23 +645,26 @@ async function updateAnomalyType(
  */
 async function deleteAnomalyType(store, { requesterRole, requesterUsername, id, reason }) {
   store.ensureDataDeleteRole(requesterRole);
-  const db = requirePersistence(store);
+  const db = requireDataPersistence(store, "data:types:delete");
   const cleanReason = String(reason || "").trim();
   if (!cleanReason) {
     store.fail("data:types:delete", "Motif de suppression obligatoire.", "DATA_DELETE_REASON_REQUIRED");
   }
-  const existing = await db.get("SELECT id, label, color_hex FROM data_anomaly_types WHERE id = ?", [id]);
-  if (!existing) {
-    store.fail("data:types:delete", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
-  }
-  if (isSystemAnomalyType(existing)) {
-    store.fail(
-      "data:types:delete",
-      "Ce type d'anomalie est un type système et ne peut pas être supprimé.",
-      "DATA_TYPE_SYSTEM_PROTECTED"
-    );
-  }
-  await db.run("DELETE FROM data_anomaly_types WHERE id = ?", [id]);
+  const existing = await db.transaction(async (tx) => {
+    const row = await tx.get("SELECT id, label, color_hex FROM data_anomaly_types WHERE id = ? FOR UPDATE", [id]);
+    if (!row) {
+      store.fail("data:types:delete", "Type introuvable.", "DATA_TYPE_NOT_FOUND");
+    }
+    if (isSystemAnomalyType(row)) {
+      store.fail(
+        "data:types:delete",
+        "Ce type d'anomalie est un type système et ne peut pas être supprimé.",
+        "DATA_TYPE_SYSTEM_PROTECTED"
+      );
+    }
+    await tx.run("DELETE FROM data_anomaly_types WHERE id = ?", [id]);
+    return row;
+  });
   store.logAudit({
     actorUsername: actorName(requesterUsername),
     action: "DATA_TYPE_DELETE",

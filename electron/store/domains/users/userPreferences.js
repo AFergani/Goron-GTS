@@ -3,6 +3,7 @@
  *
  * Lecture et mise à jour du thème clair/sombre pour le compte connecté.
  * IPC `preferences:get` / `preferences:set` ; consommé par `AppShell` côté UI.
+ * Écriture : transaction + `FOR UPDATE` (évite courses multi-postes sur le même compte).
  *
  * @module electron/store/domains/users/userPreferences
  */
@@ -69,29 +70,33 @@ async function setUserPreferences(store, { requesterRole, requesterUsername, the
   store.ensureDataReaderRole(requesterRole);
   const db = requirePersistence(store);
   const username = normalizeUsername(requesterUsername);
-  const row = await db.get("SELECT theme_mode, is_active FROM users WHERE username = ? LIMIT 1", [username]);
-  if (!row || !Boolean(Number(row.is_active))) {
-    store.fail("preferences:set", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { requesterUsername });
-  }
-  const beforeTheme = row.theme_mode === "light" ? "light" : "dark";
   const nextTheme = themeMode === "light" ? "light" : "dark";
-  if (beforeTheme === nextTheme) {
-    if (typeof refreshUsersCache === "function") {
-      await refreshUsersCache(store);
+  const resultTheme = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      "SELECT theme_mode, is_active FROM users WHERE username = ? FOR UPDATE",
+      [username]
+    );
+    if (!row || !Boolean(Number(row.is_active))) {
+      store.fail("preferences:set", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { requesterUsername });
     }
-    return { success: true, themeMode: nextTheme };
-  }
-  const result = await db.run(
-    "UPDATE users SET theme_mode = ?, updated_at = ? WHERE username = ?",
-    [nextTheme, new Date().toISOString(), username]
-  );
-  if (result.changes === 0) {
-    store.fail("preferences:set", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { requesterUsername });
-  }
+    const beforeTheme = row.theme_mode === "light" ? "light" : "dark";
+    if (beforeTheme === nextTheme) {
+      return nextTheme;
+    }
+    const result = await tx.run("UPDATE users SET theme_mode = ?, updated_at = ? WHERE username = ?", [
+      nextTheme,
+      new Date().toISOString(),
+      username
+    ]);
+    if (result.changes === 0) {
+      store.fail("preferences:set", "Utilisateur introuvable.", "AUTH_USER_NOT_FOUND", { requesterUsername });
+    }
+    return nextTheme;
+  });
   if (typeof refreshUsersCache === "function") {
     await refreshUsersCache(store);
   }
-  return { success: true, themeMode: nextTheme };
+  return { success: true, themeMode: resultTheme };
 }
 
 module.exports = {

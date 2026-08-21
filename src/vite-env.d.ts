@@ -284,6 +284,7 @@ declare global {
         managerProfile: ManagerProfile | null;
         pageAccess: PageAccess;
         mustResetPassword: boolean;
+        expectedUpdatedAt?: string | null;
       }) => Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }>;
       deactivateUser: (payload: {
         requesterRole: Role;
@@ -359,6 +360,7 @@ declare global {
         address?: string;
         parc?: string;
         famille?: string;
+        expectedUpdatedAt?: string | null;
         auditMode?: "single" | "batch";
       }) => Promise<{ success: boolean }>;
       deleteSite: (payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) => Promise<{ success: boolean }>;
@@ -374,6 +376,7 @@ declare global {
         requesterUsername: string;
         id: string;
         name: string;
+        expectedUpdatedAt?: string | null;
         auditMode?: "single" | "batch";
       }) => Promise<{ success: boolean }>;
       deleteIntervenant: (payload: {
@@ -444,6 +447,7 @@ declare global {
         id: string;
         label: string;
         colorHex?: string;
+        expectedUpdatedAt?: string | null;
         auditMode?: "single" | "batch";
       }) => Promise<{ success: boolean }>;
       deleteAnomalyType: (payload: {
@@ -465,6 +469,7 @@ declare global {
         id: string;
         dateIso: string;
         label: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<{ success: boolean }>;
       deleteHoliday: (payload: {
         requesterRole: Role;
@@ -484,6 +489,7 @@ declare global {
         requesterUsername: string;
         id: string;
         name: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<{ success: boolean }>;
       deleteFransorResponsable: (payload: {
         requesterRole: Role;
@@ -671,6 +677,7 @@ declare global {
         label: string;
         requiresFreeText: boolean;
         colorHex: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<RondeMotifTypeRef>;
       deleteRondeMotifType: (payload: {
         requesterRole: Role;
@@ -680,19 +687,25 @@ declare global {
       }) => Promise<{ success: boolean }>;
       listRondePlannedProfiles: (payload: { requesterRole: Role }) => Promise<RondePlannedProfileRef[]>;
       upsertRondePlannedProfile: (
-        payload: { requesterRole: Role; requesterUsername: string } & RondePlannedProfilePayload
+        payload: {
+          requesterRole: Role;
+          requesterUsername: string;
+          expectedUpdatedAt?: string | null;
+        } & RondePlannedProfilePayload
       ) => Promise<RondePlannedProfileRef>;
       deleteRondePlannedProfile: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
         reason: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<{ success: boolean }>;
       requestRondePlannedProfileCancellation: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
         reason: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<RondePlannedProfileRef>;
       reviewRondePlannedProfileCancellationRequest: (payload: {
         requesterRole: Role;
@@ -701,6 +714,7 @@ declare global {
         decision: "approve" | "reject";
         reviewReason: string;
         planningEndDate?: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<RondePlannedProfileRef>;
       setRondePlannedProfilePlanningEnd: (payload: {
         requesterRole: Role;
@@ -708,12 +722,14 @@ declare global {
         id: string;
         planningEndDate: string;
         reason: string;
+        expectedUpdatedAt?: string | null;
       }) => Promise<RondePlannedProfileRef>;
       setRondePlannedProfileValidated: (payload: {
         requesterRole: Role;
         requesterUsername: string;
         id: string;
         validated: boolean;
+        expectedUpdatedAt?: string | null;
       }) => Promise<RondePlannedProfileRef>;
       listInterventionWordExtraFields: (payload: { requesterRole: Role }) => Promise<
         Array<{

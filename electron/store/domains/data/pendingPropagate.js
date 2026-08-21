@@ -2,13 +2,23 @@
  * Propagation d'un site ou prestataire validé vers les fiches métier orphelines.
  *
  * Appelé par `pendingSites.js` / `pendingIntervenants.js` après validation Paramètres.
- * Met à jour ronde, gardiennage, main courante (site) ; les UPDATE intervention
- * restent dans les modules pending (même transaction que la validation).
+ * Préférer passer le `tx` de la transaction de resolve pour atomicité.
+ * Les UPDATE intervention restent dans les modules pending (même transaction).
  *
  * @module electron/store/domains/data/pendingPropagate
  */
 
 const { requireDataPersistence } = require("./persistence");
+
+/**
+ * @param {import('../../../userStore')} store
+ * @param {string} source
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter|null|undefined} executor
+ * @returns {import('../../persistence/persistenceContract').PersistenceAdapter}
+ */
+function resolveExecutor(store, source, executor) {
+  return executor || requireDataPersistence(store, source);
+}
 
 /**
  * Propage un site vers ronde, gardiennage et main courante (`site_id` encore null).
@@ -17,12 +27,13 @@ const { requireDataPersistence } = require("./persistence");
  * @param {string} siteId
  * @param {string} canonicalDisplay
  * @param {string} likePattern
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} [executor] - Connexion/tx en cours
  * @returns {Promise<{ rondeEntries: number, gardiennageEntries: number, mainCouranteEntries: number }>}
  */
-async function propagateSiteToOtherDomains(store, siteId, canonicalDisplay, likePattern) {
+async function propagateSiteToOtherDomains(store, siteId, canonicalDisplay, likePattern, executor) {
   const sql = `SET site_id = ?, site_display = ? WHERE site_id IS NULL AND lower(site_display) LIKE lower(?)`;
   const params = [siteId, canonicalDisplay, likePattern];
-  const db = requireDataPersistence(store, "data:pendingPropagate:site");
+  const db = resolveExecutor(store, "data:pendingPropagate:site", executor);
   const rondeResult = await db.run(`UPDATE ronde_entries ${sql}`, params);
   const gardiennageResult = await db.run(`UPDATE gardiennage_entries ${sql}`, params);
   const mainCourante = require("../mainCourante");
@@ -30,7 +41,8 @@ async function propagateSiteToOtherDomains(store, siteId, canonicalDisplay, like
     store,
     siteId,
     canonicalDisplay,
-    likePattern
+    likePattern,
+    db
   );
   return {
     rondeEntries: Number(rondeResult.changes || 0),
@@ -46,12 +58,13 @@ async function propagateSiteToOtherDomains(store, siteId, canonicalDisplay, like
  * @param {string} intervenantId
  * @param {string} finalName
  * @param {string} originalName
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} [executor] - Connexion/tx en cours
  * @returns {Promise<{ rondeEntries: number, gardiennageEntries: number }>}
  */
-async function propagateIntervenantToOtherDomains(store, intervenantId, finalName, originalName) {
+async function propagateIntervenantToOtherDomains(store, intervenantId, finalName, originalName, executor) {
   const sql = `SET intervenant_id = ?, intervenant_name = ? WHERE intervenant_id IS NULL AND lower(intervenant_name) = lower(?)`;
   const params = [intervenantId, finalName, originalName];
-  const db = requireDataPersistence(store, "data:pendingPropagate:intervenant");
+  const db = resolveExecutor(store, "data:pendingPropagate:intervenant", executor);
   const gardiennageResult = await db.run(`UPDATE gardiennage_entries ${sql}`, params);
   const rondeResult = await db.run(`UPDATE ronde_entries ${sql}`, params);
   return {

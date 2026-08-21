@@ -1,5 +1,5 @@
 /**
- * Tableau des logs techniques (`error_logs`) — même présentation que le journal d’actions.
+ * Tableau des logs techniques locaux (`gts-pg-events.log`) — même présentation que le journal d’actions.
  */
 
 export type TechErrorLogRow = {

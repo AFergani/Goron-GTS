@@ -806,19 +806,6 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Clôture: ${String(before.closedAt || "-")} => ${String(after.closedAt || "-")}`
       ].join("\n");
     }
-    if (log.action === "MAIN_COURANTE_ARCHIVE_BATCH") {
-      return [
-        "Archivage automatique",
-        `Nombre archivées: ${String(details.archivedCount || "-")}`,
-        `Délai (jours): ${String(details.delayDays || "-")}`
-      ].join("\n");
-    }
-    if (log.action === "MAIN_COURANTE_ARCHIVE_SKIP_WRITER_UNAVAILABLE") {
-      return [
-        "Archivage reporté",
-        `Raison: ${String(details.reason || "base indisponible")}`
-      ].join("\n");
-    }
     return undefined;
   }
   if (log.action === "USER_CREATE") {

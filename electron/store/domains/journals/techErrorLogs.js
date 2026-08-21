@@ -1,7 +1,8 @@
 /**
- * Consultation du journal technique local des événements PostgreSQL (`gts-pg-events.log`).
+ * Journal technique local des événements PostgreSQL (`gts-pg-events.log` dans userData).
  *
  * Affiché dans Paramètres → Journal (section technique).
+ * Distinct de `audit_logs` (métier). Événements PG : fichier local uniquement.
  *
  * @module electron/store/domains/journals/techErrorLogs
  */
@@ -9,6 +10,7 @@
 const authUsersDomain = require("../users/authUsers");
 const { readPostgresEvents } = require("../../persistence/postgresEventLog");
 
+/** Libellés français des codes émis par `postgresLabMonitor`. */
 const TECH_CODE_LABELS = {
   PG_LAB_UNREACHABLE: "PostgreSQL injoignable au démarrage",
   PG_LAB_CONNECTION_LOST: "Perte de connexion PostgreSQL",
@@ -28,7 +30,8 @@ async function listTechErrorLogs(store, { requesterUsername, limit = 200, role }
   const safeLimit = Math.max(1, Math.min(Number(limit) || 200, 500));
   const rows = readPostgresEvents({
     limit: safeLimit,
-    filePath: typeof store.resolvePostgresEventLogPath === "function" ? store.resolvePostgresEventLogPath() : undefined
+    filePath:
+      typeof store.resolvePostgresEventLogPath === "function" ? store.resolvePostgresEventLogPath() : undefined
   });
   return rows.map((row) => ({
     occurredAt: row.occurredAt,
@@ -41,6 +44,5 @@ async function listTechErrorLogs(store, { requesterUsername, limit = 200, role }
 }
 
 module.exports = {
-  listTechErrorLogs,
-  TECH_CODE_LABELS
+  listTechErrorLogs
 };

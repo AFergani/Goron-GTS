@@ -1,11 +1,13 @@
 /**
- * Accès PostgreSQL exclusif du domaine Rondes.
+ * Accès PostgreSQL du domaine Rondes.
+ *
+ * Consommé par `entries.js`, `plannedProfiles.js`, `autoClose.js`.
  *
  * @module electron/store/domains/ronde/persistence
  */
 
 /**
- * Exige une persistance PostgreSQL ouverte.
+ * Exige une persistance PostgreSQL ouverte pour les rondes.
  *
  * @param {import('../../../userStore')} store
  * @param {string} [source="ronde"]

@@ -10,8 +10,9 @@ const holidaysDomain = require("../data/holidays");
 const interventionDomain = require("../intervention");
 const exceptionalSlots = require("./exceptionalSlotsEngine");
 const { autoCloseExpiredExceptionalRondes } = require("./autoClose");
-const { mapRondeRow, parseJsonObject, toRondeAuditSnapshot } = require("./mapping");
+const { mapRondeRow, parseJsonObject, toRondeAuditSnapshot, RONDE_ENTRY_SELECT, RONDE_ENTRY_SELECT_R, requireEntryId } = require("./mapping");
 const { requireRondePersistence } = require("./persistence");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 const { generateEntityId } = require("../../core/ids");
 
 const ORIGIN_KINDS = new Set(["TELESURVEILLANCE", "CLIENT", "AUTRE"]);
@@ -134,7 +135,7 @@ async function normalizeRondeBody(store, db, payload) {
  */
 async function getRondeById(db, id) {
   return db.get(
-    `SELECT r.*, m.label AS motif_type_label,
+    `SELECT ${RONDE_ENTRY_SELECT_R}, m.label AS motif_type_label,
             m.requires_free_text AS motif_type_requires_free_text
      FROM ronde_entries r
      LEFT JOIN data_ronde_motif_types m ON m.id = r.motif_type_id
@@ -193,7 +194,7 @@ async function listRondes(store, { requesterRole }) {
   const db = requireRondePersistence(store, "ronde:list");
   await autoCloseExpiredExceptionalRondes(store);
   const rows = await db.all(
-    `SELECT r.*, m.label AS motif_type_label,
+    `SELECT ${RONDE_ENTRY_SELECT_R}, m.label AS motif_type_label,
             m.requires_free_text AS motif_type_requires_free_text
      FROM ronde_entries r
      LEFT JOIN data_ronde_motif_types m ON m.id = r.motif_type_id
@@ -249,6 +250,7 @@ async function getRondeTodayInProgressCounts(store, { requesterRole, todayIso })
  */
 async function createRonde(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  const entryId = requireEntryId(store, payload, "ronde:create");
   const db = requireRondePersistence(store, "ronde:create");
   const source = String(payload.source || "URGENCE").trim().toUpperCase();
   if (!SOURCES.has(source)) store.fail("ronde:validate", "Source de ronde invalide.", "RONDE_SOURCE_INVALID");
@@ -257,15 +259,6 @@ async function createRonde(store, payload) {
   const originInterventionId = String(payload.originInterventionId || "").trim() || null;
   if (originInterventionId && !await interventionDomain.hasInterventionEntry(store, originInterventionId)) {
     store.fail("ronde:create", "Intervention liée introuvable.", "RONDE_ORIGIN_INTERVENTION_NOT_FOUND");
-  }
-  const existing = await getRondeById(db, payload.id);
-  if (existing) {
-    store.logAudit({
-      actorUsername: payload.requesterUsername || "unknown",
-      action: "RONDE_CREATE_IDEMPOTENT",
-      details: { id: payload.id, existing: toRondeAuditSnapshot(existing) }
-    });
-    return mapRondeRow(existing);
   }
   const statusInput = String(payload.initialStatus || "EN_COURS").trim().toUpperCase();
   const status = ["EN_COURS", "CLOTURE", "ANNULE"].includes(statusInput) ? statusInput : "EN_COURS";
@@ -276,12 +269,8 @@ async function createRonde(store, payload) {
   const requestBatchId = source !== "PLANIFIE"
     ? String(payload.requestBatchId || "").trim().slice(0, 48) || null
     : null;
-  const batchBefore = requestBatchId
-    ? Number((await db.get("SELECT COUNT(*) AS count FROM ronde_entries WHERE request_batch_id = ?", [requestBatchId]))?.count || 0)
-    : 0;
-  const now = new Date().toISOString();
-  await db.run(INSERT_SQL, [
-    payload.id, now, now, source, originInterventionId, normalized.siteId,
+  const insertParams = [
+    entryId, null, null, source, originInterventionId, normalized.siteId,
     normalized.siteDisplay, normalized.requestDate, normalized.motifTypeId,
     normalized.motifCategorySnapshot, normalized.motifOther || null,
     normalized.horairesDemandeObs || null, normalized.originKind,
@@ -295,10 +284,37 @@ async function createRonde(store, payload) {
       ? String(payload.plannedSlotKey).trim().slice(0, 120) : null,
     normalizePlanningSnapshot(payload.requestPlanningSnapshotJson, source, store),
     requestBatchId, status, status === "ANNULE" ? cancellationReason : null,
-    status === "EN_COURS" ? null : now
-  ]);
+    null
+  ];
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (existing) return { kind: "idempotent", existing };
+    const batchBefore = requestBatchId
+      ? Number((await tx.get(
+        "SELECT COUNT(*) AS count FROM ronde_entries WHERE request_batch_id = ?",
+        [requestBatchId]
+      ))?.count || 0)
+      : 0;
+    const now = new Date().toISOString();
+    insertParams[1] = now;
+    insertParams[2] = now;
+    insertParams[insertParams.length - 1] = status === "EN_COURS" ? null : now;
+    await tx.run(INSERT_SQL, insertParams);
+    return { kind: "created", batchBefore, now };
+  });
+  if (outcome.kind === "idempotent") {
+    store.logAudit({
+      actorUsername: payload.requesterUsername || "unknown",
+      action: "RONDE_CREATE_IDEMPOTENT",
+      details: { id: entryId, existing: toRondeAuditSnapshot(outcome.existing) }
+    });
+    return mapRondeRow(await getRondeById(db, entryId) || outcome.existing);
+  }
   if (requestBatchId) {
-    if (batchBefore === 0) {
+    if (outcome.batchBefore === 0) {
       const count = Number((await db.get(
         "SELECT COUNT(*) AS count FROM ronde_entries WHERE request_batch_id = ?",
         [requestBatchId]
@@ -315,14 +331,14 @@ async function createRonde(store, payload) {
     store.logAudit({
       actorUsername: payload.requesterUsername || "unknown",
       action: "RONDE_CREATE",
-      details: { id: payload.id, created: {
+      details: { id: entryId, created: {
         source, siteDisplay: normalized.siteDisplay, requestDate: normalized.requestDate,
         motifLabel: normalized.motifCategorySnapshot, intervenantName: normalized.intervenantName,
         linkedIntervention: Boolean(originInterventionId), status
       } }
     });
   }
-  return mapRondeRow(await getRondeById(db, payload.id));
+  return mapRondeRow(await getRondeById(db, entryId));
 }
 
 /**
@@ -334,41 +350,55 @@ async function createRonde(store, payload) {
  */
 async function updateRonde(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  const entryId = requireEntryId(store, payload, "ronde:update");
   const db = requireRondePersistence(store, "ronde:update");
-  const row = await db.get("SELECT * FROM ronde_entries WHERE id = ?", [payload.id]);
-  if (!row) store.fail("ronde:update", "Ronde introuvable.", "RONDE_NOT_FOUND");
-  if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-    store.fail("ronde:update", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
-  }
   const normalized = await normalizeRondeBody(store, db, payload);
-  const now = new Date().toISOString();
-  const result = await db.run(
-    `UPDATE ronde_entries SET updated_at = ?, site_id = ?, site_display = ?, request_date = ?,
-       motif_type_id = ?, motif_category = ?, motif_other = ?, horaires_demande_obs = ?,
-       origin_kind = ?, origin_detail = ?, intervenant_id = ?, intervenant_name = ?,
-       arrival_time = ?, departure_time = ?, duration_minutes = ?, work_order_number = ?,
-       report = ?, closure_custom_values_json = ?
-     WHERE id = ? AND updated_at = ?`,
-    [now, normalized.siteId, normalized.siteDisplay, normalized.requestDate,
-      normalized.motifTypeId, normalized.motifCategorySnapshot, normalized.motifOther || null,
-      normalized.horairesDemandeObs || null, normalized.originKind, normalized.originDetail || null,
-      normalized.intervenantId, normalized.intervenantName, normalized.arrivalTime || null,
-      normalized.departureTime || null, normalized.durationMinutes, normalized.workOrderNumber || null,
-      normalized.report || null, JSON.stringify(normalized.closureCustomValues),
-      payload.id, payload.expectedUpdatedAt]
-  );
-  if (!result.changes) store.fail("ronde:update", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
+  const before = await db.transaction(async (tx) => {
+    const row = await tx.get(
+      `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (!row) store.fail("ronde:update", "Ronde introuvable.", "RONDE_NOT_FOUND");
+    assertOptimisticLock(
+      store,
+      "ronde:update",
+      row,
+      payload.expectedUpdatedAt,
+      "RONDE_CONFLICT",
+      "Ronde modifiée ailleurs. Actualisez la liste."
+    );
+    const now = new Date().toISOString();
+    const result = await tx.run(
+      `UPDATE ronde_entries SET updated_at = ?, site_id = ?, site_display = ?, request_date = ?,
+         motif_type_id = ?, motif_category = ?, motif_other = ?, horaires_demande_obs = ?,
+         origin_kind = ?, origin_detail = ?, intervenant_id = ?, intervenant_name = ?,
+         arrival_time = ?, departure_time = ?, duration_minutes = ?, work_order_number = ?,
+         report = ?, closure_custom_values_json = ?
+       WHERE id = ? AND updated_at = ?`,
+      [now, normalized.siteId, normalized.siteDisplay, normalized.requestDate,
+        normalized.motifTypeId, normalized.motifCategorySnapshot, normalized.motifOther || null,
+        normalized.horairesDemandeObs || null, normalized.originKind, normalized.originDetail || null,
+        normalized.intervenantId, normalized.intervenantName, normalized.arrivalTime || null,
+        normalized.departureTime || null, normalized.durationMinutes, normalized.workOrderNumber || null,
+        normalized.report || null, JSON.stringify(normalized.closureCustomValues),
+        entryId, payload.expectedUpdatedAt]
+    );
+    if (!result.changes) {
+      store.fail("ronde:update", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
+    }
+    return row;
+  });
   store.logAudit({
     actorUsername: payload.requesterUsername || "unknown",
     action: "RONDE_UPDATE",
-    details: { id: payload.id, before: toRondeAuditSnapshot(row), after: {
-      ...toRondeAuditSnapshot(row), siteDisplay: normalized.siteDisplay,
+    details: { id: entryId, before: toRondeAuditSnapshot(before), after: {
+      ...toRondeAuditSnapshot(before), siteDisplay: normalized.siteDisplay,
       requestDate: normalized.requestDate, motifLabel: normalized.motifCategorySnapshot,
       intervenantName: normalized.intervenantName, arrivalTime: normalized.arrivalTime,
       departureTime: normalized.departureTime
     } }
   });
-  return mapRondeRow(await getRondeById(db, payload.id));
+  return mapRondeRow(await getRondeById(db, entryId));
 }
 
 /**
@@ -380,33 +410,47 @@ async function updateRonde(store, payload) {
  */
 async function setRondeStatus(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  const entryId = requireEntryId(store, payload, "ronde:status");
   const db = requireRondePersistence(store, "ronde:status");
-  const row = await db.get("SELECT * FROM ronde_entries WHERE id = ?", [payload.id]);
-  if (!row) store.fail("ronde:status", "Ronde introuvable.", "RONDE_NOT_FOUND");
-  if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-    store.fail("ronde:status", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
-  }
   const status = payload.status === "ANNULE" ? "ANNULE" : payload.status === "CLOTURE" ? "CLOTURE" : "EN_COURS";
   const reason = String(payload.cancellationReason || "").trim();
   if (status === "ANNULE" && !reason) {
     store.fail("ronde:status", "Le motif d'annulation est obligatoire.", "RONDE_CANCEL_REASON_REQUIRED");
   }
-  const now = new Date().toISOString();
-  const result = await db.run(
-    `UPDATE ronde_entries SET status = ?, cancellation_reason = ?, closed_at = ?, updated_at = ?
-     WHERE id = ? AND updated_at = ?`,
-    [status, status === "ANNULE" ? reason : null, status === "EN_COURS" ? null : now,
-      now, payload.id, payload.expectedUpdatedAt]
-  );
-  if (!result.changes) store.fail("ronde:status", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
+  const { row, now } = await db.transaction(async (tx) => {
+    const locked = await tx.get(
+      `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (!locked) store.fail("ronde:status", "Ronde introuvable.", "RONDE_NOT_FOUND");
+    assertOptimisticLock(
+      store,
+      "ronde:status",
+      locked,
+      payload.expectedUpdatedAt,
+      "RONDE_CONFLICT",
+      "Ronde modifiée ailleurs. Actualisez la liste."
+    );
+    const stamp = new Date().toISOString();
+    const result = await tx.run(
+      `UPDATE ronde_entries SET status = ?, cancellation_reason = ?, closed_at = ?, updated_at = ?
+       WHERE id = ? AND updated_at = ?`,
+      [status, status === "ANNULE" ? reason : null, status === "EN_COURS" ? null : stamp,
+        stamp, entryId, payload.expectedUpdatedAt]
+    );
+    if (!result.changes) {
+      store.fail("ronde:status", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
+    }
+    return { row: locked, now: stamp };
+  });
   store.logAudit({
     actorUsername: payload.requesterUsername || "unknown",
     action: status === "ANNULE" ? "RONDE_CANCEL" : status === "CLOTURE" ? "RONDE_CLOSE" : "RONDE_REOPEN",
-    details: { id: payload.id,
+    details: { id: entryId,
       before: { status: row.status, cancellationReason: row.cancellation_reason || "", closedAt: row.closed_at || "" },
       after: { status, cancellationReason: status === "ANNULE" ? reason : "", closedAt: status === "EN_COURS" ? "" : now } }
   });
-  return mapRondeRow(await getRondeById(db, payload.id));
+  return mapRondeRow(await getRondeById(db, entryId));
 }
 
 /** @param {object} store @param {object[]} rows @returns {void} */
@@ -424,11 +468,22 @@ function assertCoherentExceptionalBatch(store, rows) {
   store.fail("ronde:batch", "Impossible de regrouper automatiquement ces fiches.", "RONDE_BATCH_INCOHERENT");
 }
 
-/** @param {object} db @param {string[]} ids @returns {Promise<object[]>} */
-async function loadBatchRows(db, ids) {
+/**
+ * Charge des fiches ronde par id (colonnes explicites).
+ *
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} db
+ * @param {string[]} ids
+ * @param {{ forUpdate?: boolean }} [options]
+ * @returns {Promise<object[]>}
+ */
+async function loadBatchRows(db, ids, { forUpdate = false } = {}) {
   if (!ids.length) return [];
   const placeholders = ids.map(() => "?").join(", ");
-  return db.all(`SELECT * FROM ronde_entries WHERE id IN (${placeholders})`, ids);
+  const lock = forUpdate ? " FOR UPDATE" : "";
+  return db.all(
+    `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id IN (${placeholders})${lock}`,
+    ids
+  );
 }
 
 /** @param {string} dateIso @param {string} timeHm @returns {string} */
@@ -486,6 +541,7 @@ async function updateRondeBatchSharedFields(store, payload) {
       });
       const createdIds = [];
       await db.transaction(async (tx) => {
+        await loadBatchRows(tx, ids, { forUpdate: true });
         if (toDelete.length) {
           const placeholders = toDelete.map(() => "?").join(", ");
           await tx.run(`DELETE FROM ronde_entries WHERE id IN (${placeholders})`, toDelete);
@@ -518,34 +574,38 @@ async function updateRondeBatchSharedFields(store, payload) {
   }
   const summaries = [];
   const now = new Date().toISOString();
-  for (const row of rows) {
-    const normalized = await normalizeRondeBody(store, db, {
-      ...payload, requestDate: row.request_date, horairesDemandeObs: row.horaires_demande_obs,
-      arrivalTime: row.arrival_time || "", departureTime: row.departure_time || "",
-      workOrderNumber: row.work_order_number || "", report: row.report || "",
-      closureCustomValues: parseJsonObject(row.closure_custom_values_json, {})
-    });
-    await db.run(
-      `UPDATE ronde_entries SET updated_at = ?, site_id = ?, site_display = ?, motif_type_id = ?,
-       motif_category = ?, motif_other = ?, origin_kind = ?, origin_detail = ?,
-       intervenant_id = ?, intervenant_name = ?, request_planning_snapshot_json = ? WHERE id = ?`,
-      [now, normalized.siteId, normalized.siteDisplay, normalized.motifTypeId,
-        normalized.motifCategorySnapshot, normalized.motifOther || null, normalized.originKind,
-        normalized.originDetail || null, normalized.intervenantId, normalized.intervenantName,
-        snapshotProvided ? snapshotJson : row.request_planning_snapshot_json, row.id]
-    );
-    summaries.push({ id: row.id, before: toRondeAuditSnapshot(row), after: {
-      ...toRondeAuditSnapshot(row), siteDisplay: normalized.siteDisplay,
-      motifLabel: normalized.motifCategorySnapshot, intervenantName: normalized.intervenantName
-    } });
-  }
+  const updatedIds = rows.map((row) => row.id);
+  await db.transaction(async (tx) => {
+    const lockedRows = await loadBatchRows(tx, updatedIds, { forUpdate: true });
+    for (const row of lockedRows) {
+      const normalized = await normalizeRondeBody(store, tx, {
+        ...payload, requestDate: row.request_date, horairesDemandeObs: row.horaires_demande_obs,
+        arrivalTime: row.arrival_time || "", departureTime: row.departure_time || "",
+        workOrderNumber: row.work_order_number || "", report: row.report || "",
+        closureCustomValues: parseJsonObject(row.closure_custom_values_json, {})
+      });
+      await tx.run(
+        `UPDATE ronde_entries SET updated_at = ?, site_id = ?, site_display = ?, motif_type_id = ?,
+         motif_category = ?, motif_other = ?, origin_kind = ?, origin_detail = ?,
+         intervenant_id = ?, intervenant_name = ?, request_planning_snapshot_json = ? WHERE id = ?`,
+        [now, normalized.siteId, normalized.siteDisplay, normalized.motifTypeId,
+          normalized.motifCategorySnapshot, normalized.motifOther || null, normalized.originKind,
+          normalized.originDetail || null, normalized.intervenantId, normalized.intervenantName,
+          snapshotProvided ? snapshotJson : row.request_planning_snapshot_json, row.id]
+      );
+      summaries.push({ id: row.id, before: toRondeAuditSnapshot(row), after: {
+        ...toRondeAuditSnapshot(row), siteDisplay: normalized.siteDisplay,
+        motifLabel: normalized.motifCategorySnapshot, intervenantName: normalized.intervenantName
+      } });
+    }
+  });
   store.logAudit({
     actorUsername: payload.requesterUsername || "unknown",
     action: "RONDE_BATCH_UPDATE",
-    details: { count: rows.length, entryIds: rows.map((row) => row.id),
+    details: { count: summaries.length, entryIds: summaries.map((row) => row.id),
       planningSnapshotSynced: snapshotProvided, planningResync, rows: summaries.slice(0, 25) }
   });
-  return { ok: true, updatedCount: rows.length };
+  return { ok: true, updatedCount: summaries.length };
 }
 
 /**
@@ -568,11 +628,14 @@ async function bulkCancelRondeBatch(store, payload) {
   if (openIds.length) {
     const placeholders = openIds.map(() => "?").join(", ");
     const now = new Date().toISOString();
-    await db.run(
-      `UPDATE ronde_entries SET status = 'ANNULE', cancellation_reason = ?, closed_at = ?, updated_at = ?
-       WHERE id IN (${placeholders})`,
-      [reason, now, now, ...openIds]
-    );
+    await db.transaction(async (tx) => {
+      await loadBatchRows(tx, openIds, { forUpdate: true });
+      await tx.run(
+        `UPDATE ronde_entries SET status = 'ANNULE', cancellation_reason = ?, closed_at = ?, updated_at = ?
+         WHERE id IN (${placeholders}) AND status = 'EN_COURS'`,
+        [reason, now, now, ...openIds]
+      );
+    });
   }
   store.logAudit({ actorUsername: payload.requesterUsername || "unknown", action: "RONDE_BATCH_CANCEL",
     details: { reason, cancelledCount: openIds.length, skippedCount: rows.length - openIds.length, entryIds: openIds } });
@@ -630,21 +693,24 @@ async function bulkDeleteRondeBatch(store, payload) {
   }
   let disabledProgrammingCount = 0;
   const now = new Date().toISOString();
-  for (const row of closedRows) {
-    const snapshot = parseJsonObject(row.request_planning_snapshot_json, null);
-    if (snapshot?.version === 1 && snapshot.createRoundsEnabled !== false) {
-      snapshot.createRoundsEnabled = false;
-      await db.run(
-        "UPDATE ronde_entries SET request_planning_snapshot_json = ?, updated_at = ? WHERE id = ?",
-        [JSON.stringify(snapshot), now, row.id]
-      );
-      disabledProgrammingCount += 1;
+  await db.transaction(async (tx) => {
+    await loadBatchRows(tx, ids, { forUpdate: true });
+    for (const row of closedRows) {
+      const snapshot = parseJsonObject(row.request_planning_snapshot_json, null);
+      if (snapshot?.version === 1 && snapshot.createRoundsEnabled !== false) {
+        snapshot.createRoundsEnabled = false;
+        await tx.run(
+          "UPDATE ronde_entries SET request_planning_snapshot_json = ?, updated_at = ? WHERE id = ?",
+          [JSON.stringify(snapshot), now, row.id]
+        );
+        disabledProgrammingCount += 1;
+      }
     }
-  }
-  if (deletable.length) {
-    const placeholders = deletable.map(() => "?").join(", ");
-    await db.run(`DELETE FROM ronde_entries WHERE id IN (${placeholders})`, deletable.map((row) => row.id));
-  }
+    if (deletable.length) {
+      const placeholders = deletable.map(() => "?").join(", ");
+      await tx.run(`DELETE FROM ronde_entries WHERE id IN (${placeholders})`, deletable.map((row) => row.id));
+    }
+  });
   store.logAudit({ actorUsername: payload.requesterUsername || "unknown", action: "RONDE_BATCH_DELETE",
     details: { reason, deletedCount: deletable.length, preservedClosedCount: closedRows.length,
       disabledProgrammingCount, deleted: deletable.map((row) => ({

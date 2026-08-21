@@ -97,23 +97,28 @@ async function createPendingSite(store, { requesterRole, requesterUsername, code
   if (!cleanName) {
     store.fail("data:pendingSite", "Le nom du site est obligatoire.", "DATA_PENDING_SITE_NAME_REQUIRED");
   }
-  if (await db.get(`SELECT id FROM data_sites WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
-    return { success: true, alreadyExists: true };
-  }
-  if (await db.get(`SELECT id FROM data_site_pending WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
-    return { success: true, alreadyExists: true };
-  }
-  const id = generateEntityId();
-  await db.run(
-    `INSERT INTO data_site_pending (${PENDING_SELECT}) VALUES (?, ?, ?, ?, ?)`,
-    [id, cleanCode, cleanName, actor, new Date().toISOString()]
-  );
-  store.logAudit({
-    actorUsername: actor,
-    action: "DATA_SITE_PENDING_CREATE",
-    details: { pendingSite: { code: cleanCode, name: cleanName } }
+  const outcome = await db.transaction(async (tx) => {
+    if (await tx.get(`SELECT id FROM data_sites WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
+      return { alreadyExists: true };
+    }
+    if (await tx.get(`SELECT id FROM data_site_pending WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
+      return { alreadyExists: true };
+    }
+    const id = generateEntityId();
+    await tx.run(
+      `INSERT INTO data_site_pending (${PENDING_SELECT}) VALUES (?, ?, ?, ?, ?)`,
+      [id, cleanCode, cleanName, actor, new Date().toISOString()]
+    );
+    return { alreadyExists: false };
   });
-  return { success: true, alreadyExists: false };
+  if (!outcome.alreadyExists) {
+    store.logAudit({
+      actorUsername: actor,
+      action: "DATA_SITE_PENDING_CREATE",
+      details: { pendingSite: { code: cleanCode, name: cleanName } }
+    });
+  }
+  return { success: true, alreadyExists: outcome.alreadyExists };
 }
 
 /**
@@ -167,6 +172,13 @@ async function resolvePendingSite(store, { requesterRole, requesterUsername, pen
        WHERE site_id IS NULL AND lower(site_display) LIKE lower(?)`,
       [siteId, canonicalDisplay, likePattern]
     );
+    const other = await propagateSiteToOtherDomains(
+      store,
+      siteId,
+      canonicalDisplay,
+      likePattern,
+      tx
+    );
     return {
       pending,
       siteId,
@@ -178,7 +190,8 @@ async function resolvePendingSite(store, { requesterRole, requesterUsername, pen
       likePattern,
       parc: cleanParc,
       famille: cleanFamille,
-      interventionEntries: Number(result.changes || 0)
+      interventionEntries: Number(result.changes || 0),
+      propagation: { interventionEntries: Number(result.changes || 0), ...other }
     };
   });
   if (resolved.created) {
@@ -195,13 +208,7 @@ async function resolvePendingSite(store, { requesterRole, requesterUsername, pen
       }
     });
   }
-  const other = await propagateSiteToOtherDomains(
-    store,
-    resolved.siteId,
-    resolved.canonicalDisplay,
-    resolved.likePattern
-  );
-  const propagation = { interventionEntries: resolved.interventionEntries, ...other };
+  const propagation = resolved.propagation;
   store.logAudit({
     actorUsername: actor,
     action: "DATA_SITE_PENDING_RESOLVE",

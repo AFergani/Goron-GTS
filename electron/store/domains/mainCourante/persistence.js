@@ -1,14 +1,13 @@
 /**
  * Accès PostgreSQL du domaine Main courante.
  *
- * Ce module ne supporte que la persistance PostgreSQL active du store.
- * Aucun chemin SQLite ni ancien adaptateur de secours n'est maintenu.
+ * Consommé par `entries.js`. Même pool que les référentiels (`getReferentialsPersistence`).
  *
  * @module electron/store/domains/mainCourante/persistence
  */
 
 /**
- * Exige PostgreSQL joignable (même pool labo que les référentiels / Fransor).
+ * Exige une persistance PostgreSQL ouverte pour la main courante.
  *
  * @param {import('../../../userStore')} store
  * @param {string} [source="mainCourante"]
@@ -23,11 +22,11 @@ function requireMainCourantePersistence(store, source = "mainCourante") {
     store.assertPostgresAvailableForReferentials();
   }
 
-  const refDb = typeof store.getReferentialsPersistence === "function"
+  const db = typeof store.getReferentialsPersistence === "function"
     ? store.getReferentialsPersistence()
     : null;
 
-  if (!refDb || refDb.engine !== "postgres" || typeof refDb.isOpen !== "function" || !refDb.isOpen()) {
+  if (!db || db.engine !== "postgres" || typeof db.isOpen !== "function" || !db.isOpen()) {
     if (typeof store.fail === "function") {
       store.fail(
         source,
@@ -38,9 +37,7 @@ function requireMainCourantePersistence(store, source = "mainCourante") {
     throw new Error("Base PostgreSQL inaccessible. La main courante est indisponible tant que le serveur n'est pas disponible.");
   }
 
-  return refDb;
+  return db;
 }
 
-module.exports = {
-  requireMainCourantePersistence
-};
+module.exports = { requireMainCourantePersistence };

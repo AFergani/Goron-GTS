@@ -342,6 +342,7 @@ export const gtsApiClient = {
     managerProfile: ManagerProfile | null;
     pageAccess: PageAccess;
     mustResetPassword: boolean;
+    expectedUpdatedAt?: string | null;
   }): Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }> {
     return window.gtsApi.updateUserProfile(withSession(payload));
   },
@@ -425,6 +426,7 @@ export const gtsApiClient = {
     address?: string;
     parc?: string;
     famille?: string;
+    expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
   }): Promise<{ success: boolean }> {
     return window.gtsApi.updateSite(withSession(payload));
@@ -448,6 +450,7 @@ export const gtsApiClient = {
     requesterUsername: string;
     id: string;
     name: string;
+    expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
   }): Promise<{ success: boolean }> {
     return window.gtsApi.updateIntervenant(withSession(payload));
@@ -537,6 +540,7 @@ export const gtsApiClient = {
     id: string;
     label: string;
     colorHex?: string;
+    expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
   }): Promise<{ success: boolean }> {
     return window.gtsApi.updateAnomalyType(withSession(payload));
@@ -561,6 +565,7 @@ export const gtsApiClient = {
     id: string;
     dateIso: string;
     label: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<{ success: boolean }> {
     return window.gtsApi.updateHoliday(withSession(payload));
   },
@@ -587,6 +592,7 @@ export const gtsApiClient = {
     requesterUsername: string;
     id: string;
     name: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<{ success: boolean }> {
     return window.gtsApi.updateFransorResponsable(withSession(payload));
   },
@@ -839,6 +845,7 @@ export const gtsApiClient = {
     label: string;
     requiresFreeText: boolean;
     colorHex: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<RondeMotifTypeRef> {
     return window.gtsApi.updateRondeMotifType(withSession(payload));
   },
@@ -854,7 +861,11 @@ export const gtsApiClient = {
     return window.gtsApi.listRondePlannedProfiles(withSession(payload));
   },
   upsertRondePlannedProfile(
-    payload: { requesterRole: Role; requesterUsername: string } & RondePlannedProfilePayload
+    payload: {
+      requesterRole: Role;
+      requesterUsername: string;
+      expectedUpdatedAt?: string | null;
+    } & RondePlannedProfilePayload
   ): Promise<RondePlannedProfileRef> {
     return window.gtsApi.upsertRondePlannedProfile(withSession(payload));
   },
@@ -863,6 +874,7 @@ export const gtsApiClient = {
     requesterUsername: string;
     id: string;
     reason: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<{ success: boolean }> {
     return window.gtsApi.deleteRondePlannedProfile(withSession(payload));
   },
@@ -871,6 +883,7 @@ export const gtsApiClient = {
     requesterUsername: string;
     id: string;
     reason: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<RondePlannedProfileRef> {
     return window.gtsApi.requestRondePlannedProfileCancellation(withSession(payload));
   },
@@ -881,6 +894,7 @@ export const gtsApiClient = {
     decision: "approve" | "reject";
     reviewReason: string;
     planningEndDate?: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<RondePlannedProfileRef> {
     return window.gtsApi.reviewRondePlannedProfileCancellationRequest(withSession(payload));
   },
@@ -890,6 +904,7 @@ export const gtsApiClient = {
     id: string;
     planningEndDate: string;
     reason: string;
+    expectedUpdatedAt?: string | null;
   }): Promise<RondePlannedProfileRef> {
     return window.gtsApi.setRondePlannedProfilePlanningEnd(withSession(payload));
   },
@@ -898,6 +913,7 @@ export const gtsApiClient = {
     requesterUsername: string;
     id: string;
     validated: boolean;
+    expectedUpdatedAt?: string | null;
   }): Promise<RondePlannedProfileRef> {
     return window.gtsApi.setRondePlannedProfileValidated(withSession(payload));
   },
