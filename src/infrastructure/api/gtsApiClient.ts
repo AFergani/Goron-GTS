@@ -1,8 +1,9 @@
 /**
  * Client TypeScript des appels `window.gtsApi` (preload Electron).
  *
- * Ajoute le jeton de session, typage des payloads/réponses et déconnexion automatique
- * sur erreurs `SESSION_EXPIRED` / `SESSION_INVALID`. Point d'entrée unique des features vers le backend.
+ * Point d'entrée unique des features vers le backend : jeton de session, typage,
+ * déconnexion automatique sur `SESSION_EXPIRED` / `SESSION_INVALID`.
+ * Types : `gtsApi.types.ts` ; jeton / garde : `gtsApiSession.ts`.
  */
 
 import type {
@@ -32,155 +33,70 @@ import type {
   RondeSource,
   RondeStatus
 } from "../../features/rondes/model/ronde.types";
-import type {
-  RondeClosureFieldType,
-  RondePlannedProfilePayload,
-  RondePlannedProfileRef
-} from "../../features/rondes/model/rondePlanned.types";
+import type { RondePlannedProfilePayload, RondePlannedProfileRef } from "../../features/rondes/model/rondePlanned.types";
 import type { FormVariableDef, FormVariablePayload } from "../../features/settings/model/formVariables.types";
 import type { TemplateFlowKind } from "../../features/settings/model/documentTemplates.types";
-import type { GardiennageEntry, GardiennageSavePayload } from "../../features/gardiennage/model/gardiennage.types";
+import type {
+  GardiennageClosePayload,
+  GardiennageEntry,
+  GardiennageSavePayload,
+  GardiennageStatus
+} from "../../features/gardiennage/model/gardiennage.types";
+import type {
+  DbConfig,
+  DbHealth,
+  GardiennageStatusResult,
+  PostgresLabHealth,
+  PostgresReconnectResult,
+  PostgresTestResult,
+  PublicPostgresConfig,
+  TechErrorLog,
+  TemplateAssignmentRow
+} from "./gtsApi.types";
+import {
+  getGtsApiSessionToken,
+  guardSession,
+  sessionCall,
+  sessionOnlyCall,
+  setGtsApiSessionToken
+} from "./gtsApiSession";
 
-export type DbConfig = { configured: boolean; isDev?: boolean };
-export type DbHealth = { configured: boolean; writable: boolean };
-export type TechErrorLog = {
-  occurredAt: string;
-  source: string;
-  code: string;
-  codeLabel: string;
-  messageFr: string;
-  details: Record<string, unknown> | null;
-};
-export type PostgresLabHealth = {
-  reachable: boolean;
-  engine: "postgres";
-  host: string;
-  port: number;
-  database: string;
-  error: string | null;
-  checkedAt: string;
-  /** Transition détectée par la sonde (perte / reconnexion) — absent si non fourni. */
-  transition?: "none" | "lost" | "restored" | "unavailable_at_start";
-};
-export type PublicPostgresConfig = {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  hasPassword: boolean;
-  source: "env" | "encrypted" | "defaults";
-  encryptionAvailable: boolean;
-  envOverridesActive: boolean;
-};
-export type PostgresTestResult = {
-  reachable: boolean;
-  host: string;
-  port: number;
-  database: string;
-  error: string | null;
-  checkedAt: string;
-};
-
-let gtsSessionToken: string | null = null;
-let onSessionExpiredCallback: (() => void) | null = null;
-
-/** Met à jour le jeton injecté dans chaque appel authentifié (`SessionProvider`). */
-export function setGtsApiSessionToken(token: string | null) {
-  gtsSessionToken = token;
-}
-
-/** Enregistre un callback appelé automatiquement quand une réponse IPC indique une session expirée. */
-export function setOnSessionExpired(cb: () => void) {
-  onSessionExpiredCallback = cb;
-}
-
-function isSessionError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message;
-  return msg.includes("SESSION_EXPIRED:") || msg.includes("SESSION_INVALID:");
-}
-
-async function guardSession<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    if (isSessionError(err) && onSessionExpiredCallback) {
-      onSessionExpiredCallback();
-    }
-    throw err;
-  }
-}
-
-function withSession<P extends object>(payload: P): P & { sessionToken: string } {
-  if (!gtsSessionToken) {
-    throw new Error("Session requise. Connectez-vous.");
-  }
-  return { ...payload, sessionToken: gtsSessionToken };
-}
-
-function withSessionOnly(): { sessionToken: string } {
-  if (!gtsSessionToken) {
-    throw new Error("Session requise. Connectez-vous.");
-  }
-  return { sessionToken: gtsSessionToken };
-}
-
-/** Enveloppe un appel IPC authentifié ; déclenche la déconnexion si la session est invalide ou expirée. */
-function auth<T>(fn: () => Promise<T>): Promise<T> {
-  return guardSession(fn);
-}
-
+export type {
+  DbConfig,
+  DbHealth,
+  GardiennageStatusResult,
+  PostgresLabHealth,
+  PostgresReconnectResult,
+  PostgresTestResult,
+  PublicPostgresConfig,
+  TechErrorLog,
+  TemplateAssignmentRow
+} from "./gtsApi.types";
+export { setGtsApiSessionToken, setOnSessionExpired } from "./gtsApiSession";
 
 /** Façade métier : une méthode par canal `gtsApi` / IPC. */
 export const gtsApiClient = {
   getDbConfig(): Promise<DbConfig> {
-    return window.gtsApi.getDbConfig(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
+    const token = getGtsApiSessionToken();
+    return guardSession(() => window.gtsApi.getDbConfig(token ? { sessionToken: token } : undefined));
   },
   setDevToolsEnabled(enabled: boolean): Promise<{ success: boolean; enabled: boolean }> {
-    return window.gtsApi.setDevToolsEnabled(
-      gtsSessionToken ? { enabled, sessionToken: gtsSessionToken } : { enabled }
+    const token = getGtsApiSessionToken();
+    return guardSession(() =>
+      window.gtsApi.setDevToolsEnabled(token ? { enabled, sessionToken: token } : { enabled })
     );
   },
-  getDocumentTemplate(templateName: string): Promise<{ found: boolean; dataBase64: string | null; sourcePath: string | null }> {
-    return window.gtsApi.getDocumentTemplate(withSession({ templateName }));
+  getDocumentTemplate(templateName: string) {
+    return sessionCall(window.gtsApi.getDocumentTemplate, { templateName });
   },
-  listDocumentTemplates(): Promise<{
-    templates: Array<{
-      kind: "builtin" | "custom";
-      templateKey: string;
-      title: string;
-      fileName: string;
-      helpId: string;
-      resolvedPath: string | null;
-      exists: boolean;
-      targetInstallPath: string | null;
-    }>;
-    writableTemplatesDir: string | null;
-  }> {
-    return window.gtsApi.listDocumentTemplates(withSessionOnly());
+  listDocumentTemplates() {
+    return sessionOnlyCall(window.gtsApi.listDocumentTemplates);
   },
-  installDocumentTemplateCopy(targetFileName: string): Promise<{
-    canceled: boolean;
-    success: boolean;
-    fileName?: string;
-    resolvedPath?: string | null;
-    templatesRelativePath?: string;
-  }> {
-    return window.gtsApi.installDocumentTemplateCopy(withSession({ targetFileName }));
+  installDocumentTemplateCopy(targetFileName: string) {
+    return sessionCall(window.gtsApi.installDocumentTemplateCopy, { targetFileName });
   },
-  listTemplateAssignments(payload: { requesterRole: Role }): Promise<
-    Array<{
-      id: string;
-      flowKind: TemplateFlowKind;
-      scopeKind: "SITE" | "FAMILLE";
-      scopeValue: string;
-      scopeLabel: string;
-      templateFileName: string;
-      createdAt: string;
-      updatedAt: string;
-    }>
-  > {
-    return window.gtsApi.listTemplateAssignments(withSession(payload));
+  listTemplateAssignments(payload: { requesterRole: Role }): Promise<TemplateAssignmentRow[]> {
+    return sessionCall(window.gtsApi.listTemplateAssignments, payload);
   },
   upsertScopedDocumentTemplate(payload: {
     requesterRole: Role;
@@ -189,44 +105,30 @@ export const gtsApiClient = {
     scopeKind: "SITE" | "FAMILLE";
     scopeValue: string;
     scopeLabel: string;
-  }): Promise<{
-    canceled: boolean;
-    success: boolean;
-    fileName?: string;
-    templatesRelativePath?: string;
-    assignment?: {
-      id: string;
-      flowKind: TemplateFlowKind;
-      scopeKind: "SITE" | "FAMILLE";
-      scopeValue: string;
-      scopeLabel: string;
-      templateFileName: string;
-      createdAt: string;
-      updatedAt: string;
-    };
-  }> {
-    return window.gtsApi.upsertScopedDocumentTemplate(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.upsertScopedDocumentTemplate, payload);
   },
-  deleteTemplateAssignment(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteTemplateAssignment(withSession(payload));
+  deleteTemplateAssignment(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteTemplateAssignment, payload);
   },
   resolveTemplateFileForContext(payload: {
     requesterRole: Role;
     flowKind: TemplateFlowKind;
     siteId?: string | null;
     famille?: string | null;
-  }): Promise<{ templateFileName: string | null }> {
-    return window.gtsApi.resolveTemplateFileForContext(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.resolveTemplateFileForContext, payload);
   },
-  openTemplatesFolder(): Promise<{ success: boolean; path: string | null; error: string | null }> {
-    return window.gtsApi.openTemplatesFolder(withSessionOnly());
+  openTemplatesFolder() {
+    return sessionOnlyCall(window.gtsApi.openTemplatesFolder);
   },
   getDbHealth(): Promise<DbHealth> {
-    return window.gtsApi.getDbHealth(gtsSessionToken ? { sessionToken: gtsSessionToken } : undefined);
+    const token = getGtsApiSessionToken();
+    return guardSession(() => window.gtsApi.getDbHealth(token ? { sessionToken: token } : undefined));
   },
   /** Badge : PostgreSQL joignable ? */
   getPostgresLabHealth(): Promise<PostgresLabHealth> {
-    return window.gtsApi.getPostgresLabHealth(withSessionOnly());
+    return sessionOnlyCall(window.gtsApi.getPostgresLabHealth);
   },
   /** Premier paramétrage PG (sans session) — avant login si aucune config connue. */
   getPostgresBootstrapStatus(): Promise<{ needsSetup: boolean; config: PublicPostgresConfig }> {
@@ -238,11 +140,7 @@ export const gtsApiClient = {
     database: string;
     user: string;
     password?: string;
-  }): Promise<{
-    success: boolean;
-    config: PublicPostgresConfig;
-    reconnect: { success: boolean; reachable: boolean; error: string | null };
-  }> {
+  }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: PostgresReconnectResult }> {
     return window.gtsApi.savePostgresBootstrapConfig(payload);
   },
   testPostgresBootstrapConfig(payload: {
@@ -255,7 +153,7 @@ export const gtsApiClient = {
     return window.gtsApi.testPostgresBootstrapConfig(payload);
   },
   getPostgresConfig(): Promise<PublicPostgresConfig> {
-    return auth(() => window.gtsApi.getPostgresConfig(withSessionOnly()));
+    return sessionOnlyCall(window.gtsApi.getPostgresConfig);
   },
   savePostgresConfig(payload: {
     host: string;
@@ -265,8 +163,8 @@ export const gtsApiClient = {
     password?: string;
     requesterRole: Role;
     requesterUsername: string;
-  }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: { success: boolean; reachable: boolean; error: string | null } }> {
-    return auth(() => window.gtsApi.savePostgresConfig(withSession(payload)));
+  }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: PostgresReconnectResult }> {
+    return sessionCall(window.gtsApi.savePostgresConfig, payload);
   },
   testPostgresConfig(payload: {
     host?: string;
@@ -277,17 +175,12 @@ export const gtsApiClient = {
     requesterRole: Role;
     requesterUsername: string;
   }): Promise<PostgresTestResult> {
-    return auth(() => window.gtsApi.testPostgresConfig(withSession(payload)));
+    return sessionCall(window.gtsApi.testPostgresConfig, payload);
   },
-  reconnectPostgres(payload: { requesterRole: Role; requesterUsername: string }): Promise<{
-    success: boolean;
-    reachable: boolean;
-    error: string | null;
-  }> {
-    return auth(() => window.gtsApi.reconnectPostgres(withSession(payload)));
+  reconnectPostgres(payload: { requesterRole: Role; requesterUsername: string }): Promise<PostgresReconnectResult> {
+    return sessionCall(window.gtsApi.reconnectPostgres, payload);
   },
   quitApp(): Promise<{ success: boolean }> {
-    // Pas de session requise (écran de connexion, croix fenêtre) : action locale.
     return window.gtsApi.quitApp();
   },
   minimizeApp(): Promise<{ success: boolean }> {
@@ -303,31 +196,21 @@ export const gtsApiClient = {
   login(payload: LoginPayload): Promise<{ user: User; sessionToken: string }> {
     return window.gtsApi.login(payload);
   },
-  getAdminAccessStatus(): Promise<{ enabled: boolean }> {
-    return window.gtsApi.getAdminAccessStatus();
-  },
-  firstLogin(payload: {
-    username: string;
-    temporaryPassword: string;
-    newPassword: string;
-  }): Promise<{ success: boolean }> {
+  firstLogin(payload: { username: string; temporaryPassword: string; newPassword: string }) {
     return window.gtsApi.firstLogin(payload);
   },
-  unlockUser(payload: { requesterRole: Role; requesterUsername: string; username: string }): Promise<{ success: boolean }> {
-    return auth(() => window.gtsApi.unlockUser(withSession(payload)));
+  unlockUser(payload: { requesterRole: Role; requesterUsername: string; username: string }) {
+    return sessionCall(window.gtsApi.unlockUser, payload);
   },
-  getActiveSessions(): Promise<{ activeUsernames: string[] }> {
-    return auth(() => window.gtsApi.getActiveSessions(withSession({})));
+  getActiveSessions() {
+    return sessionOnlyCall(window.gtsApi.getActiveSessions);
   },
   /** Heartbeat présence multi-postes (PostgreSQL). */
-  touchPresence(): Promise<{ written: boolean }> {
-    return auth(() => window.gtsApi.touchPresence(withSession({})));
+  touchPresence() {
+    return sessionOnlyCall(window.gtsApi.touchPresence);
   },
-  setAdminCode(payload: { requesterRole: Role; requesterUsername: string; code: string }): Promise<{ success: boolean }> {
-    return auth(() => window.gtsApi.setAdminCode(withSession(payload)));
-  },
-  listUsers(payload: { requesterRole: Role; requesterUsername: string }): Promise<User[]> {
-    return auth(() => window.gtsApi.listUsers(withSession(payload)));
+  listUsers(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.listUsers, payload);
   },
   createUser(payload: {
     requesterRole: Role;
@@ -337,8 +220,8 @@ export const gtsApiClient = {
     role: Exclude<Role, "DEV">;
     managerProfile: ManagerProfile | null;
     pageAccess: PageAccess;
-  }): Promise<{ user: User; temporaryPassword: string }> {
-    return window.gtsApi.createUser(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.createUser, payload);
   },
   updateUserProfile(payload: {
     requesterRole: Role;
@@ -350,16 +233,11 @@ export const gtsApiClient = {
     pageAccess: PageAccess;
     mustResetPassword: boolean;
     expectedUpdatedAt?: string | null;
-  }): Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }> {
-    return window.gtsApi.updateUserProfile(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateUserProfile, payload);
   },
-  deactivateUser(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    username: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deactivateUser(withSession(payload));
+  deactivateUser(payload: { requesterRole: Role; requesterUsername: string; username: string; reason: string }) {
+    return sessionCall(window.gtsApi.deactivateUser, payload);
   },
   reactivateUser(payload: {
     requesterRole: Role;
@@ -367,25 +245,17 @@ export const gtsApiClient = {
     username: string;
     reason: string;
     fullName?: string;
-  }): Promise<{ success: boolean; temporaryPassword: string; fullName?: string }> {
-    return window.gtsApi.reactivateUser(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.reactivateUser, payload);
   },
   listAuditLogs(payload: { requesterRole: Role; requesterUsername: string; limit?: number }): Promise<AuditLog[]> {
-    return window.gtsApi.listAuditLogs(withSession(payload));
+    return sessionCall(window.gtsApi.listAuditLogs, payload);
   },
-  getAuditMetadata(payload: { requesterRole: Role; requesterUsername: string }): Promise<{
-    firstOccurredAt: string | null;
-    lastOccurredAt: string | null;
-    total: number;
-  }> {
-    return window.gtsApi.getAuditMetadata(withSession(payload));
+  getAuditMetadata(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.getAuditMetadata, payload);
   },
-  listTechErrorLogs(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    limit?: number;
-  }): Promise<TechErrorLog[]> {
-    return window.gtsApi.listTechErrorLogs(withSession(payload));
+  listTechErrorLogs(payload: { requesterRole: Role; requesterUsername: string; limit?: number }): Promise<TechErrorLog[]> {
+    return sessionCall(window.gtsApi.listTechErrorLogs, payload);
   },
   logBulkImportAudit(payload: {
     requesterRole: Role;
@@ -396,21 +266,17 @@ export const gtsApiClient = {
     success: number;
     failed: number;
     errorEntries: Array<{ rowIndex: number; message: string; row: Record<string, unknown> }>;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.logBulkImportAudit(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.logBulkImportAudit, payload);
   },
-  getUserPreferences(payload: { requesterRole: Role; requesterUsername: string }): Promise<{ themeMode: "dark" | "light" }> {
-    return window.gtsApi.getUserPreferences(withSession(payload));
+  getUserPreferences(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.getUserPreferences, payload);
   },
-  setUserPreferences(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    themeMode: "dark" | "light";
-  }): Promise<{ success: boolean; themeMode: "dark" | "light" }> {
-    return window.gtsApi.setUserPreferences(withSession(payload));
+  setUserPreferences(payload: { requesterRole: Role; requesterUsername: string; themeMode: "dark" | "light" }) {
+    return sessionCall(window.gtsApi.setUserPreferences, payload);
   },
   listSites(payload: { requesterRole: Role }): Promise<SiteRef[]> {
-    return window.gtsApi.listSites(withSession(payload));
+    return sessionCall(window.gtsApi.listSites, payload);
   },
   createSite(payload: {
     requesterRole: Role;
@@ -421,8 +287,8 @@ export const gtsApiClient = {
     parc?: string;
     famille?: string;
     auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.createSite(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.createSite, payload);
   },
   updateSite(payload: {
     requesterRole: Role;
@@ -435,22 +301,17 @@ export const gtsApiClient = {
     famille?: string;
     expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.updateSite(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateSite, payload);
   },
-  deleteSite(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteSite(withSession(payload));
+  deleteSite(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteSite, payload);
   },
   listIntervenants(payload: { requesterRole: Role }): Promise<IntervenantRef[]> {
-    return window.gtsApi.listIntervenants(withSession(payload));
+    return sessionCall(window.gtsApi.listIntervenants, payload);
   },
-  createIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    name: string;
-    auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.createIntervenant(withSession(payload));
+  createIntervenant(payload: { requesterRole: Role; requesterUsername: string; name: string; auditMode?: "single" | "batch" }) {
+    return sessionCall(window.gtsApi.createIntervenant, payload);
   },
   updateIntervenant(payload: {
     requesterRole: Role;
@@ -459,22 +320,17 @@ export const gtsApiClient = {
     name: string;
     expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.updateIntervenant(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateIntervenant, payload);
   },
-  deleteIntervenant(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteIntervenant(withSession(payload));
+  deleteIntervenant(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteIntervenant, payload);
   },
   listPendingSites(payload: { requesterRole: Role }): Promise<PendingSite[]> {
-    return window.gtsApi.listPendingSites(withSession(payload));
+    return sessionCall(window.gtsApi.listPendingSites, payload);
   },
-  createPendingSite(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    code: string;
-    name: string;
-  }): Promise<{ success: boolean; alreadyExists: boolean }> {
-    return window.gtsApi.createPendingSite(withSession(payload));
+  createPendingSite(payload: { requesterRole: Role; requesterUsername: string; code: string; name: string }) {
+    return sessionCall(window.gtsApi.createPendingSite, payload);
   },
   resolvePendingSite(payload: {
     requesterRole: Role;
@@ -482,55 +338,31 @@ export const gtsApiClient = {
     pendingId: string;
     parc: string;
     famille: string;
-  }): Promise<{
-    success: boolean;
-    siteId: string;
-    alreadyExists: boolean;
-    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number; mainCouranteEntries: number };
-  }> {
-    return window.gtsApi.resolvePendingSite(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.resolvePendingSite, payload);
   },
-  deletePendingSite(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deletePendingSite(withSession(payload));
+  deletePendingSite(payload: { requesterRole: Role; requesterUsername: string; pendingId: string; reason: string }) {
+    return sessionCall(window.gtsApi.deletePendingSite, payload);
   },
   listPendingIntervenants(payload: { requesterRole: Role }): Promise<PendingIntervenant[]> {
-    return window.gtsApi.listPendingIntervenants(withSession(payload));
+    return sessionCall(window.gtsApi.listPendingIntervenants, payload);
   },
-  createPendingIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    name: string;
-  }): Promise<{ success: boolean; alreadyExists: boolean }> {
-    return window.gtsApi.createPendingIntervenant(withSession(payload));
+  createPendingIntervenant(payload: { requesterRole: Role; requesterUsername: string; name: string }) {
+    return sessionCall(window.gtsApi.createPendingIntervenant, payload);
   },
   resolvePendingIntervenant(payload: {
     requesterRole: Role;
     requesterUsername: string;
     pendingId: string;
     name?: string;
-  }): Promise<{
-    success: boolean;
-    intervenantId: string;
-    alreadyExists: boolean;
-    propagation?: { interventionEntries: number; rondeEntries: number; gardiennageEntries: number };
-  }> {
-    return window.gtsApi.resolvePendingIntervenant(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.resolvePendingIntervenant, payload);
   },
-  deletePendingIntervenant(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    pendingId: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deletePendingIntervenant(withSession(payload));
+  deletePendingIntervenant(payload: { requesterRole: Role; requesterUsername: string; pendingId: string; reason: string }) {
+    return sessionCall(window.gtsApi.deletePendingIntervenant, payload);
   },
   listAnomalyTypes(payload: { requesterRole: Role }): Promise<AnomalyTypeRef[]> {
-    return window.gtsApi.listAnomalyTypes(withSession(payload));
+    return sessionCall(window.gtsApi.listAnomalyTypes, payload);
   },
   createAnomalyType(payload: {
     requesterRole: Role;
@@ -538,8 +370,8 @@ export const gtsApiClient = {
     label: string;
     colorHex?: string;
     auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.createAnomalyType(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.createAnomalyType, payload);
   },
   updateAnomalyType(payload: {
     requesterRole: Role;
@@ -549,22 +381,17 @@ export const gtsApiClient = {
     colorHex?: string;
     expectedUpdatedAt?: string | null;
     auditMode?: "single" | "batch";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.updateAnomalyType(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateAnomalyType, payload);
   },
-  deleteAnomalyType(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteAnomalyType(withSession(payload));
+  deleteAnomalyType(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteAnomalyType, payload);
   },
   listHolidays(payload: { requesterRole: Role }): Promise<HolidayRef[]> {
-    return window.gtsApi.listHolidays(withSession(payload));
+    return sessionCall(window.gtsApi.listHolidays, payload);
   },
-  createHoliday(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    dateIso: string;
-    label: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.createHoliday(withSession(payload));
+  createHoliday(payload: { requesterRole: Role; requesterUsername: string; dateIso: string; label: string }) {
+    return sessionCall(window.gtsApi.createHoliday, payload);
   },
   updateHoliday(payload: {
     requesterRole: Role;
@@ -573,26 +400,17 @@ export const gtsApiClient = {
     dateIso: string;
     label: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.updateHoliday(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateHoliday, payload);
   },
-  deleteHoliday(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteHoliday(withSession(payload));
+  deleteHoliday(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteHoliday, payload);
   },
   listFransorResponsables(payload: { requesterRole: Role }): Promise<FransorResponsableRef[]> {
-    return window.gtsApi.listFransorResponsables(withSession(payload));
+    return sessionCall(window.gtsApi.listFransorResponsables, payload);
   },
-  createFransorResponsable(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    name: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.createFransorResponsable(withSession(payload));
+  createFransorResponsable(payload: { requesterRole: Role; requesterUsername: string; name: string }) {
+    return sessionCall(window.gtsApi.createFransorResponsable, payload);
   },
   updateFransorResponsable(payload: {
     requesterRole: Role;
@@ -600,19 +418,14 @@ export const gtsApiClient = {
     id: string;
     name: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.updateFransorResponsable(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateFransorResponsable, payload);
   },
-  deleteFransorResponsable(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteFransorResponsable(withSession(payload));
+  deleteFransorResponsable(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteFransorResponsable, payload);
   },
   listFransorClosures(payload: { requesterRole: Role; month: string }): Promise<FransorClosure[]> {
-    return window.gtsApi.listFransorClosures(withSession(payload));
+    return sessionCall(window.gtsApi.listFransorClosures, payload);
   },
   upsertFransorClosure(payload: {
     id?: string;
@@ -622,19 +435,14 @@ export const gtsApiClient = {
     endDate?: string;
     label: string;
     mode: "CLOSED" | "OPEN";
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.upsertFransorClosure(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.upsertFransorClosure, payload);
   },
-  deleteFransorClosure(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteFransorClosure(withSession(payload));
+  deleteFransorClosure(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteFransorClosure, payload);
   },
   listFransorEntriesByMonth(payload: { requesterRole: Role; month: string }): Promise<FransorEntry[]> {
-    return window.gtsApi.listFransorEntriesByMonth(withSession(payload));
+    return sessionCall(window.gtsApi.listFransorEntriesByMonth, payload);
   },
   upsertFransorEntry(payload: {
     requesterRole: Role;
@@ -643,34 +451,26 @@ export const gtsApiClient = {
     responsableId: string;
     ouvertureDone: boolean;
     fermetureDone: boolean;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.upsertFransorEntry(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.upsertFransorEntry, payload);
   },
   listFransorMonthlyRecap(payload: { requesterRole: Role; month: string }): Promise<FransorMonthlyRecap[]> {
-    return window.gtsApi.listFransorMonthlyRecap(withSession(payload));
+    return sessionCall(window.gtsApi.listFransorMonthlyRecap, payload);
   },
   listMainCouranteEntries(payload: { requesterRole: Role }): Promise<MainCouranteEntry[]> {
-    return window.gtsApi.listMainCouranteEntries(withSession(payload));
+    return sessionCall(window.gtsApi.listMainCouranteEntries, payload);
   },
-  getMainCouranteUnconsultedCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
-    return window.gtsApi.getMainCouranteUnconsultedCount(withSession(payload));
+  getMainCouranteUnconsultedCount(payload: { requesterRole: Role }) {
+    return sessionCall(window.gtsApi.getMainCouranteUnconsultedCount, payload);
   },
-  getMainCouranteOperatorResponseCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
-    return window.gtsApi.getMainCouranteOperatorResponseCount(withSession(payload));
+  getMainCouranteOperatorResponseCount(payload: { requesterRole: Role }) {
+    return sessionCall(window.gtsApi.getMainCouranteOperatorResponseCount, payload);
   },
-  markMainCouranteEntryConsulted(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.markMainCouranteEntryConsulted(withSession(payload));
+  markMainCouranteEntryConsulted(payload: { requesterRole: Role; requesterUsername: string; id: string }) {
+    return sessionCall(window.gtsApi.markMainCouranteEntryConsulted, payload);
   },
-  markMainCouranteEntryConsultedByOperator(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.markMainCouranteEntryConsultedByOperator(withSession(payload));
+  markMainCouranteEntryConsultedByOperator(payload: { requesterRole: Role; requesterUsername: string; id: string }) {
+    return sessionCall(window.gtsApi.markMainCouranteEntryConsultedByOperator, payload);
   },
   createMainCouranteEntry(payload: {
     requesterRole: Role;
@@ -682,17 +482,19 @@ export const gtsApiClient = {
     anomalyTypeId: string;
     anomalyTypeLabel: string;
     information: string;
-  }): Promise<MainCouranteEntry> {
-    return window.gtsApi.createMainCouranteEntry(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.createMainCouranteEntry, payload);
   },
-  updateMainCouranteEntryOperator(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-    requesterFullName: string;
-  } & MainCouranteSavePayload): Promise<MainCouranteEntry> {
-    return window.gtsApi.updateMainCouranteEntryOperator(withSession(payload));
+  updateMainCouranteEntryOperator(
+    payload: {
+      requesterRole: Role;
+      requesterUsername: string;
+      id: string;
+      expectedUpdatedAt: string;
+      requesterFullName: string;
+    } & MainCouranteSavePayload
+  ) {
+    return sessionCall(window.gtsApi.updateMainCouranteEntryOperator, payload);
   },
   applyMainCouranteManagerAction(payload: {
     requesterRole: Role;
@@ -702,8 +504,8 @@ export const gtsApiClient = {
     managerName: string;
     managerObservation: string;
     decision: "suivre" | "cloture";
-  }): Promise<MainCouranteEntry> {
-    return window.gtsApi.applyMainCouranteManagerAction(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.applyMainCouranteManagerAction, payload);
   },
   reopenMainCouranteEntry(payload: {
     requesterRole: Role;
@@ -711,29 +513,22 @@ export const gtsApiClient = {
     id: string;
     expectedUpdatedAt: string;
     managerName: string;
-  }): Promise<MainCouranteEntry> {
-    return window.gtsApi.reopenMainCouranteEntry(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.reopenMainCouranteEntry, payload);
   },
   listInterventions(payload: { requesterRole: Role }): Promise<InterventionEntry[]> {
-    return window.gtsApi.listInterventions(withSession(payload));
+    return sessionCall(window.gtsApi.listInterventions, payload);
   },
-  getInterventionOpenCount(payload: { requesterRole: Role }): Promise<{ count: number }> {
-    return window.gtsApi.getInterventionOpenCount(withSession(payload));
+  getInterventionOpenCount(payload: { requesterRole: Role }) {
+    return sessionCall(window.gtsApi.getInterventionOpenCount, payload);
   },
-  createIntervention(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-  } & InterventionSavePayload): Promise<InterventionEntry> {
-    return window.gtsApi.createIntervention(withSession(payload));
+  createIntervention(payload: { requesterRole: Role; requesterUsername: string; id: string } & InterventionSavePayload) {
+    return sessionCall(window.gtsApi.createIntervention, payload);
   },
-  updateIntervention(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-  } & InterventionSavePayload): Promise<InterventionEntry> {
-    return window.gtsApi.updateIntervention(withSession(payload));
+  updateIntervention(
+    payload: { requesterRole: Role; requesterUsername: string; id: string; expectedUpdatedAt: string } & InterventionSavePayload
+  ) {
+    return sessionCall(window.gtsApi.updateIntervention, payload);
   },
   setInterventionStatus(payload: {
     requesterRole: Role;
@@ -742,8 +537,8 @@ export const gtsApiClient = {
     expectedUpdatedAt: string;
     status: "EN_COURS" | "CLOTURE" | "ANNULE";
     cancellationReason?: string;
-  }): Promise<InterventionEntry> {
-    return window.gtsApi.setInterventionStatus(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.setInterventionStatus, payload);
   },
   setInterventionBillingStatus(payload: {
     requesterRole: Role;
@@ -752,44 +547,37 @@ export const gtsApiClient = {
     expectedUpdatedAt: string;
     billingStatus: "FACTURABLE" | "NON_FACTURABLE";
     reason?: string;
-  }): Promise<InterventionEntry> {
-    return window.gtsApi.setInterventionBillingStatus(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.setInterventionBillingStatus, payload);
   },
   listRondes(payload: { requesterRole: Role }): Promise<RondeEntry[]> {
-    return window.gtsApi.listRondes(withSession(payload));
+    return sessionCall(window.gtsApi.listRondes, payload);
   },
-  getRondeTodayInProgressCounts(payload: { requesterRole: Role; todayIso: string }): Promise<{
-    total: number;
-    contractual: number;
-    exceptional: number;
-  }> {
-    return window.gtsApi.getRondeTodayInProgressCounts(withSession(payload));
+  getRondeTodayInProgressCounts(payload: { requesterRole: Role; todayIso: string }) {
+    return sessionCall(window.gtsApi.getRondeTodayInProgressCounts, payload);
   },
-  createRondeEntry(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    source: RondeSource;
-    originInterventionId?: string | null;
-    plannedProfileId?: string | null;
-    plannedRoundKind?: string | null;
-    plannedSlotKey?: string | null;
-    initialStatus?: RondeStatus;
-    cancellationReason?: string;
-    /** Snapshot JSON (ronde exceptionnelle, rejouer « Demande liée »). */
-    requestPlanningSnapshotJson?: string | null;
-    /** Regroupe plusieurs fiches d’une même demande exceptionnelle. */
-    requestBatchId?: string | null;
-  } & RondeSavePayload): Promise<RondeEntry> {
-    return window.gtsApi.createRondeEntry(withSession(payload));
+  createRondeEntry(
+    payload: {
+      requesterRole: Role;
+      requesterUsername: string;
+      id: string;
+      source: RondeSource;
+      originInterventionId?: string | null;
+      plannedProfileId?: string | null;
+      plannedRoundKind?: string | null;
+      plannedSlotKey?: string | null;
+      initialStatus?: RondeStatus;
+      cancellationReason?: string;
+      requestPlanningSnapshotJson?: string | null;
+      requestBatchId?: string | null;
+    } & RondeSavePayload
+  ) {
+    return sessionCall(window.gtsApi.createRondeEntry, payload);
   },
-  updateRondeEntry(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-  } & RondeSavePayload): Promise<RondeEntry> {
-    return window.gtsApi.updateRondeEntry(withSession(payload));
+  updateRondeEntry(
+    payload: { requesterRole: Role; requesterUsername: string; id: string; expectedUpdatedAt: string } & RondeSavePayload
+  ) {
+    return sessionCall(window.gtsApi.updateRondeEntry, payload);
   },
   setRondeStatus(payload: {
     requesterRole: Role;
@@ -798,8 +586,8 @@ export const gtsApiClient = {
     expectedUpdatedAt: string;
     status: RondeStatus;
     cancellationReason?: string;
-  }): Promise<RondeEntry> {
-    return window.gtsApi.setRondeStatus(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.setRondeStatus, payload);
   },
   updateRondeBatchSharedFields(payload: {
     requesterRole: Role;
@@ -814,27 +602,17 @@ export const gtsApiClient = {
     intervenantId: string | null;
     intervenantName: string;
     requestPlanningSnapshotJson?: string | null;
-  }): Promise<{ ok: boolean; updatedCount: number }> {
-    return window.gtsApi.updateRondeBatchSharedFields(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateRondeBatchSharedFields, payload);
   },
-  bulkCancelRondeBatch(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    entryIds: string[];
-    reason: string;
-  }): Promise<{ ok: boolean; cancelledCount: number; skippedCount: number }> {
-    return window.gtsApi.bulkCancelRondeBatch(withSession(payload));
+  bulkCancelRondeBatch(payload: { requesterRole: Role; requesterUsername: string; entryIds: string[]; reason: string }) {
+    return sessionCall(window.gtsApi.bulkCancelRondeBatch, payload);
   },
-  bulkDeleteRondeBatch(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    entryIds: string[];
-    reason: string;
-  }): Promise<{ ok: boolean; deletedCount: number; skippedCount: number }> {
-    return window.gtsApi.bulkDeleteRondeBatch(withSession(payload));
+  bulkDeleteRondeBatch(payload: { requesterRole: Role; requesterUsername: string; entryIds: string[]; reason: string }) {
+    return sessionCall(window.gtsApi.bulkDeleteRondeBatch, payload);
   },
   listRondeMotifTypes(payload: { requesterRole: Role }): Promise<RondeMotifTypeRef[]> {
-    return window.gtsApi.listRondeMotifTypes(withSession(payload));
+    return sessionCall(window.gtsApi.listRondeMotifTypes, payload);
   },
   createRondeMotifType(payload: {
     requesterRole: Role;
@@ -842,8 +620,8 @@ export const gtsApiClient = {
     label: string;
     requiresFreeText: boolean;
     colorHex: string;
-  }): Promise<RondeMotifTypeRef> {
-    return window.gtsApi.createRondeMotifType(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.createRondeMotifType, payload);
   },
   updateRondeMotifType(payload: {
     requesterRole: Role;
@@ -853,28 +631,19 @@ export const gtsApiClient = {
     requiresFreeText: boolean;
     colorHex: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<RondeMotifTypeRef> {
-    return window.gtsApi.updateRondeMotifType(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.updateRondeMotifType, payload);
   },
-  deleteRondeMotifType(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    reason: string;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteRondeMotifType(withSession(payload));
+  deleteRondeMotifType(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteRondeMotifType, payload);
   },
   listRondePlannedProfiles(payload: { requesterRole: Role }): Promise<RondePlannedProfileRef[]> {
-    return window.gtsApi.listRondePlannedProfiles(withSession(payload));
+    return sessionCall(window.gtsApi.listRondePlannedProfiles, payload);
   },
   upsertRondePlannedProfile(
-    payload: {
-      requesterRole: Role;
-      requesterUsername: string;
-      expectedUpdatedAt?: string | null;
-    } & RondePlannedProfilePayload
-  ): Promise<RondePlannedProfileRef> {
-    return window.gtsApi.upsertRondePlannedProfile(withSession(payload));
+    payload: { requesterRole: Role; requesterUsername: string; expectedUpdatedAt?: string | null } & RondePlannedProfilePayload
+  ) {
+    return sessionCall(window.gtsApi.upsertRondePlannedProfile, payload);
   },
   deleteRondePlannedProfile(payload: {
     requesterRole: Role;
@@ -882,8 +651,8 @@ export const gtsApiClient = {
     id: string;
     reason: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<{ success: boolean }> {
-    return window.gtsApi.deleteRondePlannedProfile(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.deleteRondePlannedProfile, payload);
   },
   requestRondePlannedProfileCancellation(payload: {
     requesterRole: Role;
@@ -891,8 +660,8 @@ export const gtsApiClient = {
     id: string;
     reason: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<RondePlannedProfileRef> {
-    return window.gtsApi.requestRondePlannedProfileCancellation(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.requestRondePlannedProfileCancellation, payload);
   },
   reviewRondePlannedProfileCancellationRequest(payload: {
     requesterRole: Role;
@@ -902,8 +671,8 @@ export const gtsApiClient = {
     reviewReason: string;
     planningEndDate?: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<RondePlannedProfileRef> {
-    return window.gtsApi.reviewRondePlannedProfileCancellationRequest(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.reviewRondePlannedProfileCancellationRequest, payload);
   },
   setRondePlannedProfilePlanningEnd(payload: {
     requesterRole: Role;
@@ -912,8 +681,8 @@ export const gtsApiClient = {
     planningEndDate: string;
     reason: string;
     expectedUpdatedAt?: string | null;
-  }): Promise<RondePlannedProfileRef> {
-    return window.gtsApi.setRondePlannedProfilePlanningEnd(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.setRondePlannedProfilePlanningEnd, payload);
   },
   setRondePlannedProfileValidated(payload: {
     requesterRole: Role;
@@ -921,99 +690,58 @@ export const gtsApiClient = {
     id: string;
     validated: boolean;
     expectedUpdatedAt?: string | null;
-  }): Promise<RondePlannedProfileRef> {
-    return window.gtsApi.setRondePlannedProfileValidated(withSession(payload));
-  },
-  listInterventionWordExtraFields(payload: { requesterRole: Role }): Promise<
-    Array<{
-      id: string;
-      sortOrder: number;
-      fieldKey: string;
-      label: string;
-      fieldType: RondeClosureFieldType;
-      placeholder: string;
-      options: string[];
-      createdAt: string;
-      updatedAt: string;
-    }>
-  > {
-    return window.gtsApi.listInterventionWordExtraFields(withSession(payload));
+  }) {
+    return sessionCall(window.gtsApi.setRondePlannedProfileValidated, payload);
   },
   listFormVariables(payload: { requesterRole: Role }): Promise<FormVariableDef[]> {
-    return window.gtsApi.listFormVariables(withSession(payload));
+    return sessionCall(window.gtsApi.listFormVariables, payload);
   },
-  saveFormVariables(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    variables: FormVariablePayload[];
-  }): Promise<FormVariableDef[]> {
-    return window.gtsApi.saveFormVariables(withSession(payload));
+  saveFormVariables(payload: { requesterRole: Role; requesterUsername: string; variables: FormVariablePayload[] }) {
+    return sessionCall(window.gtsApi.saveFormVariables, payload);
   },
   listGardiennages(payload: { requesterRole: Role }): Promise<GardiennageEntry[]> {
-    return window.gtsApi.listGardiennages(withSession(payload));
+    return sessionCall(window.gtsApi.listGardiennages, payload);
   },
-  getGardiennageTodayInProgressCount(payload: { requesterRole: Role; todayIso: string }): Promise<{ count: number }> {
-    return window.gtsApi.getGardiennageTodayInProgressCount(withSession(payload));
+  getGardiennageTodayInProgressCount(payload: { requesterRole: Role; todayIso: string }) {
+    return sessionCall(window.gtsApi.getGardiennageTodayInProgressCount, payload);
   },
-  createGardiennage(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-  } & GardiennageSavePayload): Promise<GardiennageEntry> {
-    return window.gtsApi.createGardiennage(withSession(payload));
+  createGardiennage(payload: { requesterRole: Role; requesterUsername: string; id: string } & GardiennageSavePayload) {
+    return sessionCall(window.gtsApi.createGardiennage, payload);
   },
-  updateGardiennage(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-  } & GardiennageSavePayload): Promise<GardiennageEntry> {
-    return window.gtsApi.updateGardiennage(withSession(payload));
+  updateGardiennage(
+    payload: { requesterRole: Role; requesterUsername: string; id: string; expectedUpdatedAt: string } & GardiennageSavePayload
+  ) {
+    return sessionCall(window.gtsApi.updateGardiennage, payload);
   },
   setGardiennageStatus(payload: {
     requesterRole: Role;
     requesterUsername: string;
     id: string;
     expectedUpdatedAt: string;
-    status: import("../../features/gardiennage/model/gardiennage.types").GardiennageStatus;
+    status: GardiennageStatus;
     cancellationReason?: string;
-  }): Promise<GardiennageEntry & {
-    batchOperation?: {
-      type: "CANCEL";
-      isBatch: boolean;
-      cancelledCount: number;
-      preservedClosedCount: number;
-    };
-  }> {
-    return window.gtsApi.setGardiennageStatus(withSession(payload));
+  }): Promise<GardiennageStatusResult> {
+    return sessionCall(window.gtsApi.setGardiennageStatus, payload) as Promise<GardiennageStatusResult>;
   },
-  deleteGardiennage(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    reason: string;
-  }): Promise<{ success: boolean; batchId?: string | null; deletedCount?: number; preservedClosedCount?: number }> {
-    return window.gtsApi.deleteGardiennage(withSession(payload));
+  deleteGardiennage(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
+    return sessionCall(window.gtsApi.deleteGardiennage, payload);
   },
-  closeGardiennage(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-  } & import("../../features/gardiennage/model/gardiennage.types").GardiennageClosePayload): Promise<GardiennageEntry> {
-    return window.gtsApi.closeGardiennage(withSession(payload));
+  closeGardiennage(
+    payload: {
+      requesterRole: Role;
+      requesterUsername: string;
+      id: string;
+      expectedUpdatedAt: string;
+    } & GardiennageClosePayload
+  ) {
+    return sessionCall(window.gtsApi.closeGardiennage, payload);
   },
-  reopenGardiennage(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-  }): Promise<GardiennageEntry> {
-    return window.gtsApi.reopenGardiennage(withSession(payload));
+  reopenGardiennage(payload: { requesterRole: Role; requesterUsername: string; id: string; expectedUpdatedAt: string }) {
+    return sessionCall(window.gtsApi.reopenGardiennage, payload);
   },
   async logout(): Promise<{ success: boolean }> {
-    const prev = gtsSessionToken;
-    gtsSessionToken = null;
+    const prev = getGtsApiSessionToken();
+    setGtsApiSessionToken(null);
     if (!prev) return { success: true };
     try {
       return await window.gtsApi.logout({ sessionToken: prev });
@@ -1021,6 +749,4 @@ export const gtsApiClient = {
       return { success: true };
     }
   }
-
-
 };
