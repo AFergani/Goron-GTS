@@ -21,7 +21,7 @@ export function getLocalMonthKey(date: Date = new Date()): string {
  * @param monthKey - Clé `YYYY-MM` (défaut : mois en cours)
  * @returns Nom du mois capitalisé
  */
-export function formatLocalMonthNameFr(monthKey: string = getLocalMonthKey()): string {
+function formatLocalMonthNameFr(monthKey: string = getLocalMonthKey()): string {
   const [year, monthPart] = monthKey.split("-").map((value) => Number(value));
   if (!year || !monthPart) return monthKey;
   const text = new Date(year, monthPart - 1, 1).toLocaleDateString("fr-FR", { month: "long" });

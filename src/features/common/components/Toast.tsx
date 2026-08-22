@@ -46,20 +46,3 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
     </div>
   );
 }
-
-/** @deprecated Utiliser ToastStack — conservé pour imports accidentels. */
-export function Toast({
-  message,
-  variant = "success"
-}: {
-  message: string;
-  variant?: ToastVariant | "default";
-}) {
-  if (!message) return null;
-  const resolved: ToastVariant = variant === "default" || !variant ? "success" : variant;
-  return (
-    <div className={`toast toast--${resolved}`} role={ariaRoleForVariant(resolved)}>
-      {message}
-    </div>
-  );
-}

@@ -125,10 +125,6 @@ function formatNowDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function isValidTime(value: string) {
-  return isValidPlanningTime(value);
-}
-
 function formatDurationMinutes(totalMin: number): string {
   if (!Number.isFinite(totalMin) || totalMin <= 0) return "0h00";
   const h = Math.floor(totalMin / 60);
@@ -150,7 +146,7 @@ function formatIsoFrDateTime(isoDateTime: string): string {
 }
 
 function parseTimeToMin(hhmm: string): number {
-  if (!isValidTime(hhmm)) return -1;
+  if (!isValidPlanningTime(hhmm)) return -1;
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
 }

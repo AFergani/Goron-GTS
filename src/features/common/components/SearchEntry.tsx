@@ -9,9 +9,8 @@ import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
-import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
 
-export type SearchEntryProps = {
+type SearchEntryProps = {
   sites: SiteRef[];
   intervenants?: IntervenantRef[];
   selectedSite: SiteRef | null;

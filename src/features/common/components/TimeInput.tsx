@@ -7,7 +7,7 @@
 import { useRef, type InputHTMLAttributes } from "react";
 import { normalizeCompactTimeInput } from "../utils/timeInput";
 
-export type TimeInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
+type TimeInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
   value: string;
   onChange: (value: string) => void;
   /** Normaliser aussi à la perte de focus (défaut : oui). */

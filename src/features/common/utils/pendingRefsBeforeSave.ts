@@ -14,7 +14,7 @@
  */
 
 /** Résultat site + prestataire avant soumission */
-export type PendingRefsBeforeSaveResult =
+type PendingRefsBeforeSaveResult =
   | { ok: false; errorMessage: string }
   | { ok: true; createdSiteDisplay: string | null; createdIntervenantName: string | null };
 
@@ -74,7 +74,7 @@ export async function createPendingRefsIfNeededForSubmit(params: {
 }
 
 /** Résultat site seul (main courante : prestataire non géré ici) */
-export type PendingSiteOnlyBeforeSaveResult =
+type PendingSiteOnlyBeforeSaveResult =
   | { ok: false; errorMessage: string }
   | { ok: true; createdSiteDisplay: string | null };
 

@@ -9,7 +9,7 @@
 import type { ReactNode } from "react";
 
 /** Modules métier supportés pour le titre de modale de création. */
-export type CreateEntryModalKind = "mainCourante" | "ronde" | "intervention" | "gardiennage";
+type CreateEntryModalKind = "mainCourante" | "ronde" | "intervention" | "gardiennage";
 
 const TITLES: Record<CreateEntryModalKind, string> = {
   mainCourante: "Nouvelle Main courante",

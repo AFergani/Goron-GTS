@@ -16,7 +16,7 @@ import { useCallback, useState } from "react";
  */
 
 /** API exposée aux pages et barres de filtres */
-export type UseTableFiltersReturn = {
+type UseTableFiltersReturn = {
   search: string;
   dateFrom: string;
   dateTo: string;

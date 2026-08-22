@@ -9,6 +9,7 @@
 
 import type { GardiennagePlanningLineV1, GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
 import { GARDIENNAGE_WEEKDAYS_ALL_MASK } from "./gardiennagePlanningCalendar";
+import { isValidTime } from "../../common/utils/timeInput";
 
 export type GardiennagePlanningFormMode = "ponctuel" | "h24" | "recurring";
 
@@ -30,10 +31,8 @@ export function computeOpenEndedHorizonEndDate(
   return fromHorizon > refHorizon ? fromHorizon : refHorizon;
 }
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 export function isValidPlanningTime(value: string): boolean {
-  return TIME_RE.test(value);
+  return isValidTime(value);
 }
 
 /** Heure de fin H24 : si absente, identique à l'heure de début (fin de période au même horaire). */

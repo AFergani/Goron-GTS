@@ -10,7 +10,7 @@ import { useMemo, useState } from "react";
  * Utilisé par : MainCouranteTable, InterventionTable, RondeTable, GardiennageTable.
  */
 
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 
 /** Comparateur numérique par clé de colonne (retour < 0, 0, > 0 comme `Array.sort`) */
 type ComparatorMap<T, TKey extends string> = Record<TKey, (a: T, b: T) => number>;

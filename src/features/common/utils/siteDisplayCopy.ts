@@ -14,7 +14,7 @@ import type { NotifyToast } from "../model/toast.types";
  * Extrait le code site lorsque le libellé est du type « Nom (CODE) »
  * (dernière paire de parenthèses).
  */
-export function extractSiteCode(siteDisplay: string): string {
+function extractSiteCode(siteDisplay: string): string {
   const match = siteDisplay.match(/\(([^()]+)\)/);
   return match?.[1]?.trim() ?? "";
 }
