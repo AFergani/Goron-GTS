@@ -293,6 +293,13 @@ export const gtsApiClient = {
   minimizeApp(): Promise<{ success: boolean }> {
     return window.gtsApi.minimizeApp();
   },
+  /** Croix de fenêtre : le main demande à l'UI d'ouvrir le choix déconnexion / minimiser / quitter. */
+  subscribeAppExitChoiceRequest(callback: () => void): () => void {
+    if (!window.gtsApi.subscribeAppExitChoiceRequest) {
+      return () => {};
+    }
+    return window.gtsApi.subscribeAppExitChoiceRequest(callback);
+  },
   login(payload: LoginPayload): Promise<{ user: User; sessionToken: string }> {
     return window.gtsApi.login(payload);
   },

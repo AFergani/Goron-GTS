@@ -6,9 +6,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Moon, Power, Settings, Sun } from "lucide-react";
-import logoGts from "../assets/logo-gts.png";
 import { useSession } from "./session/SessionProvider";
+import { AppExitChoiceModal } from "./AppExitChoiceModal";
+import { AppSidebar } from "./AppSidebar";
+import {
+  APP_PAGE_TITLES,
+  getFirstSidebarPageAccess,
+  resolveUserPageAccess,
+  type AppPage
+} from "./appNavigation";
+import { useAppShellNavBadges } from "./useAppShellNavBadges";
 import { useAuthPresenter } from "../features/auth/presenter/useAuthPresenter";
 import { usePostgresBootstrapPresenter } from "../features/auth/presenter/usePostgresBootstrapPresenter";
 import { FirstLoginModal } from "../features/auth/view/FirstLoginModal";
@@ -25,44 +32,22 @@ import { ConfirmModal } from "../features/common/components/ConfirmModal";
 import { PgOfflineBlockingModal } from "../features/common/components/PgOfflineBlockingModal";
 import { ToastStack } from "../features/common/components/Toast";
 import { CredentialShareModal } from "../features/common/components/CredentialShareModal";
+import { useEnabledInterval } from "../features/common/hooks/useEnabledInterval";
 import { useGlobalDraggableModals } from "../features/common/hooks/useGlobalDraggableModals";
 import { useToastStack } from "../features/common/hooks/useToastStack";
 import type { NotifyToast } from "../features/common/model/toast.types";
 import { gtsApiClient } from "../infrastructure/api/gtsApiClient";
 import type { PostgresLabHealth } from "../infrastructure/api/gtsApiClient";
-import { getLocalDateIso } from "../features/common/utils/localDateIso";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
 import "../styles/fransor.css";
 import "../styles/helpfransor.css";
 
-type AppPage = "mainCourante" | "fransor" | "intervention" | "rondes" | "settings" | "gardiennage";
 type ThemeMode = "dark" | "light";
 
-/** Première page autorisée dans l'ordre sidebar (intervention → … → paramètres). */
-function getFirstSidebarPageAccess(pageAccess: Record<AppPage, boolean>): AppPage {
-  const sidebarOrder: AppPage[] = ["intervention", "rondes", "gardiennage", "mainCourante", "fransor", "settings"];
-  for (const page of sidebarOrder) {
-    if (pageAccess[page]) return page;
-  }
-  return "mainCourante";
-}
-
-/** Horodatage sidebar au format français lisible. */
-function formatSidebarDateTime(date: Date): string {
-  const datePart = date.toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric"
-  });
-  const timePart = date.toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  return `${datePart}, ${timePart}`;
-}
+const PG_HEALTH_POLL_MS = 5000;
+const PRESENCE_HEARTBEAT_MS = 20000;
 
 /**
  * Racine UI après connexion : layout sidebar + contenu, badges, thème et santé DB (PostgreSQL).
@@ -87,16 +72,12 @@ export function AppShell() {
     },
     [notifyToast]
   );
-  const [credentialsToShare, setCredentialsToShare] = useState<{ username: string; temporaryPassword: string } | null>(null);
+  const [credentialsToShare, setCredentialsToShare] = useState<{ username: string; temporaryPassword: string } | null>(
+    null
+  );
   const [activePage, setActivePage] = useState<AppPage>("mainCourante");
   const previousSessionUsernameRef = useRef<string | null>(null);
-  const [mainCouranteUnconsultedCount, setMainCouranteUnconsultedCount] = useState(0);
-  const [mainCouranteOperatorResponseCount, setMainCouranteOperatorResponseCount] = useState(0);
-  const [interventionOpenCount, setInterventionOpenCount] = useState(0);
-  const [rondeTodayInProgressCount, setRondeTodayInProgressCount] = useState(0);
-  const [gardiennageTodayInProgressCount, setGardiennageTodayInProgressCount] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "dark";
     const saved = window.localStorage.getItem("gts-theme");
     return saved === "light" ? "light" : "dark";
   });
@@ -113,67 +94,26 @@ export function AppShell() {
   const [showCloseAppModal, setShowCloseAppModal] = useState(false);
   const [helpCenterOpen, setHelpCenterOpen] = useState(false);
   const [helpCenterInitialTopic, setHelpCenterInitialTopic] = useState<HelpTopicId | null>(null);
-  const [now, setNow] = useState(() => new Date());
-  const todayLabel = formatSidebarDateTime(now);
   const isManager = session?.user.role === "RESPONSABLE" || session?.user.role === "DEV";
-  const userPageAccess = useMemo(() => {
-    if (session?.user.role === "DEV") {
-      return { mainCourante: true, fransor: true, intervention: true, rondes: true, settings: true, gardiennage: true };
-    }
-    return (
-      session?.user.pageAccess ?? {
-        mainCourante: true,
-        fransor: true,
-        intervention: true,
-        rondes: true,
-        settings: session?.user.role !== "OPERATEUR",
-        gardiennage: true
-      }
-    );
-  }, [session?.user.role, session?.user.pageAccess]);
+  const userPageAccess = useMemo(
+    () => resolveUserPageAccess(session?.user.role, session?.user.pageAccess),
+    [session?.user.role, session?.user.pageAccess]
+  );
   const firstSidebarPage = useMemo(() => getFirstSidebarPageAccess(userPageAccess), [userPageAccess]);
+  const navBadges = useAppShellNavBadges(session, isManager, userPageAccess.rondes, userPageAccess.gardiennage);
 
-  const getStatusTone = (isOk: boolean | null) => {
-    if (isOk === true) return "ok";
-    if (isOk === false) return "ko";
-    return "unknown";
-  };
-
-  const navigateToLinkedIntervention = (interventionId: string) => {
-    if (!userPageAccess.intervention) {
-      notifyToast("Accès à la page Interventions non autorisé.", "warning");
+  const navigateToLinkedPage = (
+    page: AppPage,
+    id: string,
+    setFocusId: (id: string) => void,
+    deniedMessage: string
+  ) => {
+    if (!userPageAccess[page]) {
+      notifyToast(deniedMessage, "warning");
       return;
     }
-    setFocusInterventionIdFromRonde(interventionId);
-    setActivePage("intervention");
-  };
-
-  const navigateToLinkedRonde = (rondeId: string) => {
-    if (!userPageAccess.rondes) {
-      notifyToast("Accès à la page Rondes non autorisé.", "warning");
-      return;
-    }
-    setFocusRondeIdFromIntervention(rondeId);
-    setActivePage("rondes");
-  };
-
-  const navigateToLinkedGardiennage = (gardiennageId: string) => {
-    if (!userPageAccess.gardiennage) {
-      notifyToast("Accès à la page Gardiennage non autorisé.", "warning");
-      return;
-    }
-    setFocusGardiennageIdFromIntervention(gardiennageId);
-    setActivePage("gardiennage");
-  };
-
-  const openSettingsAtFirstTabs = () => {
-    if (!userPageAccess.settings) return;
-    setActivePage("settings");
-    // Toujours ouvrir Paramètres sur le premier onglet visible.
-    settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
-    // Et dans Gestion des données, revenir au premier onglet à gauche.
-    settings.setActiveDataTab("sites");
-    settings.setActiveDocumentsTab("templates");
+    setFocusId(id);
+    setActivePage(page);
   };
 
   const auth = useAuthPresenter({
@@ -205,6 +145,23 @@ export function AppShell() {
     }
   });
 
+  const resetSettingsToFirstTabs = useCallback(() => {
+    settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
+    settings.setActiveDataTab("sites");
+    settings.setActiveDocumentsTab("templates");
+  }, [
+    settings.canAccessOperatorsTab,
+    settings.setActiveDataTab,
+    settings.setActiveDocumentsTab,
+    settings.setActiveSettingsTab
+  ]);
+
+  const openSettingsAtFirstTabs = () => {
+    if (!userPageAccess.settings) return;
+    setActivePage("settings");
+    resetSettingsToFirstTabs();
+  };
+
   const openHelpCenter = useCallback((topicId?: HelpTopicId | null) => {
     setHelpCenterInitialTopic(topicId ?? null);
     setHelpCenterOpen(true);
@@ -212,14 +169,7 @@ export function AppShell() {
 
   const helpAccess = useMemo(
     () => ({
-      pageAccess: {
-        intervention: userPageAccess.intervention,
-        rondes: userPageAccess.rondes,
-        gardiennage: userPageAccess.gardiennage,
-        mainCourante: userPageAccess.mainCourante,
-        fransor: userPageAccess.fransor,
-        settings: userPageAccess.settings
-      },
+      pageAccess: userPageAccess,
       canManageUsers: settings.canManageUsers,
       canAccessOperatorsTab: settings.canAccessOperatorsTab,
       canManageData: settings.canManageData
@@ -228,13 +178,7 @@ export function AppShell() {
   );
 
   useEffect(() => {
-    if (!window.gtsApi.subscribeAppExitChoiceRequest) return;
-    return window.gtsApi.subscribeAppExitChoiceRequest(() => setShowCloseAppModal(true));
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    return gtsApiClient.subscribeAppExitChoiceRequest(() => setShowCloseAppModal(true));
   }, []);
 
   useEffect(() => {
@@ -290,40 +234,29 @@ export function AppShell() {
       return;
     }
     if (previousSessionUsernameRef.current !== currentUsername) {
-      // À chaque nouvelle connexion, revenir sur le premier onglet de navigation autorisé.
       setActivePage(firstSidebarPage);
       if (firstSidebarPage === "settings") {
-        settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
-        settings.setActiveDataTab("sites");
-        settings.setActiveDocumentsTab("templates");
+        resetSettingsToFirstTabs();
       }
     }
     previousSessionUsernameRef.current = currentUsername;
-  }, [firstSidebarPage, session?.user?.username, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveDocumentsTab, settings.setActiveSettingsTab]);
+  }, [firstSidebarPage, resetSettingsToFirstTabs, session?.user?.username]);
 
   useEffect(() => {
     if (activePage !== "settings") return;
-    // À chaque entrée dans Paramètres, forcer le premier onglet principal + premier sous-onglet data.
-    settings.setActiveSettingsTab(settings.canAccessOperatorsTab ? "operators" : "data");
-    settings.setActiveDataTab("sites");
-    settings.setActiveDocumentsTab("templates");
-  }, [activePage, settings.canAccessOperatorsTab, settings.setActiveDataTab, settings.setActiveDocumentsTab, settings.setActiveSettingsTab]);
+    resetSettingsToFirstTabs();
+  }, [activePage, resetSettingsToFirstTabs]);
 
-  useEffect(() => {
-    if (!session) {
-      setPostgresLabHealth(null);
-      previousPostgresReachableRef.current = null;
-      setShowPgUnavailableModal(false);
-      return;
-    }
-    const loadDbHealth = async () => {
+  useEnabledInterval(
+    Boolean(session),
+    PG_HEALTH_POLL_MS,
+    async () => {
       try {
         const pgHealth = await gtsApiClient.getPostgresLabHealth();
         setPostgresLabHealth(pgHealth);
 
         const previous = previousPostgresReachableRef.current;
         const reachable = Boolean(pgHealth?.reachable);
-        // Modale bloquante synchronisée sur l'état réel (non fermable manuellement).
         setShowPgUnavailableModal(!reachable);
         if (!reachable) {
           setError("");
@@ -340,132 +273,25 @@ export function AppShell() {
       } catch {
         setPostgresLabHealth(null);
       }
-    };
-    void loadDbHealth();
-    const timer = setInterval(() => {
-      void loadDbHealth();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session, notifyToast]);
+    },
+    [session, notifyToast],
+    () => {
+      setPostgresLabHealth(null);
+      previousPostgresReachableRef.current = null;
+      setShowPgUnavailableModal(false);
+    }
+  );
 
-  /** Présence multi-postes : heartbeat PG pour le badge « connecté » partagé. */
-  useEffect(() => {
-    if (!session) return;
-    const beat = () => {
+  useEnabledInterval(
+    Boolean(session),
+    PRESENCE_HEARTBEAT_MS,
+    () => {
       void gtsApiClient.touchPresence().catch(() => {
         // Ignore si PG down : la modale offline couvre déjà ce cas.
       });
-    };
-    beat();
-    const timer = setInterval(beat, 20000);
-    return () => clearInterval(timer);
-  }, [session]);
-
-  useEffect(() => {
-    if (!session) {
-      setInterventionOpenCount(0);
-      return;
-    }
-    const loadOpenCount = async () => {
-      try {
-        const result = await gtsApiClient.getInterventionOpenCount({ requesterRole: session.user.role });
-        setInterventionOpenCount(Math.max(0, Number(result.count) || 0));
-      } catch {
-        setInterventionOpenCount(0);
-      }
-    };
-    void loadOpenCount();
-    const timer = setInterval(() => {
-      void loadOpenCount();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session]);
-
-  useEffect(() => {
-    if (!session || !isManager) {
-      setMainCouranteUnconsultedCount(0);
-      return;
-    }
-    const loadUnconsultedCount = async () => {
-      try {
-        const result = await gtsApiClient.getMainCouranteUnconsultedCount({ requesterRole: session.user.role });
-        setMainCouranteUnconsultedCount(Math.max(0, Number(result.count) || 0));
-      } catch {
-        setMainCouranteUnconsultedCount(0);
-      }
-    };
-    void loadUnconsultedCount();
-    const timer = setInterval(() => {
-      void loadUnconsultedCount();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session, isManager]);
-
-  useEffect(() => {
-    if (!session || isManager) {
-      setMainCouranteOperatorResponseCount(0);
-      return;
-    }
-    const loadOperatorResponseCount = async () => {
-      try {
-        const result = await gtsApiClient.getMainCouranteOperatorResponseCount({ requesterRole: session.user.role });
-        setMainCouranteOperatorResponseCount(Math.max(0, Number(result.count) || 0));
-      } catch {
-        setMainCouranteOperatorResponseCount(0);
-      }
-    };
-    void loadOperatorResponseCount();
-    const timer = setInterval(() => {
-      void loadOperatorResponseCount();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session, isManager]);
-
-  useEffect(() => {
-    if (!session || !userPageAccess.rondes) {
-      setRondeTodayInProgressCount(0);
-      return;
-    }
-    const loadRondeTodayCount = async () => {
-      try {
-        const result = await gtsApiClient.getRondeTodayInProgressCounts({
-          requesterRole: session.user.role,
-          todayIso: getLocalDateIso()
-        });
-        setRondeTodayInProgressCount(Math.max(0, Number(result.total) || 0));
-      } catch {
-        setRondeTodayInProgressCount(0);
-      }
-    };
-    void loadRondeTodayCount();
-    const timer = setInterval(() => {
-      void loadRondeTodayCount();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session, userPageAccess.rondes]);
-
-  useEffect(() => {
-    if (!session || !userPageAccess.gardiennage) {
-      setGardiennageTodayInProgressCount(0);
-      return;
-    }
-    const loadGardiennageTodayCount = async () => {
-      try {
-        const result = await gtsApiClient.getGardiennageTodayInProgressCount({
-          requesterRole: session.user.role,
-          todayIso: getLocalDateIso()
-        });
-        setGardiennageTodayInProgressCount(Math.max(0, Number(result.count) || 0));
-      } catch {
-        setGardiennageTodayInProgressCount(0);
-      }
-    };
-    void loadGardiennageTodayCount();
-    const timer = setInterval(() => {
-      void loadGardiennageTodayCount();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [session, userPageAccess.gardiennage]);
+    },
+    [session]
+  );
 
   const runDisconnect = () => {
     setShowCloseAppModal(false);
@@ -475,44 +301,22 @@ export function AppShell() {
     setCredentialsToShare(null);
   };
 
-  const exitChoiceModal =
-    showCloseAppModal ? (
-      <div className="modal-overlay" onClick={() => setShowCloseAppModal(false)}>
-        <section className="modal confirm-modal app-exit-choice-modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Fermeture de l&apos;application</h3>
-          <p className="muted">Déconnexion, réduction en zone de notification ou arrêt complet.</p>
-          <div className="row-actions app-exit-choice-modal__actions">
-            <button type="button" className="btn-light" onClick={() => setShowCloseAppModal(false)}>
-              Annuler
-            </button>
-            {session ? (
-              <button type="button" className="btn-light" onClick={runDisconnect}>
-                Déconnexion
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setShowCloseAppModal(false);
-                void settings.onMinimizeApp();
-              }}
-            >
-              Minimiser
-            </button>
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => {
-                setShowCloseAppModal(false);
-                void settings.onQuitAppNow();
-              }}
-            >
-              Quitter
-            </button>
-          </div>
-        </section>
-      </div>
-    ) : null;
+  const exitChoiceModal = (
+    <AppExitChoiceModal
+      isOpen={showCloseAppModal}
+      hasSession={Boolean(session)}
+      onCancel={() => setShowCloseAppModal(false)}
+      onDisconnect={runDisconnect}
+      onMinimize={() => {
+        setShowCloseAppModal(false);
+        void settings.onMinimizeApp();
+      }}
+      onQuit={() => {
+        setShowCloseAppModal(false);
+        void settings.onQuitAppNow();
+      }}
+    />
+  );
 
   if (!session) {
     if (!pgBootstrap.statusLoaded) {
@@ -578,181 +382,29 @@ export function AppShell() {
 
   return (
     <main className="page">
-      <aside className="sidebar">
-        <div className="sidebar-head">
-          <div className="sidebar-logo-wrap">
-            <img src={logoGts} alt="Logo GTS" className="sidebar-logo" />
-          </div>
-          <h2 className="sidebar-title">Télésurveillance GTS</h2>
-          <div className="user-badge">{session.user.fullName}</div>
-          <div className="sidebar-today">{todayLabel}</div>
-        </div>
-        <div className="sidebar-nav-scroll app-scrollbar">
-          <nav className="sidebar-pages" aria-label="Navigation principale">
-          {userPageAccess.intervention && (
-            <button
-              type="button"
-              className={activePage === "intervention" ? "nav-btn active" : "nav-btn"}
-              onClick={() => setActivePage("intervention")}
-            >
-              <span className="nav-btn-label">Interventions</span>
-              {interventionOpenCount > 0 ? (
-                <span
-                  className="nav-btn-badge"
-                  title={`${interventionOpenCount} intervention(s) en cours`}
-                  aria-label={`${interventionOpenCount} intervention(s) en cours`}
-                >
-                  {interventionOpenCount}
-                </span>
-              ) : null}
-            </button>
-          )}
-          {userPageAccess.rondes && (
-            <button type="button" className={activePage === "rondes" ? "nav-btn active" : "nav-btn"} onClick={() => setActivePage("rondes")}>
-              <span className="nav-btn-label">Rondes</span>
-              {rondeTodayInProgressCount > 0 ? (
-                <span
-                  className="nav-btn-badge"
-                  title={`${rondeTodayInProgressCount} ronde(s) en cours aujourd'hui`}
-                  aria-label={`${rondeTodayInProgressCount} ronde(s) en cours aujourd'hui`}
-                >
-                  {rondeTodayInProgressCount}
-                </span>
-              ) : null}
-            </button>
-          )}
-          {userPageAccess.gardiennage && (
-            <button
-              type="button"
-              className={activePage === "gardiennage" ? "nav-btn active" : "nav-btn"}
-              onClick={() => setActivePage("gardiennage")}
-            >
-              <span className="nav-btn-label">Gardiennage</span>
-              {gardiennageTodayInProgressCount > 0 ? (
-                <span
-                  className="nav-btn-badge"
-                  title={`${gardiennageTodayInProgressCount} gardiennage(s) en cours aujourd'hui`}
-                  aria-label={`${gardiennageTodayInProgressCount} gardiennage(s) en cours aujourd'hui`}
-                >
-                  {gardiennageTodayInProgressCount}
-                </span>
-              ) : null}
-            </button>
-          )}
-          {userPageAccess.mainCourante && (
-            <button
-              type="button"
-              className={activePage === "mainCourante" ? "nav-btn active" : "nav-btn"}
-              onClick={() => setActivePage("mainCourante")}
-            >
-              <span className="nav-btn-label">Main courante</span>
-              {isManager && mainCouranteUnconsultedCount > 0 ? (
-                <span
-                  className="nav-btn-badge"
-                  title={`${mainCouranteUnconsultedCount} entrée(s) non consultée(s)`}
-                  aria-label={`${mainCouranteUnconsultedCount} entrée(s) non consultée(s)`}
-                >
-                  {mainCouranteUnconsultedCount}
-                </span>
-              ) : null}
-              {!isManager && mainCouranteOperatorResponseCount > 0 ? (
-                <span
-                  className="nav-btn-badge"
-                  title={`${mainCouranteOperatorResponseCount} réponse(s) encadrement sur vos entrées`}
-                  aria-label={`${mainCouranteOperatorResponseCount} réponse(s) encadrement sur vos entrées`}
-                >
-                  {mainCouranteOperatorResponseCount}
-                </span>
-              ) : null}
-            </button>
-          )}
-          {userPageAccess.fransor && (
-            <button type="button" className={activePage === "fransor" ? "nav-btn active" : "nav-btn"} onClick={() => setActivePage("fransor")}>
-              <span className="nav-btn-label">Fransor</span>
-            </button>
-          )}
-        </nav>
-        </div>
-        <div className="sidebar-bottom">
-        <div className="sidebar-footer-inline" aria-label="Actions rapides">
-          <span
-            className={`sidebar-db-dot ${getStatusTone(postgresLabHealth?.reachable ?? null)}`}
-            title={
-              postgresLabHealth?.reachable
-                ? `Base accessible (${postgresLabHealth.host}:${postgresLabHealth.port}/${postgresLabHealth.database})`
-                : `Base inaccessible${postgresLabHealth?.error ? ` — ${postgresLabHealth.error}` : ""}`
-            }
-            aria-label={
-              postgresLabHealth?.reachable ? "Base de données accessible" : "Base de données inaccessible"
-            }
-            role="status"
-          />
-          <button
-            type="button"
-            title="Centre d'aide"
-            aria-label="Centre d'aide"
-            className="icon-btn sidebar-help-trigger"
-            onClick={() => openHelpCenter(null)}
-          >
-            <span aria-hidden className="sidebar-help-icon">
-              ?
-            </span>
-          </button>
-          <button
-            title={themeMode === "dark" ? "Activer le thème clair" : "Activer le thème sombre"}
-            className="icon-btn"
-            onClick={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))}
-          >
-            {themeMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          {userPageAccess.settings && (
-            <button
-              title="Paramètres"
-              className={activePage === "settings" ? "icon-btn active" : "icon-btn"}
-              onClick={openSettingsAtFirstTabs}
-            >
-              <Settings size={16} />
-              {(settings.pendingSites.length + settings.pendingIntervenants.length) > 0 ? (
-                <span
-                  className="icon-btn-badge"
-                  title={`${settings.pendingSites.length + settings.pendingIntervenants.length} élément(s) en attente de validation`}
-                  aria-label={`${settings.pendingSites.length + settings.pendingIntervenants.length} élément(s) en attente de validation`}
-                >
-                  {settings.pendingSites.length + settings.pendingIntervenants.length}
-                </span>
-              ) : null}
-            </button>
-          )}
-          <button
-            type="button"
-            title="Fermeture : déconnexion, minimiser ou quitter"
-            aria-label="Fermeture : déconnexion, minimiser ou quitter"
-            className="icon-btn quit"
-            onClick={() => setShowCloseAppModal(true)}
-          >
-            <Power size={16} />
-          </button>
-        </div>
-        </div>
-      </aside>
+      <AppSidebar
+        fullName={session.user.fullName}
+        userPageAccess={userPageAccess}
+        activePage={activePage}
+        onNavigate={setActivePage}
+        interventionOpenCount={navBadges.interventionOpenCount}
+        rondeTodayInProgressCount={navBadges.rondeTodayInProgressCount}
+        gardiennageTodayInProgressCount={navBadges.gardiennageTodayInProgressCount}
+        isManager={isManager}
+        mainCouranteUnconsultedCount={navBadges.mainCouranteUnconsultedCount}
+        mainCouranteOperatorResponseCount={navBadges.mainCouranteOperatorResponseCount}
+        postgresLabHealth={postgresLabHealth}
+        pendingRefsCount={settings.pendingSites.length + settings.pendingIntervenants.length}
+        themeMode={themeMode}
+        onToggleTheme={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))}
+        onOpenHelp={() => openHelpCenter(null)}
+        onOpenSettings={openSettingsAtFirstTabs}
+        onOpenExitChoice={() => setShowCloseAppModal(true)}
+      />
 
       <section className="content simple app-scrollbar">
         <header className="topbar">
-          <h1>
-            {activePage === "settings"
-              ? "Paramètres"
-              : activePage === "mainCourante"
-                ? "Main courante"
-                : activePage === "fransor"
-                  ? "Accompagnement Fransor"
-                  : activePage === "intervention"
-                    ? "Interventions"
-                  : activePage === "rondes"
-                    ? "Rondes"
-                  : activePage === "gardiennage"
-                    ? "Gardiennage"
-                  : "Main courante"}
-          </h1>
+          <h1>{APP_PAGE_TITLES[activePage]}</h1>
         </header>
 
         {activePage === "settings" && userPageAccess.settings && (
@@ -864,8 +516,23 @@ export function AppShell() {
             onToast={notifyToast}
             focusInterventionId={focusInterventionIdFromRonde}
             onFocusInterventionConsumed={() => setFocusInterventionIdFromRonde(null)}
-            onNavigateToLinkedRonde={userPageAccess.rondes ? navigateToLinkedRonde : undefined}
-            onNavigateToLinkedGardiennage={userPageAccess.gardiennage ? navigateToLinkedGardiennage : undefined}
+            onNavigateToLinkedRonde={
+              userPageAccess.rondes
+                ? (id) =>
+                    navigateToLinkedPage("rondes", id, setFocusRondeIdFromIntervention, "Accès à la page Rondes non autorisé.")
+                : undefined
+            }
+            onNavigateToLinkedGardiennage={
+              userPageAccess.gardiennage
+                ? (id) =>
+                    navigateToLinkedPage(
+                      "gardiennage",
+                      id,
+                      setFocusGardiennageIdFromIntervention,
+                      "Accès à la page Gardiennage non autorisé."
+                    )
+                : undefined
+            }
           />
         )}
         {activePage === "gardiennage" && userPageAccess.gardiennage && (
@@ -873,8 +540,23 @@ export function AppShell() {
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
             onToast={notifyToast}
-            onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
-            onNavigateToLinkedRonde={userPageAccess.rondes ? navigateToLinkedRonde : undefined}
+            onNavigateToLinkedIntervention={
+              userPageAccess.intervention
+                ? (id) =>
+                    navigateToLinkedPage(
+                      "intervention",
+                      id,
+                      setFocusInterventionIdFromRonde,
+                      "Accès à la page Interventions non autorisé."
+                    )
+                : undefined
+            }
+            onNavigateToLinkedRonde={
+              userPageAccess.rondes
+                ? (id) =>
+                    navigateToLinkedPage("rondes", id, setFocusRondeIdFromIntervention, "Accès à la page Rondes non autorisé.")
+                : undefined
+            }
             focusGardiennageId={focusGardiennageIdFromIntervention}
             onFocusGardiennageConsumed={() => setFocusGardiennageIdFromIntervention(null)}
           />
@@ -884,7 +566,17 @@ export function AppShell() {
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
             onToast={notifyToast}
-            onNavigateToLinkedIntervention={userPageAccess.intervention ? navigateToLinkedIntervention : undefined}
+            onNavigateToLinkedIntervention={
+              userPageAccess.intervention
+                ? (id) =>
+                    navigateToLinkedPage(
+                      "intervention",
+                      id,
+                      setFocusInterventionIdFromRonde,
+                      "Accès à la page Interventions non autorisé."
+                    )
+                : undefined
+            }
             focusRondeId={focusRondeIdFromIntervention}
             onFocusRondeConsumed={() => setFocusRondeIdFromIntervention(null)}
             onUpsertRondePlannedProfile={(payload) => void settings.onUpsertRondePlannedProfile(payload)}
@@ -906,10 +598,7 @@ export function AppShell() {
           access={helpAccess}
           initialTopicId={helpCenterInitialTopic}
         />
-        <PgOfflineBlockingModal
-          isOpen={showPgUnavailableModal}
-          onQuitApp={() => void settings.onQuitAppNow()}
-        />
+        <PgOfflineBlockingModal isOpen={showPgUnavailableModal} onQuitApp={() => void settings.onQuitAppNow()} />
         <ConfirmModal
           isOpen={settings.confirmDialog.isOpen}
           title={settings.confirmDialog.title}
