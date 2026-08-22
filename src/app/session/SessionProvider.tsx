@@ -42,39 +42,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionState(next);
   }, []);
 
-  // Restauration de la session persistée (dev uniquement).
+  // Restauration de la session persistée (dev uniquement, une fois le mode connu).
   useEffect(() => {
-    if (isDevMode === null) return;
-    if (!isDevMode) return;
-    let isCancelled = false;
-    void (async () => {
-      try {
-        const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as Session;
-        if (!parsed?.user || !parsed?.sessionToken) {
-          window.localStorage.removeItem(SESSION_STORAGE_KEY);
-          return;
-        }
-        if (isCancelled) return;
-        setGtsApiSessionToken(parsed.sessionToken);
-        setSessionState(parsed);
-      } catch {
+    if (isDevMode !== true) return;
+    try {
+      const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Session;
+      if (!parsed?.user || !parsed?.sessionToken) {
         window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        return;
       }
-    })();
-    return () => {
-      isCancelled = true;
-    };
+      setGtsApiSessionToken(parsed.sessionToken);
+      setSessionState(parsed);
+    } catch {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
   }, [isDevMode]);
 
-  // Persistance de la session (dev uniquement).
+  // Persistance de la session (dev uniquement). Ne pas toucher au storage tant que le mode n'est pas connu.
   useEffect(() => {
-    if (!isDevMode) {
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
-      return;
-    }
-    if (!session) {
+    if (isDevMode === null) return;
+    if (!isDevMode || !session) {
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       return;
     }
