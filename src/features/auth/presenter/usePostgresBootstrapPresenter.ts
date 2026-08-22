@@ -11,13 +11,18 @@ import {
   type PublicPostgresConfig,
   type PostgresTestResult
 } from "../../../infrastructure/api/gtsApiClient";
-import type {
-  PostgresBusyPhase,
-  PostgresConfigDraft
+import {
+  DEFAULT_POSTGRES_CONFIG_DRAFT,
+  type PostgresBusyPhase,
+  type PostgresConfigDraft
 } from "../../settings/components/PostgresConnectionPanel";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
-/** Laisse React peindre l'état « busy » avant un IPC potentiellement long. */
+/**
+ * Laisse React peindre l'état « busy » avant un IPC potentiellement long.
+ *
+ * @returns Promesse résolue au frame suivant.
+ */
 function yieldToUi(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -33,18 +38,15 @@ type UsePostgresBootstrapPresenterOptions = {
 
 /**
  * Charge le statut bootstrap et expose sauvegarde / test sans session.
+ *
+ * @param options.onError - Message sous le panneau (échec IPC / base injoignable).
+ * @param options.onToast - Succès enregistrement ou test.
  */
 export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresBootstrapPresenterOptions) {
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
-  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>({
-    host: "127.0.0.1",
-    port: 5432,
-    database: "goron_gts",
-    user: "goron_gts_app",
-    password: ""
-  });
+  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>(DEFAULT_POSTGRES_CONFIG_DRAFT);
   const [postgresTestResult, setPostgresTestResult] = useState<PostgresTestResult | null>(null);
   const [busyPhase, setBusyPhase] = useState<PostgresBusyPhase>("idle");
 
@@ -147,7 +149,6 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
     setPostgresDraft,
     postgresTestResult,
     busyPhase,
-    postgresBusy: busyPhase !== "idle",
     onSavePostgresBootstrap,
     onTestPostgresBootstrap
   };

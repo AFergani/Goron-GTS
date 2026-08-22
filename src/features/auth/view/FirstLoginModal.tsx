@@ -8,7 +8,7 @@
 import type { FormEvent } from "react";
 import type { PasswordUpdateFormState } from "../model/auth.types";
 import { PasswordInput } from "../../common/components/PasswordInput";
-import logoGts from "../../../assets/logo-gts.png";
+import { AuthLogo } from "../components/AuthLogo";
 
 type FirstLoginModalProps = {
   isOpen: boolean;
@@ -35,9 +35,7 @@ export function FirstLoginModal({
   return (
     <div className="modal-overlay modal-overlay--auth-first-login">
       <section className="modal modal--first-login" onClick={(e) => e.stopPropagation()}>
-        <div className="logo-slot compact">
-          <img src={logoGts} alt="Logo GTS" className="logo-image compact" />
-        </div>
+        <AuthLogo compact />
         <h3>Mise à jour du mot de passe</h3>
         <p className="muted">Bienvenue {displayName}, veuillez définir votre mot de passe personnel.</p>
         <p className="muted">Il ne doit pas reprendre un mot de passe déjà utilisé récemment (y compris le temporaire).</p>

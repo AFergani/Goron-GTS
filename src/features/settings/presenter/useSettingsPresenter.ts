@@ -18,7 +18,7 @@ import type {
   RondePlannedProfileRef
 } from "../../rondes/model/rondePlanned.types";
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
-import type { PostgresBusyPhase, PostgresConfigDraft } from "../components/PostgresConnectionPanel";
+import { DEFAULT_POSTGRES_CONFIG_DRAFT, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
@@ -153,13 +153,7 @@ export function useSettingsPresenter({
   }, []);
   const [dbWritable, setDbWritable] = useState<boolean>(false);
   const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
-  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>({
-    host: "127.0.0.1",
-    port: 5432,
-    database: "goron_gts",
-    user: "goron_gts_app",
-    password: ""
-  });
+  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>(DEFAULT_POSTGRES_CONFIG_DRAFT);
   const [postgresTestResult, setPostgresTestResult] = useState<PostgresTestResult | null>(null);
   const [postgresBusyPhase, setPostgresBusyPhase] = useState<PostgresBusyPhase>("idle");
   const postgresBusy = postgresBusyPhase !== "idle";

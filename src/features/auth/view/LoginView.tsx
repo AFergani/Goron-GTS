@@ -10,7 +10,7 @@ import type { FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import type { LoginFormState } from "../model/auth.types";
 import { PasswordInput } from "../../common/components/PasswordInput";
-import logoGts from "../../../assets/logo-gts.png";
+import { AuthLogo } from "../components/AuthLogo";
 
 type LoginViewProps = {
   loginForm: LoginFormState;
@@ -32,8 +32,6 @@ export function LoginView({
   onLogin,
   onChange
 }: LoginViewProps) {
-  const formDisabled = isLoggingIn;
-
   return (
     <main className="auth-page">
       {showLockedDialog && (
@@ -56,9 +54,7 @@ export function LoginView({
         </div>
       )}
       <section className="panel login-panel" aria-busy={isLoggingIn}>
-        <div className="logo-slot">
-          <img src={logoGts} alt="Logo GTS" className="logo-image" />
-        </div>
+        <AuthLogo />
         <h1>Connexion GTS</h1>
         <form onSubmit={onLogin} className="form">
           <label>
@@ -67,7 +63,7 @@ export function LoginView({
               value={loginForm.username}
               onChange={(e) => onChange({ ...loginForm, username: e.target.value })}
               required
-              disabled={formDisabled}
+              disabled={isLoggingIn}
               autoComplete="username"
             />
           </label>
@@ -77,12 +73,12 @@ export function LoginView({
               value={loginForm.password}
               onChange={(password) => onChange({ ...loginForm, password })}
               required
-              disabled={formDisabled}
+              disabled={isLoggingIn}
               autoComplete="current-password"
               aria-label="Mot de passe"
             />
           </label>
-          <button type="submit" disabled={formDisabled} aria-busy={isLoggingIn}>
+          <button type="submit" disabled={isLoggingIn} aria-busy={isLoggingIn}>
             {isLoggingIn ? (
               <span className="login-submit-busy">
                 <Loader2 size={16} className="login-spinner" aria-hidden />

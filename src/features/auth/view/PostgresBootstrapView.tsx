@@ -6,7 +6,7 @@
  * Réutilise `PostgresConnectionPanel` en variante bootstrap.
  */
 
-import logoGts from "../../../assets/logo-gts.png";
+import { AuthLogo } from "../components/AuthLogo";
 import {
   PostgresConnectionPanel,
   type PostgresBusyPhase,
@@ -43,9 +43,7 @@ export function PostgresBootstrapView({
   return (
     <main className="auth-page">
       <section className="panel login-panel postgres-bootstrap-panel" aria-busy={isBusy}>
-        <div className="logo-slot">
-          <img src={logoGts} alt="Logo GTS" className="logo-image" />
-        </div>
+        <AuthLogo />
         <h1>Initialisation GTS</h1>
         <p className="muted">
           Avant la première connexion, indiquez le serveur PostgreSQL de la station. Sur un 2e poste, utilisez

@@ -19,6 +19,10 @@ type UseAuthPresenterOptions = {
 
 /**
  * État et handlers pour `LoginView` et `FirstLoginModal`.
+ *
+ * @param options.onSessionCreated - Enregistre la session après login réussi.
+ * @param options.onError - Message sous le formulaire (auth / première connexion).
+ * @param options.onToast - Confirmation après mise à jour du mot de passe.
  */
 export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuthPresenterOptions) {
   const [showPasswordUpdateModal, setShowPasswordUpdateModal] = useState(false);
@@ -112,7 +116,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
     showPasswordUpdateModal,
     showLockedDialog,
     setShowLockedDialog,
-    pendingFirstLogin,
+    pendingFirstLoginDisplayName: pendingFirstLogin?.displayName ?? "",
     passwordUpdateForm,
     setPasswordUpdateForm,
     onFirstLogin,

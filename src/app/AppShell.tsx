@@ -370,7 +370,7 @@ export function AppShell() {
           form={auth.passwordUpdateForm}
           isPasswordLongEnough={auth.isPasswordLongEnough}
           isPasswordConfirmed={auth.isPasswordConfirmed}
-          displayName={auth.pendingFirstLogin?.displayName || ""}
+          displayName={auth.pendingFirstLoginDisplayName}
           onChange={auth.setPasswordUpdateForm}
           onSubmit={auth.onFirstLogin}
         />

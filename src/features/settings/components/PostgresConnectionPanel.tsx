@@ -17,6 +17,15 @@ export type PostgresConfigDraft = {
   password: string;
 };
 
+/** Brouillon initial (labo Docker) : bootstrap avant login et panneau Paramètres. */
+export const DEFAULT_POSTGRES_CONFIG_DRAFT: PostgresConfigDraft = {
+  host: "127.0.0.1",
+  port: 5432,
+  database: "goron_gts",
+  user: "goron_gts_app",
+  password: ""
+};
+
 export type PostgresBusyPhase = "idle" | "testing" | "saving" | "reconnecting";
 
 type PostgresConnectionPanelProps = {
