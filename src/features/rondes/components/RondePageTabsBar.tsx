@@ -43,23 +43,6 @@ export function RondePageTabsBar({
         <button
           type="button"
           role="tab"
-          aria-selected={listView === "planifie"}
-          className={listView === "planifie" ? "tab active" : "tab"}
-          onClick={() => onListViewChange("planifie")}
-        >
-          Ronde contractuelle
-          {todayContractualCount > 0 ? (
-            <span
-              className="gard-tab-badge"
-              title={`${todayContractualCount} ronde(s) contractuelle(s) en cours aujourd'hui`}
-            >
-              {todayContractualCount}
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={listView === "urgence"}
           className={listView === "urgence" ? "tab active" : "tab"}
           onClick={() => onListViewChange("urgence")}
@@ -71,6 +54,23 @@ export function RondePageTabsBar({
               title={`${todayExceptionalCount} ronde(s) exceptionnelle(s) en cours aujourd'hui`}
             >
               {todayExceptionalCount}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={listView === "planifie"}
+          className={listView === "planifie" ? "tab active" : "tab"}
+          onClick={() => onListViewChange("planifie")}
+        >
+          Ronde contractuelle
+          {todayContractualCount > 0 ? (
+            <span
+              className="gard-tab-badge"
+              title={`${todayContractualCount} ronde(s) contractuelle(s) en cours aujourd'hui`}
+            >
+              {todayContractualCount}
             </span>
           ) : null}
         </button>

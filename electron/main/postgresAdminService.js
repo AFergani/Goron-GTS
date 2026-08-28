@@ -39,11 +39,31 @@ function createPostgresAdminService(deps) {
   const { getUserStore, canManageDatabase } = deps;
 
   /**
-   * Fenêtre bootstrap ouverte tant qu'aucune config chiffrée n'existait au démarrage,
-   * ou tant que le 1er enregistrement n'a pas abouti à une base joignable.
-   * @type {boolean}
+   * Indique si une config PostgreSQL valide est déjà persistée sur le poste.
+   *
+   * @returns {boolean}
    */
-  let bootstrapWindowOpen = false;
+  function hasPersistedPostgresConfig() {
+    const encrypted = readEncryptedPostgresConfig();
+    return Boolean(encrypted?.host && encrypted?.database && encrypted?.user && encrypted?.password);
+  }
+
+  /**
+   * Indique si ce poste n'a encore aucune config PG explicite (fichier chiffré ou env).
+   * En développement non packagé : pas d'écran bootstrap (défauts Docker labo).
+   *
+   * @returns {boolean}
+   */
+  function needsBootstrapSetup() {
+    if (hasEnvOverrides()) return false;
+    try {
+      const { app } = require("electron");
+      if (app && !app.isPackaged) return false;
+    } catch {
+      return false;
+    }
+    return !hasPersistedPostgresConfig();
+  }
 
   /**
    * @param {string} requesterUsername
@@ -63,33 +83,13 @@ function createPostgresAdminService(deps) {
    * @throws {Error}
    */
   function assertBootstrapAllowed() {
-    if (bootstrapWindowOpen || needsBootstrapSetup()) return;
+    if (needsBootstrapSetup()) return;
     const err = new Error(
       "Une connexion PostgreSQL est déjà configurée sur ce poste. Connectez-vous pour la gérer dans Paramètres."
     );
     err.code = "BOOTSTRAP_NOT_ALLOWED";
     throw err;
   }
-
-  /**
-   * Indique si ce poste n'a encore aucune config PG explicite (fichier chiffré ou env).
-   * En développement non packagé : pas d'écran bootstrap (défauts Docker labo).
-   *
-   * @returns {boolean}
-   */
-  function needsBootstrapSetup() {
-    if (hasEnvOverrides()) return false;
-    try {
-      const { app } = require("electron");
-      if (app && !app.isPackaged) return false;
-    } catch {
-      return false;
-    }
-    const encrypted = readEncryptedPostgresConfig();
-    return !(encrypted && encrypted.host && encrypted.database && encrypted.user && encrypted.password);
-  }
-
-  bootstrapWindowOpen = needsBootstrapSetup();
 
   /**
    * Vue publique (sans mot de passe) pour l'UI admin / bootstrap.
@@ -106,7 +106,7 @@ function createPostgresAdminService(deps) {
    * @returns {{ needsSetup: boolean, config: object }}
    */
   function getBootstrapStatus() {
-    const needsSetup = bootstrapWindowOpen || needsBootstrapSetup();
+    const needsSetup = needsBootstrapSetup();
     const config = getPublicConfig();
     const encrypted = readEncryptedPostgresConfig();
     if (needsSetup && !encrypted?.password) {
@@ -133,8 +133,46 @@ function createPostgresAdminService(deps) {
       ...payload,
       requesterUsername: BOOTSTRAP_ACTOR
     });
-    bootstrapWindowOpen = !result?.reconnect?.reachable;
+    if (!result?.reconnect?.reachable) {
+      const probe = await probePostgresLab();
+      if (probe.reachable) {
+        result.reconnect = { success: true, reachable: true, error: null };
+      }
+    }
     return result;
+  }
+
+  /**
+   * Poste labo local (exe installé) : si Docker répond sur les défauts, enregistre
+   * automatiquement la config comme en `npm run dev` (sans écran bootstrap).
+   *
+   * @returns {Promise<{ persisted: boolean }>}
+   */
+  async function tryAutoPersistLabDefaultsIfMissing() {
+    if (!needsBootstrapSetup()) {
+      return { persisted: false };
+    }
+
+    const defaults = getPostgresConnectionConfig();
+    const probe = await probePostgresLab({
+      host: defaults.host,
+      port: defaults.port,
+      database: defaults.database,
+      user: defaults.user,
+      password: defaults.password
+    });
+    if (!probe.reachable) {
+      return { persisted: false };
+    }
+
+    writeEncryptedPostgresConfig({
+      host: defaults.host,
+      port: defaults.port,
+      database: defaults.database,
+      user: defaults.user,
+      password: defaults.password
+    });
+    return { persisted: true };
   }
 
   /**
@@ -262,7 +300,8 @@ function createPostgresAdminService(deps) {
     saveBootstrapConfig,
     testConfig,
     testBootstrapConfig,
-    reconnect
+    reconnect,
+    tryAutoPersistLabDefaultsIfMissing
   };
 }
 

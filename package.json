@@ -46,6 +46,7 @@
     "cross-env": "^10.1.0",
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
+    "rcedit": "^5.0.2",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "wait-on": "^9.0.5"
@@ -56,6 +57,7 @@
   "build": {
     "appId": "com.goron.gts",
     "productName": "Goron GTS",
+    "afterPack": "scripts/embed-windows-icon.js",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -65,7 +67,8 @@
       "output": "release-build"
     },
     "win": {
-      "icon": "electron/app-icon.png",
+      "icon": "electron/app-icon.ico",
+      "signAndEditExecutable": false,
       "target": [
         {
           "target": "portable",

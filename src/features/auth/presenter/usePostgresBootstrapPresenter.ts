@@ -96,16 +96,14 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
       });
       setPostgresConfig(result.config);
       setPostgresDraft((prev) => ({ ...prev, password: "" }));
+      setNeedsSetup(false);
       if (result.reconnect?.reachable) {
-        setNeedsSetup(false);
         onToast("Connexion PostgreSQL enregistrée. Vous pouvez vous connecter.");
       } else {
-        // Rester sur l'écran pour corriger l'hôte / le mot de passe (fenêtre bootstrap encore ouverte côté main).
-        setNeedsSetup(true);
         onError(
           result.reconnect?.error
-            ? `Configuration enregistrée, mais la base est inaccessible : ${result.reconnect.error}`
-            : "Configuration enregistrée, mais la base est inaccessible. Corrigez l'hôte ou le mot de passe, puis réessayez."
+            ? `Configuration enregistrée sur ce poste, mais PostgreSQL est inaccessible pour l'instant : ${result.reconnect.error}`
+            : "Configuration enregistrée sur ce poste. PostgreSQL est inaccessible pour l'instant — vérifiez Docker ou le pare-feu Windows, puis connectez-vous."
         );
       }
     } catch (err) {

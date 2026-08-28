@@ -1,6 +1,10 @@
 const path = require("path");
 const fs = require("fs");
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
+
+// Même dossier userData en dev (goron-gts) et en installé (productName « Goron GTS »).
+app.setPath("userData", path.join(app.getPath("appData"), "goron-gts"));
+
 const { UserStore, AppError } = require("./userStore");
 const sessionMain = require("./store/core/session");
 const { createDocumentTemplatesService } = require("./main/documentTemplates");
@@ -359,7 +363,12 @@ registerDomainIpcHandlers({
 });
 
 /** Démarrage : sessions persistées, store PG, fenêtre. */
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Windows : associe la fenêtre à l'icône Goron-GTS dans la barre des tâches.
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.goron.gts");
+  }
+  await postgresAdmin.tryAutoPersistLabDefaultsIfMissing();
   // Supprime la barre de menu globalement (toutes les fenêtres de l'application).
   Menu.setApplicationMenu(null);
   sessionMain.loadPersistedSessions();
