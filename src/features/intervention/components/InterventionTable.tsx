@@ -48,10 +48,6 @@ type InterventionTableProps = {
 };
 
 export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNotify }: InterventionTableProps) {
-  if (!entries.length) {
-    return <p className="muted">Aucune intervention.</p>;
-  }
-
   type InterventionSortKey = "date" | "site" | "motif" | "prestataire" | "arrivee" | "depart" | "delai" | "etat";
 
   const comparators: Record<InterventionSortKey, (a: InterventionEntry, b: InterventionEntry) => number> = {
@@ -69,6 +65,10 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
     direction: "desc"
   });
   const sortLabel = (key: InterventionSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+
+  if (!entries.length) {
+    return <p className="muted">Aucune intervention.</p>;
+  }
 
   return (
     <div className="main-courante-table-wrap">

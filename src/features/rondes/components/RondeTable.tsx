@@ -77,10 +77,6 @@ type RondeTableProps = {
 };
 
 export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify }: RondeTableProps) {
-  if (!entries.length) {
-    return <p className="muted">Aucune ronde.</p>;
-  }
-
   const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
     requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
@@ -98,6 +94,10 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
   });
 
   const sortLabel = (key: RondeSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+
+  if (!entries.length) {
+    return <p className="muted">Aucune ronde.</p>;
+  }
 
   return (
     <div className="main-courante-table-wrap">

@@ -141,20 +141,6 @@ export function MainCouranteTable({
   onExportWord,
   onViewEntry
 }: MainCouranteTableProps) {
-  if (!entries.length) {
-    return <p className="muted">Aucune entrée pour le moment.</p>;
-  }
-
-  const canOperatorEdit = (entry: MainCouranteEntry) => entry.status === "EN_ATTENTE" && entry.operatorName === currentOperatorName;
-  const canManagerTreat = (entry: MainCouranteEntry) => isManager && entry.status !== "CLOTURE";
-  const canOpenViaPrimaryAction = (entry: MainCouranteEntry) => canOperatorEdit(entry) || canManagerTreat(entry);
-  const canViewByEye = (entry: MainCouranteEntry) => {
-    if (canOpenViaPrimaryAction(entry)) return false;
-    if (isManager) return entry.status === "CLOTURE";
-    if (entry.operatorName !== currentOperatorName) return true;
-    return entry.status !== "EN_ATTENTE";
-  };
-
   type MainCouranteSortKey = "date" | "operator" | "site" | "type" | "info" | "status";
 
   const comparators: Record<MainCouranteSortKey, (a: MainCouranteEntry, b: MainCouranteEntry) => number> = {
@@ -170,6 +156,21 @@ export function MainCouranteTable({
     direction: "desc"
   });
   const sortLabel = (key: MainCouranteSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+
+  if (!entries.length) {
+    return <p className="muted">Aucune entrée pour le moment.</p>;
+  }
+
+  const canOperatorEdit = (entry: MainCouranteEntry) => entry.status === "EN_ATTENTE" && entry.operatorName === currentOperatorName;
+  const canManagerTreat = (entry: MainCouranteEntry) => isManager && entry.status !== "CLOTURE";
+  const canOpenViaPrimaryAction = (entry: MainCouranteEntry) => canOperatorEdit(entry) || canManagerTreat(entry);
+  /** Affiché seulement s'il n'y a pas déjà une action métier (Modifier / Valider / Clôturer). */
+  const canViewDetail = (entry: MainCouranteEntry) => {
+    if (canOpenViaPrimaryAction(entry)) return false;
+    if (isManager) return entry.status === "CLOTURE";
+    if (entry.operatorName !== currentOperatorName) return true;
+    return entry.status !== "EN_ATTENTE";
+  };
 
   return (
     <div className="main-courante-table-wrap">
@@ -243,7 +244,7 @@ export function MainCouranteTable({
                       Clôturer
                     </button>
                   )}
-                  {canViewByEye(entry) ? (
+                  {canViewDetail(entry) && (
                     <button
                       type="button"
                       className="mc-table-action-btn mc-table-action-btn--text"
@@ -251,7 +252,7 @@ export function MainCouranteTable({
                     >
                       Voir le détail
                     </button>
-                  ) : null}
+                  )}
                   <button
                     type="button"
                     className="mc-table-action-btn mc-table-action-btn--text mc-table-action-btn--word"

@@ -148,10 +148,6 @@ export function GardiennageTable({
   onClose,
   onNotify
 }: GardiennageTableProps) {
-  if (!entries.length) {
-    return <p className="muted">Aucun gardiennage à afficher.</p>;
-  }
-
   type GardiennageSortKey = "createdAt" | "site" | "periode" | "horaires" | "prestataire" | "statut";
 
   const comparators: Record<GardiennageSortKey, (a: GardiennageEntry, b: GardiennageEntry) => number> = {
@@ -168,6 +164,10 @@ export function GardiennageTable({
     direction: "desc"
   });
   const sortLabel = (key: GardiennageSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
+
+  if (!entries.length) {
+    return <p className="muted">Aucun gardiennage à afficher.</p>;
+  }
 
   return (
     <div className="main-courante-table-wrap">
