@@ -54,11 +54,3 @@ export function resolveRondeClosureLabelTemplate(template: string, ctx: ClosureL
   s = replaceClosureTemplateToken(s, "compte_rendu", opt(ctx.compteRendu));
   return s;
 }
-
-/** Déduit nom affiché et code entre parenthèses depuis un libellé « Nom (CODE) ». */
-export function splitSiteDisplayParts(siteDisplay: string): { namePart: string; codePart: string } {
-  const raw = String(siteDisplay || "").trim();
-  const m = raw.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-  if (m) return { namePart: m[1].trim(), codePart: m[2].trim() };
-  return { namePart: raw, codePart: "" };
-}

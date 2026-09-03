@@ -10,7 +10,7 @@ import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { downloadBlob } from "../../mainCourante/export/downloadBlob";
 import { safeExportFilenamePart } from "../../mainCourante/export/mainCouranteExportFormat";
-import { splitSiteDisplayParts } from "../utils/closureLabelTemplate";
+import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { formatDateShortFr } from "../utils/formatDateShortFr";
 import { computeRondeLogicalDate } from "../utils/logicalDate";
 import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";

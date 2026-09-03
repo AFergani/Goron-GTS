@@ -6,6 +6,7 @@
  */
 
 import ExcelJS from "exceljs";
+import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import { downloadBlob } from "./downloadBlob";
 import { exportTimestampForFilename, formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
@@ -15,7 +16,8 @@ const COLUMNS: Array<{ header: string; key: string; width: number; wrap?: boolea
   { header: "Date création", key: "createdAt", width: 20 },
   { header: "Opérateur", key: "operator", width: 18 },
   { header: "Responsable", key: "manager", width: 18 },
-  { header: "Site", key: "site", width: 34 },
+  { header: "Nom site", key: "siteName", width: 28 },
+  { header: "Code site", key: "siteCode", width: 14 },
   { header: "Type d'anomalie", key: "anomaly", width: 20 },
   { header: "Information", key: "information", width: 50, wrap: true },
   { header: "Observation responsable", key: "observation", width: 50, wrap: true },
@@ -43,11 +45,13 @@ export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): P
   headerRow.alignment = { ...baseAlignment };
 
   for (const e of entries) {
+    const siteParts = splitSiteDisplayParts(e.siteDisplay || "");
     const row = ws.addRow({
       createdAt: formatMainCouranteDate(e.createdAt),
       operator: e.operatorName,
       manager: e.managerName || "",
-      site: e.siteDisplay || "",
+      siteName: siteParts.namePart,
+      siteCode: siteParts.codePart,
       anomaly: e.anomalyTypeLabel,
       information: normalizeNewlines(e.information),
       observation: normalizeNewlines(e.managerObservation || ""),
