@@ -112,7 +112,6 @@ export function UsersTable({
         : { label: "Inactif", variant: "annule", title: "Compte désactivé" };
     return (
       <span className={`mc-status-badge mc-status-badge--${variant}`} title={title}>
-        <span className="mc-status-badge__dot" aria-hidden />
         <span className="mc-status-badge__label">{label}</span>
       </span>
     );
@@ -155,8 +154,8 @@ export function UsersTable({
               <td>{u.fullName}</td>
               <td>
                 <div className="users-table__profile-cell">
-                  <span>{formatRoleAndProfile(u)}</span>
                   <StatusBadge user={u} />
+                  <span>{formatRoleAndProfile(u)}</span>
                 </div>
               </td>
               <td>

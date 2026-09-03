@@ -479,12 +479,21 @@
   min-width: 6.5rem;
 }
 
-/* Rôle / profil métier suivi du badge de statut du compte */
+/* Badge de statut du compte suivi du rôle / profil métier */
 .users-table__profile-cell {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Badge sans pastille (la couleur porte l'information) ; largeur figée sur le libellé
+   le plus long pour que le rôle démarre à la même abscisse sur toutes les lignes */
+.users-table__profile-cell .mc-status-badge {
+  min-width: 4.5rem;
+  padding-left: 10px;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .user-presence-dot {
@@ -5200,19 +5209,10 @@ fieldset.ronde-planned-weekdays {
   background: rgba(180, 40, 40, 0.24);
 }
 
-.mc-status-badge--danger .mc-status-badge__dot {
-  background: #ffb3b3;
-  box-shadow: 0 0 0 1px rgba(255, 179, 179, 0.35);
-}
-
 [data-theme="light"] .mc-status-badge--danger {
   color: #8c1d1d;
   border-color: rgba(140, 29, 29, 0.4);
   background: rgba(200, 60, 60, 0.12);
-}
-
-[data-theme="light"] .mc-status-badge--danger .mc-status-badge__dot {
-  background: #8c1d1d;
 }
 
 .gard-tab-badge {
