@@ -1,5 +1,6 @@
 /**
- * Modale création / édition utilisateur (rôle, profil manager, accès pages via switches).
+ * Modale création / édition utilisateur : identité et rôles sur une ligne,
+ * accès Paramètres et sécurité via interrupteurs.
  */
 
 import type { FormEvent } from "react";
@@ -39,33 +40,34 @@ export function CreateUserModal({
           {mode === "edit" && (
             <p className="muted">Identifiant technique: {editingTechnicalUsername || "-"}</p>
           )}
-          <label>
-            Nom affiché
-            <input value={form.username} onChange={(e) => onChange({ ...form, username: e.target.value })} required />
-          </label>
-          {mode === "create" && <p className="muted">Un identifiant technique unique est généré automatiquement par le système.</p>}
-          <label>
-            Rôle technique
-            <select
-              value={form.role}
-              onChange={(e) => {
-                const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
-                onChange({
-                  ...form,
-                  role,
-                  pageAccess: getDefaultPageAccessByRole(role)
-                });
-              }}
-            >
-              <option value="OPERATEUR">Opérateur</option>
-              <option value="RESPONSABLE">Responsable</option>
-            </select>
-          </label>
-          {form.role === "RESPONSABLE" && (
+          <div className="user-modal__identity-row">
             <label>
-              Profil métier du responsable
+              Nom affiché
+              <input value={form.username} onChange={(e) => onChange({ ...form, username: e.target.value })} required />
+            </label>
+            <label>
+              Rôle technique
+              <select
+                value={form.role}
+                onChange={(e) => {
+                  const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
+                  onChange({
+                    ...form,
+                    role,
+                    pageAccess: getDefaultPageAccessByRole(role)
+                  });
+                }}
+              >
+                <option value="OPERATEUR">Opérateur</option>
+                <option value="RESPONSABLE">Responsable</option>
+              </select>
+            </label>
+            <label>
+              Profil métier
               <select
                 value={form.managerProfile}
+                disabled={form.role !== "RESPONSABLE"}
+                title={form.role === "RESPONSABLE" ? undefined : "Réservé aux comptes responsables"}
                 onChange={(e) =>
                   onChange({
                     ...form,
@@ -78,58 +80,33 @@ export function CreateUserModal({
                 <option value="DIRECTEUR_STATION">Directeur de station</option>
               </select>
             </label>
-          )}
+          </div>
+          {mode === "create" && <p className="muted">Un identifiant technique unique est généré automatiquement par le système.</p>}
           {canEditPageAccess ? (
-            <fieldset>
+            <fieldset className="user-modal__page-access">
               <legend>Vues autorisées</legend>
-              <div className="toggle-field-list">
-                <ToggleSwitch
-                  label="Main courante"
-                  checked={form.pageAccess.mainCourante}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, mainCourante: next } })}
-                />
-                <ToggleSwitch
-                  label="Fransor"
-                  checked={form.pageAccess.fransor}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, fransor: next } })}
-                />
-                <ToggleSwitch
-                  label="Intervention"
-                  checked={form.pageAccess.intervention}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, intervention: next } })}
-                />
-                <ToggleSwitch
-                  label="Rondes"
-                  checked={form.pageAccess.rondes}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, rondes: next } })}
-                />
-                <ToggleSwitch
-                  label="Gardiennage"
-                  checked={form.pageAccess.gardiennage}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, gardiennage: next } })}
-                />
-                <ToggleSwitch
-                  label="Paramètres"
-                  checked={form.pageAccess.settings}
-                  onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, settings: next } })}
-                />
-              </div>
+              <ToggleSwitch
+                label="Paramètres"
+                labelFirst
+                checked={form.pageAccess.settings}
+                tooltip="Les vues métier (Interventions, Rondes, Gardiennage, Main courante, Fransor) sont ouvertes à tous les comptes ; seul l'accès à Paramètres se règle ici."
+                onChange={(next) => onChange({ ...form, pageAccess: { ...form.pageAccess, settings: next } })}
+              />
             </fieldset>
           ) : (
             <p className="muted">
-              Modification des accès pages réservée au directeur de station et au responsable de station.
+              Modification de l&apos;accès à Paramètres réservée au directeur de station et au responsable de station.
             </p>
           )}
           {mode === "edit" && (
-            <fieldset>
+            <fieldset className="user-modal__page-access">
               <legend>Sécurité</legend>
-              <div className="toggle-field-list toggle-field-list--single">
-                <ToggleSwitch
-                  label="Demander la réinitialisation du mot de passe"
-                  checked={form.mustResetPassword}
-                  onChange={(next) => onChange({ ...form, mustResetPassword: next })}
-                />
-              </div>
+              <ToggleSwitch
+                label="Demander la réinitialisation du mot de passe"
+                labelFirst
+                checked={form.mustResetPassword}
+                onChange={(next) => onChange({ ...form, mustResetPassword: next })}
+              />
             </fieldset>
           )}
           <div className="row-actions modal-actions">

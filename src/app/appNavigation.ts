@@ -53,21 +53,20 @@ export function getFirstSidebarPageAccess(pageAccess: PageAccess): AppPage {
 }
 
 /**
- * Droits de navigation effectifs : DEV = tout ; sinon `pageAccess` persisté, avec repli.
+ * Droits de navigation effectifs : vues métier toujours ouvertes ; seul Paramètres
+ * dépend de `pageAccess` (repli sur le défaut du rôle si absent). DEV = tout.
  *
  * @param role - Rôle du compte, ou absent hors session.
- * @param pageAccess - Droits persistés, ou absents (repli permissif hors opérateurs).
+ * @param pageAccess - Droits persistés, ou absents (repli sur le défaut du rôle).
  */
 export function resolveUserPageAccess(role: Role | undefined, pageAccess: PageAccess | undefined): PageAccess {
   if (role === "DEV") return DEV_FULL_PAGE_ACCESS;
-  return (
-    pageAccess ?? {
-      mainCourante: true,
-      fransor: true,
-      intervention: true,
-      rondes: true,
-      settings: role !== "OPERATEUR",
-      gardiennage: true
-    }
-  );
+  return {
+    mainCourante: true,
+    fransor: true,
+    intervention: true,
+    rondes: true,
+    gardiennage: true,
+    settings: pageAccess?.settings ?? role !== "OPERATEUR"
+  };
 }
