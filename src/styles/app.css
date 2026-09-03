@@ -2263,28 +2263,25 @@ th {
 }
 
 .main-courante-table.mc-entries-table col.mc-col-date {
-  width: 10%;
+  width: 9%;
+}
+.main-courante-table.mc-entries-table col.mc-col-site {
+  width: 13%;
 }
 .main-courante-table.mc-entries-table col.mc-col-operator {
   width: 9%;
 }
-.main-courante-table.mc-entries-table col.mc-col-site {
-  width: 12%;
-}
 .main-courante-table.mc-entries-table col.mc-col-type {
-  width: 7%;
+  width: 8%;
 }
 .main-courante-table.mc-entries-table col.mc-col-information {
-  width: 24%;
+  width: 22%;
 }
 .main-courante-table.mc-entries-table col.mc-col-observation {
   width: 22%;
 }
-.main-courante-table.mc-entries-table col.mc-col-status {
-  width: 8%;
-}
-.main-courante-table.mc-entries-table col.mc-col-actions {
-  width: 9%;
+.main-courante-table.mc-entries-table col.mc-col-status-actions {
+  width: 17%;
 }
 
 .main-courante-table.mc-entries-table tbody td.mc-col-date {
@@ -2293,33 +2290,34 @@ th {
   font-size: 12px;
 }
 
-.main-courante-table.mc-entries-table tbody td.mc-col-type,
-.main-courante-table.mc-entries-table tbody td.mc-col-status {
+.main-courante-table.mc-entries-table tbody td.mc-col-type {
   vertical-align: middle;
   white-space: nowrap;
 }
 
-.main-courante-table.mc-entries-table tbody td.mc-col-actions {
-  vertical-align: middle;
-  white-space: nowrap;
+.main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
+  vertical-align: top;
+  white-space: normal;
 }
 
 /* Main courante: centrer les colonnes à contenu court quand possible */
 .main-courante-table.mc-entries-table thead th.mc-col-date,
 .main-courante-table.mc-entries-table thead th.mc-col-operator,
 .main-courante-table.mc-entries-table thead th.mc-col-type,
-.main-courante-table.mc-entries-table thead th.mc-col-status,
-.main-courante-table.mc-entries-table thead th.mc-col-actions,
+.main-courante-table.mc-entries-table thead th.mc-col-status-actions,
 .main-courante-table.mc-entries-table tbody td.mc-col-date,
 .main-courante-table.mc-entries-table tbody td.mc-col-operator,
 .main-courante-table.mc-entries-table tbody td.mc-col-type,
-.main-courante-table.mc-entries-table tbody td.mc-col-status,
-.main-courante-table.mc-entries-table tbody td.mc-col-actions {
+.main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
   text-align: center;
   vertical-align: middle;
 }
 
-.main-courante-table.mc-entries-table tbody td.mc-col-actions .mc-row-actions-wrap {
+.main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
+  vertical-align: top;
+}
+
+.main-courante-table.mc-entries-table tbody td.mc-col-status-actions .mc-row-actions-wrap {
   justify-content: center;
   margin-left: 0;
 }
@@ -2337,6 +2335,8 @@ th {
 .main-courante-table.mc-entries-table td.mc-col-information,
 .main-courante-table.mc-entries-table th.mc-col-observation,
 .main-courante-table.mc-entries-table td.mc-col-observation,
+.main-courante-table.mc-entries-table th.mc-col-status-actions,
+.main-courante-table.mc-entries-table td.mc-col-status-actions,
 .main-courante-table.mc-entries-table th.mc-col-status,
 .main-courante-table.mc-entries-table td.mc-col-status,
 .main-courante-table.mc-entries-table th.mc-col-actions,
@@ -2432,6 +2432,13 @@ th {
   width: 140px;
   min-width: 140px;
   white-space: nowrap;
+}
+
+.main-courante-table th.mc-col-status-actions,
+.main-courante-table td.mc-col-status-actions {
+  width: 180px;
+  min-width: 160px;
+  white-space: normal;
 }
 
 .main-courante-table th.mc-col-actions,
@@ -2552,6 +2559,17 @@ th {
     background 0.15s ease;
 }
 
+.mc-table-action-btn--text {
+  width: auto;
+  min-height: 30px;
+  height: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .mc-table-action-btn:hover:not(:disabled) {
   border-color: rgba(240, 193, 77, 0.55);
   color: #f0c14d;
@@ -2580,6 +2598,52 @@ th {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+}
+
+.mc-status-actions-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-row-actions-wrap--text {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mc-observation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mc-observation-block {
+  min-width: 0;
+}
+
+.mc-observation-sep {
+  margin: 6px 0;
+  color: var(--text-2);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.mc-observation-meta {
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.mc-observation-comment {
+  white-space: pre-line;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
 .main-log-filters-reset {
@@ -5213,7 +5277,9 @@ fieldset.ronde-planned-weekdays {
   .main-courante-table th.mc-col-operator,
   .main-courante-table td.mc-col-operator,
   .main-courante-table th.mc-col-status,
-  .main-courante-table td.mc-col-status {
+  .main-courante-table td.mc-col-status,
+  .main-courante-table th.mc-col-status-actions,
+  .main-courante-table td.mc-col-status-actions {
     white-space: normal;
     width: auto;
   }

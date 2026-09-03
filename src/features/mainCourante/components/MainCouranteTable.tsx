@@ -4,90 +4,11 @@
  * Consultation, édition, traitement (« À suivre » / clôture), copie code site.
  */
 
-import { Eye } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { MainCouranteEntry, MainCouranteStatus } from "../model/mainCourante.types";
 import type { AnomalyTypeRef } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
-
-function IconPencil() {
-  return (
-    <svg
-      className="mc-action-icon-svg"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg
-      className="mc-action-icon-svg"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function IconTraiter() {
-  return (
-    <svg
-      className="mc-action-icon-svg"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M5 12h14" />
-      <path d="M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function IconWordExport() {
-  return (
-    <svg
-      className="mc-action-icon-svg"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
-      <path d="M10 9H8" />
-    </svg>
-  );
-}
 
 function statusLabel(status: MainCouranteStatus) {
   if (status === "EN_ATTENTE") return "En attente";
@@ -131,6 +52,69 @@ function MainCouranteTypeBadge({ label, colorHex }: { label: string; colorHex?: 
     >
       <span className="mc-type-badge__label">{label}</span>
     </span>
+  );
+}
+
+type ManagerObservationBlock = {
+  dateTime: string;
+  managerName: string;
+  comment: string;
+};
+
+/**
+ * Découpe le champ cumulé (`date: Responsable : texte` séparés par `---`)
+ * pour un affichage méta + commentaire.
+ */
+function parseManagerObservationBlocks(raw: string | undefined): ManagerObservationBlock[] {
+  const text = String(raw || "").trim();
+  if (!text) return [];
+
+  return text
+    .split(/\n---\n/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const firstSep = chunk.indexOf(": ");
+      if (firstSep < 0) {
+        return { dateTime: "", managerName: "", comment: chunk };
+      }
+      const dateTime = chunk.slice(0, firstSep).trim();
+      const rest = chunk.slice(firstSep + 2);
+      const secondSep = rest.indexOf(" : ");
+      if (secondSep < 0) {
+        return { dateTime, managerName: "", comment: rest.trim() };
+      }
+      return {
+        dateTime,
+        managerName: rest.slice(0, secondSep).trim(),
+        comment: rest.slice(secondSep + 3).trim()
+      };
+    });
+}
+
+function ManagerObservationCell({ raw }: { raw: string | undefined }) {
+  const blocks = parseManagerObservationBlocks(raw);
+  if (!blocks.length) {
+    return <span className="muted">—</span>;
+  }
+
+  return (
+    <div className="mc-observation-list">
+      {blocks.map((block, index) => {
+        const metaParts = [block.dateTime, block.managerName].filter(Boolean);
+        return (
+          <div key={`${block.dateTime}-${index}`} className="mc-observation-block">
+            {index > 0 ? <div className="mc-observation-sep" aria-hidden>
+              ---
+            </div> : null}
+            {metaParts.length > 0 ? (
+              <div className="mc-observation-meta">{metaParts.join(" - ")}</div>
+            ) : null}
+            <div className="mc-observation-comment">{block.comment || "—"}</div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -192,34 +176,32 @@ export function MainCouranteTable({
       <table className="main-courante-table mc-entries-table">
       <colgroup>
         <col className="mc-col-date" />
-        <col className="mc-col-operator" />
         <col className="mc-col-site" />
+        <col className="mc-col-operator" />
         <col className="mc-col-type" />
         <col className="mc-col-information" />
         <col className="mc-col-observation" />
-        <col className="mc-col-status" />
-        <col className="mc-col-actions" />
+        <col className="mc-col-status-actions" />
       </colgroup>
       <thead>
         <tr>
           <th className="mc-col-date"><button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>Date {sortLabel("date")}</button></th>
-          <th className="mc-col-operator"><button type="button" className="table-sort-btn" onClick={() => toggleSort("operator")}>Opérateur {sortLabel("operator")}</button></th>
           <th className="mc-col-site"><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
+          <th className="mc-col-operator"><button type="button" className="table-sort-btn" onClick={() => toggleSort("operator")}>Opérateur {sortLabel("operator")}</button></th>
           <th className="mc-col-type"><button type="button" className="table-sort-btn" onClick={() => toggleSort("type")}>Type {sortLabel("type")}</button></th>
           <th className="mc-col-information"><button type="button" className="table-sort-btn" onClick={() => toggleSort("info")}>Information {sortLabel("info")}</button></th>
           <th className="mc-col-observation">Observation responsable</th>
-          <th className="mc-col-status"><button type="button" className="table-sort-btn" onClick={() => toggleSort("status")}>État {sortLabel("status")}</button></th>
-          <th className="mc-col-actions">Actions</th>
+          <th className="mc-col-status-actions"><button type="button" className="table-sort-btn" onClick={() => toggleSort("status")}>État / Actions {sortLabel("status")}</button></th>
         </tr>
       </thead>
       <tbody>
         {sortedEntries.map((entry) => (
           <tr key={entry.id}>
             <td className="mc-col-date">{formatMcDate(entry.createdAt)}</td>
-            <td className="mc-col-operator">{entry.operatorName}</td>
             <td className="mc-col-site mc-site-wrap">
               <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
             </td>
+            <td className="mc-col-operator">{entry.operatorName}</td>
             <td className="mc-col-type">
               <MainCouranteTypeBadge
                 label={entry.anomalyTypeLabel}
@@ -227,65 +209,57 @@ export function MainCouranteTable({
               />
             </td>
             <td className="mc-col-information mc-cell-wrap">{entry.information}</td>
-            <td className="mc-col-observation mc-cell-wrap">{entry.managerObservation || "—"}</td>
-            <td className="mc-col-status">
-              <MainCouranteStatusBadge status={entry.status} />
+            <td className="mc-col-observation">
+              <ManagerObservationCell raw={entry.managerObservation} />
             </td>
-            <td className="mc-col-actions">
-              <div className="row-actions mc-row-actions-wrap">
-                {canOperatorEdit(entry) && (
+            <td className="mc-col-status-actions">
+              <div className="mc-status-actions-stack">
+                <MainCouranteStatusBadge status={entry.status} />
+                <div className="row-actions mc-row-actions-wrap mc-row-actions-wrap--text">
+                  {canOperatorEdit(entry) && (
+                    <button
+                      type="button"
+                      className="mc-table-action-btn mc-table-action-btn--text"
+                      onClick={() => onEditEntry(entry)}
+                    >
+                      Modifier
+                    </button>
+                  )}
+                  {isManager && entry.status === "EN_ATTENTE" && (
+                    <button
+                      type="button"
+                      className="mc-table-action-btn mc-table-action-btn--text mc-table-action-btn--validate"
+                      onClick={() => onManagerTreat(entry)}
+                    >
+                      Valider
+                    </button>
+                  )}
+                  {isManager && entry.status === "EN_COURS" && (
+                    <button
+                      type="button"
+                      className="mc-table-action-btn mc-table-action-btn--text"
+                      onClick={() => onManagerTreat(entry)}
+                    >
+                      Clôturer
+                    </button>
+                  )}
+                  {canViewByEye(entry) ? (
+                    <button
+                      type="button"
+                      className="mc-table-action-btn mc-table-action-btn--text"
+                      onClick={() => onViewEntry(entry)}
+                    >
+                      Voir le détail
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="mc-table-action-btn"
-                    onClick={() => onEditEntry(entry)}
-                    title="Modifier"
-                    aria-label="Modifier l’entrée"
+                    className="mc-table-action-btn mc-table-action-btn--text mc-table-action-btn--word"
+                    onClick={() => void onExportWord(entry)}
                   >
-                    <IconPencil />
+                    Export Word
                   </button>
-                )}
-                {isManager && entry.status === "EN_ATTENTE" && (
-                  <button
-                    type="button"
-                    className="mc-table-action-btn mc-table-action-btn--validate"
-                    onClick={() => onManagerTreat(entry)}
-                    title="Valider"
-                    aria-label="Valider l’entrée"
-                  >
-                    <IconCheck />
-                  </button>
-                )}
-                {isManager && entry.status === "EN_COURS" && (
-                  <button
-                    type="button"
-                    className="mc-table-action-btn"
-                    onClick={() => onManagerTreat(entry)}
-                    title="Clôturer"
-                    aria-label="Clôturer l’entrée"
-                  >
-                    <IconTraiter />
-                  </button>
-                )}
-                {canViewByEye(entry) ? (
-                  <button
-                    type="button"
-                    className="mc-table-action-btn"
-                    onClick={() => onViewEntry(entry)}
-                    title="Voir le détail"
-                    aria-label="Voir le détail de l’entrée"
-                  >
-                    <Eye size={16} />
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="mc-table-action-btn mc-table-action-btn--word"
-                  onClick={() => void onExportWord(entry)}
-                  title="Exporter en Word"
-                  aria-label="Exporter cette entrée en document Word"
-                >
-                  <IconWordExport />
-                </button>
+                </div>
               </div>
             </td>
           </tr>
