@@ -14,7 +14,7 @@ import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
+import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { FransorClosure, Role, SiteRef } from "../../../types";
 
 

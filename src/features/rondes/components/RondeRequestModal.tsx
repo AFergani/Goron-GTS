@@ -7,8 +7,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
-import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
+import { SiteSearchInput } from "../../common/components/SiteSearchInput";
+import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";

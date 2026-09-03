@@ -5,7 +5,7 @@
  * exposer d’identifiant technique (UUID) à l’utilisateur. Notifications optionnelles
  * via `onNotify` (toast AppShell).
  *
- * Utilisé par : `SiteDisplayCopyButton`, `SiteSearchInput` (main courante), exports.
+ * Utilisé par : `SiteDisplayCopyButton`, `SiteSearchInput`, exports.
  */
 
 import type { NotifyToast } from "../model/toast.types";

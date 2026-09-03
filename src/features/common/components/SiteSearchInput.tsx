@@ -2,15 +2,15 @@
  * Recherche site par code ou nom (autocomplete, min. 3 caractères).
  *
  * Site facultatif (`optional`). Copie du code site si sélection catalogue.
- * Réutilisé par : main courante, interventions, rondes, gardiennage.
+ * Utilisé par : main courante, interventions, rondes, Paramètres, SearchEntry.
  */
 
 import { Copy, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { SiteRef } from "../../../types";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
-import { copySiteDisplayCode } from "../../common/utils/siteDisplayCopy";
+import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
+import { copySiteDisplayCode } from "../utils/siteDisplayCopy";
 import { filterSitesByCodeOrName, formatSiteSelectedLabel } from "../model/siteSearch";
 
 type SiteSearchInputProps = {

@@ -8,7 +8,7 @@ import type { Role, SiteRef } from "../../../types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { RondePlannedProfileRef } from "../../rondes/model/rondePlanned.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
+import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import type { FormTarget, FormVariableDef, FormVariablePayload } from "../model/formVariables.types";
 import { WORD_TEMPLATE_FIELD_TYPES, labelToFieldKey, wordTemplateFieldTypeLabel } from "../model/wordTemplateFieldTypes";
 import { ConfirmModal } from "../../common/components/ConfirmModal";

@@ -19,11 +19,11 @@ import {
   type InterventionSavePayload
 } from "../model/intervention.types";
 import type { NotifyToast } from "../../common/model/toast.types";
-import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
+import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
+import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "./IntervenantSearchInput";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";

@@ -47,7 +47,7 @@ export function CreateEntryModalFooter({
   submitting = false,
   submittingLabel = "Enregistrement…"
 }: {
-  hintContent: ReactNode;
+  hintContent?: ReactNode;
   onCancel: () => void;
   submitDisabled?: boolean;
   submitLabel?: string;
@@ -59,7 +59,7 @@ export function CreateEntryModalFooter({
       <button type="button" className="btn-ghost" onClick={onCancel} disabled={submitting}>
         Annuler
       </button>
-      <div className="mc-modal-footer-hints-center muted">{hintContent}</div>
+      <div className="mc-modal-footer-hints-center muted">{hintContent ?? null}</div>
       <button type="submit" className="mc-btn-primary" disabled={Boolean(submitDisabled) || submitting}>
         {submitting ? submittingLabel : submitLabel}
       </button>

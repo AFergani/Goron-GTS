@@ -18,7 +18,7 @@ import {
 } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
-import { formatSiteSelectedLabel } from "../../mainCourante/model/siteSearch";
+import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";

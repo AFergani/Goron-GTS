@@ -12,7 +12,7 @@ import {
   helpIdFromFlowKind,
   resolveDocumentTemplateHelpBlock
 } from "./documentTemplateHelpContent";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
+import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 
 type TemplatesManagementPanelProps = {

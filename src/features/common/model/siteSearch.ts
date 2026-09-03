@@ -1,5 +1,5 @@
 /**
- * Recherche et libellé site pour la main courante (et modules qui réutilisent le composant).
+ * Recherche et libellé site partagés (formulaires métier et Paramètres).
  *
  * Format catalogue : « Nom (CODE) ». Filtre autocomplete dès 3 caractères (code ou nom).
  */

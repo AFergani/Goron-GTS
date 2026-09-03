@@ -9,7 +9,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import type { MainCouranteCreatePayload, MainCouranteEntry, MainCouranteSavePayload } from "../model/mainCourante.types";
-import { formatSiteSelectedLabel } from "../model/siteSearch";
+import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { AnomalyTypeRef, SiteRef } from "../../../types";
 import { createPendingSiteIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
@@ -45,7 +45,8 @@ type MainCouranteEntryModalProps = {
   onReopenEntry?: (entry: MainCouranteEntry) => Promise<boolean>;
 };
 
-function formatEntryDateTime(iso: string) {
+function formatDt(iso: string | undefined) {
+  if (!iso) return "—";
   return new Date(iso).toLocaleString("fr-FR", {
     day: "2-digit",
     month: "2-digit",
@@ -82,17 +83,6 @@ function buildPayload(
   };
 }
 
-function formatDt(iso: string | undefined) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
 export function MainCouranteEntryModal({
   isOpen,
   mode,
@@ -113,7 +103,7 @@ export function MainCouranteEntryModal({
   onReopenEntry
 }: MainCouranteEntryModalProps) {
   const [selectedSite, setSelectedSite] = useState<SiteRef | null>(null);
-  const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatEntryDateTime(new Date().toISOString()));
+  const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatDt(new Date().toISOString()));
   const [anomalyTypeId, setAnomalyTypeId] = useState("");
   const [information, setInformation] = useState("");
   const [priseEnCompteAffichee, setPriseEnCompteAffichee] = useState("");
@@ -130,7 +120,7 @@ export function MainCouranteEntryModal({
     setFieldError("");
     if (mode !== "create") return;
     // En création, ne pas réinitialiser le formulaire à chaque auto-refresh des référentiels.
-    setDateCouranteAffichee(formatEntryDateTime(new Date().toISOString()));
+    setDateCouranteAffichee(formatDt(new Date().toISOString()));
     setSelectedSite(null);
     setAnomalyTypeId("");
     setInformation("");
@@ -164,34 +154,29 @@ export function MainCouranteEntryModal({
   }, [isOpen, mode, entry?.id]);
 
   useEffect(() => {
-    if (!isOpen || mode !== "manager" || !entry) return;
+    if (!isOpen || (mode !== "manager" && mode !== "view") || !entry) return;
     setFieldError("");
-    setManagerObservation("");
-    if (entry.status === "EN_ATTENTE") {
+    if (mode === "manager") {
+      setManagerObservation("");
+    }
+    if (mode === "manager" && entry.status === "EN_ATTENTE") {
       setPriseEnCompteAffichee(formatDt(new Date().toISOString()));
     } else {
       setPriseEnCompteAffichee(formatDt(entry.priseEnCompteAt));
     }
   }, [isOpen, mode, entry?.id]);
 
+  /** Titres hors création (la création utilise CreateEntryModalHeader). */
   const title =
-    mode === "create"
-      ? "Nouvelle entrée"
-      : mode === "edit"
-        ? "Modifier l'entrée"
-        : mode === "view"
-          ? "Consulter l'entrée"
-          : entry?.status === "EN_ATTENTE"
-            ? "Validation"
-            : "Suivi / clôture";
-  const secondColumnLabel =
-    mode === "create"
-      ? "Date de la création"
-      : mode === "edit" && entry
-        ? "Date de création"
-        : "Date courante";
-  const secondColumnValue =
-    mode === "edit" && entry ? formatEntryDateTime(entry.createdAt) : dateCouranteAffichee;
+    mode === "edit"
+      ? "Modifier l'entrée"
+      : mode === "view"
+        ? "Consulter l'entrée"
+        : entry?.status === "EN_ATTENTE"
+          ? "Validation"
+          : "Suivi / clôture";
+  const secondColumnLabel = mode === "edit" ? "Date de création" : "Date de la création";
+  const secondColumnValue = mode === "edit" && entry ? formatDt(entry.createdAt) : dateCouranteAffichee;
 
   const missingTypes = !referencesLoading && anomalyTypes.length === 0;
 
@@ -558,6 +543,7 @@ export function MainCouranteEntryModal({
 
             {mode === "create" ? (
               <CreateEntryModalFooter
+                hintContent={null}
                 onCancel={createCloseGuard.requestClose}
                 submitDisabled={missingTypes || Boolean(referencesError)}
                 submitLabel={submitLabel}

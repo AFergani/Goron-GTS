@@ -7,7 +7,7 @@
 
 import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
-import { SiteSearchInput } from "../../mainCourante/components/SiteSearchInput";
+import { SiteSearchInput } from "./SiteSearchInput";
 import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
 
 type SearchEntryProps = {
