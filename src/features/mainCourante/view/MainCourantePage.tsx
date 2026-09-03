@@ -11,7 +11,7 @@ import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
-import { MainCouranteEntryModal } from "../components/MainCouranteEntryModal";
+import { MainCouranteEntryModal, type EntryModalMode } from "../components/MainCouranteEntryModal";
 import { MainCouranteTable } from "../components/MainCouranteTable";
 import { useMainCourantePresenter } from "../presenter/useMainCourantePresenter";
 import { useMainCouranteReferenceData } from "../presenter/useMainCouranteReferenceData";
@@ -57,7 +57,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
   const setManagerFilter = (v: string) => { setManagerFilterRaw(v); filters.setCurrentPage(1); };
 
   const [actionModalOpen, setActionModalOpen] = useState(false);
-  const [actionModalMode, setActionModalMode] = useState<"create" | "edit" | "manager" | "view">("create");
+  const [actionModalMode, setActionModalMode] = useState<EntryModalMode>("create");
   const [activeEntry, setActiveEntry] = useState<MainCouranteEntry | null>(null);
 
   const { entries, stats, loading, createEntry, updateOperatorEntry, applyManagerAction, reopenEntry } = useMainCourantePresenter(
@@ -123,8 +123,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
               ? entry.status === "EN_ATTENTE" || entry.status === "EN_COURS"
               : entry.status === statusFilter;
         return textOk && typeOk && statusOk;
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
   }, [entries, filters.search, statusFilter, typeFilter, filters.dateFrom, filters.dateTo, operatorFilter, managerFilter]);
 
   const totalPages = filters.pageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredEntries.length / filters.pageSize));

@@ -17,13 +17,9 @@ import PizZip from "pizzip";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import logoGts from "../../../assets/logo-gts.jpg";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import {
-  exportTimestampForFilename,
-  formatMainCouranteDate,
-  safeExportFilenamePart,
-  statusLabelFr
-} from "./mainCouranteExportFormat";
 import { downloadBlob } from "../../common/utils/downloadBlob";
+import { exportTimestampForFilename, safeExportFilenamePart } from "../../common/utils/exportFilename";
+import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
 
 const MAIN_COURANTE_TEMPLATE_URL = "/templates/main-courante-template.docx";
 let templateMissingWarningShown = false;

@@ -8,17 +8,12 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { MainCouranteEntry, MainCouranteStatus } from "../model/mainCourante.types";
+import { formatMainCouranteDate, statusLabelFr } from "../export/mainCouranteExportFormat";
 import type { AnomalyTypeRef } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 
-function statusLabel(status: MainCouranteStatus) {
-  if (status === "EN_ATTENTE") return "En attente";
-  if (status === "EN_COURS") return "En cours";
-  return "Clôturé";
-}
-
 function MainCouranteStatusBadge({ status }: { status: MainCouranteStatus }) {
-  const label = statusLabel(status);
+  const label = statusLabelFr(status);
   const variant =
     status === "EN_ATTENTE" ? "en-attente" : status === "EN_COURS" ? "en-cours" : "cloture";
   return (
@@ -27,16 +22,6 @@ function MainCouranteStatusBadge({ status }: { status: MainCouranteStatus }) {
       <span className="mc-status-badge__label">{label}</span>
     </span>
   );
-}
-
-function formatMcDate(iso: string) {
-  return new Date(iso).toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
 }
 
 function MainCouranteTypeBadge({ label, colorHex }: { label: string; colorHex?: string }) {
@@ -216,7 +201,7 @@ export function MainCouranteTable({
     site: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     type: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.anomalyTypeLabel || "").localeCompare(b.anomalyTypeLabel || "", "fr"),
     info: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.information || "").localeCompare(b.information || "", "fr"),
-    status: (a: MainCouranteEntry, b: MainCouranteEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
+    status: (a: MainCouranteEntry, b: MainCouranteEntry) => statusLabelFr(a.status).localeCompare(statusLabelFr(b.status), "fr")
   };
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<MainCouranteEntry, MainCouranteSortKey>(entries, comparators, {
     key: "date",
@@ -265,7 +250,7 @@ export function MainCouranteTable({
       <tbody>
         {sortedEntries.map((entry) => (
           <tr key={entry.id}>
-            <td className="mc-col-date">{formatMcDate(entry.createdAt)}</td>
+            <td className="mc-col-date">{formatMainCouranteDate(entry.createdAt)}</td>
             <td className="mc-col-site mc-site-wrap">
               <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
             </td>

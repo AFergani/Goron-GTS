@@ -1,7 +1,5 @@
 /**
- * Formatage dates/statuts et noms de fichiers export main courante.
- *
- * `safeExportFilenamePart` réutilisé par d’autres modules (intervention, gardiennage, Fransor).
+ * Formatage dates/statuts pour la main courante (UI + exports).
  */
 
 import type { MainCouranteStatus } from "../model/mainCourante.types";
@@ -17,18 +15,13 @@ export function formatMainCouranteDate(iso: string | undefined): string {
   });
 }
 
+/** Affichage UI : tiret cadratin si date absente. */
+export function formatMainCouranteDateOrDash(iso: string | undefined): string {
+  return formatMainCouranteDate(iso) || "—";
+}
+
 export function statusLabelFr(status: MainCouranteStatus): string {
   if (status === "EN_ATTENTE") return "En attente";
   if (status === "EN_COURS") return "En cours";
   return "Clôturé";
-}
-
-/** Segment de nom de fichier sans caractères interdits Windows. */
-export function safeExportFilenamePart(s: string): string {
-  const t = s.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-").trim();
-  return t.slice(0, 48) || "entree";
-}
-
-export function exportTimestampForFilename(): string {
-  return new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
 }

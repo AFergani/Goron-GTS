@@ -18,6 +18,7 @@ import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalClose
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { formatMainCouranteDateOrDash } from "../export/mainCouranteExportFormat";
 
 export type EntryModalMode = "create" | "edit" | "manager" | "view";
 
@@ -44,17 +45,6 @@ type MainCouranteEntryModalProps = {
   ) => Promise<boolean>;
   onReopenEntry?: (entry: MainCouranteEntry) => Promise<boolean>;
 };
-
-function formatDt(iso: string | undefined) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
 
 function buildPayload(
   selectedSite: SiteRef | null,
@@ -103,7 +93,7 @@ export function MainCouranteEntryModal({
   onReopenEntry
 }: MainCouranteEntryModalProps) {
   const [selectedSite, setSelectedSite] = useState<SiteRef | null>(null);
-  const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatDt(new Date().toISOString()));
+  const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatMainCouranteDateOrDash(new Date().toISOString()));
   const [anomalyTypeId, setAnomalyTypeId] = useState("");
   const [information, setInformation] = useState("");
   const [priseEnCompteAffichee, setPriseEnCompteAffichee] = useState("");
@@ -120,7 +110,7 @@ export function MainCouranteEntryModal({
     setFieldError("");
     if (mode !== "create") return;
     // En création, ne pas réinitialiser le formulaire à chaque auto-refresh des référentiels.
-    setDateCouranteAffichee(formatDt(new Date().toISOString()));
+    setDateCouranteAffichee(formatMainCouranteDateOrDash(new Date().toISOString()));
     setSelectedSite(null);
     setAnomalyTypeId("");
     setInformation("");
@@ -160,9 +150,9 @@ export function MainCouranteEntryModal({
       setManagerObservation("");
     }
     if (mode === "manager" && entry.status === "EN_ATTENTE") {
-      setPriseEnCompteAffichee(formatDt(new Date().toISOString()));
+      setPriseEnCompteAffichee(formatMainCouranteDateOrDash(new Date().toISOString()));
     } else {
-      setPriseEnCompteAffichee(formatDt(entry.priseEnCompteAt));
+      setPriseEnCompteAffichee(formatMainCouranteDateOrDash(entry.priseEnCompteAt));
     }
   }, [isOpen, mode, entry?.id]);
 
@@ -175,8 +165,8 @@ export function MainCouranteEntryModal({
         : entry?.status === "EN_ATTENTE"
           ? "Validation"
           : "Suivi / clôture";
-  const secondColumnLabel = mode === "edit" ? "Date de création" : "Date de la création";
-  const secondColumnValue = mode === "edit" && entry ? formatDt(entry.createdAt) : dateCouranteAffichee;
+  const secondColumnLabel = "Date de création";
+  const secondColumnValue = mode === "edit" && entry ? formatMainCouranteDateOrDash(entry.createdAt) : dateCouranteAffichee;
 
   const missingTypes = !referencesLoading && anomalyTypes.length === 0;
 
@@ -287,7 +277,7 @@ export function MainCouranteEntryModal({
 
   if (mode === "manager" || mode === "view") {
     if (!entry || (mode === "manager" && entry.status === "CLOTURE")) return null;
-    const dateClotureAffichee = formatDt(entry.closedAt);
+    const dateClotureAffichee = formatMainCouranteDateOrDash(entry.closedAt);
     return (
       <div className="modal-overlay" onClick={onClose}>
         <section className="modal main-log-modal main-courante-manager-modal" onClick={(ev) => ev.stopPropagation()}>
@@ -308,7 +298,7 @@ export function MainCouranteEntryModal({
                 </label>
                 <label className="mc-field">
                   <span>Date de création</span>
-                  <input value={formatDt(entry.createdAt)} readOnly className="mc-input-readonly" />
+                  <input value={formatMainCouranteDateOrDash(entry.createdAt)} readOnly className="mc-input-readonly" />
                 </label>
                 <label className="mc-field">
                   <span>Site</span>

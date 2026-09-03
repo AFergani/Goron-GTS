@@ -177,7 +177,6 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
     entries,
     stats,
     loading,
-    loadEntries,
     createEntry,
     updateOperatorEntry,
     applyManagerAction,

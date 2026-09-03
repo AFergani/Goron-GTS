@@ -9,7 +9,7 @@ import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { downloadBlob } from "../../common/utils/downloadBlob";
-import { safeExportFilenamePart } from "../../mainCourante/export/mainCouranteExportFormat";
+import { safeExportFilenamePart } from "../../common/utils/exportFilename";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { formatDateShortFr } from "../utils/formatDateShortFr";
 import { computeRondeLogicalDate } from "../utils/logicalDate";

@@ -2,7 +2,7 @@
  * Référentiels main courante : sites, types d’anomalie, proposition de site en attente.
  *
  * Rafraîchissement périodique (~10 s) pour refléter les validations Paramètres.
- * Utilisé par : `MainCourantePage`, `MainCouranteEntryModal`.
+ * Utilisé par : `MainCourantePage` (référentiels passés à la modale).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -77,5 +77,5 @@ export function useMainCouranteReferenceData(
     [load, onToast, requesterRole, requesterUsername]
   );
 
-  return { sites, anomalyTypes, loading, error, reload: load, createPendingSite };
+  return { sites, anomalyTypes, loading, error, createPendingSite };
 }

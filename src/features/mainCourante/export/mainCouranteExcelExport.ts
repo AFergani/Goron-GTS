@@ -6,10 +6,11 @@
  */
 
 import ExcelJS from "exceljs";
-import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
-import type { MainCouranteEntry } from "../model/mainCourante.types";
 import { downloadBlob } from "../../common/utils/downloadBlob";
-import { exportTimestampForFilename, formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
+import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
+import { exportTimestampForFilename } from "../../common/utils/exportFilename";
+import type { MainCouranteEntry } from "../model/mainCourante.types";
+import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
 
 /** Colonnes avec largeur et activation éventuelle du retour à la ligne. */
 const COLUMNS: Array<{ header: string; key: string; width: number; wrap?: boolean }> = [
