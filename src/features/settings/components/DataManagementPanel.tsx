@@ -872,7 +872,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       >
         <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
           <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
-            Motif (obligatoire) <span style={{ color: "var(--danger, #e55)" }}>*</span>
+            Motif (obligatoire) <span className="text-error">*</span>
           </span>
           <textarea
             className="mc-textarea"

@@ -1,11 +1,21 @@
 /**
  * Modale création / édition utilisateur : identité et rôles sur une ligne,
- * accès Paramètres et sécurité via interrupteurs.
+ * accès Paramètres via interrupteur, et motif d'audit obligatoire en modification.
  */
 
 import type { FormEvent } from "react";
+import type { Session } from "../../../app/session/SessionProvider";
+import type { ManagerProfile } from "../../../types";
 import { getDefaultPageAccessByRole, type CreateUserFormState } from "../model/settings.types";
+import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
+import { canSessionAssignRank } from "../model/userHierarchy";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
+
+const MANAGER_PROFILE_OPTIONS: { value: ManagerProfile; label: string }[] = [
+  { value: "SUPERVISEUR", label: "Superviseur" },
+  { value: "RESPONSABLE_STATION", label: "Responsable de station" },
+  { value: "DIRECTEUR_STATION", label: "Directeur de station" }
+];
 
 type CreateUserModalProps = {
   isOpen: boolean;
@@ -13,6 +23,7 @@ type CreateUserModalProps = {
   mode: "create" | "edit";
   editingTechnicalUsername?: string;
   canEditPageAccess: boolean;
+  session: Session | null;
   onClose: () => void;
   onChange: (next: CreateUserFormState) => void;
   onSubmit: (e: FormEvent) => void;
@@ -24,11 +35,20 @@ export function CreateUserModal({
   mode,
   editingTechnicalUsername,
   canEditPageAccess,
+  session,
   onClose,
   onChange,
   onSubmit
 }: CreateUserModalProps) {
   if (!isOpen) return null;
+
+  // Anti-élévation de privilège : on ne propose que les profils de rang inférieur ou égal au sien.
+  const canAssignProfile = (profile: ManagerProfile) =>
+    Boolean(session && canSessionAssignRank(session, "RESPONSABLE", profile));
+  const reasonMissing = mode === "edit" && !isAuditReasonValid(form.reason);
+  // On ne modifie pas son propre niveau hiérarchique : les sélecteurs restent en lecture seule.
+  const isEditingSelf = mode === "edit" && Boolean(session) && editingTechnicalUsername === session?.user.username;
+  const rankLockTitle = isEditingSelf ? "Votre propre niveau hiérarchique n'est pas modifiable" : undefined;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -49,6 +69,8 @@ export function CreateUserModal({
               Rôle technique
               <select
                 value={form.role}
+                disabled={isEditingSelf}
+                title={rankLockTitle}
                 onChange={(e) => {
                   const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
                   onChange({
@@ -66,8 +88,8 @@ export function CreateUserModal({
               Profil métier
               <select
                 value={form.managerProfile}
-                disabled={form.role !== "RESPONSABLE"}
-                title={form.role === "RESPONSABLE" ? undefined : "Réservé aux comptes responsables"}
+                disabled={isEditingSelf || form.role !== "RESPONSABLE"}
+                title={rankLockTitle ?? (form.role === "RESPONSABLE" ? undefined : "Réservé aux comptes responsables")}
                 onChange={(e) =>
                   onChange({
                     ...form,
@@ -75,9 +97,11 @@ export function CreateUserModal({
                   })
                 }
               >
-                <option value="SUPERVISEUR">Superviseur</option>
-                <option value="RESPONSABLE_STATION">Responsable de station</option>
-                <option value="DIRECTEUR_STATION">Directeur de station</option>
+                {MANAGER_PROFILE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} disabled={!canAssignProfile(option.value)}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -98,11 +122,27 @@ export function CreateUserModal({
               Modification de l&apos;accès à Paramètres réservée au directeur de station et au responsable de station.
             </p>
           )}
+          {mode === "edit" && (
+            <label className="mc-field">
+              <span>Motif de la modification (obligatoire, {MIN_AUDIT_REASON_LENGTH} caractères minimum)</span>
+              <textarea
+                className="mc-textarea"
+                rows={2}
+                value={form.reason}
+                required
+                minLength={MIN_AUDIT_REASON_LENGTH}
+                placeholder="Ex: changement de fonction, correction du nom affiché, ouverture de l'accès Paramètres"
+                onChange={(e) => onChange({ ...form, reason: e.target.value })}
+              />
+            </label>
+          )}
           <div className="row-actions modal-actions">
             <button type="button" className="btn-light" onClick={onClose}>
               Fermer
             </button>
-            <button type="submit">{mode === "create" ? "Créer l'utilisateur" : "Enregistrer les modifications"}</button>
+            <button type="submit" disabled={reasonMissing}>
+              {mode === "create" ? "Créer l'utilisateur" : "Enregistrer les modifications"}
+            </button>
           </div>
         </form>
       </section>

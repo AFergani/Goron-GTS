@@ -199,7 +199,16 @@ export const gtsApiClient = {
   firstLogin(payload: { username: string; temporaryPassword: string; newPassword: string }) {
     return window.gtsApi.firstLogin(payload);
   },
-  unlockUser(payload: { requesterRole: Role; requesterUsername: string; username: string }) {
+  /** Réinitialisation d'un mot de passe oublié, validée par un collègue présent (hors session). */
+  resetPasswordWithPeer(payload: {
+    fullName: string;
+    validatorFullName: string;
+    validatorPassword: string;
+    reason: string;
+  }) {
+    return window.gtsApi.resetPasswordWithPeer(payload);
+  },
+  unlockUser(payload: { requesterRole: Role; requesterUsername: string; username: string; reason: string }) {
     return sessionCall(window.gtsApi.unlockUser, payload);
   },
   getActiveSessions() {
@@ -232,6 +241,8 @@ export const gtsApiClient = {
     managerProfile: ManagerProfile | null;
     pageAccess: PageAccess;
     mustResetPassword: boolean;
+    /** Motif obligatoire tracé dans le journal des actions. */
+    reason: string;
     expectedUpdatedAt?: string | null;
   }) {
     return sessionCall(window.gtsApi.updateUserProfile, payload);

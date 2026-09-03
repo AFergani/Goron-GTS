@@ -32,7 +32,7 @@ export type HelpPageAccess = {
 export type HelpAccessContext = {
   pageAccess: HelpPageAccess;
   canManageUsers: boolean;
-  /** Superviseur : onglet Gestion opérateur (réinit. MDP) sans droits complets. */
+  /** Superviseur : onglet Gestion opérateur, avec une portée bornée par la hiérarchie. */
   canAccessOperatorsTab?: boolean;
   /** Session connectée : onglets données / modèles et variables / base */
   canManageData: boolean;

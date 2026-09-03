@@ -458,7 +458,7 @@ export function GardiennagePage({
       >
         <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
           <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
-            Motif de suppression <span style={{ color: "var(--danger, #e55)" }}>*</span>
+            Motif de suppression <span className="text-error">*</span>
           </span>
           <textarea
             rows={2}

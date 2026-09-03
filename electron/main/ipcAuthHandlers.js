@@ -82,6 +82,13 @@ function registerAuthIpcHandlers(deps) {
     return getUserStore().completeFirstLogin(payload);
   });
 
+  // Non authentifié par construction : la légitimité repose sur le collègue validateur,
+  // qui fournit ses propres identifiants dans la charge utile.
+  handleIpc("auth:resetPasswordWithPeer", (payload) => {
+    ensureStore();
+    return getUserStore().resetPasswordWithPeerValidation(payload);
+  });
+
   handleIpc("auth:logout", async (payload) => {
     const token = payload?.sessionToken;
     try {

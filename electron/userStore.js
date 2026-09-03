@@ -436,10 +436,6 @@ class UserStore {
 
   // --- Authentification et comptes (`authUsers`) ---
 
-  sanitizeUser(user) {
-    return authUsersDomain.sanitizeUser(user);
-  }
-
   async login({ username, password }) {
     await this.whenPostgresReady();
     return authUsersDomain.login(this, { username, password, role: ROLE });
@@ -448,6 +444,17 @@ class UserStore {
   async completeFirstLogin({ username, temporaryPassword, newPassword }) {
     await this.whenPostgresReady();
     return authUsersDomain.completeFirstLogin(this, { username, temporaryPassword, newPassword });
+  }
+
+  async resetPasswordWithPeerValidation({ fullName, validatorFullName, validatorPassword, reason }) {
+    await this.whenPostgresReady();
+    return authUsersDomain.resetPasswordWithPeerValidation(this, {
+      fullName,
+      validatorFullName,
+      validatorPassword,
+      reason,
+      role: ROLE
+    });
   }
 
   async listUsers({ requesterRole, requesterUsername }) {
@@ -478,6 +485,7 @@ class UserStore {
     managerProfile,
     pageAccess,
     mustResetPassword,
+    reason,
     expectedUpdatedAt
   }) {
     await this.whenPostgresReady();
@@ -490,6 +498,7 @@ class UserStore {
       managerProfile,
       pageAccess,
       mustResetPassword,
+      reason,
       expectedUpdatedAt,
       role: ROLE
     });
@@ -512,9 +521,9 @@ class UserStore {
     });
   }
 
-  async unlockUser({ requesterRole, requesterUsername, username }) {
+  async unlockUser({ requesterRole, requesterUsername, username, reason }) {
     await this.whenPostgresReady();
-    return authUsersDomain.unlockUser(this, { requesterRole, requesterUsername, username, role: ROLE });
+    return authUsersDomain.unlockUser(this, { requesterRole, requesterUsername, username, reason, role: ROLE });
   }
 
   // --- Audit, santé base, préférences, modèles Word ---

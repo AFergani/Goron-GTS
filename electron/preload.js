@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
   login: (payload) => ipcRenderer.invoke("auth:login", payload),
   getAdminAccessStatus: () => ipcRenderer.invoke("auth:getAdminAccessStatus"),
   firstLogin: (payload) => ipcRenderer.invoke("auth:firstLogin", payload),
+  resetPasswordWithPeer: (payload) => ipcRenderer.invoke("auth:resetPasswordWithPeer", payload),
   logout: (payload) => ipcRenderer.invoke("auth:logout", payload),
   listUsers: (payload) => ipcRenderer.invoke("users:list", payload),
   createUser: (payload) => ipcRenderer.invoke("users:create", payload),

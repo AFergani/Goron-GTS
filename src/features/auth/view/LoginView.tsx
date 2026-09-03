@@ -21,6 +21,8 @@ type LoginViewProps = {
   onCloseLockedDialog: () => void;
   onLogin: (e: FormEvent) => void;
   onChange: (next: LoginFormState) => void;
+  /** Ouvre la réinitialisation validée par un collègue présent. */
+  onOpenPeerReset: () => void;
 };
 
 export function LoginView({
@@ -30,7 +32,8 @@ export function LoginView({
   isLoggingIn,
   onCloseLockedDialog,
   onLogin,
-  onChange
+  onChange,
+  onOpenPeerReset
 }: LoginViewProps) {
   return (
     <main className="auth-page">
@@ -42,12 +45,15 @@ export function LoginView({
               Votre compte a été bloqué après trop de tentatives de connexion échouées.
             </p>
             <p className="muted">
-              Contactez votre responsable ou le directeur de station pour qu&apos;il réinitialise votre accès depuis la
-              gestion des utilisateurs.
+              Le blocage se lève automatiquement au bout de 15 minutes. Si vous avez oublié votre mot de passe,
+              faites-le réinitialiser par votre responsable, ou par un collègue présent via « Mot de passe oublié ».
             </p>
             <div className="row-actions modal-actions">
-              <button type="button" onClick={onCloseLockedDialog}>
+              <button type="button" className="btn-light" onClick={onCloseLockedDialog}>
                 Fermer
+              </button>
+              <button type="button" onClick={onOpenPeerReset}>
+                Mot de passe oublié
               </button>
             </div>
           </section>
@@ -89,6 +95,9 @@ export function LoginView({
             )}
           </button>
         </form>
+        <button type="button" className="link-btn" onClick={onOpenPeerReset} disabled={isLoggingIn}>
+          Mot de passe oublié ?
+        </button>
         {isLoggingIn ? (
           <p className="muted login-status" role="status">
             Vérification de l&apos;identité et accès à la base…

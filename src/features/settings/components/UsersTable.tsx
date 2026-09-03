@@ -1,10 +1,11 @@
 /**
- * Tableau utilisateurs (édition, MDP, déverrouillage, désactivation selon hiérarchie).
+ * Tableau utilisateurs. Chaque action n'est proposée que sur un compte de rang
+ * inférieur ou égal à celui de la session (voir `userHierarchy`).
  */
 
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
-import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
+import { canSessionManageUser } from "../model/userHierarchy";
 
 /**
  * Bouton d'action de ligne. Masqué (`hidden`), il reste dans le flux pour réserver
@@ -52,12 +53,9 @@ type UsersTableProps = {
   onDeactivateUser: (user: User) => void;
   onReactivateUser: (user: User) => void;
   onEditUser: (user: User) => void;
-  onUnlockUser: (username: string) => void;
-  /** Réinitialisation MDP rapide (superviseur ou administrateurs selon hiérarchie). */
-  onRequestPasswordReset?: (user: User) => void;
+  onUnlockUser: (user: User) => void;
+  onRequestPasswordReset: (user: User) => void;
   session: Session | null;
-  /** Superviseur : uniquement réinitialisation MDP / déverrouillage hiérarchiques. */
-  variant?: "full" | "passwordDesk";
 };
 
 export function UsersTable({
@@ -68,11 +66,10 @@ export function UsersTable({
   onEditUser,
   onUnlockUser,
   onRequestPasswordReset,
-  session,
-  variant = "full"
+  session
 }: UsersTableProps) {
-  const passwordDesk = variant === "passwordDesk";
   const activeSet = new Set(activeUsernames.map((n) => n.toLowerCase()));
+  const currentUsername = String(session?.user.username || "").toLowerCase();
 
   function formatRole(value: User["role"]) {
     if (value === "DEV") return "Admin";
@@ -118,7 +115,7 @@ export function UsersTable({
   }
 
   function canActOnUser(target: User): boolean {
-    return Boolean(session && canSessionResetPasswordOrUnlockForUser(session, target));
+    return Boolean(session && canSessionManageUser(session, target));
   }
 
   return (
@@ -138,9 +135,10 @@ export function UsersTable({
         {users.map((u) => {
           // Sessions = username technique ; présence partagée via PostgreSQL.
           const isOnline = u.isActive && activeSet.has(String(u.username || "").toLowerCase());
+          // `canAct` couvre déjà la protection du compte Admin, jamais administrable.
           const canAct = canActOnUser(u);
-          // Le compte DEV n'est jamais administrable ; ses emplacements restent réservés.
-          const manageable = u.role !== "DEV";
+          // Auto-réinitialisation et auto-désactivation interdites : risque de se verrouiller hors de l'application.
+          const isSelf = String(u.username || "").toLowerCase() === currentUsername;
           return (
             <tr key={u.id}>
               <td className="users-table__col-presence">
@@ -170,32 +168,28 @@ export function UsersTable({
               </td>
               <td className="users-table__col-actions">
                 <div className="row-actions table-row-actions table-row-actions--text">
-                  {!passwordDesk && (
-                    <ActionButton
-                      label="Modifier"
-                      hidden={!manageable || !u.isActive}
-                      onClick={() => onEditUser(u)}
-                    />
-                  )}
+                  <ActionButton
+                    label="Modifier"
+                    hidden={!canAct || !u.isActive}
+                    onClick={() => onEditUser(u)}
+                  />
                   <ActionButton
                     label="Réinit. mot de passe"
-                    hidden={!manageable || !u.isActive || !canAct || !onRequestPasswordReset}
-                    onClick={() => onRequestPasswordReset?.(u)}
+                    hidden={!canAct || !u.isActive || isSelf}
+                    onClick={() => onRequestPasswordReset(u)}
                   />
                   <ActionButton
                     label="Déverrouiller"
-                    hidden={!manageable || !u.isActive || !u.isLocked || !canAct}
-                    onClick={() => onUnlockUser(u.username)}
+                    hidden={!canAct || !u.isActive || !u.isLocked}
+                    onClick={() => onUnlockUser(u)}
                   />
-                  {!passwordDesk && (
-                    <ActionButton
-                      className="users-table__action-slot--activation"
-                      label={u.isActive ? "Désactiver" : "Réactiver"}
-                      tone={u.isActive ? "danger" : "validate"}
-                      hidden={!manageable}
-                      onClick={() => (u.isActive ? onDeactivateUser(u) : onReactivateUser(u))}
-                    />
-                  )}
+                  <ActionButton
+                    className="users-table__action-slot--activation"
+                    label={u.isActive ? "Désactiver" : "Réactiver"}
+                    tone={u.isActive ? "danger" : "validate"}
+                    hidden={!canAct || (u.isActive && isSelf)}
+                    onClick={() => (u.isActive ? onDeactivateUser(u) : onReactivateUser(u))}
+                  />
                 </div>
               </td>
             </tr>

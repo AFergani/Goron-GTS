@@ -928,7 +928,7 @@ export function GardiennageEntryModal({
                     </p>
                   </div>
                   {linesOverlapError && (
-                    <p className="muted mc-ref-hint" style={{ color: "var(--danger-700, #b42318)" }}>
+                    <p className="mc-ref-hint text-error">
                       {linesOverlapError}
                     </p>
                   )}

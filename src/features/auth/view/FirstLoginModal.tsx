@@ -15,17 +15,27 @@ type FirstLoginModalProps = {
   form: PasswordUpdateFormState;
   isPasswordLongEnough: boolean;
   isPasswordConfirmed: boolean;
+  isPasswordDifferentFromTemporary: boolean;
+  error: string;
   displayName: string;
   onChange: (next: PasswordUpdateFormState) => void;
   onSubmit: (e: FormEvent) => void;
 };
 
-/** Formulaire nouveau mot de passe + indicateurs de validation (6 caractères, confirmation). */
+/**
+ * Formulaire nouveau mot de passe + indicateurs de validation (6 caractères, confirmation,
+ * différence avec le mot de passe temporaire).
+ *
+ * La modale couvre tout l'écran : elle doit afficher ses propres refus, un message posé
+ * sous le formulaire de connexion resterait invisible derrière elle.
+ */
 export function FirstLoginModal({
   isOpen,
   form,
   isPasswordLongEnough,
   isPasswordConfirmed,
+  isPasswordDifferentFromTemporary,
+  error,
   displayName,
   onChange,
   onSubmit
@@ -67,7 +77,11 @@ export function FirstLoginModal({
             <p className={isPasswordConfirmed ? "ok" : "ko"}>
               {isPasswordConfirmed ? "✓" : "✗"} Confirmation du mot de passe identique.
             </p>
+            <p className={isPasswordDifferentFromTemporary ? "ok" : "ko"}>
+              {isPasswordDifferentFromTemporary ? "✓" : "✗"} Différent du mot de passe temporaire reçu.
+            </p>
           </div>
+          {error ? <p className="error">{error}</p> : null}
           <div className="row-actions">
             <button type="submit">Valider</button>
           </div>

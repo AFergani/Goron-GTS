@@ -12,7 +12,7 @@
  * @type {string}
  */
 const USERS_SELECT = `id, username, full_name, role, manager_profile, theme_mode, page_access_json,
-  password_hash, password_history_json, must_change_password, failed_login_attempts, is_locked, is_active,
+  password_hash, password_history_json, must_change_password, failed_login_attempts, is_locked, locked_at, is_active,
   created_by, created_at, updated_by, updated_at`;
 
 /**

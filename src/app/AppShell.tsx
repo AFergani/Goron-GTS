@@ -20,6 +20,7 @@ import { useAuthPresenter } from "../features/auth/presenter/useAuthPresenter";
 import { usePostgresBootstrapPresenter } from "../features/auth/presenter/usePostgresBootstrapPresenter";
 import { FirstLoginModal } from "../features/auth/view/FirstLoginModal";
 import { LoginView } from "../features/auth/view/LoginView";
+import { PeerResetModal } from "../features/auth/view/PeerResetModal";
 import { PostgresBootstrapView } from "../features/auth/view/PostgresBootstrapView";
 import { useSettingsPresenter } from "../features/settings/presenter/useSettingsPresenter";
 import { SettingsPage } from "../features/settings/view/SettingsPage";
@@ -364,14 +365,26 @@ export function AppShell() {
           onCloseLockedDialog={() => auth.setShowLockedDialog(false)}
           onLogin={auth.onLogin}
           onChange={auth.setLoginForm}
+          onOpenPeerReset={auth.onOpenPeerReset}
+        />
+        <PeerResetModal
+          isOpen={auth.showPeerResetModal}
+          form={auth.peerResetForm}
+          error={auth.peerResetError}
+          busy={auth.isPeerResetting}
+          onChange={auth.setPeerResetForm}
+          onClose={auth.onClosePeerReset}
+          onSubmit={auth.onSubmitPeerReset}
         />
         <FirstLoginModal
           isOpen={auth.showPasswordUpdateModal}
           form={auth.passwordUpdateForm}
           isPasswordLongEnough={auth.isPasswordLongEnough}
           isPasswordConfirmed={auth.isPasswordConfirmed}
+          isPasswordDifferentFromTemporary={auth.isPasswordDifferentFromTemporary}
+          error={auth.passwordUpdateError}
           displayName={auth.pendingFirstLoginDisplayName}
-          onChange={auth.setPasswordUpdateForm}
+          onChange={auth.onPasswordUpdateFormChange}
           onSubmit={auth.onFirstLogin}
         />
         {exitChoiceModal}

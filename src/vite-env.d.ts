@@ -260,8 +260,15 @@ declare global {
         temporaryPassword: string;
         newPassword: string;
       }) => Promise<{ success: boolean }>;
+      /** Réinitialisation d'un mot de passe oublié, validée par un collègue présent. */
+      resetPasswordWithPeer: (payload: {
+        fullName: string;
+        validatorFullName: string;
+        validatorPassword: string;
+        reason: string;
+      }) => Promise<{ success: boolean; fullName: string; temporaryPassword: string }>;
       logout: (payload: { sessionToken: string }) => Promise<{ success: boolean }>;
-      unlockUser: (payload: { requesterRole: Role; requesterUsername: string; sessionToken: string; username: string }) => Promise<{ success: boolean }>;
+      unlockUser: (payload: { requesterRole: Role; requesterUsername: string; sessionToken: string; username: string; reason: string }) => Promise<{ success: boolean }>;
       getActiveSessions: (payload: { sessionToken: string }) => Promise<{ activeUsernames: string[] }>;
       touchPresence: (payload: { sessionToken: string }) => Promise<{ written: boolean }>;
       setAdminCode: (payload: { requesterRole: Role; requesterUsername: string; sessionToken: string; code: string }) => Promise<{ success: boolean }>;
@@ -284,6 +291,8 @@ declare global {
         managerProfile: ManagerProfile | null;
         pageAccess: PageAccess;
         mustResetPassword: boolean;
+        /** Motif obligatoire tracé dans le journal des actions. */
+        reason: string;
         expectedUpdatedAt?: string | null;
       }) => Promise<{ success: boolean; temporaryPassword: string | null; fullName?: string }>;
       deactivateUser: (payload: {

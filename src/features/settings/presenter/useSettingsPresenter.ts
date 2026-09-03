@@ -9,6 +9,7 @@ import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import { getDefaultPageAccessByRole } from "../model/settings.types";
+import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { AnomalyTypeRef, AuditLog, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef, User } from "../../../types";
 import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
@@ -19,7 +20,7 @@ import type {
 } from "../../rondes/model/rondePlanned.types";
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
 import { DEFAULT_POSTGRES_CONFIG_DRAFT, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
-import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
+import { canSessionAccessOperatorsTab, canSessionManageUser, isSessionStationAdmin } from "../model/userHierarchy";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
 const defaultConfirmDialog: ConfirmDialogState = {
@@ -31,25 +32,23 @@ const defaultConfirmDialog: ConfirmDialogState = {
   onConfirm: null
 };
 
-/** Aligné sur `ensureStationAdminAccess` : gestion complète des comptes + journal (pas le superviseur métier). */
-function canFullStationAdminUsers(session: Session | null): boolean {
-  const role = session?.user.role;
-  const managerProfile = session?.user.managerProfile;
-  if (role === "DEV") return true;
-  if (role !== "RESPONSABLE") return false;
-  return managerProfile === "DIRECTEUR_STATION" || managerProfile === "RESPONSABLE_STATION";
-}
-
-/** Superviseur : liste des comptes et réinitialisation MDP uniquement (pas les accès pages ni création). */
-function isSuperviseurPasswordDesk(session: Session | null): boolean {
-  return Boolean(session?.user.role === "RESPONSABLE" && session.user.managerProfile === "SUPERVISEUR");
-}
-
-function canEditPageAccess(session: Session) {
-  const role = session?.user.role;
-  const managerProfile = session?.user.managerProfile;
-  if (role === "DEV") return true;
-  return role === "RESPONSABLE" && (managerProfile === "DIRECTEUR_STATION" || managerProfile === "RESPONSABLE_STATION");
+/** Champ « Motif » commun à toutes les confirmations de gestion de compte. */
+function createReasonField(
+  onChange: (value: string) => void,
+  options: { placeholder: string; autoFocus?: boolean }
+) {
+  return createElement(
+    "label",
+    { className: "mc-field" },
+    createElement("span", null, `Motif (obligatoire, ${MIN_AUDIT_REASON_LENGTH} caractères minimum)`),
+    createElement("textarea", {
+      className: "mc-textarea",
+      onChange: (e) => onChange((e.target as HTMLTextAreaElement).value),
+      rows: 2,
+      placeholder: options.placeholder,
+      autoFocus: options.autoFocus
+    })
+  );
 }
 
 export function useSettingsPresenter({
@@ -96,6 +95,7 @@ export function useSettingsPresenter({
     username: "",
     role: "OPERATEUR",
     managerProfile: "SUPERVISEUR",
+    reason: "",
     pageAccess: getDefaultPageAccessByRole("OPERATEUR")
   });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(defaultConfirmDialog);
@@ -106,7 +106,7 @@ export function useSettingsPresenter({
   useEffect(() => {
     if (!confirmDialog.isOpen) return;
     if (!confirmDialog.requireReason && !confirmDialog.requireDisplayName) return;
-    const reasonOk = !confirmDialog.requireReason || confirmReason.trim().length > 0;
+    const reasonOk = !confirmDialog.requireReason || isAuditReasonValid(confirmReason);
     const nameRequired = Boolean(confirmDialog.requireDisplayName);
     const nameTrimmed = confirmFullName.trim();
     const nameOk = !nameRequired || nameTrimmed.length > 0;
@@ -160,16 +160,14 @@ export function useSettingsPresenter({
       username: "",
       role: "OPERATEUR",
       managerProfile: "SUPERVISEUR",
+      reason: "",
       pageAccess: getDefaultPageAccessByRole("OPERATEUR")
     });
   }, []);
 
-  const canManageUsers = useMemo(() => canFullStationAdminUsers(session), [session]);
-  const canAccessOperatorsTab = useMemo(
-    () => canFullStationAdminUsers(session) || isSuperviseurPasswordDesk(session),
-    [session]
-  );
-  const canManagePageAccess = useMemo(() => canEditPageAccess(session), [session]);
+  const canManageUsers = useMemo(() => isSessionStationAdmin(session), [session]);
+  const canAccessOperatorsTab = useMemo(() => canSessionAccessOperatorsTab(session), [session]);
+  const canManagePageAccess = useMemo(() => isSessionStationAdmin(session), [session]);
   const canDeleteData = useMemo(() => {
     const role = session?.user.role;
     return role === "RESPONSABLE" || role === "DEV";
@@ -193,7 +191,7 @@ export function useSettingsPresenter({
   }, []);
 
   const loadPostgresConfig = useCallback(async () => {
-    if (!session || !canFullStationAdminUsers(session)) return;
+    if (!session || !isSessionStationAdmin(session)) return;
     try {
       const cfg = await gtsApiClient.getPostgresConfig();
       setPostgresConfig(cfg);
@@ -328,17 +326,6 @@ export function useSettingsPresenter({
     };
   }, [session?.sessionToken]);
 
-  const onUnlockUser = useCallback(async (username: string) => {
-    if (!session) return;
-    onError("");
-    try {
-      await gtsApiClient.unlockUser({ requesterRole: session.user.role, requesterUsername: session.user.username, username });
-      onToast("Compte déverrouillé.");
-      await loadUsers();
-    } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Erreur de déverrouillage."));
-    }
-  }, [onError, onToast, session, loadUsers]);
 
   const loadAuditLogs = useCallback(async () => {
     if (!session) return;
@@ -553,7 +540,8 @@ export function useSettingsPresenter({
 
   const onCreateUser = async (e: FormEvent) => {
     e.preventDefault();
-    if (!session || !canManageUsers) return;
+    if (!session) return;
+    if (userModalMode === "create" ? !canManageUsers : !canAccessOperatorsTab) return;
     onError("");
     onInfo("");
     onCredentialsReady(null);
@@ -586,6 +574,7 @@ export function useSettingsPresenter({
           managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
           pageAccess: payloadPageAccess,
           mustResetPassword: false,
+          reason: createForm.reason.trim(),
           expectedUpdatedAt: existingUser?.updatedAt ?? null
         });
         onToast("Utilisateur modifié.");
@@ -615,11 +604,13 @@ export function useSettingsPresenter({
   };
 
   const onOpenEditUser = (user: User) => {
-    if (user.role === "DEV" || !user.isActive) return;
+    if (user.role === "DEV") return;
+    if (!session || !user.isActive || !canSessionManageUser(session, user)) return;
     setCreateForm({
       username: user.fullName,
       role: user.role,
       managerProfile: user.managerProfile || "SUPERVISEUR",
+      reason: "",
       pageAccess: user.pageAccess
     });
     setUserModalMode("edit");
@@ -1245,37 +1236,86 @@ export function useSettingsPresenter({
   };
 
 
-  const onRequestPasswordReset = useCallback(
-    async (user: User) => {
-      if (!session) return;
-      if (!canSessionResetPasswordOrUnlockForUser(session, user)) return;
-      onError("");
-      try {
-        const result = await gtsApiClient.updateUserProfile({
-          requesterRole: session.user.role,
-          requesterUsername: session.user.username,
-          username: user.username,
-          fullName: user.fullName,
-          newRole: user.role === "OPERATEUR" ? "OPERATEUR" : "RESPONSABLE",
-          managerProfile: user.role === "RESPONSABLE" ? user.managerProfile ?? "SUPERVISEUR" : null,
-          pageAccess: user.pageAccess,
-          mustResetPassword: true,
-          expectedUpdatedAt: user.updatedAt ?? null
-        });
-        onToast("Mot de passe réinitialisé.");
-        if (result.temporaryPassword) {
-          onCredentialsReady({ username: user.fullName, temporaryPassword: result.temporaryPassword });
+  const onRequestPasswordReset = (user: User) => {
+    if (!session || !canSessionManageUser(session, user)) return;
+    setConfirmReasonValue("");
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirmer la réinitialisation du mot de passe",
+      message: `Réinitialiser le mot de passe de ${user.fullName} ? Un mot de passe temporaire sera généré et devra être changé à la prochaine connexion.`,
+      confirmLabel: "Réinitialiser",
+      confirmClassName: "btn-light",
+      confirmDisabled: true,
+      requireReason: true,
+      children: createReasonField(setConfirmReasonValue, {
+        placeholder: "Ex: demande de l'opérateur après oubli du code, compte bloqué, suspicion de compromission",
+        autoFocus: true
+      }),
+      onConfirm: async () => {
+        onError("");
+        onInfo("");
+        onCredentialsReady(null);
+        const reasonToSend = confirmReasonRef.current.trim();
+        try {
+          const result = await gtsApiClient.updateUserProfile({
+            requesterRole: session.user.role,
+            requesterUsername: session.user.username,
+            username: user.username,
+            fullName: user.fullName,
+            newRole: user.role === "OPERATEUR" ? "OPERATEUR" : "RESPONSABLE",
+            managerProfile: user.role === "RESPONSABLE" ? user.managerProfile ?? "SUPERVISEUR" : null,
+            pageAccess: user.pageAccess,
+            mustResetPassword: true,
+            reason: reasonToSend,
+            expectedUpdatedAt: user.updatedAt ?? null
+          });
+          onToast("Mot de passe réinitialisé.");
+          if (result.temporaryPassword) {
+            onCredentialsReady({ username: user.fullName, temporaryPassword: result.temporaryPassword });
+          }
+          await loadUsers();
+        } catch (err) {
+          onError(extractUserFacingErrorMessage(err, "Erreur lors de la réinitialisation du mot de passe."));
         }
-        await loadUsers();
-      } catch (err) {
-        onError(extractUserFacingErrorMessage(err, "Erreur lors de la réinitialisation du mot de passe."));
       }
-    },
-    [session, onError, onToast, onCredentialsReady, loadUsers]
-  );
+    });
+  };
+
+  const onUnlockUser = (user: User) => {
+    if (!session || !canSessionManageUser(session, user)) return;
+    setConfirmReasonValue("");
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirmer le déverrouillage",
+      message: `Déverrouiller le compte de ${user.fullName} ? Le compteur de tentatives échouées sera remis à zéro.`,
+      confirmLabel: "Déverrouiller",
+      confirmClassName: "btn-light",
+      confirmDisabled: true,
+      requireReason: true,
+      children: createReasonField(setConfirmReasonValue, {
+        placeholder: "Ex: demande de l'opérateur après saisies erronées, identité vérifiée",
+        autoFocus: true
+      }),
+      onConfirm: async () => {
+        onError("");
+        try {
+          await gtsApiClient.unlockUser({
+            requesterRole: session.user.role,
+            requesterUsername: session.user.username,
+            username: user.username,
+            reason: confirmReasonRef.current.trim()
+          });
+          onToast("Compte déverrouillé.");
+          await loadUsers();
+        } catch (err) {
+          onError(extractUserFacingErrorMessage(err, "Erreur de déverrouillage."));
+        }
+      }
+    });
+  };
 
   const onDeactivateUser = (user: User) => {
-    if (!session || !canManageUsers) return;
+    if (!session || !canSessionManageUser(session, user)) return;
     setConfirmReasonValue("");
     setConfirmDialog({
       isOpen: true,
@@ -1285,18 +1325,10 @@ export function useSettingsPresenter({
       confirmClassName: "btn-danger",
       confirmDisabled: true,
       requireReason: true,
-      children: createElement(
-        "label",
-        { className: "mc-field" },
-        createElement("span", null, "Motif (obligatoire)"),
-        createElement("textarea", {
-          className: "mc-textarea",
-          onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
-          rows: 2,
-          placeholder: "Ex: départ de l'utilisateur, suspension temporaire",
-          autoFocus: true
-        })
-      ),
+      children: createReasonField(setConfirmReasonValue, {
+        placeholder: "Ex: départ de l'utilisateur, suspension temporaire",
+        autoFocus: true
+      }),
       onConfirm: async () => {
         onError("");
         onInfo("");
@@ -1319,7 +1351,7 @@ export function useSettingsPresenter({
   };
 
   const onReactivateUser = (user: User) => {
-    if (!session || !canManageUsers) return;
+    if (!session || !canSessionManageUser(session, user)) return;
     setConfirmReasonValue("");
     setConfirmFullNameValue(user.fullName || "");
     const baseMessage =
@@ -1352,17 +1384,7 @@ export function useSettingsPresenter({
             "aria-label": "Nom affiché pour la réactivation"
           })
         ),
-        createElement(
-          "label",
-          { className: "mc-field" },
-          createElement("span", null, "Motif (obligatoire)"),
-          createElement("textarea", {
-            className: "mc-textarea",
-            onChange: (e) => setConfirmReasonValue((e.target as HTMLTextAreaElement).value),
-            rows: 2,
-            placeholder: "Ex: retour d'absence, compte réhabilité"
-          })
-        )
+        createReasonField(setConfirmReasonValue, { placeholder: "Ex: retour d'absence, compte réhabilité" })
       ),
       onConfirm: async () => {
         onError("");

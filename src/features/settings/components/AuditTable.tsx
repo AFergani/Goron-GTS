@@ -805,7 +805,32 @@ function formatOldValuesTooltip(log: AuditLog) {
       `Nom affiché: ${String(before.fullName || "-")} => ${String(after.fullName || "-")}`,
       `Rôle: ${String(before.role || "-")} => ${String(after.role || "-")}`,
       `Profil responsable: ${String(before.managerProfile || "-")} => ${String(after.managerProfile || "-")}`,
-      `Mot de passe à changer: ${toYesNo(before.mustChangePassword)} => ${toYesNo(after.mustChangePassword)}`
+      `Mot de passe à changer: ${toYesNo(before.mustChangePassword)} => ${toYesNo(after.mustChangePassword)}`,
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
+  if (log.action === "USER_RESET_PASSWORD") {
+    const before = (detailsAny.before || {}) as Record<string, unknown>;
+    return [
+      "Réinitialisation du mot de passe",
+      `Nom affiché: ${String(before.fullName || "-")}`,
+      "Mot de passe temporaire généré: Oui",
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
+  if (log.action === "USER_UNLOCK") {
+    return [
+      "Déverrouillage de compte",
+      `Motif: ${String(detailsAny.reason || "-")}`
+    ].join("\n");
+  }
+  if (log.action === "USER_RESET_PASSWORD_PEER") {
+    return [
+      "Réinitialisation validée par un collègue présent",
+      `Bénéficiaire: ${String(detailsAny.targetFullName || "-")}`,
+      `Validée par: ${String(detailsAny.validatedByFullName || "-")}`,
+      "Mot de passe temporaire généré: Oui",
+      `Motif: ${String(detailsAny.reason || "-")}`
     ].join("\n");
   }
   if (log.action === "USER_DEACTIVATE") {

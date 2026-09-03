@@ -9,13 +9,17 @@ export function HelpSettingsOperatorsTopic() {
         gérer la sécurité (mots de passe, déverrouillages) et de suspendre des accès.
       </p>
       <p className="help-center-lead">
-        Pour des raisons de sécurité et de traçabilité, chaque utilisateur se connecte avec ses propres identifiants. Les actions sensibles
-        réalisées sur cet écran sont enregistrées dans le journal d&apos;audit de la station.
+        Pour des raisons de sécurité et de traçabilité, chaque utilisateur se connecte avec ses propres identifiants. Toute modification,
+        réinitialisation de mot de passe, déverrouillage, désactivation ou réactivation exige un <strong>motif</strong>, enregistré avec son auteur
+        dans le journal d&apos;audit de la station.
       </p>
 
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
-        <p className="muted">Les actions disponibles sur cet écran dépendent strictement de votre propre niveau de responsabilité :</p>
+        <p className="muted">
+          Règle générale : vous pouvez gérer les comptes dont le niveau hiérarchique est <em>inférieur ou égal</em> au vôtre, et vous ne pouvez
+          jamais attribuer un niveau supérieur au vôtre. Le compte Admin n&apos;est administrable par personne.
+        </p>
         <div className="help-center-table-wrap">
           <table className="help-center-table">
             <thead>
@@ -28,12 +32,19 @@ export function HelpSettingsOperatorsTopic() {
               <tr>
                 <td>
                   <strong>Directeur de station</strong>
-                  <br />
+                </td>
+                <td>
+                  <strong>Gestion complète :</strong> création, modification, désactivation, réactivation, réinitialisation de mot de passe et
+                  déverrouillage sur tous les comptes de la station, y compris les autres directeurs.
+                </td>
+              </tr>
+              <tr>
+                <td>
                   <strong>Responsable de station</strong>
                 </td>
                 <td>
-                  <strong>Gestion complète :</strong> création, modification, désactivation, attribution des modules métiers, réinitialisation de
-                  mot de passe et déverrouillage de compte.
+                  Mêmes actions, sur les responsables de station, superviseurs et opérateurs. Un directeur de station lui reste inaccessible, et il
+                  ne peut promouvoir personne à ce niveau.
                 </td>
               </tr>
               <tr>
@@ -41,8 +52,8 @@ export function HelpSettingsOperatorsTopic() {
                   <strong>Superviseur</strong>
                 </td>
                 <td>
-                  <strong>Gestion restreinte :</strong> autorisé uniquement à réinitialiser le mot de passe ou à déverrouiller le compte d&apos;un
-                  profil de rang <em>strictement inférieur</em> (ex. opérateurs). Pas de création ni de modification des droits.
+                  Mêmes actions, sur les superviseurs et les opérateurs. En revanche, la <strong>création</strong> de comptes et le réglage de
+                  l&apos;accès à <strong>Paramètres</strong> restent réservés au responsable et au directeur de station.
                 </td>
               </tr>
               <tr>
@@ -86,8 +97,8 @@ export function HelpSettingsOperatorsTopic() {
             </ul>
           </li>
           <li>
-            <strong>Vues autorisées :</strong> activez ou désactivez les accès aux différents modules (main courante, Fransor, interventions, rondes,
-            gardiennage, paramètres) via les interrupteurs dédiés — réservé au <strong>directeur de station</strong> et au{" "}
+            <strong>Vues autorisées :</strong> les modules métier sont ouverts à tous les comptes. Seul l&apos;accès à
+            <strong> Paramètres</strong> se règle ici — réservé au <strong>directeur de station</strong> et au{" "}
             <strong>responsable de station</strong>.
           </li>
           <li>
@@ -100,24 +111,29 @@ export function HelpSettingsOperatorsTopic() {
 
       <div className="help-center-card">
         <h3 className="help-center-card-title">✏️ Actions de maintenance sur un compte</h3>
-        <p className="muted">Depuis la liste des utilisateurs, plusieurs actions rapides sont à votre disposition :</p>
+        <p className="muted">
+          Depuis la liste des utilisateurs, chaque ligne propose les actions autorisées sur ce compte. Un bouton absent
+          signifie que la hiérarchie ne vous permet pas l&apos;action, ou qu&apos;elle est sans objet. Toutes demandent un
+          motif, enregistré dans le journal avec votre nom.
+        </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Modifier (icône crayon) :</strong> permet de mettre à jour le nom affiché, le rôle, le profil ou de modifier les modules métiers
-            accessibles. Vous pouvez aussi y cocher l&apos;option <strong>Demander la réinitialisation du mot de passe</strong> pour forcer l&apos;agent
-            à le changer à sa prochaine connexion.
+            <strong>Modifier :</strong> met à jour le nom affiché, le rôle et le profil métier. Le niveau hiérarchique de
+            votre propre compte n&apos;est pas modifiable, dans un sens comme dans l&apos;autre.
           </li>
           <li>
-            <strong>Réinitialiser le mot de passe (icône clé) :</strong> génère instantanément un nouveau mot de passe temporaire pour l&apos;agent
-            (soumis aux règles de hiérarchie).
+            <strong>Réinit. mot de passe :</strong> génère un nouveau mot de passe temporaire, lève un éventuel blocage et
+            impose le changement à la prochaine connexion. Indisponible sur votre propre compte.
           </li>
           <li>
-            <strong>Déverrouiller (icône cadenas ouvert) :</strong> devient cliquable si le compte de l&apos;agent a été <strong>Bloqué</strong>{" "}
-            automatiquement après trop de tentatives de connexion infructueuses.
+            <strong>Déverrouiller :</strong> apparaît si le compte est <strong>Bloqué</strong> après trop de tentatives
+            échouées. Ce blocage se lève de toute façon automatiquement au bout de 15 minutes.
           </li>
           <li>
-            <strong>Désactiver (icône utilisateur barré) :</strong> à utiliser en cas de départ d&apos;un collaborateur. Le compte est désactivé
-            immédiatement mais <strong>son historique est intégralement conservé</strong> dans la base de données.
+            <strong>Désactiver :</strong> à utiliser en cas de départ d&apos;un collaborateur. Le compte est désactivé
+            immédiatement mais <strong>son historique est intégralement conservé</strong> dans la base de données. Un compte
+            qui n&apos;a jamais rien produit est en revanche supprimé physiquement, ce que seul un directeur ou responsable
+            de station peut déclencher.
           </li>
           <li>
             <strong>Réactiver :</strong> demande un motif, <strong>génère un nouveau mot de passe temporaire</strong> (comme à la création ou
@@ -139,18 +155,38 @@ export function HelpSettingsOperatorsTopic() {
             <strong>Nom :</strong> nom affiché de l&apos;agent dans l&apos;application.
           </li>
           <li>
-            <strong>Profile :</strong> combine le rôle et le profil métier au format <em>Rôle (Profil)</em>, par exemple{" "}
-            <em>Responsable (Directeur de station)</em>. S&apos;il n&apos;y a pas de profil métier, seul le rôle est affiché (sans parenthèses).
+            <strong>Profil (statut) :</strong> un badge <em>Actif</em>, <em>Inactif</em> ou <em>Bloqué</em> précède le
+            rôle et le profil métier au format <em>Rôle (Profil)</em>, par exemple{" "}
+            <em>Responsable (Directeur de station)</em>. Sans profil métier, seul le rôle est affiché. Les filtres{" "}
+            <strong>Actifs</strong> / <strong>Désactivés</strong> / <strong>Tous</strong> en haut de liste ajustent
+            l&apos;affichage.
           </li>
           <li>
-            <strong>Statut :</strong> état du compte : <em>Actif</em>, <em>Désactivé</em> ou <em>Bloqué</em>. Utilisez les filtres{" "}
-            <strong>Actifs</strong> / <strong>Désactivés</strong> / <strong>Tous</strong> en haut de liste pour trier l&apos;affichage.
-          </li>
-          <li>
-            <strong>Traçabilité :</strong> les colonnes <strong>Dernière mise à jour</strong> et <strong>Par</strong> indiquent quel responsable a
-            modifié le compte pour la dernière fois et à quelle date.
+            <strong>Dernière mise à jour :</strong> date de la dernière modification suivie, entre parenthèses, du compte qui
+            l&apos;a effectuée.
           </li>
         </ul>
+      </div>
+
+      <div className="help-center-card help-center-card--accent">
+        <h3 className="help-center-card-title">🌙 Mot de passe oublié la nuit ou le week-end</h3>
+        <p className="muted">
+          Quand aucun responsable ni superviseur n&apos;est joignable, l&apos;agent peut utiliser{" "}
+          <strong>Mot de passe oublié</strong> sur l&apos;écran de connexion. Un <strong>collègue présent</strong>{" "}
+          s&apos;identifie alors avec ses propres identifiants et saisit un motif : l&apos;application génère un mot de passe
+          temporaire que l&apos;agent change immédiatement.
+        </p>
+        <p className="muted">
+          Le collègue validateur ne peut couvrir qu&apos;un compte de niveau inférieur ou égal au sien : un opérateur dépanne
+          un opérateur, mais pas un superviseur. Le journal enregistre <strong>les deux noms</strong>, ce qui rend chaque
+          déblocage attribuable. Pensez à filtrer ces entrées en début de semaine pour vérifier qu&apos;elles sont
+          légitimes.
+        </p>
+        <p className="muted">
+          Le nom affiché servant d&apos;identifiant est public dans l&apos;application : c&apos;est bien la présence et la
+          responsabilité du collègue qui font foi, pas le nom saisi. Il doit donc taper son mot de passe à l&apos;abri des
+          regards, comme pour une connexion normale.
+        </p>
       </div>
 
       <div className="help-center-card">
@@ -160,7 +196,8 @@ export function HelpSettingsOperatorsTopic() {
             <strong>Cas d&apos;un superviseur :</strong>
             <br />
             <strong>→</strong> attribuez le profil <em>Superviseur</em>. Cela lui donne un accès complet aux modules métiers et lui permet de
-            dépanner un opérateur ayant bloqué son mot de passe le samedi, sans pour autant pouvoir modifier la structure des comptes de la station.
+            dépanner un opérateur ayant bloqué son mot de passe le samedi, sans pour autant pouvoir créer de compte ni ouvrir l&apos;accès à
+            Paramètres.
           </li>
           <li>
             <strong>Cas du départ d&apos;un collaborateur :</strong>

@@ -15,3 +15,15 @@ export type PasswordUpdateFormState = {
   newPassword: string;
   confirmPassword: string;
 };
+
+/**
+ * État de la modale « mot de passe oublié », validée par un collègue présent.
+ * Le nom affiché servant d'identifiant est public : c'est le collègue qui atteste
+ * de la légitimité de la demande, en s'authentifiant lui-même.
+ */
+export type PeerResetFormState = {
+  fullName: string;
+  validatorFullName: string;
+  validatorPassword: string;
+  reason: string;
+};

@@ -174,6 +174,9 @@ CREATE INDEX IF NOT EXISTS idx_users_active_username ON users (is_active, userna
 -- Postes déjà migrés : ajoute la colonne historique MDP si absente (PG 18).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_history_json TEXT;
 
+-- Horodatage du verrouillage : permet le déverrouillage automatique après expiration du délai.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_at TEXT;
+
 -- Présence multi-postes (badge « connecté » partagé via PostgreSQL).
 CREATE TABLE IF NOT EXISTS user_presence (
   username TEXT PRIMARY KEY,

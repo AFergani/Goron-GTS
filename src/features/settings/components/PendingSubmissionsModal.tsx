@@ -251,7 +251,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                 </label>
                                 <label className="data-pending-expand-field">
                                   <span>
-                                    Parc <span className="data-pending-required">*</span>
+                                    Parc <span className="text-error">*</span>
                                   </span>
                                   <input
                                     value={draft.parc}
@@ -266,7 +266,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                 </label>
                                 <label className="data-pending-expand-field">
                                   <span>
-                                    Famille <span className="data-pending-required">*</span>
+                                    Famille <span className="text-error">*</span>
                                   </span>
                                   <input
                                     value={draft.famille}
@@ -347,7 +347,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                               <div className="data-pending-expand-form data-pending-expand-form--single">
                                 <label className="data-pending-expand-field">
                                   <span>
-                                    Nom <span className="data-pending-required">*</span>
+                                    Nom <span className="text-error">*</span>
                                   </span>
                                   <input
                                     value={draft.name}

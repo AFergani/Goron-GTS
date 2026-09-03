@@ -186,6 +186,11 @@
   color: var(--text-2);
 }
 
+/* Texte en couleur d'erreur sans encadré (astérisque obligatoire, message de contrôle) */
+.text-error {
+  color: var(--err);
+}
+
 .error {
   color: var(--err);
   background: rgba(240, 112, 112, 0.1);
@@ -939,7 +944,7 @@ th {
 .pg-offline-modal {
   max-width: 540px;
   border: 2px solid #d45454;
-  background: color-mix(in srgb, var(--panel, #1a2230) 88%, #5a1820);
+  background: color-mix(in srgb, var(--card) 88%, #5a1820);
   box-shadow: 0 0 0 1px rgba(212, 84, 84, 0.35), 0 16px 48px rgba(0, 0, 0, 0.45);
   animation: pg-offline-pulse 1.35s ease-in-out infinite;
 }
@@ -950,7 +955,7 @@ th {
 }
 
 .pg-offline-modal__message {
-  color: var(--text, #e8eef8);
+  color: var(--text);
   margin-bottom: 10px;
 }
 
@@ -1051,6 +1056,22 @@ th {
   text-decoration: underline;
 }
 
+/* Bloc d'identification du collègue validateur (modale « mot de passe oublié ») */
+.peer-reset__validator {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.peer-reset__validator > legend {
+  padding: 0 4px;
+  font-size: 12px;
+}
+
 .validation-box {
   background: var(--surf);
   border: 1px solid var(--border);
@@ -1072,7 +1093,7 @@ th {
 }
 
 .validation-box .ko {
-  color: #b91c1c;
+  color: var(--err);
 }
 
 .toast-stack {
@@ -1675,7 +1696,7 @@ th {
 
 .gardiennage-planning-preview-row__check {
   flex-shrink: 0;
-  color: var(--success-700, #067647);
+  color: var(--ok);
   margin-top: 2px;
 }
 
@@ -2731,7 +2752,7 @@ th {
   margin-left: auto;
   flex-shrink: 0;
   background: transparent;
-  color: var(--accent-hi, #7eb6ff);
+  color: var(--accent-hi);
   font: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -3948,7 +3969,7 @@ fieldset.ronde-planned-weekdays {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-elevated, var(--card));
+  background: var(--card);
 }
 
 .ronde-planned-profile-modal__word-template-row-label {
@@ -3962,7 +3983,7 @@ fieldset.ronde-planned-weekdays {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
-  background: var(--surface-elevated, var(--card));
+  background: var(--card);
 }
 
 .ronde-planned-profile-modal__var-details summary {
@@ -4015,7 +4036,7 @@ fieldset.ronde-planned-weekdays {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-muted, inherit);
+  color: var(--text-2);
 }
 
 .ronde-planned-profile-line__section--cadence {
@@ -4253,7 +4274,7 @@ fieldset.ronde-planned-weekdays {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-elevated, var(--card));
+  background: var(--card);
   display: grid;
   gap: 10px;
 }
@@ -4408,7 +4429,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .templates-management-panel__ok {
-  color: var(--success, #16a34a);
+  color: var(--ok);
 }
 
 .templates-management-panel__col-actions {
@@ -4817,7 +4838,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .gardiennage-nocturne-icon {
-  color: var(--accent-secondary, #7c9fd4);
+  color: var(--text-2);
   flex-shrink: 0;
 }
 
@@ -4825,7 +4846,7 @@ fieldset.ronde-planned-weekdays {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
-  color: var(--accent-secondary, #7c9fd4);
+  color: var(--text-2);
   flex-shrink: 0;
   line-height: 1;
 }
@@ -4837,7 +4858,7 @@ fieldset.ronde-planned-weekdays {
 
 .gardiennage-jours-cell {
   font-size: 0.82em;
-  color: var(--text-muted, var(--muted));
+  color: var(--text-2);
 }
 
 .gardiennage-periode {
@@ -4851,7 +4872,7 @@ fieldset.ronde-planned-weekdays {
   align-items: center;
   gap: 6px;
   margin: 6px 0 0;
-  color: var(--accent-secondary, #7c9fd4);
+  color: var(--text-2);
   font-size: 0.87em;
   font-weight: 500;
 }
@@ -4864,7 +4885,7 @@ fieldset.ronde-planned-weekdays {
 .mc-field-label {
   display: block;
   font-size: 0.83em;
-  color: var(--text-muted, var(--muted));
+  color: var(--text-2);
   margin-bottom: 6px;
 }
 
@@ -5008,7 +5029,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .gardiennage-planning-validity .gardiennage-date-sep {
-  color: var(--muted, #8892a4);
+  color: var(--text-2);
   font-weight: 600;
 }
 
@@ -5110,7 +5131,7 @@ fieldset.ronde-planned-weekdays {
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  color: var(--muted, #8892a4);
+  color: var(--text-2);
   font-size: var(--gts-control-font-size, 14px);
   line-height: 1;
 }
@@ -5126,13 +5147,13 @@ fieldset.ronde-planned-weekdays {
 .gardiennage-date-label {
   font-size: 0.82em;
   font-weight: 600;
-  color: var(--muted, #8892a4);
+  color: var(--text-2);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .gardiennage-date-sep {
-  color: var(--muted, #8892a4);
+  color: var(--text-2);
   font-size: 0.95em;
   flex-shrink: 0;
 }
@@ -5229,14 +5250,14 @@ fieldset.ronde-planned-weekdays {
   font-size: 0.68em;
   font-weight: 700;
   line-height: 1;
-  background: var(--accent, #5c9eff);
+  background: var(--accent);
   color: #fff;
   pointer-events: none;
 }
 
 /* Stat card mise en évidence */
 .stat-card--highlight strong {
-  color: var(--accent, #5c9eff);
+  color: var(--accent);
 }
 
 /* Modal de clôture rapide */
@@ -5303,8 +5324,8 @@ fieldset.ronde-planned-weekdays {
 .gard-date-nav-input {
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid var(--border, rgba(255,255,255,0.12));
-  background: var(--surface-2, rgba(255,255,255,0.04));
+  border: 1px solid var(--border);
+  background: var(--surf);
   color: inherit;
   font-size: 0.88em;
   cursor: pointer;
@@ -5313,15 +5334,9 @@ fieldset.ronde-planned-weekdays {
 .gard-date-nav-label {
   font-size: 0.88em;
   font-weight: 500;
-  color: var(--text-muted, #8a9ab5);
+  color: var(--text-2);
   text-transform: capitalize;
   margin-left: 4px;
-}
-
-[data-theme="light"] .gard-date-nav-input {
-  background: var(--surface-1, #fff);
-  border-color: var(--border, #d1d5db);
-  color: var(--text-primary, #1e293b);
 }
 
 
@@ -5350,7 +5365,7 @@ fieldset.ronde-planned-weekdays {
   border-radius: 4px;
   font-size: 0.72em;
   font-weight: 700;
-  background: var(--accent, #5c9eff);
+  background: var(--accent);
   color: #fff;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -5372,7 +5387,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .table-action-btn--danger {
-  color: var(--danger, #e55);
+  color: var(--err);
 }
 
 .table-action-btn--danger:hover:not(:disabled) {
@@ -5441,7 +5456,7 @@ fieldset.ronde-planned-weekdays {
 /* Consultation / édition d’un lot : largeur via .fransor-help-modal + .ronde-planned-rule-modal sur la section */
 
 .ronde-demand-consult__readonly {
-  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.35));
+  border: 1px solid var(--border);
 }
 .ronde-demand-consult__table-title {
   margin: 0 0 6px;
@@ -5455,6 +5470,6 @@ fieldset.ronde-planned-weekdays {
 .ronde-demand-consult__table th,
 .ronde-demand-consult__table td {
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }

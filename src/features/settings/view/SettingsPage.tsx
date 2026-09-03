@@ -20,7 +20,7 @@ import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
-import type { DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
+import type { CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { PublicPostgresConfig, PostgresTestResult, TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type {
@@ -29,8 +29,6 @@ import type {
   FransorResponsableRef,
   HolidayRef,
   IntervenantRef,
-  ManagerProfile,
-  PageAccess,
   SiteRef,
   User
 } from "../../../types";
@@ -46,7 +44,7 @@ import {
 type SettingsPageProps = {
   session: Session | null;
   canManageUsers: boolean;
-  /** Inclut le superviseur (réinit. MDP uniquement). */
+  /** Inclut le superviseur, dont la portée est bornée par la hiérarchie. */
   canAccessOperatorsTab: boolean;
   canEditPageAccess: boolean;
   canManageData: boolean;
@@ -81,7 +79,7 @@ type SettingsPageProps = {
   onExportAuditLogs: (logs?: AuditLog[]) => void;
   onDeactivateUser: (user: User) => void;
   onReactivateUser: (user: User) => void;
-  onUnlockUser: (username: string) => void;
+  onUnlockUser: (user: User) => void;
   onRequestPasswordReset: (user: User) => void;
   onOpenEditUser: (user: User) => void;
   onCreateSite: (payload: { code: string; name: string; address: string; parc: string; famille: string }) => void;
@@ -126,18 +124,8 @@ type SettingsPageProps = {
   onOpenHelpTopic: (topicId: HelpTopicId) => void;
   showCreateModal: boolean;
   onCloseCreateModal: () => void;
-  onCreateFormChange: (next: {
-    username: string;
-    role: "RESPONSABLE" | "OPERATEUR";
-    managerProfile: ManagerProfile;
-    pageAccess: PageAccess;
-  }) => void;
-  createForm: {
-    username: string;
-    role: "RESPONSABLE" | "OPERATEUR";
-    managerProfile: ManagerProfile;
-    pageAccess: PageAccess;
-  };
+  onCreateFormChange: (next: CreateUserFormState) => void;
+  createForm: CreateUserFormState;
   onSubmitCreate: (e: FormEvent) => void;
   userModalMode: "create" | "edit";
   editingTechnicalUsername?: string;
@@ -160,9 +148,6 @@ export function SettingsPage(props: SettingsPageProps) {
     if (userFilter === "inactive") return props.users.filter((u) => !u.isActive);
     return props.users.filter((u) => u.isActive);
   }, [props.users, userFilter]);
-
-  /** Superviseur : liste restreinte aux comptes actifs (pas de filtre statut). */
-  const activeUsers = useMemo(() => props.users.filter((u) => u.isActive), [props.users]);
 
   const filteredAuditLogs = useMemo(() => {
     return props.auditLogs.filter((log) => {
@@ -259,7 +244,7 @@ export function SettingsPage(props: SettingsPageProps) {
         )}
       </div>
 
-      {activeTab === "operators" && props.canAccessOperatorsTab && props.canManageUsers && (
+      {activeTab === "operators" && props.canAccessOperatorsTab && (
         <>
           <section className="panel">
             <div className="row">
@@ -297,11 +282,15 @@ export function SettingsPage(props: SettingsPageProps) {
                     Tous
                   </button>
                 </div>
-                <button onClick={props.onOpenCreate}>Créer</button>
+                {props.canManageUsers && <button onClick={props.onOpenCreate}>Créer</button>}
               </div>
             </div>
+            <p className="muted">
+              Vous pouvez gérer les comptes de niveau hiérarchique inférieur ou égal au vôtre. Chaque modification,
+              réinitialisation, déverrouillage, désactivation ou réactivation exige un motif tracé dans le journal des
+              actions.
+            </p>
             <UsersTable
-              variant="full"
               session={props.session}
               users={filteredUsers}
               activeUsernames={props.activeUsernames}
@@ -313,30 +302,6 @@ export function SettingsPage(props: SettingsPageProps) {
             />
           </section>
         </>
-      )}
-
-      {activeTab === "operators" && props.canAccessOperatorsTab && !props.canManageUsers && (
-        <section className="panel">
-          <div className="row">
-            <h3>Réinitialisation des mots de passe</h3>
-          </div>
-          <p className="muted">
-            En tant que superviseur, vous voyez les comptes actifs et pouvez demander une réinitialisation du mot de passe ou déverrouiller un compte lorsque la hiérarchie
-            métier le permet (profils strictement inférieurs au vôtre). La création de comptes, l&apos;activation / désactivation et la modification des droits restent
-            réservées au directeur de station, au responsable de station ou au profil développement.
-          </p>
-          <UsersTable
-            variant="passwordDesk"
-            session={props.session}
-            users={activeUsers}
-            activeUsernames={props.activeUsernames}
-            onDeactivateUser={props.onDeactivateUser}
-            onReactivateUser={props.onReactivateUser}
-            onEditUser={props.onOpenEditUser}
-            onUnlockUser={props.onUnlockUser}
-            onRequestPasswordReset={props.onRequestPasswordReset}
-          />
-        </section>
       )}
 
       {activeTab === "audit" && props.canManageUsers && (
@@ -599,11 +564,12 @@ export function SettingsPage(props: SettingsPageProps) {
       )}
 
       <CreateUserModal
-        isOpen={props.canManageUsers && props.showCreateModal}
+        isOpen={props.canAccessOperatorsTab && props.showCreateModal}
         form={props.createForm}
         mode={props.userModalMode}
         editingTechnicalUsername={props.editingTechnicalUsername}
         canEditPageAccess={props.canEditPageAccess}
+        session={props.session}
         onClose={props.onCloseCreateModal}
         onChange={props.onCreateFormChange}
         onSubmit={props.onSubmitCreate}

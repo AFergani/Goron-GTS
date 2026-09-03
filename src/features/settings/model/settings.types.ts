@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import type { ManagerProfile, Role } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "database" | "audit";
-/** Sous-onglets de Paramètres → Modèles et variables (l’ancien onglet `variables` est redirigé ici). */
+/** Sous-onglets de Paramètres → Modèles et variables. */
 export type DocumentsTab = "templates" | "variables";
 
 /** Sous-onglets visibles de Gestion des données. */
@@ -28,6 +28,8 @@ export type CreateUserFormState = {
   username: string;
   role: Exclude<Role, "DEV">;
   managerProfile: ManagerProfile;
+  /** Motif d'audit, exigé en modification uniquement (la création est déjà tracée en tant que telle). */
+  reason: string;
   pageAccess: {
     mainCourante: boolean;
     fransor: boolean;
@@ -65,7 +67,7 @@ export type ConfirmDialogState = {
   confirmLabel: string;
   confirmClassName?: string;
   confirmDisabled?: boolean;
-  /** Exige un motif non vide (désactivation / réactivation). */
+  /** Exige un motif d'audit d'au moins `MIN_AUDIT_REASON_LENGTH` caractères. */
   requireReason?: boolean;
   /** Exige un nom affiché non vide (réactivation). */
   requireDisplayName?: boolean;
