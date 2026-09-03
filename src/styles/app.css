@@ -2182,6 +2182,10 @@ th {
   line-height: 1.45;
 }
 
+.main-courante-table.mc-entries-table tbody td {
+  vertical-align: middle;
+}
+
 /* Sauts de ligne explicites dans information / observation */
 .main-courante-table.mc-entries-table tbody td.mc-cell-wrap {
   white-space: pre-line;
@@ -2296,7 +2300,7 @@ th {
 }
 
 .main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
-  vertical-align: top;
+  vertical-align: middle;
   white-space: normal;
 }
 
@@ -2310,11 +2314,6 @@ th {
 .main-courante-table.mc-entries-table tbody td.mc-col-type,
 .main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
   text-align: center;
-  vertical-align: middle;
-}
-
-.main-courante-table.mc-entries-table tbody td.mc-col-status-actions {
-  vertical-align: top;
 }
 
 .main-courante-table.mc-entries-table tbody td.mc-col-status-actions .mc-row-actions-wrap {
@@ -2620,14 +2619,51 @@ th {
   min-width: 0;
 }
 
+.mc-observation-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+}
+
+.mc-observation-list--collapsed {
+  max-height: 4.6em;
+  overflow: hidden;
+}
+
+.mc-observation-expand-btn {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--accent-hi, #7eb6ff);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.mc-observation-expand-btn:hover {
+  color: var(--text);
+}
+
 .mc-observation-block {
   min-width: 0;
 }
 
 .mc-observation-sep {
-  margin: 6px 0;
+  margin: 4px 0;
   color: var(--text-2);
   font-size: 11px;
+  line-height: 1.35;
   letter-spacing: 0.04em;
   opacity: 0.75;
 }
@@ -2637,6 +2673,19 @@ th {
   font-size: 11px;
   line-height: 1.35;
   opacity: 0.85;
+}
+
+.mc-observation-meta--with-toggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  opacity: 1;
+}
+
+.mc-observation-meta--with-toggle .mc-observation-meta__text {
+  opacity: 0.85;
+  min-width: 0;
 }
 
 .mc-observation-comment {

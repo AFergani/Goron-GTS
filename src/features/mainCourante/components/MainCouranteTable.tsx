@@ -4,6 +4,7 @@
  * Consultation, édition, traitement (« À suivre » / clôture), copie code site.
  */
 
+import { useLayoutEffect, useRef, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { MainCouranteEntry, MainCouranteStatus } from "../model/mainCourante.types";
@@ -92,28 +93,94 @@ function parseManagerObservationBlocks(raw: string | undefined): ManagerObservat
     });
 }
 
+function renderObservationBlock(
+  block: ManagerObservationBlock,
+  toggle?: { expanded: boolean; onToggle: () => void }
+) {
+  const metaParts = [block.dateTime, block.managerName].filter(Boolean);
+  return (
+    <div className="mc-observation-block">
+      {metaParts.length > 0 || toggle ? (
+        <div className={`mc-observation-meta${toggle ? " mc-observation-meta--with-toggle" : ""}`}>
+          <span className="mc-observation-meta__text">{metaParts.join(" - ")}</span>
+          {toggle ? (
+            <button
+              type="button"
+              className="mc-observation-expand-btn"
+              aria-expanded={toggle.expanded}
+              onClick={toggle.onToggle}
+            >
+              {toggle.expanded ? "Réduire" : "Voir la suite"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="mc-observation-comment">{block.comment || "—"}</div>
+    </div>
+  );
+}
+
 function ManagerObservationCell({ raw }: { raw: string | undefined }) {
   const blocks = parseManagerObservationBlocks(raw);
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const hasMultiple = blocks.length > 1;
+
+  useLayoutEffect(() => {
+    if (hasMultiple) {
+      setNeedsToggle(true);
+      return;
+    }
+    if (expanded) {
+      setNeedsToggle(true);
+      return;
+    }
+    const el = contentRef.current;
+    if (!el) {
+      setNeedsToggle(false);
+      return;
+    }
+    setNeedsToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [raw, expanded, hasMultiple, blocks.length]);
+
   if (!blocks.length) {
     return <span className="muted">—</span>;
   }
 
+  const restBlocks = hasMultiple && expanded ? blocks.slice(1) : [];
+  const toggle = needsToggle
+    ? { expanded, onToggle: () => setExpanded((prev) => !prev) }
+    : undefined;
+  const showMoreHint = needsToggle && (!expanded || restBlocks.length > 0);
+
   return (
-    <div className="mc-observation-list">
-      {blocks.map((block, index) => {
-        const metaParts = [block.dateTime, block.managerName].filter(Boolean);
-        return (
-          <div key={`${block.dateTime}-${index}`} className="mc-observation-block">
-            {index > 0 ? <div className="mc-observation-sep" aria-hidden>
-              ---
-            </div> : null}
-            {metaParts.length > 0 ? (
-              <div className="mc-observation-meta">{metaParts.join(" - ")}</div>
-            ) : null}
-            <div className="mc-observation-comment">{block.comment || "—"}</div>
-          </div>
-        );
-      })}
+    <div className="mc-observation-cell">
+      <div
+        ref={contentRef}
+        className={`mc-observation-list${!expanded && !hasMultiple ? " mc-observation-list--collapsed" : ""}`}
+      >
+        {renderObservationBlock(blocks[0], toggle)}
+      </div>
+      {showMoreHint ? (
+        <div className="mc-observation-sep" aria-hidden>
+          ---
+        </div>
+      ) : null}
+      {restBlocks.length > 0 ? (
+        <div className="mc-observation-list">
+          {restBlocks.map((block, index) => (
+            <div key={`${block.dateTime}-${index + 1}`}>
+              {index > 0 ? (
+                <div className="mc-observation-sep" aria-hidden>
+                  ---
+                </div>
+              ) : null}
+              {renderObservationBlock(block)}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
