@@ -18,6 +18,7 @@ import { VariablesManagementPanel } from "../components/VariablesManagementPanel
 import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
+import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
 import type { DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -41,8 +42,6 @@ import {
   formatAuditStatus,
   resolveAuditFamily
 } from "../model/auditActionLabels";
-
-const AUDIT_PAGE_SIZE = 100;
 
 type SettingsPageProps = {
   session: Session | null;
@@ -155,6 +154,7 @@ export function SettingsPage(props: SettingsPageProps) {
   const [auditDateFrom, setAuditDateFrom] = useState("");
   const [auditDateTo, setAuditDateTo] = useState("");
   const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(50);
   const [auditJournalSubTab, setAuditJournalSubTab] = useState<"actions" | "tech">("actions");
 
   const filteredUsers = useMemo(() => {
@@ -205,16 +205,23 @@ export function SettingsPage(props: SettingsPageProps) {
     if (t === "database" && props.canManageData) return "database";
     return "data";
   })();
-  const auditTotalPages = Math.max(1, Math.ceil(filteredAuditLogs.length / AUDIT_PAGE_SIZE));
+  const auditTotalPages = auditPageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize));
   const auditPageSafe = Math.min(auditPage, auditTotalPages);
   const pagedAuditLogs = useMemo(() => {
-    const start = (auditPageSafe - 1) * AUDIT_PAGE_SIZE;
-    return filteredAuditLogs.slice(start, start + AUDIT_PAGE_SIZE);
-  }, [filteredAuditLogs, auditPageSafe]);
+    if (auditPageSize === 0) return filteredAuditLogs;
+    const start = (auditPageSafe - 1) * auditPageSize;
+    return filteredAuditLogs.slice(start, start + auditPageSize);
+  }, [filteredAuditLogs, auditPageSafe, auditPageSize]);
 
   useEffect(() => {
     setAuditPage(1);
-  }, [auditActorFilter, auditFamilyFilter, auditStatusFilter, auditTargetFilter, auditDateFrom, auditDateTo]);
+  }, [auditActorFilter, auditFamilyFilter, auditStatusFilter, auditTargetFilter, auditDateFrom, auditDateTo, auditPageSize]);
+
+  useEffect(() => {
+    if (auditPage > auditTotalPages) {
+      setAuditPage(auditTotalPages);
+    }
+  }, [auditPage, auditTotalPages]);
 
   return (
     <>
@@ -471,29 +478,14 @@ export function SettingsPage(props: SettingsPageProps) {
             </div>
           </div>
           <AuditTable logs={pagedAuditLogs} />
-          <div className="pagination-row">
-            <span className="muted">
-              {filteredAuditLogs.length} résultat(s) - page {auditPageSafe}/{auditTotalPages} (100 max/page)
-            </span>
-            <div className="row-actions">
-              <button
-                className="btn-light"
-                onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
-                disabled={auditPageSafe <= 1}
-                title="Page précédente"
-              >
-                Précédent
-              </button>
-              <button
-                className="btn-light"
-                onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
-                disabled={auditPageSafe >= auditTotalPages}
-                title="Page suivante"
-              >
-                Suivant
-              </button>
-            </div>
-          </div>
+          <TablePaginationBar
+            currentPage={auditPageSafe}
+            totalPages={auditTotalPages}
+            totalItems={filteredAuditLogs.length}
+            pageSize={auditPageSize}
+            onPageChange={setAuditPage}
+            onPageSizeChange={setAuditPageSize}
+          />
             </>
           ) : (
             <>

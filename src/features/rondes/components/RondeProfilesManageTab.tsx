@@ -16,7 +16,7 @@ import type {
 import { summarizeRondePlannedProfile } from "../model/rondePlannedSummary";
 import { formatLocalDateIso } from "../model/rondeCalendarLocal";
 import { RondeRequestModal } from "./RondeRequestModal";
-import { RondePlannedStopPlanningModal } from "../../settings/components/RondePlannedStopPlanningModal";
+import { RondePlannedStopPlanningModal } from "./RondePlannedStopPlanningModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { NotifyToast } from "../../common/model/toast.types";

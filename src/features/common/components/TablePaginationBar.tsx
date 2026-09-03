@@ -7,6 +7,8 @@
  */
 
 import { ChevronLeft, ChevronRight, ChevronsUp } from "lucide-react";
+import type { RefObject } from "react";
+import { scrollPaginationTarget } from "../utils/scrollPaginationTarget";
 
 type TablePaginationBarProps = {
   currentPage: number;
@@ -16,6 +18,8 @@ type TablePaginationBarProps = {
   pageSize: number;
   onPageChange: (p: number) => void;
   onPageSizeChange: (s: number) => void;
+  /** Cible de scroll (ex. barre d’outils du panneau) ; défaut = haut de fenêtre */
+  scrollTargetRef?: RefObject<HTMLElement | null>;
 };
 
 export function TablePaginationBar({
@@ -24,11 +28,12 @@ export function TablePaginationBar({
   totalItems,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  scrollTargetRef
 }: TablePaginationBarProps) {
   const handlePageChange = (p: number) => {
     onPageChange(p);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollPaginationTarget(scrollTargetRef);
   };
 
   const countLabel =
@@ -81,7 +86,7 @@ export function TablePaginationBar({
           className="btn-light action-icon-btn"
           title="Haut de page"
           aria-label="Haut de page"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          onClick={() => scrollPaginationTarget(scrollTargetRef)}
         >
           <ChevronsUp size={14} />
         </button>

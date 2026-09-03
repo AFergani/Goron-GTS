@@ -508,7 +508,7 @@ export function useSettingsPresenter({
       return () => clearInterval(timer);
     }
 
-    if (activeSettingsTab === "data" || activeSettingsTab === "templates" || activeSettingsTab === "variables") {
+    if (activeSettingsTab === "data" || activeSettingsTab === "templates") {
       void loadDataSection();
       const timer = setInterval(() => {
         void loadDataSection();
@@ -552,12 +552,6 @@ export function useSettingsPresenter({
     }
     setActiveSettingsTab("data");
   }, [canManageUsers, canAccessOperatorsTab, activeSettingsTab, setActiveSettingsTab]);
-
-  useEffect(() => {
-    if (activeSettingsTab !== "variables") return;
-    setActiveSettingsTab("templates");
-    setActiveDocumentsTab("variables");
-  }, [activeSettingsTab]);
 
   const onCreateUser = async (e: FormEvent) => {
     e.preventDefault();

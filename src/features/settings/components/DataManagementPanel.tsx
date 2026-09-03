@@ -3,7 +3,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { AnomalyTypeRef, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef } from "../../../types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
@@ -19,6 +18,8 @@ import { DataSearchImportBar } from "./DataSearchImportBar";
 import { PendingSubmissionsModal } from "./PendingSubmissionsModal";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { FormModal } from "../../common/components/FormModal";
+import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 import { ReferenceInlineField } from "./shared/ReferenceInlineField";
@@ -74,7 +75,7 @@ type DataManagementPanelProps = {
   onNotify: NotifyToast;
 };
 
-const PAGE_SIZE = 200;
+
 const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
   sites: "",
   intervenants: "",
@@ -234,6 +235,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [siteParcFilter, setSiteParcFilter] = useState("");
   const [siteFamilleFilter, setSiteFamilleFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [deleteReasonTargetLabel, setDeleteReasonTargetLabel] = useState("");
   const [deleteReasonValue, setDeleteReasonValue] = useState("");
   const [onConfirmDeleteReason, setOnConfirmDeleteReason] = useState<((reason: string) => void | Promise<void>) | null>(null);
@@ -442,12 +444,12 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           : props.activeDataTab === "holidays"
             ? filteredHolidays.length
             : filteredFransorResponsables.length;
-  const totalPages = Math.max(1, Math.ceil(activeFilteredCount / PAGE_SIZE));
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(activeFilteredCount / pageSize));
 
   useEffect(() => {
     setCurrentPage(1);
     setShowPendingSubmissionsModal(false);
-  }, [searchQuery, siteParcFilter, siteFamilleFilter, holidayYear, props.activeDataTab]);
+  }, [searchQuery, siteParcFilter, siteFamilleFilter, holidayYear, props.activeDataTab, pageSize]);
 
   useEffect(() => {
     const pendingCount =
@@ -467,13 +469,8 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     }
   }, [currentPage, totalPages]);
 
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageEnd = pageStart + PAGE_SIZE;
-  const goToPage = (nextPage: number) => {
-    const safePage = Math.max(1, Math.min(totalPages, nextPage));
-    setCurrentPage(safePage);
-    toolbarRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const pageStart = pageSize === 0 ? 0 : (currentPage - 1) * pageSize;
+  const pageEnd = pageSize === 0 ? activeFilteredCount : pageStart + pageSize;
 
   const resetCreateForm = () => {
     setSiteCode("");
@@ -519,6 +516,19 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     resetCreateForm();
     setShowCreateModal(false);
   };
+
+  const createModalTitle =
+    createModalTarget === "sites"
+      ? "Ajouter un site"
+      : createModalTarget === "intervenants"
+        ? "Ajouter un intervenant"
+        : createModalTarget === "types"
+          ? "Ajouter un type d'anomalie"
+          : createModalTarget === "rondeMotifs"
+            ? "Ajouter un motif de ronde"
+            : createModalTarget === "holidays"
+              ? "Ajouter un jour férié"
+              : "Ajouter un responsable Fransor";
 
   const openDeleteReasonModal = (label: string, onConfirm: (reason: string) => void | Promise<void>) => {
     setDeleteReasonTargetLabel(label);
@@ -730,24 +740,15 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         />
       )}
 
-      <div className="pagination-row">
-        <span className="muted">
-          {activeFilteredCount} résultat(s) - page {currentPage}/{totalPages}
-        </span>
-        <div className="row-actions">
-          <button className="btn-light" onClick={() => goToPage(currentPage - 1)} disabled={currentPage <= 1} title="Page précédente">
-            <ChevronLeft size={14} />
-          </button>
-          <button
-            className="btn-light"
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-            title="Page suivante"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
+      <TablePaginationBar
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={activeFilteredCount}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        scrollTargetRef={toolbarRef}
+      />
 
       {showPendingSubmissionsModal &&
       (props.activeDataTab === "sites" || props.activeDataTab === "intervenants") ? (
@@ -765,98 +766,79 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         />
       ) : null}
 
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="row">
-              <h3>
-              {createModalTarget === "sites"
-                ? "Ajouter un site"
-                : createModalTarget === "intervenants"
-                  ? "Ajouter un intervenant"
-                  : createModalTarget === "types"
-                    ? "Ajouter un type d'anomalie"
-                    : createModalTarget === "rondeMotifs"
-                      ? "Ajouter un motif de ronde"
-                      : createModalTarget === "holidays"
-                        ? "Ajouter un jour férié"
-                        : "Ajouter un responsable Fransor"}
-              </h3>
-            </div>
-            <div className="form">
-              {createModalTarget === "sites" && (
-                <>
-                  <input placeholder="Code site" value={siteCode} onChange={(e) => setSiteCode(e.target.value)} />
-                  <input placeholder="Nom du site" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
-                  <input placeholder="Adresse du site" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
-                  <input placeholder="Parc" value={siteParc} onChange={(e) => setSiteParc(e.target.value)} />
-                  <input placeholder="Famille" value={siteFamille} onChange={(e) => setSiteFamille(e.target.value)} />
-                </>
-              )}
-              {createModalTarget === "intervenants" && (
-                <ReferenceInlineField
-                  variant="labelOnly"
-                  label="Nom"
-                  value={intervenantName}
-                  onChange={setIntervenantName}
-                  placeholder="Nom"
-                />
-              )}
-              {createModalTarget === "types" && (
-                <ReferenceInlineField
-                  variant="labelColor"
-                  label="Libellé"
-                  value={typeLabel}
-                  onChange={setTypeLabel}
-                  placeholder="Type d'anomalie"
-                  colorValue={typeColor}
-                  onColorChange={setTypeColor}
-                  colorLabel="Couleur du badge"
-                />
-              )}
-              {createModalTarget === "rondeMotifs" && (
-                <ReferenceInlineField
-                  variant="labelColor"
-                  label="Libellé"
-                  value={rondeMotifLabel}
-                  onChange={setRondeMotifLabel}
-                  placeholder="Libellé du motif"
-                  colorValue={rondeMotifColor}
-                  onColorChange={setRondeMotifColor}
-                  colorLabel="Couleur du badge"
-                />
-              )}
-              {createModalTarget === "holidays" && (
-                <ReferenceInlineField
-                  variant="labelDate"
-                  label="Libellé"
-                  value={holidayLabel}
-                  onChange={setHolidayLabel}
-                  placeholder="Ex. : pont local, fermeture exceptionnelle"
-                  dateValue={holidayDateIso}
-                  onDateChange={setHolidayDateIso}
-                  dateLabel="Date"
-                />
-              )}
-              {createModalTarget === "fransorResponsables" && (
-                <ReferenceInlineField
-                  variant="labelOnly"
-                  label="Nom du responsable Fransor"
-                  value={fransorResponsableName}
-                  onChange={setFransorResponsableName}
-                  placeholder="Nom du responsable Fransor"
-                />
-              )}
-            </div>
-            <div className="row-actions modal-actions">
-              <button className="btn-light" onClick={() => setShowCreateModal(false)}>
-                Annuler
-              </button>
-              <button onClick={() => void submitCreate()}>Ajouter</button>
-            </div>
-          </section>
+      <FormModal
+        isOpen={showCreateModal}
+        title={createModalTitle}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={() => submitCreate()}
+        submitLabel="Ajouter"
+      >
+        <div className="form">
+          {createModalTarget === "sites" && (
+            <>
+              <input placeholder="Code site" value={siteCode} onChange={(e) => setSiteCode(e.target.value)} />
+              <input placeholder="Nom du site" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
+              <input placeholder="Adresse du site" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
+              <input placeholder="Parc" value={siteParc} onChange={(e) => setSiteParc(e.target.value)} />
+              <input placeholder="Famille" value={siteFamille} onChange={(e) => setSiteFamille(e.target.value)} />
+            </>
+          )}
+          {createModalTarget === "intervenants" && (
+            <ReferenceInlineField
+              variant="labelOnly"
+              label="Nom"
+              value={intervenantName}
+              onChange={setIntervenantName}
+              placeholder="Nom"
+            />
+          )}
+          {createModalTarget === "types" && (
+            <ReferenceInlineField
+              variant="labelColor"
+              label="Libellé"
+              value={typeLabel}
+              onChange={setTypeLabel}
+              placeholder="Type d'anomalie"
+              colorValue={typeColor}
+              onColorChange={setTypeColor}
+              colorLabel="Couleur du badge"
+            />
+          )}
+          {createModalTarget === "rondeMotifs" && (
+            <ReferenceInlineField
+              variant="labelColor"
+              label="Libellé"
+              value={rondeMotifLabel}
+              onChange={setRondeMotifLabel}
+              placeholder="Libellé du motif"
+              colorValue={rondeMotifColor}
+              onColorChange={setRondeMotifColor}
+              colorLabel="Couleur du badge"
+            />
+          )}
+          {createModalTarget === "holidays" && (
+            <ReferenceInlineField
+              variant="labelDate"
+              label="Libellé"
+              value={holidayLabel}
+              onChange={setHolidayLabel}
+              placeholder="Ex. : pont local, fermeture exceptionnelle"
+              dateValue={holidayDateIso}
+              onDateChange={setHolidayDateIso}
+              dateLabel="Date"
+            />
+          )}
+          {createModalTarget === "fransorResponsables" && (
+            <ReferenceInlineField
+              variant="labelOnly"
+              label="Nom du responsable Fransor"
+              value={fransorResponsableName}
+              onChange={setFransorResponsableName}
+              placeholder="Nom du responsable Fransor"
+            />
+          )}
         </div>
-      )}
+      </FormModal>
       <ConfirmModal
         isOpen={Boolean(onConfirmDeleteReason)}
         title="Motif de suppression"
@@ -902,21 +884,16 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           />
         </label>
       </ConfirmModal>
-      {blockedActionMessage ? (
-        <div className="modal-overlay" onClick={() => setBlockedActionMessage("")}>
-          <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="row">
-              <h3>Suppression impossible</h3>
-            </div>
-            <p className="muted">{blockedActionMessage}</p>
-            <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setBlockedActionMessage("")}>
-                OK
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <FormModal
+        isOpen={Boolean(blockedActionMessage)}
+        title="Suppression impossible"
+        onClose={() => setBlockedActionMessage("")}
+        onSubmit={() => setBlockedActionMessage("")}
+        submitLabel="OK"
+        hideCancel
+      >
+        <p className="muted">{blockedActionMessage}</p>
+      </FormModal>
       {isImporting && importBatchProgress ? (
         <div
           className="modal-overlay data-import-batch-overlay"
