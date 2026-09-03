@@ -12,53 +12,20 @@ import {
   Paragraph,
   TextRun
 } from "docx";
-import Docxtemplater from "docxtemplater";
-import PizZip from "pizzip";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import logoGts from "../../../assets/logo-gts.jpg";
-import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { downloadBlob } from "../../common/utils/downloadBlob";
+import {
+  loadDocumentTemplateBuffer,
+  renderDocxtemplaterBlob,
+  safeDocxText
+} from "../../common/utils/docxTemplateHelpers";
 import { exportTimestampForFilename, safeExportFilenamePart } from "../../common/utils/exportFilename";
 import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
 
+const MAIN_COURANTE_TEMPLATE_FILE = "main-courante-template.docx";
 const MAIN_COURANTE_TEMPLATE_URL = "/templates/main-courante-template.docx";
 let templateMissingWarningShown = false;
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  return buffer;
-}
-
-async function loadTemplateBuffer(): Promise<ArrayBuffer | null> {
-  try {
-    const template = await gtsApiClient.getDocumentTemplate("main-courante-template.docx");
-    if (template.found && template.dataBase64) {
-      return toArrayBuffer(base64ToUint8Array(template.dataBase64));
-    }
-  } catch {
-    // Continue with web fallback.
-  }
-
-  try {
-    const response = await fetch(MAIN_COURANTE_TEMPLATE_URL);
-    if (!response.ok) {
-      throw new Error(`Template HTTP ${response.status}`);
-    }
-    return await response.arrayBuffer();
-  } catch {
-    return null;
-  }
-}
 
 type LogoData = {
   data: Uint8Array;
@@ -66,58 +33,27 @@ type LogoData = {
   height: number;
 };
 
-function sanitizeXmlText(input: string): string {
-  let out = "";
-  for (const char of input) {
-    const code = char.codePointAt(0) ?? 0;
-    const validXmlChar =
-      code === 0x9 ||
-      code === 0xa ||
-      code === 0xd ||
-      (code >= 0x20 && code <= 0xd7ff) ||
-      (code >= 0xe000 && code <= 0xfffd) ||
-      (code >= 0x10000 && code <= 0x10ffff);
-    if (validXmlChar) out += char;
-  }
-  return out;
-}
-
-function safeText(value: string | null | undefined): string {
-  const raw = value ?? "";
-  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const cleaned = sanitizeXmlText(normalized);
-  return cleaned.trim() || "—";
-}
-
 async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null> {
   try {
-    const buffer = await loadTemplateBuffer();
+    const buffer = await loadDocumentTemplateBuffer({
+      templateFileName: MAIN_COURANTE_TEMPLATE_FILE,
+      webFallbackUrl: MAIN_COURANTE_TEMPLATE_URL
+    });
     if (!buffer) {
       throw new Error("Template introuvable");
     }
-    const zip = new PizZip(buffer);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true
+    return renderDocxtemplaterBlob(buffer, {
+      date_creation: safeDocxText(formatMainCouranteDate(entry.createdAt)),
+      operateur: safeDocxText(entry.operatorName),
+      responsable: safeDocxText(entry.managerName),
+      site: safeDocxText(entry.siteDisplay),
+      type_anomalie: safeDocxText(entry.anomalyTypeLabel),
+      etat: safeDocxText(statusLabelFr(entry.status)),
+      prise_en_compte: safeDocxText(entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
+      date_cloture: safeDocxText(entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
+      information_operateur: safeDocxText(entry.information),
+      observation_responsable: safeDocxText(entry.managerObservation || "—")
     });
-    doc.render({
-      date_creation: safeText(formatMainCouranteDate(entry.createdAt)),
-      operateur: safeText(entry.operatorName),
-      responsable: safeText(entry.managerName),
-      site: safeText(entry.siteDisplay),
-      type_anomalie: safeText(entry.anomalyTypeLabel),
-      etat: safeText(statusLabelFr(entry.status)),
-      prise_en_compte: safeText(entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
-      date_cloture: safeText(entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
-      information_operateur: safeText(entry.information),
-      observation_responsable: safeText(entry.managerObservation || "—")
-    });
-    return doc
-      .getZip()
-      .generate({
-        type: "blob",
-        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      }) as Blob;
   } catch {
     if (!templateMissingWarningShown) {
       templateMissingWarningShown = true;
@@ -148,12 +84,12 @@ async function loadLogoJpegData(): Promise<LogoData | null> {
 function fieldParagraph(label: string, value: string): Paragraph {
   return new Paragraph({
     spacing: { after: 110 },
-    children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(safeText(value))]
+    children: [new TextRun({ text: `${label}: `, bold: true }), new TextRun(safeDocxText(value))]
   });
 }
 
 function multilineSection(title: string, body: string): Paragraph[] {
-  const lines = safeText(body)
+  const lines = safeDocxText(body)
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);

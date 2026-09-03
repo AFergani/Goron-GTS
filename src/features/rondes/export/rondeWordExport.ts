@@ -5,10 +5,13 @@ import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
  * Jetons Docxtemplater, champs clôture, repli docx ; partagé avec Paramètres (modèles).
  */
 
-import Docxtemplater from "docxtemplater";
-import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { downloadBlob } from "../../common/utils/downloadBlob";
+import {
+  loadDocumentTemplateBuffer,
+  renderDocxtemplaterBlob,
+  safeDocxText
+} from "../../common/utils/docxTemplateHelpers";
 import { safeExportFilenamePart } from "../../common/utils/exportFilename";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { formatDateShortFr } from "../utils/formatDateShortFr";
@@ -24,44 +27,6 @@ let templateMissingWarningShown = false;
 /** Fichier installable depuis Paramètres → Données → Gestion des modèles ; utilisé si aucun modèle spécifique au profil. */
 export const DEFAULT_RONDE_WORD_TEMPLATE_FILE = "ronde-template.docx";
 type RondeTemplateFlowKind = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE";
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  return buffer;
-}
-
-function sanitizeXmlText(input: string): string {
-  let out = "";
-  for (const char of input) {
-    const code = char.codePointAt(0) ?? 0;
-    const validXmlChar =
-      code === 0x9 ||
-      code === 0xa ||
-      code === 0xd ||
-      (code >= 0x20 && code <= 0xd7ff) ||
-      (code >= 0xe000 && code <= 0xfffd) ||
-      (code >= 0x10000 && code <= 0x10ffff);
-    if (validXmlChar) out += char;
-  }
-  return out;
-}
-
-function safeText(value: string | number | null | undefined): string {
-  const raw = value == null ? "" : String(value);
-  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const cleaned = sanitizeXmlText(normalized).trim();
-  return cleaned || "—";
-}
 
 function statusLabelFr(status: RondeEntry["status"]): string {
   if (status === "CLOTURE") return "Clôturée";
@@ -90,10 +55,10 @@ function buildTemplateData(
   profiles?: RondePlannedProfileRef[] | null
 ): Record<string, string> {
   const parts = splitSiteDisplayParts(entry.siteDisplay);
-  const siteCode = safeText(parts.codePart);
-  const siteName = safeText(parts.namePart);
-  const siteLabel = safeText(entry.siteDisplay);
-  const profil = safeText(profileLabel);
+  const siteCode = safeDocxText(parts.codePart);
+  const siteName = safeDocxText(parts.namePart);
+  const siteLabel = safeDocxText(entry.siteDisplay);
+  const profil = safeDocxText(profileLabel);
   const dateJour = formatDateShortFr(entry.requestDate);
   const heureDem = resolvePlannedHeureDemandeeFromProfiles(entry, profiles);
   const customLogicalDate = String(
@@ -119,29 +84,29 @@ function buildTemplateData(
     site_label: siteLabel,
     profil_label: profil,
     profil_libelle: profil,
-    prestataire: safeText(entry.intervenantName),
-    date_demande: safeText(dateJour),
-    date_du_jour: safeText(dateJour),
-    heure_demandee: safeText(heureDem || "—"),
-    motif_type: safeText(entry.motifTypeLabel),
-    motif_detail: safeText(entry.motifDetail),
-    motif: safeText(
+    prestataire: safeDocxText(entry.intervenantName),
+    date_demande: safeDocxText(dateJour),
+    date_du_jour: safeDocxText(dateJour),
+    heure_demandee: safeDocxText(heureDem || "—"),
+    motif_type: safeDocxText(entry.motifTypeLabel),
+    motif_detail: safeDocxText(entry.motifDetail),
+    motif: safeDocxText(
       entry.motifDetail.trim() ? `${entry.motifTypeLabel.trim()} (${entry.motifDetail.trim()})` : entry.motifTypeLabel
     ),
-    horaires_demande_obs: safeText(entry.horairesDemandeObs),
-    origine: safeText(originSummary(entry)),
-    heure_arrivee: safeText(entry.arrivalTime),
-    heure_depart: safeText(entry.departureTime),
+    horaires_demande_obs: safeDocxText(entry.horairesDemandeObs),
+    origine: safeDocxText(originSummary(entry)),
+    heure_arrivee: safeDocxText(entry.arrivalTime),
+    heure_depart: safeDocxText(entry.departureTime),
     duree_minutes:
-      entry.durationMinutes == null ? "—" : safeText(`${entry.durationMinutes} min`),
-    numero_bon: safeText(entry.workOrderNumber),
-    compte_rendu: safeText(entry.report),
-    statut: safeText(statusLabelFr(entry.status)),
-    type_passage: safeText(roundKindLabel(entry)),
-    date_logique_passage: safeText(logicalDateFr),
-    date_logique: safeText(logicalDateFr),
-    date_logique_iso: safeText(logicalDateIso),
-    transition_date: safeText(transitionDateLabel),
+      entry.durationMinutes == null ? "—" : safeDocxText(`${entry.durationMinutes} min`),
+    numero_bon: safeDocxText(entry.workOrderNumber),
+    compte_rendu: safeDocxText(entry.report),
+    statut: safeDocxText(statusLabelFr(entry.status)),
+    type_passage: safeDocxText(roundKindLabel(entry)),
+    date_logique_passage: safeDocxText(logicalDateFr),
+    date_logique: safeDocxText(logicalDateFr),
+    date_logique_iso: safeDocxText(logicalDateIso),
+    transition_date: safeDocxText(transitionDateLabel),
     passage_apres_minuit: logicalDateComputed.shiftedAfterMidnight ? "Oui" : "Non"
   };
 
@@ -150,25 +115,21 @@ function buildTemplateData(
   for (const [key, val] of Object.entries(customs)) {
     const k = String(key || "").trim();
     if (!k) continue;
-    merged[k] = safeText(val);
+    merged[k] = safeDocxText(val);
   }
   return merged;
 }
 
 async function loadProfileTemplateBuffer(profileLabel: string): Promise<ArrayBuffer | null> {
-  const name = plannedProfileWordTemplateFileName(profileLabel);
-  try {
-    const template = await gtsApiClient.getDocumentTemplate(name);
-    if (template.found && template.dataBase64) {
-      return toArrayBuffer(base64ToUint8Array(template.dataBase64));
-    }
-  } catch {
-    /* fichier absent ou erreur réseau */
-  }
-  return null;
+  return loadDocumentTemplateBuffer({
+    templateFileName: plannedProfileWordTemplateFileName(profileLabel)
+  });
 }
 
-async function loadScopedRondeTemplateBuffer(entry: RondeEntry, flowKind: RondeTemplateFlowKind): Promise<ArrayBuffer | null> {
+async function loadScopedRondeTemplateBuffer(
+  entry: RondeEntry,
+  flowKind: RondeTemplateFlowKind
+): Promise<ArrayBuffer | null> {
   try {
     const resolved = await gtsApiClient.resolveTemplateFileForContext({
       requesterRole: "OPERATEUR",
@@ -177,10 +138,7 @@ async function loadScopedRondeTemplateBuffer(entry: RondeEntry, flowKind: RondeT
     });
     const templateName = String(resolved.templateFileName || "").trim();
     if (!templateName) return null;
-    const template = await gtsApiClient.getDocumentTemplate(templateName);
-    if (template.found && template.dataBase64) {
-      return toArrayBuffer(base64ToUint8Array(template.dataBase64));
-    }
+    return loadDocumentTemplateBuffer({ templateFileName: templateName });
   } catch {
     /* attribution absente/invalide: fallback normal */
   }
@@ -212,16 +170,7 @@ async function renderDocxFromBuffer(
   profiles?: RondePlannedProfileRef[] | null
 ): Promise<Blob | null> {
   try {
-    const zip = new PizZip(buffer);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true
-    });
-    doc.render(buildTemplateData(entry, profileLabel, profiles));
-    return doc.getZip().generate({
-      type: "blob",
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    }) as Blob;
+    return renderDocxtemplaterBlob(buffer, buildTemplateData(entry, profileLabel, profiles));
   } catch {
     return null;
   }
@@ -283,15 +232,9 @@ async function renderFromScopedExceptionalRondeTemplate(
 }
 
 async function loadDefaultRondeTemplateBuffer(): Promise<ArrayBuffer | null> {
-  try {
-    const template = await gtsApiClient.getDocumentTemplate(DEFAULT_RONDE_WORD_TEMPLATE_FILE);
-    if (template.found && template.dataBase64) {
-      return toArrayBuffer(base64ToUint8Array(template.dataBase64));
-    }
-  } catch {
-    /* fichier absent */
-  }
-  return null;
+  return loadDocumentTemplateBuffer({
+    templateFileName: DEFAULT_RONDE_WORD_TEMPLATE_FILE
+  });
 }
 
 /** Modèle générique `ronde-template.docx` (remplaçable dans Gestion des modèles). */

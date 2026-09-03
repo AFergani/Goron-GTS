@@ -7,6 +7,7 @@
 
 import ExcelJS from "exceljs";
 import { downloadBlob } from "../../common/utils/downloadBlob";
+import { normalizeNewlines } from "../../common/utils/docxTemplateHelpers";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { exportTimestampForFilename } from "../../common/utils/exportFilename";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
@@ -72,9 +73,4 @@ export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): P
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const name = `main-courante_export_${exportTimestampForFilename()}.xlsx`;
   downloadBlob(blob, name);
-}
-
-/** Normalise les retours à la ligne pour Excel (\r\n → \n). */
-function normalizeNewlines(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
