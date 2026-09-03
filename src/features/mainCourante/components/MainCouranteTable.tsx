@@ -268,11 +268,11 @@ export function MainCouranteTable({
             <td className="mc-col-status-actions">
               <div className="mc-status-actions-stack">
                 <MainCouranteStatusBadge status={entry.status} />
-                <div className="row-actions mc-row-actions-wrap mc-row-actions-wrap--text">
+                <div className="row-actions table-row-actions table-row-actions--text">
                   {canOperatorEdit(entry) && (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--text"
+                      className="table-action-btn table-action-btn--text"
                       onClick={() => onEditEntry(entry)}
                     >
                       Modifier
@@ -281,7 +281,7 @@ export function MainCouranteTable({
                   {isManager && entry.status === "EN_ATTENTE" && (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--text mc-table-action-btn--validate"
+                      className="table-action-btn table-action-btn--text table-action-btn--validate"
                       onClick={() => onManagerTreat(entry)}
                     >
                       Valider
@@ -290,7 +290,7 @@ export function MainCouranteTable({
                   {isManager && entry.status === "EN_COURS" && (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--text"
+                      className="table-action-btn table-action-btn--text"
                       onClick={() => onManagerTreat(entry)}
                     >
                       Clôturer
@@ -299,7 +299,7 @@ export function MainCouranteTable({
                   {canViewDetail(entry) && (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--text"
+                      className="table-action-btn table-action-btn--text"
                       onClick={() => onViewEntry(entry)}
                     >
                       Voir le détail
@@ -307,7 +307,7 @@ export function MainCouranteTable({
                   )}
                   <button
                     type="button"
-                    className="mc-table-action-btn mc-table-action-btn--text mc-table-action-btn--word"
+                    className="table-action-btn table-action-btn--text table-action-btn--word"
                     onClick={() => void onExportWord(entry)}
                   >
                     Export Word

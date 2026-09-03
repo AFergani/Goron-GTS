@@ -461,6 +461,32 @@
   vertical-align: middle;
 }
 
+/* Colonne Actions toujours alignée à droite, largeur stable d'une ligne à l'autre */
+.users-table__col-actions {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.users-table .table-row-actions--text {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+/* Désactiver / Réactiver partagent le même emplacement : largeur figée sur le libellé le plus long */
+.users-table__action-slot--activation {
+  min-width: 6.5rem;
+}
+
+/* Rôle / profil métier suivi du badge de statut du compte */
+.users-table__profile-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .user-presence-dot {
   display: inline-block;
   width: 10px;
@@ -2370,7 +2396,7 @@ th {
   text-align: center;
 }
 
-.main-courante-table.mc-entries-table tbody td.mc-col-status-actions .mc-row-actions-wrap {
+.main-courante-table.mc-entries-table tbody td.mc-col-status-actions .table-row-actions {
   justify-content: center;
   margin-left: 0;
 }
@@ -2594,7 +2620,9 @@ th {
   margin: 0 0 12px;
 }
 
-.mc-table-action-btn {
+/* Boutons d'action de ligne partagés par tous les tableaux métier et Paramètres.
+   Variante `--text` (libellé) ; `--validate` / `--word` / `--danger` pour la teinte. */
+.table-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2612,7 +2640,7 @@ th {
     background 0.15s ease;
 }
 
-.mc-table-action-btn--text {
+.table-action-btn--text {
   width: auto;
   min-height: 30px;
   height: auto;
@@ -2623,34 +2651,34 @@ th {
   white-space: nowrap;
 }
 
-.mc-table-action-btn:hover:not(:disabled) {
+/* Emplacement réservé : le bouton reste dans le flux mais devient invisible et inerte */
+.table-action-btn--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.table-action-btn:hover:not(:disabled) {
   border-color: rgba(240, 193, 77, 0.55);
   color: #f0c14d;
 }
 
-.mc-table-action-btn:disabled {
+.table-action-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.mc-table-action-btn-wrap {
+.table-action-btn-wrap {
   display: inline-flex;
 }
 
-.mc-table-action-btn--validate:hover:not(:disabled) {
+.table-action-btn--validate:hover:not(:disabled) {
   border-color: rgba(41, 201, 154, 0.45);
   color: #5ee0b8;
 }
 
-.mc-table-action-btn--word:hover:not(:disabled) {
+.table-action-btn--word:hover:not(:disabled) {
   border-color: rgba(74, 136, 242, 0.55);
   color: var(--accent-hi);
-}
-
-.mc-action-icon-svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
 }
 
 .mc-status-actions-stack {
@@ -2660,7 +2688,7 @@ th {
   gap: 8px;
 }
 
-.mc-row-actions-wrap--text {
+.table-row-actions--text {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
@@ -4596,7 +4624,7 @@ fieldset.ronde-planned-weekdays {
   }
 }
 
-.mc-row-actions-wrap {
+.table-row-actions {
   flex-wrap: nowrap;
   gap: 6px;
   max-width: none;
@@ -5165,6 +5193,28 @@ fieldset.ronde-planned-weekdays {
 }
 
 /* ── Badge compteur coin haut/droite des onglets ─────────────── */
+/* Compte bloqué (liste utilisateurs) */
+.mc-status-badge--danger {
+  color: #ffb3b3;
+  border-color: rgba(255, 179, 179, 0.5);
+  background: rgba(180, 40, 40, 0.24);
+}
+
+.mc-status-badge--danger .mc-status-badge__dot {
+  background: #ffb3b3;
+  box-shadow: 0 0 0 1px rgba(255, 179, 179, 0.35);
+}
+
+[data-theme="light"] .mc-status-badge--danger {
+  color: #8c1d1d;
+  border-color: rgba(140, 29, 29, 0.4);
+  background: rgba(200, 60, 60, 0.12);
+}
+
+[data-theme="light"] .mc-status-badge--danger .mc-status-badge__dot {
+  background: #8c1d1d;
+}
+
 .gard-tab-badge {
   position: absolute;
   top: 3px;
@@ -5321,11 +5371,11 @@ fieldset.ronde-planned-weekdays {
   gap: 4px;
 }
 
-.mc-table-action-btn--danger {
+.table-action-btn--danger {
   color: var(--danger, #e55);
 }
 
-.mc-table-action-btn--danger:hover:not(:disabled) {
+.table-action-btn--danger:hover:not(:disabled) {
   background: rgba(220, 50, 50, 0.08);
 }
 

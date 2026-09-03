@@ -168,11 +168,11 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
                 </span>
               </td>
               <td>
-                <div className="row-actions mc-row-actions-wrap">
+                <div className="row-actions table-row-actions">
                   {entry.status === "EN_COURS" ? (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--validate"
+                      className="table-action-btn table-action-btn--validate"
                       title="Compléter / clôturer"
                       aria-label="Compléter / clôturer"
                       onClick={() => onFollowUp(entry)}
@@ -181,14 +181,14 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
                     </button>
                   ) : null}
                   {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
-                    <button type="button" className="mc-table-action-btn" title="Ouvrir" aria-label="Ouvrir" onClick={() => onOpen(entry)}>
+                    <button type="button" className="table-action-btn" title="Ouvrir" aria-label="Ouvrir" onClick={() => onOpen(entry)}>
                       <Eye size={16} />
                     </button>
                   ) : null}
                   {onExportWord && (entry.status === "CLOTURE" || entry.status === "ANNULE") ? (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--word"
+                      className="table-action-btn table-action-btn--word"
                       title="Exporter Word"
                       aria-label="Exporter la fiche Word"
                       onClick={() => onExportWord(entry)}

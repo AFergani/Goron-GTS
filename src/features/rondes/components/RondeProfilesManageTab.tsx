@@ -238,7 +238,7 @@ export function RondeProfilesManageTab({
                           Demande en attente par {row.cancellationRequestedBy || "—"}
                         </div>
                       ) : null}
-                      <div className="row-actions mc-row-actions-wrap">
+                      <div className="row-actions table-row-actions">
                         <button
                           type="button"
                           className="action-icon-btn btn-light"

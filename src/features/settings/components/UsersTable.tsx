@@ -4,8 +4,47 @@
 
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
-import { KeyRound, LockOpen, Pencil, UserCheck, UserX } from "lucide-react";
 import { canSessionResetPasswordOrUnlockForUser } from "../model/userHierarchy";
+
+/**
+ * Bouton d'action de ligne. Masqué (`hidden`), il reste dans le flux pour réserver
+ * son emplacement : la colonne Actions garde la même largeur d'une ligne à l'autre.
+ */
+function ActionButton({
+  label,
+  onClick,
+  hidden = false,
+  tone,
+  className
+}: {
+  label: string;
+  onClick: () => void;
+  hidden?: boolean;
+  tone?: "danger" | "validate";
+  className?: string;
+}) {
+  const classes = [
+    "table-action-btn",
+    "table-action-btn--text",
+    tone ? `table-action-btn--${tone}` : "",
+    hidden ? "table-action-btn--placeholder" : "",
+    className || ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <button
+      type="button"
+      className={classes}
+      aria-hidden={hidden || undefined}
+      tabIndex={hidden ? -1 : undefined}
+      disabled={hidden}
+      onClick={hidden ? undefined : onClick}
+    >
+      {label}
+    </button>
+  );
+}
 
 type UsersTableProps = {
   users: User[];
@@ -56,6 +95,29 @@ export function UsersTable({
     return profile ? `${role} (${profile})` : role;
   }
 
+  function formatDateTime(value: string) {
+    return new Date(value).toLocaleString("fr-FR");
+  }
+
+  /** Badge de statut du compte (même gabarit que les badges d'état métier). */
+  function StatusBadge({ user }: { user: User }) {
+    const { label, variant, title } = user.isLocked
+      ? {
+          label: "Bloqué",
+          variant: "danger",
+          title: `Bloqué après ${user.failedLoginAttempts} tentatives`
+        }
+      : user.isActive
+        ? { label: "Actif", variant: "cloture", title: "Compte actif" }
+        : { label: "Inactif", variant: "annule", title: "Compte désactivé" };
+    return (
+      <span className={`mc-status-badge mc-status-badge--${variant}`} title={title}>
+        <span className="mc-status-badge__dot" aria-hidden />
+        <span className="mc-status-badge__label">{label}</span>
+      </span>
+    );
+  }
+
   function canActOnUser(target: User): boolean {
     return Boolean(session && canSessionResetPasswordOrUnlockForUser(session, target));
   }
@@ -68,11 +130,8 @@ export function UsersTable({
             Connexion
           </th>
           <th>Nom</th>
-          <th>Profile</th>
-          <th>Statut</th>
-          <th>Désactivé le</th>
+          <th>Profil (statut)</th>
           <th>Dernière mise à jour</th>
-          <th>Par</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -81,6 +140,8 @@ export function UsersTable({
           // Sessions = username technique ; présence partagée via PostgreSQL.
           const isOnline = u.isActive && activeSet.has(String(u.username || "").toLowerCase());
           const canAct = canActOnUser(u);
+          // Le compte DEV n'est jamais administrable ; ses emplacements restent réservés.
+          const manageable = u.role !== "DEV";
           return (
             <tr key={u.id}>
               <td className="users-table__col-presence">
@@ -92,98 +153,51 @@ export function UsersTable({
                 />
               </td>
               <td>{u.fullName}</td>
-              <td>{formatRoleAndProfile(u)}</td>
               <td>
-                {u.isLocked ? (
-                  <span className="badge badge-danger" title={`Bloqué après ${u.failedLoginAttempts} tentatives`}>
-                    Bloqué
-                  </span>
-                ) : u.isActive ? (
-                  "Actif"
+                <div className="users-table__profile-cell">
+                  <span>{formatRoleAndProfile(u)}</span>
+                  <StatusBadge user={u} />
+                </div>
+              </td>
+              <td>
+                {u.updatedAt ? (
+                  <>
+                    {formatDateTime(u.updatedAt)}
+                    {u.updatedBy ? <span className="muted"> ({u.updatedBy})</span> : null}
+                  </>
                 ) : (
-                  "Désactivé"
+                  "-"
                 )}
               </td>
-              <td>{!u.isActive && u.updatedAt ? new Date(u.updatedAt).toLocaleString("fr-FR") : "-"}</td>
-              <td>{u.updatedAt ? new Date(u.updatedAt).toLocaleString("fr-FR") : "-"}</td>
-              <td>{u.updatedBy || "-"}</td>
-              <td>
-                {u.role !== "DEV" && u.isActive && (
-                  <div className="row-actions">
-                    {passwordDesk ? (
-                      <>
-                        {u.isLocked && canAct && (
-                          <button
-                            className="btn-light action-icon-btn"
-                            title="Déverrouiller le compte"
-                            aria-label="Déverrouiller"
-                            onClick={() => onUnlockUser(u.username)}
-                          >
-                            <LockOpen size={14} />
-                          </button>
-                        )}
-                        {canAct && onRequestPasswordReset ? (
-                          <button
-                            type="button"
-                            className="btn-light action-icon-btn"
-                            title="Réinitialiser le mot de passe"
-                            aria-label="Réinitialiser le mot de passe"
-                            onClick={() => onRequestPasswordReset(u)}
-                          >
-                            <KeyRound size={14} />
-                          </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        {u.isLocked && canAct && (
-                          <button
-                            className="btn-light action-icon-btn"
-                            title="Déverrouiller le compte"
-                            aria-label="Déverrouiller"
-                            onClick={() => onUnlockUser(u.username)}
-                          >
-                            <LockOpen size={14} />
-                          </button>
-                        )}
-                        <button className="btn-light action-icon-btn" title="Modifier" aria-label="Modifier" onClick={() => onEditUser(u)}>
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="btn-danger action-icon-btn"
-                          title="Désactiver"
-                          aria-label="Désactiver"
-                          onClick={() => onDeactivateUser(u)}
-                        >
-                          <UserX size={14} />
-                        </button>
-                        {canAct && onRequestPasswordReset ? (
-                          <button
-                            type="button"
-                            className="btn-light action-icon-btn"
-                            title="Réinitialiser le mot de passe"
-                            aria-label="Réinitialiser le mot de passe"
-                            onClick={() => onRequestPasswordReset(u)}
-                          >
-                            <KeyRound size={14} />
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                )}
-                {u.role !== "DEV" && !u.isActive && !passwordDesk && (
-                  <div className="row-actions">
-                    <button
-                      className="btn-light action-icon-btn"
-                      title="Réactiver"
-                      aria-label="Réactiver"
-                      onClick={() => onReactivateUser(u)}
-                    >
-                      <UserCheck size={14} />
-                    </button>
-                  </div>
-                )}
+              <td className="users-table__col-actions">
+                <div className="row-actions table-row-actions table-row-actions--text">
+                  {!passwordDesk && (
+                    <ActionButton
+                      label="Modifier"
+                      hidden={!manageable || !u.isActive}
+                      onClick={() => onEditUser(u)}
+                    />
+                  )}
+                  <ActionButton
+                    label="Réinit. mot de passe"
+                    hidden={!manageable || !u.isActive || !canAct || !onRequestPasswordReset}
+                    onClick={() => onRequestPasswordReset?.(u)}
+                  />
+                  <ActionButton
+                    label="Déverrouiller"
+                    hidden={!manageable || !u.isActive || !u.isLocked || !canAct}
+                    onClick={() => onUnlockUser(u.username)}
+                  />
+                  {!passwordDesk && (
+                    <ActionButton
+                      className="users-table__action-slot--activation"
+                      label={u.isActive ? "Désactiver" : "Réactiver"}
+                      tone={u.isActive ? "danger" : "validate"}
+                      hidden={!manageable}
+                      onClick={() => (u.isActive ? onDeactivateUser(u) : onReactivateUser(u))}
+                    />
+                  )}
+                </div>
               </td>
             </tr>
           );

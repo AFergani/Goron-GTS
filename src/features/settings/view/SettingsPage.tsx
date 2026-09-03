@@ -130,14 +130,12 @@ type SettingsPageProps = {
     username: string;
     role: "RESPONSABLE" | "OPERATEUR";
     managerProfile: ManagerProfile;
-    mustResetPassword: boolean;
     pageAccess: PageAccess;
   }) => void;
   createForm: {
     username: string;
     role: "RESPONSABLE" | "OPERATEUR";
     managerProfile: ManagerProfile;
-    mustResetPassword: boolean;
     pageAccess: PageAccess;
   };
   onSubmitCreate: (e: FormEvent) => void;
@@ -162,6 +160,9 @@ export function SettingsPage(props: SettingsPageProps) {
     if (userFilter === "inactive") return props.users.filter((u) => !u.isActive);
     return props.users.filter((u) => u.isActive);
   }, [props.users, userFilter]);
+
+  /** Superviseur : liste restreinte aux comptes actifs (pas de filtre statut). */
+  const activeUsers = useMemo(() => props.users.filter((u) => u.isActive), [props.users]);
 
   const filteredAuditLogs = useMemo(() => {
     return props.auditLogs.filter((log) => {
@@ -320,33 +321,14 @@ export function SettingsPage(props: SettingsPageProps) {
             <h3>Réinitialisation des mots de passe</h3>
           </div>
           <p className="muted">
-            En tant que superviseur, vous pouvez demander une réinitialisation du mot de passe ou déverrouiller un compte lorsque la hiérarchie métier le permet (profils
-            strictement inférieurs au vôtre). La création de comptes, la désactivation et la modification des accès aux pages restent réservées au directeur de station, au
-            responsable de station ou au profil développement.
+            En tant que superviseur, vous voyez les comptes actifs et pouvez demander une réinitialisation du mot de passe ou déverrouiller un compte lorsque la hiérarchie
+            métier le permet (profils strictement inférieurs au vôtre). La création de comptes, l&apos;activation / désactivation et la modification des droits restent
+            réservées au directeur de station, au responsable de station ou au profil développement.
           </p>
-          <div className="row-actions users-header-actions user-filter-bar">
-            <button
-              className={userFilter === "active" ? "tab active" : "tab"}
-              type="button"
-              onClick={() => setUserFilter("active")}
-            >
-              Actifs
-            </button>
-            <button
-              className={userFilter === "inactive" ? "tab active" : "tab"}
-              type="button"
-              onClick={() => setUserFilter("inactive")}
-            >
-              Désactivés
-            </button>
-            <button className={userFilter === "all" ? "tab active" : "tab"} type="button" onClick={() => setUserFilter("all")}>
-              Tous
-            </button>
-          </div>
           <UsersTable
             variant="passwordDesk"
             session={props.session}
-            users={filteredUsers}
+            users={activeUsers}
             activeUsernames={props.activeUsernames}
             onDeactivateUser={props.onDeactivateUser}
             onReactivateUser={props.onReactivateUser}

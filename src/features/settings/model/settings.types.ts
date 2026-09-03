@@ -28,7 +28,6 @@ export type CreateUserFormState = {
   username: string;
   role: Exclude<Role, "DEV">;
   managerProfile: ManagerProfile;
-  mustResetPassword: boolean;
   pageAccess: {
     mainCourante: boolean;
     fransor: boolean;

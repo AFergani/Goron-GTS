@@ -119,11 +119,11 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
                 </span>
               </td>
               <td>
-                <div className="row-actions mc-row-actions-wrap">
+                <div className="row-actions table-row-actions">
                   {entry.status === "EN_COURS" ? (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--validate"
+                      className="table-action-btn table-action-btn--validate"
                       title="À suivre / Clôturer"
                       aria-label="À suivre / Clôturer"
                       onClick={() => onFollowUp(entry)}
@@ -132,14 +132,14 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
                     </button>
                   ) : null}
                   {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
-                    <button type="button" className="mc-table-action-btn" title="Ouvrir" aria-label="Ouvrir" onClick={() => onOpen(entry)}>
+                    <button type="button" className="table-action-btn" title="Ouvrir" aria-label="Ouvrir" onClick={() => onOpen(entry)}>
                       <Eye size={16} />
                     </button>
                   ) : null}
                   {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--word"
+                      className="table-action-btn table-action-btn--word"
                       title="Exporter en Word"
                       aria-label="Exporter en Word"
                       onClick={() => onPrint(entry)}

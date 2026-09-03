@@ -96,7 +96,6 @@ export function useSettingsPresenter({
     username: "",
     role: "OPERATEUR",
     managerProfile: "SUPERVISEUR",
-    mustResetPassword: false,
     pageAccess: getDefaultPageAccessByRole("OPERATEUR")
   });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(defaultConfirmDialog);
@@ -161,7 +160,6 @@ export function useSettingsPresenter({
       username: "",
       role: "OPERATEUR",
       managerProfile: "SUPERVISEUR",
-      mustResetPassword: false,
       pageAccess: getDefaultPageAccessByRole("OPERATEUR")
     });
   }, []);
@@ -587,7 +585,7 @@ export function useSettingsPresenter({
           newRole: createForm.role,
           managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
           pageAccess: payloadPageAccess,
-          mustResetPassword: createForm.mustResetPassword,
+          mustResetPassword: false,
           expectedUpdatedAt: existingUser?.updatedAt ?? null
         });
         onToast("Utilisateur modifié.");
@@ -622,7 +620,6 @@ export function useSettingsPresenter({
       username: user.fullName,
       role: user.role,
       managerProfile: user.managerProfile || "SUPERVISEUR",
-      mustResetPassword: false,
       pageAccess: user.pageAccess
     });
     setUserModalMode("edit");

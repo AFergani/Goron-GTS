@@ -252,15 +252,15 @@ export function GardiennageTable({
 
                 {/* Actions */}
                 <td>
-                  <div className="row-actions mc-row-actions-wrap">
+                  <div className="row-actions table-row-actions">
                     {(canClose || showCloseDisabled) && (
                       <span
-                        className="mc-table-action-btn-wrap"
+                        className="table-action-btn-wrap"
                         title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
                       >
                         <button
                           type="button"
-                          className="mc-table-action-btn mc-table-action-btn--validate"
+                          className="table-action-btn table-action-btn--validate"
                           title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
                           aria-label={canClose ? "Clôturer" : closeBlocked}
                           disabled={showCloseDisabled}
@@ -275,7 +275,7 @@ export function GardiennageTable({
                     )}
                     <button
                       type="button"
-                      className="mc-table-action-btn"
+                      className="table-action-btn"
                       title={
                         entry.status === "CLOTURE" || entry.status === "ANNULE"
                           ? "Consultation uniquement (créneau clôturé ou annulé)"
@@ -294,7 +294,7 @@ export function GardiennageTable({
                     </button>
                     <button
                       type="button"
-                      className="mc-table-action-btn mc-table-action-btn--danger"
+                      className="table-action-btn table-action-btn--danger"
                       title="Supprimer"
                       aria-label="Supprimer ce gardiennage"
                       onClick={() => onDelete(entry)}

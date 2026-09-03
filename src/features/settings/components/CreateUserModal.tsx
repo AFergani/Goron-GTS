@@ -98,17 +98,6 @@ export function CreateUserModal({
               Modification de l&apos;accès à Paramètres réservée au directeur de station et au responsable de station.
             </p>
           )}
-          {mode === "edit" && (
-            <fieldset className="user-modal__page-access">
-              <legend>Sécurité</legend>
-              <ToggleSwitch
-                label="Demander la réinitialisation du mot de passe"
-                labelFirst
-                checked={form.mustResetPassword}
-                onChange={(next) => onChange({ ...form, mustResetPassword: next })}
-              />
-            </fieldset>
-          )}
           <div className="row-actions modal-actions">
             <button type="button" className="btn-light" onClick={onClose}>
               Fermer
