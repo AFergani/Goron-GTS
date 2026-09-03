@@ -1613,7 +1613,7 @@ th {
 }
 
 .table-scroll-x .data-table-sites {
-  min-width: 980px;
+  min-width: 860px;
 }
 
 .table-scroll-x .data-table-intervenants,
@@ -1669,12 +1669,21 @@ th {
   min-width: 0;
 }
 
+.data-table-fixed col.data-col-site {
+  width: 35%;
+}
+
 .data-table-fixed col.data-col-code {
   width: 25%;
 }
 
 .data-table-fixed col.data-col-name {
   width: 25%;
+}
+
+.data-site-edit-fields {
+  display: grid;
+  gap: 6px;
 }
 
 .data-table-fixed col.data-col-parc {

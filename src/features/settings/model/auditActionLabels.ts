@@ -131,3 +131,29 @@ export function formatAuditActionLabel(action: string): string {
 export function formatAuditActionLabelOrUnknown(action: string): string {
   return AUDIT_ACTION_LABELS[action] || `Action non référencée (${action})`;
 }
+
+/** Famille affichée dans le journal (filtre + badge). */
+export function resolveAuditFamily(action: string, label: string): string {
+  const bracketMatch = label.match(/^\[([^\]]+)\]\s*/);
+  if (bracketMatch) return bracketMatch[1];
+  if (action.startsWith("MAIN_COURANTE_")) return "Main courante";
+  if (action.startsWith("INTERVENTION_")) return "Intervention";
+  if (action.startsWith("RONDE_")) return "Rondes";
+  if (action.startsWith("GARDIENNAGE_")) return "Gardiennage";
+  if (action.startsWith("FRANSOR_")) return "Fransor";
+  if (action.startsWith("DATA_")) return "Référentiels";
+  if (action.startsWith("USER_") || action.startsWith("USERS_") || action.startsWith("AUTH_")) return "Utilisateurs";
+  return "Système";
+}
+
+/** Libellé FR du statut d’audit. */
+export function formatAuditStatus(status: string): string {
+  const labels: Record<string, string> = {
+    SUCCESS: "Succès",
+    ERROR: "Erreur",
+    WARNING: "Avertissement",
+    WARN: "Avertissement",
+    PENDING: "En attente"
+  };
+  return labels[status] || status;
+}

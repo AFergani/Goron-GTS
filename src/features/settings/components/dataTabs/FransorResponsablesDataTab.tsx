@@ -4,12 +4,14 @@
 
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { FransorResponsableRef } from "../../../../types";
-import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
+import { useTableSort } from "../../../common/hooks/useTableSort";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
 
 type FransorResponsablesDataTabProps = {
   canDeleteData: boolean;
-  pagedFransorResponsables: FransorResponsableRef[];
   filteredFransorResponsables: FransorResponsableRef[];
+  pageStart: number;
+  pageEnd: number;
   editingFransorResponsableId: string | null;
   editingFransorResponsableName: string;
   setEditingFransorResponsableId: (value: string | null) => void;
@@ -19,7 +21,20 @@ type FransorResponsablesDataTabProps = {
   openDeleteReasonModal: OpenDeleteReasonModal;
 };
 
+type FransorSortKey = "name";
+
 export function FransorResponsablesDataTab(props: FransorResponsablesDataTabProps) {
+  const comparators: Record<FransorSortKey, (a: FransorResponsableRef, b: FransorResponsableRef) => number> = {
+    name: (a, b) => compareTextFr(a.name, b.name)
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<FransorResponsableRef, FransorSortKey>(
+    props.filteredFransorResponsables,
+    comparators,
+    { key: "name", direction: "asc" }
+  );
+  const pagedFransorResponsables = sortedEntries.slice(props.pageStart, props.pageEnd);
+  const sortLabel = (key: FransorSortKey) => tableSortArrow(sortKey, key, sortDirection);
+
   return (
     <div className="table-scroll-x">
       <table className="data-table-fixed data-table-intervenants">
@@ -29,12 +44,16 @@ export function FransorResponsablesDataTab(props: FransorResponsablesDataTabProp
         </colgroup>
         <thead>
           <tr>
-            <th>Responsable Fransor</th>
+            <th>
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("name")}>
+                Responsable Fransor {sortLabel("name")}
+              </button>
+            </th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {props.pagedFransorResponsables.map((resp) => (
+          {pagedFransorResponsables.map((resp) => (
             <tr key={resp.id}>
               <td>
                 {props.editingFransorResponsableId === resp.id ? (

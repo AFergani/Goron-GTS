@@ -7,7 +7,7 @@
 import { FormEvent, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
-import type { ConfirmDialogState, CreateUserFormState, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
+import type { ConfirmDialogState, CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import { getDefaultPageAccessByRole } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { AnomalyTypeRef, AuditLog, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef, User } from "../../../types";
@@ -156,7 +156,6 @@ export function useSettingsPresenter({
   const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>(DEFAULT_POSTGRES_CONFIG_DRAFT);
   const [postgresTestResult, setPostgresTestResult] = useState<PostgresTestResult | null>(null);
   const [postgresBusyPhase, setPostgresBusyPhase] = useState<PostgresBusyPhase>("idle");
-  const postgresBusy = postgresBusyPhase !== "idle";
   const resetUserForm = useCallback(() => {
     setCreateForm({
       username: "",
@@ -1135,7 +1134,7 @@ export function useSettingsPresenter({
     });
   };
 
-  const onRefreshImportedData = async (target: DataTab) => {
+  const onRefreshImportedData = async (target: DataRefreshTarget) => {
     if (target === "sites") {
       await loadSites();
       return;
@@ -1162,9 +1161,6 @@ export function useSettingsPresenter({
     }
     if (target === "rondeMotifs") {
       await loadRondeMotifTypes();
-      return;
-    }
-    if (target === "documentTemplates") {
       return;
     }
     if (target === "holidays") {
@@ -1518,7 +1514,6 @@ export function useSettingsPresenter({
     postgresDraft,
     setPostgresDraft,
     postgresTestResult,
-    postgresBusy,
     postgresBusyPhase,
     onSavePostgresConfig,
     onTestPostgresConfig,

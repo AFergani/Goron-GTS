@@ -5,22 +5,11 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { AuditLog } from "../../../types";
-import { formatAuditActionLabelOrUnknown } from "../model/auditActionLabels";
-
-function resolveAuditFamily(action: string, label: string) {
-  const bracketMatch = label.match(/^\[([^\]]+)\]\s*/);
-  if (bracketMatch) {
-    return bracketMatch[1];
-  }
-  if (action.startsWith("MAIN_COURANTE_")) return "Main courante";
-  if (action.startsWith("INTERVENTION_")) return "Intervention";
-  if (action.startsWith("RONDE_")) return "Rondes";
-  if (action.startsWith("GARDIENNAGE_")) return "Gardiennage";
-  if (action.startsWith("FRANSOR_")) return "Fransor";
-  if (action.startsWith("DATA_")) return "Référentiels";
-  if (action.startsWith("USER_") || action.startsWith("USERS_") || action.startsWith("AUTH_")) return "Utilisateurs";
-  return "Système";
-}
+import {
+  formatAuditActionLabelOrUnknown,
+  formatAuditStatus,
+  resolveAuditFamily
+} from "../model/auditActionLabels";
 
 function stripAuditFamilyPrefix(label: string) {
   return label.replace(/^\[[^\]]+\]\s*/, "");
@@ -33,17 +22,6 @@ function auditFamilyBadgeTone(family: string) {
   if (normalized === "référentiels" || normalized === "referentiels") return "data";
   if (normalized === "utilisateurs") return "users";
   return "system";
-}
-
-function formatAuditStatus(status: string) {
-  const labels: Record<string, string> = {
-    SUCCESS: "Succès",
-    ERROR: "Erreur",
-    WARNING: "Avertissement",
-    WARN: "Avertissement",
-    PENDING: "En attente"
-  };
-  return labels[status] || status;
 }
 
 function buildActorTooltip(log: AuditLog) {

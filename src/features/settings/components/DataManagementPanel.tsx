@@ -7,8 +7,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { AnomalyTypeRef, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef } from "../../../types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
-import type { Role } from "../../../types";
-import type { DataTab } from "../model/settings.types";
+import type { DataRefreshTarget, DataTab } from "../model/settings.types";
 import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import { SitesDataTab } from "./dataTabs/SitesDataTab";
 import { IntervenantsDataTab } from "./dataTabs/IntervenantsDataTab";
@@ -16,18 +15,17 @@ import { TypesDataTab } from "./dataTabs/TypesDataTab";
 import { RondeMotifsDataTab } from "./dataTabs/RondeMotifsDataTab";
 import { HolidaysDataTab } from "./dataTabs/HolidaysDataTab";
 import { FransorResponsablesDataTab } from "./dataTabs/FransorResponsablesDataTab";
-import { PendingSitesDataTab } from "./dataTabs/PendingSitesDataTab";
-import { PendingIntervenantsDataTab } from "./dataTabs/PendingIntervenantsDataTab";
 import { DataSearchImportBar } from "./DataSearchImportBar";
+import { PendingSubmissionsModal } from "./PendingSubmissionsModal";
 import { mergeWithFrenchFixedHolidays } from "../../rondes/model/rondeCalendarLocal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 import { ReferenceInlineField } from "./shared/ReferenceInlineField";
+import { compareTextFr } from "./dataTabs/common";
 import "./DataManagementPanel.css";
 
 type DataManagementPanelProps = {
-  requesterRole: Role;
   activeDataTab: DataTab;
   onDataTabChange: (tab: DataTab) => void;
   sites: SiteRef[];
@@ -68,7 +66,7 @@ type DataManagementPanelProps = {
     failed: number;
     errorEntries: Array<{ rowIndex: number; message: string; row: Record<string, unknown> }>;
   }) => Promise<void>;
-  onRefreshImportedData: (target: DataTab) => Promise<void>;
+  onRefreshImportedData: (target: DataRefreshTarget) => Promise<void>;
   onResolvePendingSite: (payload: { pendingId: string; parc: string; famille: string }) => void | Promise<void>;
   onResolvePendingIntervenant: (payload: { pendingId: string; name: string }) => void | Promise<void>;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
@@ -83,10 +81,7 @@ const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
   types: "",
   rondeMotifs: "",
   holidays: "",
-  documentTemplates: "",
-  fransorResponsables: "",
-  pendingSites: "",
-  pendingIntervenants: ""
+  fransorResponsables: ""
 };
 
 function normalizeHeader(value: string) {
@@ -211,11 +206,10 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   /** Progression multi-fichiers : fichier courant / total (traitement séquentiel). */
   const [importBatchProgress, setImportBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPendingSubmissionsModal, setShowPendingSubmissionsModal] = useState(false);
   const [createModalTarget, setCreateModalTarget] = useState<
     "sites" | "intervenants" | "types" | "rondeMotifs" | "fransorResponsables" | "holidays"
   >("sites");
-  const [pendingSiteToResolveId, setPendingSiteToResolveId] = useState<string | null>(null);
-  const [pendingIntervenantToResolveId, setPendingIntervenantToResolveId] = useState<string | null>(null);
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
   const [editingSiteCode, setEditingSiteCode] = useState("");
   const [editingSiteName, setEditingSiteName] = useState("");
@@ -364,10 +358,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         ? "Colonne attendue: nom (alias: intervenant, intervenants, société, prestataire, entreprise). Sélection multiple de fichiers : traitement séquentiel."
       : props.activeDataTab === "types"
         ? "Colonne attendue: type anomalie (ou libellé)."
-        : props.activeDataTab === "pendingSites"
-          ? "Consolidation par les responsables dans cette section."
-          : props.activeDataTab === "pendingIntervenants"
-            ? "Consolidation par les responsables dans cette section."
           : props.activeDataTab === "rondeMotifs"
             ? "Libellés utilisés dans les formulaires de ronde (gestion par les responsables)."
           : props.activeDataTab === "holidays"
@@ -390,11 +380,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       !siteFamilleFilter || (site.famille || "").trim().toLowerCase() === siteFamilleFilter.trim().toLowerCase();
     return byText && byParc && byFamille;
   });
-  const siteParcOptions = [...new Set(props.sites.map((s) => (s.parc || "").trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, "fr")
-  );
-  const siteFamilleOptions = [...new Set(props.sites.map((s) => (s.famille || "").trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, "fr")
+  const siteParcOptions = [...new Set(props.sites.map((s) => (s.parc || "").trim()).filter(Boolean))].sort(compareTextFr);
+  const siteFamilleOptions = [...new Set(props.sites.map((s) => (s.famille || "").trim()).filter(Boolean))].sort(
+    compareTextFr
   );
   const filteredIntervenants = props.intervenants.filter((intervenant) => {
     const query = searchQuery.trim().toLowerCase();
@@ -425,61 +413,53 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     if (!query) return true;
     return item.dateIso.toLowerCase().includes(query) || item.label.toLowerCase().includes(query);
   });
+  const filteredFransorResponsables = props.fransorResponsables.filter((resp) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return resp.name.toLowerCase().includes(query);
+  });
   const searchPlaceholder =
     props.activeDataTab === "sites"
       ? "Rechercher un site (code, nom, parc, famille)"
       : props.activeDataTab === "intervenants"
         ? "Rechercher un intervenant (nom)"
-        : props.activeDataTab === "pendingSites"
-          ? "Rechercher un site en attente (code, nom)"
-          : props.activeDataTab === "pendingIntervenants"
-            ? "Rechercher un intervenant en attente (nom)"
           : props.activeDataTab === "rondeMotifs"
             ? "Rechercher par motif"
           : props.activeDataTab === "holidays"
             ? "Rechercher un jour férié (date, libellé)"
-          : props.activeDataTab === "documentTemplates"
-            ? "Recherche (non utilisée sur cet onglet)"
         : props.activeDataTab === "fransorResponsables"
           ? "Rechercher un responsable"
         : "Rechercher un type d'anomalie";
-  const filteredPendingSites = props.pendingSites.filter((site) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return site.code.toLowerCase().includes(query) || site.name.toLowerCase().includes(query);
-  });
-  const filteredPendingIntervenants = props.pendingIntervenants.filter((item) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return item.name.toLowerCase().includes(query);
-  });
   const activeFilteredCount =
-    props.activeDataTab === "documentTemplates"
-      ? 0
-      : props.activeDataTab === "sites"
-        ? filteredSites.length
-        : props.activeDataTab === "intervenants"
-          ? filteredIntervenants.length
-        : props.activeDataTab === "types"
-          ? filteredTypes.length
-          : props.activeDataTab === "rondeMotifs"
-            ? filteredRondeMotifs.length
-            : props.activeDataTab === "holidays"
-              ? filteredHolidays.length
-          : props.activeDataTab === "pendingSites"
-            ? filteredPendingSites.length
-            : props.activeDataTab === "pendingIntervenants"
-              ? filteredPendingIntervenants.length
-          : props.fransorResponsables.filter((resp) => {
-              const query = searchQuery.trim().toLowerCase();
-              if (!query) return true;
-              return resp.name.toLowerCase().includes(query);
-            }).length;
+    props.activeDataTab === "sites"
+      ? filteredSites.length
+      : props.activeDataTab === "intervenants"
+        ? filteredIntervenants.length
+      : props.activeDataTab === "types"
+        ? filteredTypes.length
+        : props.activeDataTab === "rondeMotifs"
+          ? filteredRondeMotifs.length
+          : props.activeDataTab === "holidays"
+            ? filteredHolidays.length
+            : filteredFransorResponsables.length;
   const totalPages = Math.max(1, Math.ceil(activeFilteredCount / PAGE_SIZE));
 
   useEffect(() => {
     setCurrentPage(1);
+    setShowPendingSubmissionsModal(false);
   }, [searchQuery, siteParcFilter, siteFamilleFilter, holidayYear, props.activeDataTab]);
+
+  useEffect(() => {
+    const pendingCount =
+      props.activeDataTab === "sites"
+        ? props.pendingSites.length
+        : props.activeDataTab === "intervenants"
+          ? props.pendingIntervenants.length
+          : 0;
+    if (pendingCount === 0) {
+      setShowPendingSubmissionsModal(false);
+    }
+  }, [props.activeDataTab, props.pendingIntervenants.length, props.pendingSites.length]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -489,19 +469,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
 
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
-  const pagedSites = filteredSites.slice(pageStart, pageEnd);
-  const pagedIntervenants = filteredIntervenants.slice(pageStart, pageEnd);
-  const pagedTypes = filteredTypes.slice(pageStart, pageEnd);
-  const pagedRondeMotifs = filteredRondeMotifs.slice(pageStart, pageEnd);
-  const pagedHolidays = filteredHolidays.slice(pageStart, pageEnd);
-  const pagedPendingSites = filteredPendingSites.slice(pageStart, pageEnd);
-  const pagedPendingIntervenants = filteredPendingIntervenants.slice(pageStart, pageEnd);
-  const filteredFransorResponsables = props.fransorResponsables.filter((resp) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    return resp.name.toLowerCase().includes(query);
-  });
-  const pagedFransorResponsables = filteredFransorResponsables.slice(pageStart, pageEnd);
   const goToPage = (nextPage: number) => {
     const safePage = Math.max(1, Math.min(totalPages, nextPage));
     setCurrentPage(safePage);
@@ -522,36 +489,15 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     setFransorResponsableName("");
     setHolidayDateIso("");
     setHolidayLabel("");
-    setPendingSiteToResolveId(null);
-    setPendingIntervenantToResolveId(null);
   };
 
   const submitCreate = async () => {
     if (createModalTarget === "sites") {
-      if (pendingSiteToResolveId) {
-        await Promise.resolve(
-          props.onResolvePendingSite({
-            pendingId: pendingSiteToResolveId,
-            parc: siteParc,
-            famille: siteFamille
-          })
-        );
-      } else {
-        await Promise.resolve(
-          props.onCreateSite({ code: siteCode, name: siteName, address: siteAddress, parc: siteParc, famille: siteFamille })
-        );
-      }
+      await Promise.resolve(
+        props.onCreateSite({ code: siteCode, name: siteName, address: siteAddress, parc: siteParc, famille: siteFamille })
+      );
     } else if (createModalTarget === "intervenants") {
-      if (pendingIntervenantToResolveId) {
-        await Promise.resolve(
-          props.onResolvePendingIntervenant({
-            pendingId: pendingIntervenantToResolveId,
-            name: intervenantName
-          })
-        );
-      } else {
-        await Promise.resolve(props.onCreateIntervenant(intervenantName));
-      }
+      await Promise.resolve(props.onCreateIntervenant(intervenantName));
     } else if (createModalTarget === "types") {
       await Promise.resolve(props.onCreateType(typeLabel, typeColor));
     } else if (createModalTarget === "rondeMotifs") {
@@ -629,6 +575,13 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           siteFamilleOptions={siteFamilleOptions}
           importColumnsHint={importColumnsHint}
           isImporting={isImporting}
+          pendingSubmissionsCount={
+            props.activeDataTab === "sites"
+              ? props.pendingSites.length
+              : props.activeDataTab === "intervenants"
+                ? props.pendingIntervenants.length
+                : 0
+          }
           onSearchQueryChange={setActiveSearchQuery}
           onSiteParcFilterChange={setSiteParcFilter}
           onSiteFamilleFilterChange={setSiteFamilleFilter}
@@ -639,30 +592,15 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           }}
           onOpenImport={() => importInputRef.current?.click()}
           onOpenCreate={() => {
-            setCreateModalTarget(
-              props.activeDataTab === "sites" ||
-                props.activeDataTab === "intervenants" ||
-                props.activeDataTab === "types" ||
-                props.activeDataTab === "rondeMotifs" ||
-                props.activeDataTab === "fransorResponsables" ||
-                props.activeDataTab === "holidays"
-                ? props.activeDataTab
-                : "sites"
-            );
+            setCreateModalTarget(props.activeDataTab);
             resetCreateForm();
             setShowCreateModal(true);
           }}
+          onOpenPendingSubmissions={() => setShowPendingSubmissionsModal(true)}
           showImport={
-            props.activeDataTab !== "fransorResponsables" &&
-            props.activeDataTab !== "types" &&
-            props.activeDataTab !== "holidays" &&
-            props.activeDataTab !== "rondeMotifs" &&
-            props.activeDataTab !== "pendingSites" &&
-            props.activeDataTab !== "pendingIntervenants"
+            props.activeDataTab === "sites" || props.activeDataTab === "intervenants"
           }
-          showCreate={
-            props.activeDataTab !== "pendingSites" && props.activeDataTab !== "pendingIntervenants"
-          }
+          showCreate
         />
       </div>
       <input
@@ -680,9 +618,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "sites" && (
         <SitesDataTab
           canDeleteData={props.canDeleteData}
-          pendingSites={props.pendingSites}
-          pagedSites={pagedSites}
           filteredSites={filteredSites}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           editingSiteId={editingSiteId}
           editingSiteCode={editingSiteCode}
           editingSiteName={editingSiteName}
@@ -697,18 +635,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           setEditingSiteFamille={setEditingSiteFamille}
           onUpdateSite={props.onUpdateSite}
           onDeleteSite={props.onDeleteSite}
-          onOpenPendingSiteValidation={(site) => {
-            setCreateModalTarget("sites");
-            setPendingSiteToResolveId(site.id);
-            setPendingIntervenantToResolveId(null);
-            setSiteCode(site.code);
-            setSiteName(site.name);
-            setSiteAddress("");
-            setSiteParc("");
-            setSiteFamille("");
-            setShowCreateModal(true);
-          }}
-          onDeletePendingSiteSubmission={props.onDeletePendingSiteSubmission}
           openDeleteReasonModal={openDeleteReasonModal}
           onNotify={props.onNotify}
         />
@@ -717,23 +643,15 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "intervenants" && (
         <IntervenantsDataTab
           canDeleteData={props.canDeleteData}
-          pendingIntervenants={props.pendingIntervenants}
-          pagedIntervenants={pagedIntervenants}
           filteredIntervenants={filteredIntervenants}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           editingIntervenantId={editingIntervenantId}
           editingIntervenantName={editingIntervenantName}
           setEditingIntervenantId={setEditingIntervenantId}
           setEditingIntervenantName={setEditingIntervenantName}
           onUpdateIntervenant={props.onUpdateIntervenant}
           onDeleteIntervenant={props.onDeleteIntervenant}
-          onOpenPendingIntervenantValidation={(item) => {
-            setCreateModalTarget("intervenants");
-            setPendingIntervenantToResolveId(item.id);
-            setPendingSiteToResolveId(null);
-            setIntervenantName(item.name);
-            setShowCreateModal(true);
-          }}
-          onDeletePendingIntervenantSubmission={props.onDeletePendingIntervenantSubmission}
           openDeleteReasonModal={openDeleteReasonModal}
         />
       )}
@@ -741,8 +659,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "types" && (
         <TypesDataTab
           canDeleteData={props.canDeleteData}
-          pagedTypes={pagedTypes}
           filteredTypes={filteredTypes}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           editingTypeId={editingTypeId}
           editingTypeLabel={editingTypeLabel}
           editingTypeColor={editingTypeColor}
@@ -758,8 +677,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "rondeMotifs" && (
         <RondeMotifsDataTab
           canDeleteData={props.canDeleteData}
-          pagedRondeMotifs={pagedRondeMotifs}
           filteredRondeMotifs={filteredRondeMotifs}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           editingRondeMotifId={editingRondeMotifId}
           editingRondeMotifLabel={editingRondeMotifLabel}
           editingRondeMotifColor={editingRondeMotifColor}
@@ -779,8 +699,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           editingHolidayId={editingHolidayId}
           editingHolidayDateIso={editingHolidayDateIso}
           editingHolidayLabel={editingHolidayLabel}
-          pagedHolidays={pagedHolidays}
           filteredHolidays={filteredHolidays}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           setHolidayYear={setHolidayYear}
           setEditingHolidayId={setEditingHolidayId}
           setEditingHolidayDateIso={setEditingHolidayDateIso}
@@ -796,8 +717,9 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "fransorResponsables" && (
         <FransorResponsablesDataTab
           canDeleteData={props.canDeleteData}
-          pagedFransorResponsables={pagedFransorResponsables}
           filteredFransorResponsables={filteredFransorResponsables}
+          pageStart={pageStart}
+          pageEnd={pageEnd}
           editingFransorResponsableId={editingFransorResponsableId}
           editingFransorResponsableName={editingFransorResponsableName}
           setEditingFransorResponsableId={setEditingFransorResponsableId}
@@ -805,47 +727,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           onUpdateFransorResponsable={props.onUpdateFransorResponsable}
           onDeleteFransorResponsable={props.onDeleteFransorResponsable}
           openDeleteReasonModal={openDeleteReasonModal}
-        />
-      )}
-
-      {props.activeDataTab === "pendingSites" && (
-        <PendingSitesDataTab
-          pagedPendingSites={pagedPendingSites}
-          hasAnyPendingSites={Boolean(props.pendingSites.length)}
-          onValidate={(site) => {
-            setCreateModalTarget("sites");
-            setPendingSiteToResolveId(site.id);
-            setPendingIntervenantToResolveId(null);
-            setSiteCode(site.code);
-            setSiteName(site.name);
-            setSiteAddress("");
-            setSiteParc("");
-            setSiteFamille("");
-            setShowCreateModal(true);
-          }}
-          onDelete={(site) => {
-            openDeleteReasonModal(`site en attente ${site.code}`, (reason) =>
-              props.onDeletePendingSiteSubmission({ pendingId: site.id, reason })
-            );
-          }}
-        />
-      )}
-      {props.activeDataTab === "pendingIntervenants" && (
-        <PendingIntervenantsDataTab
-          pagedPendingIntervenants={pagedPendingIntervenants}
-          hasAnyPendingIntervenants={Boolean(props.pendingIntervenants.length)}
-          onValidate={(item) => {
-            setCreateModalTarget("intervenants");
-            setPendingIntervenantToResolveId(item.id);
-            setPendingSiteToResolveId(null);
-            setIntervenantName(item.name);
-            setShowCreateModal(true);
-          }}
-          onDelete={(item) => {
-            openDeleteReasonModal(`intervenant en attente ${item.name}`, (reason) =>
-              props.onDeletePendingIntervenantSubmission({ pendingId: item.id, reason })
-            );
-          }}
         />
       )}
 
@@ -867,6 +748,22 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           </button>
         </div>
       </div>
+
+      {showPendingSubmissionsModal &&
+      (props.activeDataTab === "sites" || props.activeDataTab === "intervenants") ? (
+        <PendingSubmissionsModal
+          kind={props.activeDataTab}
+          pendingSites={props.pendingSites}
+          pendingIntervenants={props.pendingIntervenants}
+          onClose={() => setShowPendingSubmissionsModal(false)}
+          onResolveSite={props.onResolvePendingSite}
+          onResolveIntervenant={props.onResolvePendingIntervenant}
+          onDeleteSiteSubmission={props.onDeletePendingSiteSubmission}
+          onDeleteIntervenantSubmission={props.onDeletePendingIntervenantSubmission}
+          openDeleteReasonModal={openDeleteReasonModal}
+          onNotify={props.onNotify}
+        />
+      ) : null}
 
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
@@ -955,9 +852,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               <button className="btn-light" onClick={() => setShowCreateModal(false)}>
                 Annuler
               </button>
-              <button onClick={() => void submitCreate()}>
-                {pendingSiteToResolveId || pendingIntervenantToResolveId ? "Valider l'entrée" : "Ajouter"}
-              </button>
+              <button onClick={() => void submitCreate()}>Ajouter</button>
             </div>
           </section>
         </div>

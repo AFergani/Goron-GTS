@@ -15,18 +15,23 @@ type DataSearchImportBarProps = {
   siteFamilleOptions: string[];
   importColumnsHint: string;
   isImporting: boolean;
+  pendingSubmissionsCount: number;
   onSearchQueryChange: (value: string) => void;
   onSiteParcFilterChange: (value: string) => void;
   onSiteFamilleFilterChange: (value: string) => void;
   onResetSearch: () => void;
   onOpenImport: () => void;
   onOpenCreate: () => void;
+  onOpenPendingSubmissions: () => void;
   showImport: boolean;
   showCreate: boolean;
 };
 
 export function DataSearchImportBar(props: DataSearchImportBarProps) {
   const isSitesTab = props.activeDataTab === "sites";
+  const showPendingButton =
+    (props.activeDataTab === "sites" || props.activeDataTab === "intervenants") &&
+    props.pendingSubmissionsCount > 0;
 
   return (
     <div className="data-actions-bar">
@@ -74,6 +79,19 @@ export function DataSearchImportBar(props: DataSearchImportBarProps) {
       >
         <RotateCcw size={14} />
       </button>
+      {showPendingButton ? (
+        <button
+          type="button"
+          className="btn-light data-pending-submissions-btn"
+          title={`${props.pendingSubmissionsCount} soumission(s) à traiter`}
+          onClick={props.onOpenPendingSubmissions}
+        >
+          Voir les soumissions
+          <span className="tab-badge" aria-hidden>
+            {props.pendingSubmissionsCount}
+          </span>
+        </button>
+      ) : null}
       {props.showImport ? (
         <button
           className="btn-light"

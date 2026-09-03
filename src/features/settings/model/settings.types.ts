@@ -3,21 +3,26 @@
  */
 
 import type { ReactNode } from "react";
-import type { AnomalyTypeRef, AuditLog, HolidayRef, IntervenantRef, ManagerProfile, Role, SiteRef, User } from "../../../types";
+import type { ManagerProfile, Role } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "variables" | "database" | "audit";
 /** Sous-onglets de Paramètres → Modèles et variables (l’ancien onglet `variables` est redirigé ici). */
 export type DocumentsTab = "templates" | "variables";
+
+/** Sous-onglets visibles de Gestion des données. */
 export type DataTab =
   | "sites"
   | "intervenants"
   | "types"
   | "rondeMotifs"
   | "holidays"
-  | "documentTemplates"
-  | "fransorResponsables"
-  | "pendingSites"
-  | "pendingIntervenants";
+  | "fransorResponsables";
+
+/**
+ * Cibles de rechargement après import / validation pending.
+ * Inclut les files d’attente (pas d’onglet UI dédié : affichage inline Sites / Intervenants).
+ */
+export type DataRefreshTarget = DataTab | "pendingSites" | "pendingIntervenants";
 
 export type CreateUserFormState = {
   username: string;

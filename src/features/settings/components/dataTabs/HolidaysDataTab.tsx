@@ -4,7 +4,8 @@
 
 import { ChevronLeft, ChevronRight, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { HolidayRef } from "../../../../types";
-import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
+import { useTableSort } from "../../../common/hooks/useTableSort";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
 
 type HolidaysDataTabProps = {
   canDeleteData: boolean;
@@ -12,8 +13,9 @@ type HolidaysDataTabProps = {
   editingHolidayId: string | null;
   editingHolidayDateIso: string;
   editingHolidayLabel: string;
-  pagedHolidays: HolidayRef[];
   filteredHolidays: HolidayRef[];
+  pageStart: number;
+  pageEnd: number;
   setHolidayYear: (value: string) => void;
   setEditingHolidayId: (value: string | null) => void;
   setEditingHolidayDateIso: (value: string) => void;
@@ -24,6 +26,8 @@ type HolidaysDataTabProps = {
   onNotify?: (message: string) => void;
 };
 
+type HolidaySortKey = "date" | "label";
+
 export function HolidaysDataTab(props: HolidaysDataTabProps) {
   const formatDateFr = (dateIso: string) => {
     if (!dateIso) return "";
@@ -32,6 +36,18 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
     return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
   const isFixedHoliday = (item: HolidayRef) => String(item.id || "").startsWith("fr-fixed-");
+
+  const comparators: Record<HolidaySortKey, (a: HolidayRef, b: HolidayRef) => number> = {
+    date: (a, b) => compareTextFr(a.dateIso, b.dateIso),
+    label: (a, b) => compareTextFr(a.label, b.label)
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<HolidayRef, HolidaySortKey>(
+    props.filteredHolidays,
+    comparators,
+    { key: "date", direction: "asc" }
+  );
+  const pagedHolidays = sortedEntries.slice(props.pageStart, props.pageEnd);
+  const sortLabel = (key: HolidaySortKey) => tableSortArrow(sortKey, key, sortDirection);
 
   return (
     <div className="table-scroll-x">
@@ -86,13 +102,21 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
         </colgroup>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Libellé</th>
+            <th>
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>
+                Date {sortLabel("date")}
+              </button>
+            </th>
+            <th>
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("label")}>
+                Libellé {sortLabel("label")}
+              </button>
+            </th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {props.pagedHolidays.map((item) => (
+          {pagedHolidays.map((item) => (
             <tr key={item.id}>
               <td>
                 {props.editingHolidayId === item.id ? (

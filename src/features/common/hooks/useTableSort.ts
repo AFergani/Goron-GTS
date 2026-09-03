@@ -7,7 +7,8 @@ import { useMemo, useState } from "react";
  * `comparators` changent. `toggleSort` : sur la colonne active, alterne asc/desc ;
  * sur une nouvelle colonne, active cette clé en ascendant.
  *
- * Utilisé par : MainCouranteTable, InterventionTable, RondeTable, GardiennageTable.
+ * Utilisé par : MainCouranteTable, InterventionTable, RondeTable, GardiennageTable,
+ * onglets Gestion des données.
  */
 
 type SortDirection = "asc" | "desc";

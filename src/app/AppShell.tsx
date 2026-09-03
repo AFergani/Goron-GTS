@@ -475,7 +475,6 @@ export function AppShell() {
             postgresConfig={settings.postgresConfig}
             postgresDraft={settings.postgresDraft}
             postgresTestResult={settings.postgresTestResult}
-            postgresBusy={settings.postgresBusy}
             postgresBusyPhase={settings.postgresBusyPhase}
             onPostgresDraftChange={settings.setPostgresDraft}
             onSavePostgresConfig={() => void settings.onSavePostgresConfig()}

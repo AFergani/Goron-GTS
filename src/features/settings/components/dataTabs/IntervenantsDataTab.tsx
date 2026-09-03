@@ -4,169 +4,129 @@
 
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { IntervenantRef } from "../../../../types";
-import type { PendingIntervenant } from "../../../common/model/pendingRefs.types";
-import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
+import { useTableSort } from "../../../common/hooks/useTableSort";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
 
 type IntervenantsDataTabProps = {
   canDeleteData: boolean;
-  pendingIntervenants: PendingIntervenant[];
-  pagedIntervenants: IntervenantRef[];
   filteredIntervenants: IntervenantRef[];
+  pageStart: number;
+  pageEnd: number;
   editingIntervenantId: string | null;
   editingIntervenantName: string;
   setEditingIntervenantId: (value: string | null) => void;
   setEditingIntervenantName: (value: string) => void;
   onUpdateIntervenant: (id: string, name: string) => SyncOrAsync;
   onDeleteIntervenant: (id: string, reason: string) => void;
-  onOpenPendingIntervenantValidation: (item: PendingIntervenant) => void;
-  onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
   openDeleteReasonModal: OpenDeleteReasonModal;
 };
 
-export function IntervenantsDataTab(props: IntervenantsDataTabProps) {
-  return (
-    <>
-      {props.pendingIntervenants.length ? (
-        <>
-          <div className="data-inline-pending-box">
-            <strong>Intervenants en attente:</strong> {props.pendingIntervenants.length} soumission(s) à traiter.
-          </div>
-          <div className="table-scroll-x">
-            <table className="data-table-fixed data-table-intervenants">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Créé par</th>
-                  <th>Créé le</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {props.pendingIntervenants.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.createdBy}</td>
-                    <td>{new Date(item.createdAt).toLocaleString("fr-FR")}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          className="btn-light action-icon-btn"
-                          title="Valider cet intervenant en attente"
-                          aria-label="Valider cet intervenant en attente"
-                          onClick={() => props.onOpenPendingIntervenantValidation(item)}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          className="btn-danger action-icon-btn"
-                          title="Supprimer la soumission"
-                          aria-label="Supprimer la soumission"
-                          onClick={() => {
-                            props.openDeleteReasonModal(`intervenant en attente ${item.name}`, (reason) =>
-                              props.onDeletePendingIntervenantSubmission({ pendingId: item.id, reason })
-                            );
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : null}
+type IntervenantSortKey = "name";
 
-      <div className="table-scroll-x">
-        <table className="data-table-fixed data-table-intervenants">
-          <colgroup>
-            <col className="data-col-single" />
-            <col className="data-col-actions" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Nom</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {props.pagedIntervenants.map((intervenant) => (
-              <tr key={intervenant.id}>
-                <td>
+export function IntervenantsDataTab(props: IntervenantsDataTabProps) {
+  const comparators: Record<IntervenantSortKey, (a: IntervenantRef, b: IntervenantRef) => number> = {
+    name: (a, b) => compareTextFr(a.name, b.name)
+  };
+  const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<IntervenantRef, IntervenantSortKey>(
+    props.filteredIntervenants,
+    comparators,
+    { key: "name", direction: "asc" }
+  );
+  const pagedIntervenants = sortedEntries.slice(props.pageStart, props.pageEnd);
+  const sortLabel = (key: IntervenantSortKey) => tableSortArrow(sortKey, key, sortDirection);
+
+  return (
+    <div className="table-scroll-x">
+      <table className="data-table-fixed data-table-intervenants">
+        <colgroup>
+          <col className="data-col-single" />
+          <col className="data-col-actions" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("name")}>
+                Nom {sortLabel("name")}
+              </button>
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pagedIntervenants.map((intervenant) => (
+            <tr key={intervenant.id}>
+              <td>
+                {props.editingIntervenantId === intervenant.id ? (
+                  <input value={props.editingIntervenantName} onChange={(e) => props.setEditingIntervenantName(e.target.value)} />
+                ) : (
+                  intervenant.name
+                )}
+              </td>
+              <td>
+                <div className="table-actions">
                   {props.editingIntervenantId === intervenant.id ? (
-                    <input value={props.editingIntervenantName} onChange={(e) => props.setEditingIntervenantName(e.target.value)} />
-                  ) : (
-                    intervenant.name
-                  )}
-                </td>
-                <td>
-                  <div className="table-actions">
-                    {props.editingIntervenantId === intervenant.id ? (
-                      <>
-                        <button
-                          className="btn-light action-icon-btn"
-                          title="Sauvegarder"
-                          aria-label="Sauvegarder"
-                          onClick={() => {
-                            void props.onUpdateIntervenant(intervenant.id, props.editingIntervenantName);
-                            props.setEditingIntervenantId(null);
-                          }}
-                        >
-                          <Save size={14} />
-                        </button>
-                        <button
-                          className="btn-light action-icon-btn"
-                          title="Annuler"
-                          aria-label="Annuler"
-                          onClick={() => props.setEditingIntervenantId(null)}
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                      </>
-                    ) : (
+                    <>
                       <button
                         className="btn-light action-icon-btn"
-                        title="Modifier"
-                        aria-label="Modifier"
+                        title="Sauvegarder"
+                        aria-label="Sauvegarder"
                         onClick={() => {
-                          props.setEditingIntervenantId(intervenant.id);
-                          props.setEditingIntervenantName(intervenant.name);
+                          void props.onUpdateIntervenant(intervenant.id, props.editingIntervenantName);
+                          props.setEditingIntervenantId(null);
                         }}
                       >
-                        <Pencil size={14} />
+                        <Save size={14} />
                       </button>
-                    )}
-                    {props.canDeleteData && (
                       <button
-                        className="btn-danger action-icon-btn"
-                        title="Supprimer"
-                        aria-label="Supprimer"
-                        onClick={() => {
-                          props.openDeleteReasonModal(`intervenant ${intervenant.name}`, (reason) =>
-                            props.onDeleteIntervenant(intervenant.id, reason)
-                          );
-                        }}
+                        className="btn-light action-icon-btn"
+                        title="Annuler"
+                        aria-label="Annuler"
+                        onClick={() => props.setEditingIntervenantId(null)}
                       >
-                        <Trash2 size={14} />
+                        <RotateCcw size={14} />
                       </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!props.filteredIntervenants.length && (
-              <tr>
-                <td colSpan={2} className="muted">
-                  Aucun intervenant. Colonne attendue pour l'import: nom (alias: intervenant, intervenants, société,
-                  prestataire, entreprise).
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
+                    </>
+                  ) : (
+                    <button
+                      className="btn-light action-icon-btn"
+                      title="Modifier"
+                      aria-label="Modifier"
+                      onClick={() => {
+                        props.setEditingIntervenantId(intervenant.id);
+                        props.setEditingIntervenantName(intervenant.name);
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                  {props.canDeleteData && (
+                    <button
+                      className="btn-danger action-icon-btn"
+                      title="Supprimer"
+                      aria-label="Supprimer"
+                      onClick={() => {
+                        props.openDeleteReasonModal(`intervenant ${intervenant.name}`, (reason) =>
+                          props.onDeleteIntervenant(intervenant.id, reason)
+                        );
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+          {!props.filteredIntervenants.length && (
+            <tr>
+              <td colSpan={2} className="muted">
+                Aucun intervenant. Colonne attendue pour l'import: nom (alias: intervenant, intervenants, société,
+                prestataire, entreprise).
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }

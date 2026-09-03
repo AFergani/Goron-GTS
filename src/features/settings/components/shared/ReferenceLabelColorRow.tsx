@@ -6,7 +6,6 @@
  */
 
 import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
 
 type ReferenceItem = {
   id: string;
@@ -29,8 +28,6 @@ type ReferenceLabelColorRowProps<T extends ReferenceItem> = {
   setEditingColor: (value: string) => void;
   systemLabel?: string;
   colorDefault: string;
-  getDeleteTargetLabel?: (item: T) => string;
-  renderExtraAction?: (item: T) => ReactNode;
 };
 
 export function ReferenceLabelColorRow<T extends ReferenceItem>({
@@ -46,9 +43,7 @@ export function ReferenceLabelColorRow<T extends ReferenceItem>({
   setEditingLabel,
   setEditingColor,
   systemLabel = "Type système",
-  colorDefault,
-  getDeleteTargetLabel,
-  renderExtraAction
+  colorDefault
 }: ReferenceLabelColorRowProps<T>) {
   return (
     <tr key={item.id}>
@@ -112,7 +107,6 @@ export function ReferenceLabelColorRow<T extends ReferenceItem>({
                 <Pencil size={14} />
               </button>
             )}
-            {renderExtraAction ? renderExtraAction(item) : null}
             {canDeleteData && (
               <button
                 className="btn-danger action-icon-btn"

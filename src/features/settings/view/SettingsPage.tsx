@@ -19,7 +19,7 @@ import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDra
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import type { Role } from "../../../types";
-import type { DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
+import type { DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { PublicPostgresConfig, PostgresTestResult, TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type {
@@ -36,29 +36,13 @@ import type {
 import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
 import type { RondePlannedProfileRef } from "../../rondes/model/rondePlanned.types";
-import { formatAuditActionLabel } from "../model/auditActionLabels";
+import {
+  formatAuditActionLabel,
+  formatAuditStatus,
+  resolveAuditFamily
+} from "../model/auditActionLabels";
 
 const AUDIT_PAGE_SIZE = 100;
-
-function resolveAuditFamily(action: string, label: string) {
-  const bracketMatch = label.match(/^\[([^\]]+)\]\s*/);
-  if (bracketMatch) return bracketMatch[1];
-  if (action.startsWith("MAIN_COURANTE_")) return "Main courante";
-  if (action.startsWith("INTERVENTION_")) return "Intervention";
-  if (action.startsWith("RONDE_")) return "Rondes";
-  if (action.startsWith("FRANSOR_")) return "Fransor";
-  if (action.startsWith("DATA_")) return "Référentiels";
-  if (action.startsWith("USER_") || action.startsWith("USERS_") || action.startsWith("AUTH_")) return "Utilisateurs";
-  return "Système";
-}
-
-function formatAuditStatus(status: string) {
-  const labels: Record<string, string> = {
-    SUCCESS: "Succès",
-    ERROR: "Erreur"
-  };
-  return labels[status] || status;
-}
 
 type SettingsPageProps = {
   session: Session | null;
@@ -88,7 +72,6 @@ type SettingsPageProps = {
   postgresConfig: PublicPostgresConfig | null;
   postgresDraft: PostgresConfigDraft;
   postgresTestResult: PostgresTestResult | null;
-  postgresBusy: boolean;
   postgresBusyPhase: PostgresBusyPhase;
   onTabChange: (next: SettingsTab) => void;
   activeDataTab: DataTab;
@@ -131,7 +114,7 @@ type SettingsPageProps = {
     failed: number;
     errorEntries: Array<{ rowIndex: number; message: string; row: Record<string, unknown> }>;
   }) => Promise<void>;
-  onRefreshImportedData: (target: DataTab) => Promise<void>;
+  onRefreshImportedData: (target: DataRefreshTarget) => Promise<void>;
   onResolvePendingSite: (payload: { pendingId: string; parc: string; famille: string }) => void | Promise<void>;
   onResolvePendingIntervenant: (payload: { pendingId: string; name: string }) => void | Promise<void>;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
@@ -527,7 +510,6 @@ export function SettingsPage(props: SettingsPageProps) {
 
       {activeTab === "data" && props.canManageData && (
         <DataManagementPanel
-          requesterRole={props.requesterRole}
           activeDataTab={props.activeDataTab}
           onDataTabChange={props.onDataTabChange}
           sites={props.sites}

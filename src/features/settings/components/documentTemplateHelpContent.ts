@@ -121,22 +121,6 @@ export function helpIdFromFlowKind(flowKind: TemplateFlowKind | string): string 
 }
 
 /**
- * Identifiant d’aide Word déduit du nom de fichier modèle (défaut ou attribution scopée).
- *
- * @param fileName - Nom du fichier `.docx`.
- * @returns Clé d’aide du flux, alias ronde, ou `custom-docx` pour un fichier non rattaché.
- */
-export function helpIdFromTemplateFileName(fileName: string): string {
-  const name = String(fileName || "").trim().toLowerCase();
-  if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
-  if (name === "main-courante-template.docx") return "main-courante";
-  if (name === "ronde-template.docx") return "ronde";
-  if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
-  if (name.startsWith("ronde_exceptionnelle_")) return "ronde-exceptionnelle";
-  return "custom-docx";
-}
-
-/**
  * Formulaires métier dont les variables custom s’ajoutent à l’aide du modèle.
  *
  * @param helpId - Identifiant d’aide Word.
