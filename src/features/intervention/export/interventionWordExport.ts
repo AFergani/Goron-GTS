@@ -12,7 +12,7 @@ import {
   type InterventionEntry
 } from "../model/intervention.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { downloadBlob } from "../../mainCourante/export/downloadBlob";
+import { downloadBlob } from "../../common/utils/downloadBlob";
 import { safeExportFilenamePart } from "../../mainCourante/export/mainCouranteExportFormat";
 
 const INTERVENTION_TEMPLATE_NAME = "intervention-template.docx";

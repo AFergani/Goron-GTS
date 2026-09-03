@@ -8,7 +8,7 @@ import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { downloadBlob } from "../../mainCourante/export/downloadBlob";
+import { downloadBlob } from "../../common/utils/downloadBlob";
 import { safeExportFilenamePart } from "../../mainCourante/export/mainCouranteExportFormat";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { formatDateShortFr } from "../utils/formatDateShortFr";

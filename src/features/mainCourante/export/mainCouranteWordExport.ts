@@ -23,7 +23,7 @@ import {
   safeExportFilenamePart,
   statusLabelFr
 } from "./mainCouranteExportFormat";
-import { downloadBlob } from "./downloadBlob";
+import { downloadBlob } from "../../common/utils/downloadBlob";
 
 const MAIN_COURANTE_TEMPLATE_URL = "/templates/main-courante-template.docx";
 let templateMissingWarningShown = false;

@@ -6,6 +6,7 @@
  */
 
 import * as XLSX from "xlsx";
+import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { GardiennageEntry } from "../model/gardiennage.types";
 import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";
 
@@ -89,5 +90,5 @@ export function exportGardiennageToExcel(entries: GardiennageEntry[]): void {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Gardiennage");
-  XLSX.writeFile(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
+  downloadSheetJsWorkbook(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
 }

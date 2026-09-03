@@ -8,7 +8,7 @@
 import ExcelJS from "exceljs";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
-import { downloadBlob } from "./downloadBlob";
+import { downloadBlob } from "../../common/utils/downloadBlob";
 import { exportTimestampForFilename, formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
 
 /** Colonnes avec largeur et activation éventuelle du retour à la ligne. */

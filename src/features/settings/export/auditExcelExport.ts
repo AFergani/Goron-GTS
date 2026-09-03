@@ -3,6 +3,7 @@
  */
 
 import * as XLSX from "xlsx";
+import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { AuditLog } from "../../../types";
 
 function exportTimestampForFilename() {
@@ -32,5 +33,5 @@ export function exportAuditLogsToExcel(logs: AuditLog[]) {
   ws["!cols"] = [{ wch: 21 }, { wch: 20 }, { wch: 34 }, { wch: 20 }, { wch: 12 }, { wch: 80 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Journal des actions");
-  XLSX.writeFile(wb, `journal-actions_${exportTimestampForFilename()}.xlsx`);
+  downloadSheetJsWorkbook(wb, `journal-actions_${exportTimestampForFilename()}.xlsx`);
 }

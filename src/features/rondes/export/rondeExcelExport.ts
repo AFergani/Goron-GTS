@@ -3,6 +3,7 @@
  */
 
 import * as XLSX from "xlsx";
+import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { RondeEntry } from "../model/ronde.types";
 import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";
 
@@ -83,5 +84,5 @@ export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde cont
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   const scope = sheetName === "Ronde contractuelle" ? "contractuelle" : "exceptionnelle";
-  XLSX.writeFile(wb, `ronde_${scope}_export_${exportTimestampFrForFilename()}.xlsx`);
+  downloadSheetJsWorkbook(wb, `ronde_${scope}_export_${exportTimestampFrForFilename()}.xlsx`);
 }

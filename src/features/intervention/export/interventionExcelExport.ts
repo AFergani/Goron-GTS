@@ -2,6 +2,7 @@
  * Export Excel de la liste interventions filtrée (colonnes métier, pas d’UUID).
  */
 
+import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import * as XLSX from "xlsx";
 import {
   INTERVENTION_NO_WORK_ORDER_LABEL,
@@ -96,5 +97,5 @@ export function exportInterventionToExcel(entries: InterventionEntry[]): void {
   XLSX.utils.book_append_sheet(wb, ws, "Intervention");
   wb.Workbook = wb.Workbook || {};
   wb.Workbook.Views = [{ RTL: false }];
-  XLSX.writeFile(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
+  downloadSheetJsWorkbook(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
 }
