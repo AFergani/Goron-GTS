@@ -152,7 +152,7 @@ function dropSession(token) {
  *
  * @param {string|null|undefined} token
  * @param {import('../../userStore')} userStore
- * @returns {null|{ expired: true }|{ username: string, role: string, managerProfile: string|null }}
+ * @returns {null|{ expired: true }|{ unavailable: true }|{ username: string, role: string, managerProfile: string|null }}
  */
 function validateSession(token, userStore) {
   if (!token || typeof token !== "string" || !userStore) return null;
@@ -162,8 +162,15 @@ function validateSession(token, userStore) {
     dropSession(token);
     return { expired: true };
   }
+  const cache = userStore._usersByUsernameCache;
+  const cacheReady = cache instanceof Map && cache.size > 0;
   const row = typeof userStore.getCachedUserRow === "function" ? userStore.getCachedUserRow(rec.username) : null;
   if (!row) {
+    // Cache pas encore chargé / vidé pendant une reconnexion PG : ne pas révoquer le jeton
+    // (sinon tous les IPC parallèles tombent en SESSION_INVALID et spamment l'UI).
+    if (!cacheReady) {
+      return { unavailable: true };
+    }
     dropSession(token);
     return null;
   }

@@ -171,8 +171,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   return (
     <>
       <div className="templates-management-panel">
-        <div className="row">
-          <h3 style={{ marginTop: 0 }}>Gestion des modèles Word</h3>
+        <div className="row settings-tab-toolbar settings-tab-toolbar--end">
           <div className="row-actions">
             <button
               type="button"

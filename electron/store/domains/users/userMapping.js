@@ -16,22 +16,22 @@ const USERS_SELECT = `id, username, full_name, role, manager_profile, theme_mode
   created_by, created_at, updated_by, updated_at`;
 
 /**
- * Applique les accès aux pages : les vues métier sont toujours ouvertes, seul
- * Paramètres est réglable (off par défaut pour un opérateur, on pour un responsable).
+ * Applique les accès aux pages : les vues métier sont toujours ouvertes.
+ * Paramètres est automatique selon le rôle (oui si non-opérateur, jamais pour un opérateur).
  *
- * @param {object|null|undefined} pageAccess
+ * @param {object|null|undefined} _pageAccess - Conservé pour compatibilité d'appel ; ignoré.
  * @param {string} role
  * @returns {object}
  */
-function normalizePageAccess(pageAccess, role) {
-  const settingsDefault = role !== "OPERATEUR";
+function normalizePageAccess(_pageAccess, role) {
   return {
     mainCourante: true,
     fransor: true,
     intervention: true,
     rondes: true,
     gardiennage: true,
-    settings: pageAccess?.settings ?? settingsDefault
+    // Aligné sur resolveUserPageAccess / getDefaultPageAccessByRole (DEV hors OPERATEUR côté sanitize).
+    settings: role !== "OPERATEUR"
   };
 }
 

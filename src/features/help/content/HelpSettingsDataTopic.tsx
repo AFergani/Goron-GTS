@@ -37,9 +37,10 @@ export function HelpSettingsDataTopic() {
           </li>
         </ol>
         <div className="help-center-callout help-center-callout--warn" role="note">
-          <strong>Niveau d&apos;accès :</strong> cet écran est réservé aux profils ayant le module <strong>Paramètres</strong> activé. Les actions
-          de suppression de lignes sont quant à elles exclusivement réservées aux profils <strong>Responsable</strong> et{" "}
-          <strong>Admin</strong>.
+          <strong>Niveau d&apos;accès :</strong> réservé aux profils <strong>Responsable</strong> (superviseur, responsable de
+          station, directeur) et <strong>Admin</strong>. Les opérateurs n&apos;ont pas accès aux Paramètres. Tous les responsables
+          peuvent consulter, ajouter, modifier et supprimer ; une suppression reste refusée si la référence est encore utilisée
+          (fiches métier, rondes planifiées, etc.).
         </div>
       </div>
 

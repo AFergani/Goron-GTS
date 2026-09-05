@@ -51,7 +51,7 @@ export function VariablesManagementPanel({
   const [draftScopeSite, setDraftScopeSite] = useState<SiteRef | null>(null);
   const [draftScopeFamille, setDraftScopeFamille] = useState("");
   const [deleteFieldKey, setDeleteFieldKey] = useState<string | null>(null);
-  const canEdit = requesterRole !== "OPERATEUR";
+  const canEdit = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -262,8 +262,7 @@ export function VariablesManagementPanel({
 
   return (
     <div>
-      <div className="row">
-        <h3>Gestion des variables</h3>
+      <div className="row settings-tab-toolbar settings-tab-toolbar--end">
         <div className="row-actions">
           <button
             type="button"

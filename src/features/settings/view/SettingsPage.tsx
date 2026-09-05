@@ -6,7 +6,7 @@
  * Pas d’affichage d’identifiants techniques en liste.
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { CircleHelp, Download, RotateCcw } from "lucide-react";
 import { AuditTable } from "../components/AuditTable";
@@ -46,7 +46,6 @@ type SettingsPageProps = {
   canManageUsers: boolean;
   /** Inclut le superviseur, dont la portée est bornée par la hiérarchie. */
   canAccessOperatorsTab: boolean;
-  canEditPageAccess: boolean;
   canManageData: boolean;
   canDeleteData: boolean;
   requesterRole: Role;
@@ -126,7 +125,7 @@ type SettingsPageProps = {
   onCloseCreateModal: () => void;
   onCreateFormChange: (next: CreateUserFormState) => void;
   createForm: CreateUserFormState;
-  onSubmitCreate: (e: FormEvent) => void;
+  onSubmitCreate: () => void | Promise<void>;
   userModalMode: "create" | "edit";
   editingTechnicalUsername?: string;
 };
@@ -188,7 +187,7 @@ export function SettingsPage(props: SettingsPageProps) {
     const t = props.activeTab;
     if (props.canManageUsers) return t;
     if (props.canAccessOperatorsTab && t === "operators") return "operators";
-    if (t === "database" && props.canManageData) return "database";
+    if (props.canManageData && (t === "data" || t === "templates")) return t;
     return "data";
   })();
   const auditTotalPages = auditPageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredAuditLogs.length / auditPageSize));
@@ -232,7 +231,7 @@ export function SettingsPage(props: SettingsPageProps) {
             Modèles et variables
           </button>
         )}
-        {props.canManageData && (
+        {props.canManageUsers && (
           <button className={activeTab === "database" ? "tab active" : "tab"} onClick={() => props.onTabChange("database")}>
             Gestion Base de données
           </button>
@@ -245,69 +244,71 @@ export function SettingsPage(props: SettingsPageProps) {
       </div>
 
       {activeTab === "operators" && props.canAccessOperatorsTab && (
-        <>
-          <section className="panel">
-            <div className="row">
-              <h3>Liste des utilisateurs</h3>
-              <div className="row-actions users-header-actions">
-                <button
-                  type="button"
-                  className="btn-light action-icon-btn"
-                  title="Aide — gestion opérateur"
-                  aria-label="Aide — gestion opérateur"
-                  onClick={() => props.onOpenHelpTopic("settings-operators")}
-                >
-                  <CircleHelp size={14} />
-                </button>
-                <div className="user-filter-bar">
-                  <button
-                    className={userFilter === "active" ? "tab active" : "tab"}
-                    type="button"
-                    onClick={() => setUserFilter("active")}
-                  >
-                    Actifs
-                  </button>
-                  <button
-                    className={userFilter === "inactive" ? "tab active" : "tab"}
-                    type="button"
-                    onClick={() => setUserFilter("inactive")}
-                  >
-                    Désactivés
-                  </button>
-                  <button
-                    className={userFilter === "all" ? "tab active" : "tab"}
-                    type="button"
-                    onClick={() => setUserFilter("all")}
-                  >
-                    Tous
-                  </button>
-                </div>
-                {props.canManageUsers && <button onClick={props.onOpenCreate}>Créer</button>}
-              </div>
+        <section className="panel">
+          <div className="row settings-tab-toolbar">
+            <div className="user-filter-bar" role="tablist" aria-label="Filtre utilisateurs">
+              <button
+                className={userFilter === "active" ? "tab active" : "tab"}
+                type="button"
+                role="tab"
+                aria-selected={userFilter === "active"}
+                onClick={() => setUserFilter("active")}
+              >
+                Actifs
+              </button>
+              <button
+                className={userFilter === "inactive" ? "tab active" : "tab"}
+                type="button"
+                role="tab"
+                aria-selected={userFilter === "inactive"}
+                onClick={() => setUserFilter("inactive")}
+              >
+                Désactivés
+              </button>
+              <button
+                className={userFilter === "all" ? "tab active" : "tab"}
+                type="button"
+                role="tab"
+                aria-selected={userFilter === "all"}
+                onClick={() => setUserFilter("all")}
+              >
+                Tous
+              </button>
             </div>
-            <p className="muted">
-              Vous pouvez gérer les comptes de niveau hiérarchique inférieur ou égal au vôtre. Chaque modification,
-              réinitialisation, déverrouillage, désactivation ou réactivation exige un motif tracé dans le journal des
-              actions.
-            </p>
-            <UsersTable
-              session={props.session}
-              users={filteredUsers}
-              activeUsernames={props.activeUsernames}
-              onDeactivateUser={props.onDeactivateUser}
-              onReactivateUser={props.onReactivateUser}
-              onEditUser={props.onOpenEditUser}
-              onUnlockUser={props.onUnlockUser}
-              onRequestPasswordReset={props.onRequestPasswordReset}
-            />
-          </section>
-        </>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="btn-light action-icon-btn"
+                title="Aide — gestion opérateur"
+                aria-label="Aide — gestion opérateur"
+                onClick={() => props.onOpenHelpTopic("settings-operators")}
+              >
+                <CircleHelp size={14} />
+              </button>
+              {props.canManageUsers && <button type="button" onClick={props.onOpenCreate}>Créer</button>}
+            </div>
+          </div>
+          <p className="muted">
+            Vous pouvez gérer les comptes de niveau hiérarchique inférieur ou égal au vôtre. Chaque modification,
+            réinitialisation, déverrouillage, désactivation ou réactivation exige un motif tracé dans le journal des
+            actions.
+          </p>
+          <UsersTable
+            session={props.session}
+            users={filteredUsers}
+            activeUsernames={props.activeUsernames}
+            onDeactivateUser={props.onDeactivateUser}
+            onReactivateUser={props.onReactivateUser}
+            onEditUser={props.onOpenEditUser}
+            onUnlockUser={props.onUnlockUser}
+            onRequestPasswordReset={props.onRequestPasswordReset}
+          />
+        </section>
       )}
 
       {activeTab === "audit" && props.canManageUsers && (
         <section className="panel">
-          <div className="row">
-            <h3>Journal</h3>
+          <div className="row settings-tab-toolbar">
             <div className="user-filter-bar" role="tablist" aria-label="Type de journal">
               <button
                 type="button"
@@ -332,14 +333,11 @@ export function SettingsPage(props: SettingsPageProps) {
 
           {auditJournalSubTab === "actions" ? (
             <>
-          <div className="row">
-            <h3>Journal des actions</h3>
-            <span className="muted">
+          <p className="muted">
               Historique visibilité des actions jusqu&apos;à{" "}
               <strong>{props.auditMetadata.firstOccurredAt ? new Date(props.auditMetadata.firstOccurredAt).toLocaleString("fr-FR") : "Aucune donnée"}</strong>
               {" "}({props.auditMetadata.total} entrée(s))
-            </span>
-          </div>
+          </p>
           <div className="audit-filters">
             <div className="main-log-filters-date-range" role="group" aria-label="Période du journal">
               <label className="main-log-filter-field--date">
@@ -527,39 +525,19 @@ export function SettingsPage(props: SettingsPageProps) {
         </section>
       )}
 
-      {activeTab === "database" && props.canManageData && (
+      {activeTab === "database" && props.canManageUsers && (
         <section className="panel">
-          <div className="row">
-            <h3>Base de données</h3>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="btn-light action-icon-btn"
-                title="Aide — gestion de la base de données"
-                aria-label="Aide — gestion de la base de données"
-                onClick={() => props.onOpenHelpTopic("settings-database")}
-              >
-                <CircleHelp size={14} />
-              </button>
-            </div>
-          </div>
-
-          {props.canManageUsers ? (
-            <PostgresConnectionPanel
-              config={props.postgresConfig}
-              draft={props.postgresDraft}
-              onDraftChange={props.onPostgresDraftChange}
-              onSave={props.onSavePostgresConfig}
-              onTest={props.onTestPostgresConfig}
-              onReconnect={props.onReconnectPostgres}
-              testResult={props.postgresTestResult}
-              busyPhase={props.postgresBusyPhase}
-            />
-          ) : (
-            <p className="muted">
-              La configuration PostgreSQL est réservée au directeur de station, responsable de station ou profil Admin.
-            </p>
-          )}
+          <PostgresConnectionPanel
+            config={props.postgresConfig}
+            draft={props.postgresDraft}
+            onDraftChange={props.onPostgresDraftChange}
+            onSave={props.onSavePostgresConfig}
+            onTest={props.onTestPostgresConfig}
+            onReconnect={props.onReconnectPostgres}
+            testResult={props.postgresTestResult}
+            busyPhase={props.postgresBusyPhase}
+            onHelpClick={() => props.onOpenHelpTopic("settings-database")}
+          />
         </section>
       )}
 
@@ -568,7 +546,6 @@ export function SettingsPage(props: SettingsPageProps) {
         form={props.createForm}
         mode={props.userModalMode}
         editingTechnicalUsername={props.editingTechnicalUsername}
-        canEditPageAccess={props.canEditPageAccess}
         session={props.session}
         onClose={props.onCloseCreateModal}
         onChange={props.onCreateFormChange}

@@ -1,10 +1,10 @@
 /**
  * Panneau admin : connexion PostgreSQL (hôte, port, base, utilisateur, mot de passe chiffré).
- * Affiché dans Paramètres → Base de données pour les profils autorisés (`canManageData`),
+ * Affiché dans Paramètres → Base de données (responsable / directeur de station, Admin),
  * et en variante bootstrap avant login.
  */
 
-import { Loader2 } from "lucide-react";
+import { CircleHelp, Loader2 } from "lucide-react";
 import type { PublicPostgresConfig, PostgresTestResult } from "../../../infrastructure/api/gtsApiClient";
 import { PasswordInput } from "../../common/components/PasswordInput";
 import "./PostgresConnectionPanel.css";
@@ -41,6 +41,8 @@ type PostgresConnectionPanelProps = {
   busyPhase?: PostgresBusyPhase;
   /** `bootstrap` = premier paramétrage avant login (sans reconnexion manuelle). */
   variant?: "admin" | "bootstrap";
+  /** Bouton d'aide (admin uniquement), aligné sur le texte d'intro. */
+  onHelpClick?: () => void;
 };
 
 /**
@@ -56,7 +58,8 @@ export function PostgresConnectionPanel({
   testResult,
   busy = false,
   busyPhase,
-  variant = "admin"
+  variant = "admin",
+  onHelpClick
 }: PostgresConnectionPanelProps) {
   const isBootstrap = variant === "bootstrap";
   const phase: PostgresBusyPhase = busyPhase ?? (busy ? "saving" : "idle");
@@ -92,13 +95,30 @@ export function PostgresConnectionPanel({
     );
 
   return (
-    <section className="postgres-config-panel" aria-labelledby="postgres-config-title" aria-busy={isBusy}>
-      <h4 id="postgres-config-title">Connexion PostgreSQL</h4>
-      <p className="muted postgres-config-lead">
-        {isBootstrap
-          ? "Indiquez le serveur PostgreSQL de la station (hôte LAN ou localhost). Le compte technique et le mot de passe sont stockés chiffrés sur ce poste uniquement."
-          : "Compte technique unique pour l'application. Le mot de passe est stocké chiffré sur ce poste et n'est jamais réaffiché."}
-      </p>
+    <div
+      className={isBootstrap ? "postgres-config-panel" : "postgres-config-panel postgres-config-panel--flat"}
+      aria-labelledby={isBootstrap ? "postgres-config-title" : undefined}
+      aria-busy={isBusy}
+    >
+      {isBootstrap ? <h4 id="postgres-config-title">Connexion PostgreSQL</h4> : null}
+      <div className="postgres-config-lead-row">
+        <p className="muted postgres-config-lead">
+          {isBootstrap
+            ? "Indiquez le serveur PostgreSQL de la station (hôte LAN ou localhost). Le compte technique et le mot de passe sont stockés chiffrés sur ce poste uniquement."
+            : "Compte technique unique pour l'application. Le mot de passe est stocké chiffré sur ce poste et n'est jamais réaffiché."}
+        </p>
+        {!isBootstrap && onHelpClick ? (
+          <button
+            type="button"
+            className="btn-light action-icon-btn"
+            title="Aide — gestion de la base de données"
+            aria-label="Aide — gestion de la base de données"
+            onClick={onHelpClick}
+          >
+            <CircleHelp size={14} />
+          </button>
+        ) : null}
+      </div>
       <div className="postgres-config-meta muted">
         <span>Source actuelle : {sourceLabel}</span>
         {config?.hasPassword ? <span>Mot de passe : enregistré</span> : <span>Mot de passe : non défini</span>}
@@ -216,6 +236,6 @@ export function PostgresConnectionPanel({
             : `Échec — ${testResult.error || "inaccessible"}`}
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }

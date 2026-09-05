@@ -42,8 +42,8 @@ export type CreateUserFormState = {
 
 /**
  * Accès pages par défaut selon le rôle (aligné sur `userMapping.normalizePageAccess`).
- * Les vues métier sont toujours ouvertes ; seul Paramètres varie
- * (activé pour un responsable, désactivé pour un opérateur).
+ * Les vues métier sont toujours ouvertes.
+ * Paramètres : oui pour tout non-opérateur (responsable), non pour un opérateur.
  *
  * @param role - Rôle technique du compte à créer / basculer
  */
@@ -54,7 +54,7 @@ export function getDefaultPageAccessByRole(role: Exclude<Role, "DEV">): CreateUs
     intervention: true,
     rondes: true,
     gardiennage: true,
-    settings: role === "RESPONSABLE"
+    settings: role !== "OPERATEUR"
   };
 }
 

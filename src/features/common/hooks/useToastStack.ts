@@ -1,6 +1,8 @@
 /**
  * Hook de pile de toasts (max 4, disparition auto, fermeture au clic).
  * Inspiré du NotificationManager RenExtract.
+ * Déduplique les messages identiques sur une courte fenêtre pour éviter
+ * le spam lors d'échecs IPC parallèles (ex. panne / reconnexion PostgreSQL).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +13,9 @@ import {
   type ToastItem,
   type ToastVariant
 } from "../model/toast.types";
+
+/** Fenêtre de déduplication des toasts au même libellé / variante. */
+const TOAST_DEDUPE_WINDOW_MS = 8000;
 
 function createToastId(): string {
   return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -28,6 +33,7 @@ export function useToastStack(): {
 } {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const recentKeysRef = useRef<Map<string, number>>(new Map());
 
   const clearTimer = useCallback((id: string) => {
     const timer = timersRef.current.get(id);
@@ -64,6 +70,15 @@ export function useToastStack(): {
 
       const resolvedVariant: ToastVariant =
         variant === "success" || variant === "warning" || variant === "error" ? variant : "success";
+
+      const dedupeKey = `${resolvedVariant}::${trimmed}`;
+      const now = Date.now();
+      const lastShownAt = recentKeysRef.current.get(dedupeKey);
+      if (lastShownAt != null && now - lastShownAt < TOAST_DEDUPE_WINDOW_MS) {
+        return;
+      }
+      recentKeysRef.current.set(dedupeKey, now);
+
       const durationMs = TOAST_DURATIONS_MS[resolvedVariant];
       const item: ToastItem = {
         id: createToastId(),
@@ -88,6 +103,7 @@ export function useToastStack(): {
     return () => {
       for (const timer of timersRef.current.values()) clearTimeout(timer);
       timersRef.current.clear();
+      recentKeysRef.current.clear();
     };
   }, []);
 

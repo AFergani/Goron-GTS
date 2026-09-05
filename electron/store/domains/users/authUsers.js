@@ -224,11 +224,6 @@ function isSuperviseurRequester(requester, roles) {
   return Boolean(requester && requester.role === roles.RESPONSABLE && requester.manager_profile === "SUPERVISEUR");
 }
 
-/** @returns {boolean} */
-function canManagePageAccess(store, requesterUsername, roles) {
-  return isStationAdminRequester(getCachedUserRow(store, requesterUsername), roles);
-}
-
 /**
  * Rang hiérarchique d'un compte : opérateur 0, superviseur 1,
  * responsable de station 2, directeur de station 3, Admin 4.
@@ -827,7 +822,7 @@ async function listUsers(store, { requesterUsername, role }) {
  */
 async function createUser(
   store,
-  { requesterUsername, username, fullName, role, managerProfile, pageAccess, roles }
+  { requesterUsername, username, fullName, role, managerProfile, roles }
 ) {
   const db = requirePersistence(store);
   await refreshUsersCache(store);
@@ -843,9 +838,7 @@ async function createUser(
     store.fail("users:create", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
   await assertActiveFullNameUnique(store, normalizedFullName, "users:create");
-  const normalizedPageAccess = canManagePageAccess(store, requesterUsername, roles)
-    ? normalizePageAccess(pageAccess, role)
-    : normalizePageAccess(null, role);
+  const normalizedPageAccess = normalizePageAccess(null, role);
   const normalizedManagerProfile = role === roles.RESPONSABLE ? managerProfile : null;
   assertCanAssignRank(
     store,
@@ -1033,7 +1026,6 @@ async function updateUserProfile(
     newRole,
     role,
     managerProfile,
-    pageAccess,
     mustResetPassword,
     reason,
     expectedUpdatedAt
@@ -1083,9 +1075,7 @@ async function updateUserProfile(
       "AUTH_SELF_ACTION_FORBIDDEN"
     );
   }
-  const nextPageAccess = canManagePageAccess(store, requesterUsername, role)
-    ? normalizePageAccess(pageAccess, newRole)
-    : normalizePageAccess(before.pageAccess, newRole);
+  const nextPageAccess = normalizePageAccess(null, newRole);
   // Une réinitialisation seule (aucun champ de profil modifié) est tracée sous sa propre action d'audit.
   const isPasswordResetOnly =
     Boolean(mustResetPassword) &&

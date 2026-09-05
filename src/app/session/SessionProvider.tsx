@@ -2,13 +2,14 @@
  * Contexte React de session utilisateur (connexion, jeton IPC, persistance dev).
  *
  * Enveloppe l'application dans `App.tsx`. Synchronise `gtsApiClient` avec le jeton
- * serveur, restaure la session depuis `localStorage` uniquement en mode développement,
- * et déclenche la déconnexion si le backend signale une session expirée ou invalide.
+ * serveur, restaure la session depuis `localStorage` uniquement en mode développement.
+ * La réaction UI à `SESSION_EXPIRED` / `SESSION_INVALID` (toast unique + déconnexion)
+ * est câblée dans `AppShell` via `setOnSessionExpired`.
  */
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { User } from "../../types";
-import { gtsApiClient, setGtsApiSessionToken, setOnSessionExpired } from "../../infrastructure/api/gtsApiClient";
+import { gtsApiClient, setGtsApiSessionToken } from "../../infrastructure/api/gtsApiClient";
 
 /** Utilisateur connecté + jeton de session Electron, ou absence de session. */
 export type Session = { user: User; sessionToken: string } | null;
@@ -82,12 +83,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
       setSessionState(null);
     })();
-  }, []);
-
-  const clearSessionRef = useRef(clearSession);
-  clearSessionRef.current = clearSession;
-  useEffect(() => {
-    setOnSessionExpired(() => clearSessionRef.current());
   }, []);
 
   useEffect(() => {

@@ -92,10 +92,10 @@ export function buildHelpNavigation(ctx: HelpAccessContext): HelpNavItem[] {
     if (ctx.canManageData) {
       items.push({ id: "settings-data", label: "Gestion des données", emoji: "🗂️" });
       items.push({ id: "settings-templates", label: "Modèles et variables", emoji: "📄" });
-      items.push({ id: "settings-database", label: "Gestion base de données", emoji: "💾" });
     }
 
     if (ctx.canManageUsers) {
+      items.push({ id: "settings-database", label: "Gestion base de données", emoji: "💾" });
       items.push({ id: "settings-audit", label: "Journal des actions", emoji: "📜" });
     }
   }

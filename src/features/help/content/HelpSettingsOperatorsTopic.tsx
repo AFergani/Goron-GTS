@@ -1,11 +1,11 @@
-/** Rubrique Paramètres — gestion des comptes opérateurs et droits pages. */
+/** Rubrique Paramètres — gestion des comptes opérateurs. */
 export function HelpSettingsOperatorsTopic() {
   return (
     <article className="help-center-article">
       <h2 className="help-center-content-title">👤 Gestion opérateur</h2>
       <p className="help-center-lead">
         L&apos;onglet <strong>Gestion opérateur</strong> (accessible dans les <strong>Paramètres</strong>) centralise l&apos;administration des
-        comptes utilisateurs de l&apos;application. Cet écran vous permet de créer des comptes, d&apos;ajuster les droits d&apos;accès aux modules, de
+        comptes utilisateurs de l&apos;application. Cet écran vous permet de créer des comptes, d&apos;ajuster le rôle et le profil métier, de
         gérer la sécurité (mots de passe, déverrouillages) et de suspendre des accès.
       </p>
       <p className="help-center-lead">
@@ -52,8 +52,9 @@ export function HelpSettingsOperatorsTopic() {
                   <strong>Superviseur</strong>
                 </td>
                 <td>
-                  Mêmes actions, sur les superviseurs et les opérateurs. En revanche, la <strong>création</strong> de comptes et le réglage de
-                  l&apos;accès à <strong>Paramètres</strong> restent réservés au responsable et au directeur de station.
+                  Mêmes actions, sur les superviseurs et les opérateurs. En revanche, la <strong>création</strong> de
+                  comptes reste réservée au responsable et au directeur de station. L&apos;accès aux Paramètres est
+                  automatique pour tout responsable (y compris superviseur).
                 </td>
               </tr>
               <tr>
@@ -61,7 +62,8 @@ export function HelpSettingsOperatorsTopic() {
                   <strong>Opérateur</strong>
                 </td>
                 <td>
-                  <strong>Aucun accès :</strong> cet onglet ne lui est pas visible.
+                  <strong>Aucun accès :</strong> cet onglet ne lui est pas visible. Les opérateurs n&apos;ont jamais accès aux
+                  Paramètres.
                 </td>
               </tr>
             </tbody>
@@ -97,9 +99,9 @@ export function HelpSettingsOperatorsTopic() {
             </ul>
           </li>
           <li>
-            <strong>Vues autorisées :</strong> les modules métier sont ouverts à tous les comptes. Seul l&apos;accès à
-            <strong> Paramètres</strong> se règle ici — réservé au <strong>directeur de station</strong> et au{" "}
-            <strong>responsable de station</strong>.
+            <strong>Accès Paramètres :</strong> automatique pour tout compte <strong>responsable</strong> (tous profils),
+            jamais pour un <strong>opérateur</strong>. Les droits fins dans Paramètres (onglets, actions) dépendent ensuite
+            du profil métier.
           </li>
           <li>
             <strong>Validation :</strong> cliquez sur <strong>Créer l&apos;utilisateur</strong>. Un <strong>mot de passe temporaire</strong>{" "}
@@ -195,9 +197,9 @@ export function HelpSettingsOperatorsTopic() {
           <li>
             <strong>Cas d&apos;un superviseur :</strong>
             <br />
-            <strong>→</strong> attribuez le profil <em>Superviseur</em>. Cela lui donne un accès complet aux modules métiers et lui permet de
-            dépanner un opérateur ayant bloqué son mot de passe le samedi, sans pour autant pouvoir créer de compte ni ouvrir l&apos;accès à
-            Paramètres.
+            <strong>→</strong> attribuez le profil <em>Superviseur</em>. Cela lui donne accès aux modules métiers et aux Paramètres
+            (données, modèles), et lui permet de dépanner un opérateur ayant bloqué son mot de passe le samedi, sans pour autant pouvoir créer
+            de compte ni ouvrir la base de données ou le journal d&apos;audit.
           </li>
           <li>
             <strong>Cas du départ d&apos;un collaborateur :</strong>

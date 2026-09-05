@@ -7,7 +7,7 @@
 
 import type { HelpAccessContext, HelpPageAccess, HelpTopicId } from "./helpTopics";
 
-/** Accès aux onglets Gestion des données, modèles et variables, base (aligné sur l'UI Paramètres). */
+/** Accès aux onglets Gestion des données / modèles et variables. */
 export function canAccessSettingsDataHelp(access?: HelpAccessContext): boolean {
   return Boolean(access?.pageAccess.settings && access?.canManageData);
 }
@@ -18,6 +18,11 @@ export function canAccessOperatorsHelp(access?: HelpAccessContext): boolean {
 
 export function canAccessAuditHelp(access?: HelpAccessContext): boolean {
   return Boolean(access?.canManageUsers);
+}
+
+/** Accès aide Base de données : directeur / responsable de station / Admin. */
+export function canAccessDatabaseHelp(access?: HelpAccessContext): boolean {
+  return Boolean(access?.pageAccess.settings && access?.canManageUsers);
 }
 
 function canAccessPageHelp(access: HelpAccessContext | undefined, page: keyof HelpPageAccess): boolean {
@@ -45,8 +50,9 @@ export function isHelpTopicAllowed(topicId: HelpTopicId, access?: HelpAccessCont
     case "settings-data":
     case "settings-templates":
     case "settings-variables":
-    case "settings-database":
       return canAccessSettingsDataHelp(access);
+    case "settings-database":
+      return canAccessDatabaseHelp(access);
     case "settings-audit":
       return canAccessAuditHelp(access);
     default:

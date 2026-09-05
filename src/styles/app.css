@@ -414,51 +414,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Modale compte : identité et rôles sur une seule ligne */
-.user-modal__identity-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 12px;
-  align-items: end;
-}
-
-.user-modal__identity-row > label {
-  min-width: 0;
-}
-
-.user-modal__identity-row input,
-.user-modal__identity-row select {
-  width: 100%;
-  min-width: 0;
-}
-
-@media (max-width: 640px) {
-  .user-modal__identity-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Cadre « Vues autorisées » ajusté à son contenu (un seul interrupteur) */
-.user-modal__page-access {
-  margin: 0;
-  padding: 8px 12px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.user-modal__page-access > legend {
-  padding: 0 4px;
-  font-size: 12px;
-}
-
-.user-modal__page-access .toggle-switch {
-  width: auto;
-  gap: 10px;
-}
-
 /* Colonne présence multi-postes (liste utilisateurs) */
 .users-table__col-presence {
   width: 5.5rem;
@@ -1217,16 +1172,22 @@ th {
   justify-content: flex-end;
 }
 
-.users-header-actions {
+/* Toolbar sous barre d'onglets Paramètres : filtres à gauche, actions à droite. */
+.settings-tab-toolbar {
   align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.settings-tab-toolbar--end {
   justify-content: flex-end;
 }
 
 .user-filter-bar {
   display: inline-flex;
   gap: 8px;
-  margin-right: 4px;
+  margin-right: 0;
 }
 
 .audit-filters {

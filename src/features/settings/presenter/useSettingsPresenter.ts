@@ -4,7 +4,7 @@
  * Orchestration IPC via `gtsApiClient`. ~1400 lignes — découpage futur si besoin.
  */
 
-import { FormEvent, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
@@ -167,12 +167,13 @@ export function useSettingsPresenter({
 
   const canManageUsers = useMemo(() => isSessionStationAdmin(session), [session]);
   const canAccessOperatorsTab = useMemo(() => canSessionAccessOperatorsTab(session), [session]);
-  const canManagePageAccess = useMemo(() => isSessionStationAdmin(session), [session]);
-  const canDeleteData = useMemo(() => {
+  /** Gestion des données : tous les profils responsable + Admin (pleins pouvoirs UI). */
+  const canManageData = useMemo(() => {
     const role = session?.user.role;
     return role === "RESPONSABLE" || role === "DEV";
   }, [session]);
-  const canManageData = useMemo(() => Boolean(session), [session]);
+  /** Même périmètre que `canManageData` ; les refus de suppression restent métier (références liées). */
+  const canDeleteData = canManageData;
 
   useEffect(() => {
     const loadDbHealth = async () => {
@@ -502,6 +503,7 @@ export function useSettingsPresenter({
     }
 
     if (activeSettingsTab === "database") {
+      if (!canManageUsers) return;
       void loadPostgresConfig();
       return;
     }
@@ -529,17 +531,17 @@ export function useSettingsPresenter({
   ]);
 
   useEffect(() => {
-    if (canAccessOperatorsTab) {
-      if (!canManageUsers && activeSettingsTab === "audit") {
-        setActiveSettingsTab("operators");
-      }
+    if (!canManageUsers && (activeSettingsTab === "audit" || activeSettingsTab === "database")) {
+      setActiveSettingsTab(canAccessOperatorsTab ? "operators" : "data");
       return;
     }
-    setActiveSettingsTab("data");
+    if (canAccessOperatorsTab) return;
+    if (activeSettingsTab === "operators") {
+      setActiveSettingsTab("data");
+    }
   }, [canManageUsers, canAccessOperatorsTab, activeSettingsTab, setActiveSettingsTab]);
 
-  const onCreateUser = async (e: FormEvent) => {
-    e.preventDefault();
+  const onCreateUser = async () => {
     if (!session) return;
     if (userModalMode === "create" ? !canManageUsers : !canAccessOperatorsTab) return;
     onError("");
@@ -547,7 +549,7 @@ export function useSettingsPresenter({
     onCredentialsReady(null);
     try {
       if (userModalMode === "create") {
-        const payloadPageAccess = canManagePageAccess ? createForm.pageAccess : getDefaultPageAccessByRole(createForm.role);
+        const payloadPageAccess = getDefaultPageAccessByRole(createForm.role);
         const result = await gtsApiClient.createUser({
           requesterRole: session.user.role,
           requesterUsername: session.user.username,
@@ -562,9 +564,7 @@ export function useSettingsPresenter({
         onCredentialsReady({ username: createForm.username, temporaryPassword: result.temporaryPassword });
       } else {
         const existingUser = users.find((user) => user.username === editingTechnicalUsername);
-        const payloadPageAccess = canManagePageAccess
-          ? createForm.pageAccess
-          : existingUser?.pageAccess || getDefaultPageAccessByRole(createForm.role);
+        const payloadPageAccess = getDefaultPageAccessByRole(createForm.role);
         const result = await gtsApiClient.updateUserProfile({
           requesterRole: session.user.role,
           requesterUsername: session.user.username,
@@ -1517,7 +1517,6 @@ export function useSettingsPresenter({
     canManageUsers,
     canAccessOperatorsTab,
     onRequestPasswordReset,
-    canManagePageAccess,
     canManageData,
     canDeleteData,
     confirmDialog,

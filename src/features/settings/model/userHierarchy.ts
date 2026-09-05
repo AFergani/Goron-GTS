@@ -32,8 +32,8 @@ function getSessionHierarchyRank(session: NonNullable<Session>): number {
 }
 
 /**
- * Création de comptes, journal et réglage de l'accès Paramètres :
- * Admin, directeur de station et responsable de station (pas le superviseur).
+ * Création de comptes et journal : Admin, directeur de station et responsable de station
+ * (pas le superviseur). L'accès Paramètres découle du rôle, sans interrupteur UI.
  */
 export function isSessionStationAdmin(session: Session | null): boolean {
   const role = session?.user.role;

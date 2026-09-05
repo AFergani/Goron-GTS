@@ -38,6 +38,8 @@ export function HelpSettingsAuditTopic() {
                   <strong>Directeur de station</strong>
                   <br />
                   <strong>Responsable de station</strong>
+                  <br />
+                  <strong>Admin</strong>
                 </td>
                 <td>
                   <strong>Consultation et exploitation complètes :</strong> accès total aux filtres de recherche, à la pagination, à l&apos;export Excel
@@ -72,7 +74,7 @@ export function HelpSettingsAuditTopic() {
           </li>
           <li>
             <strong>La sécurité et l&apos;administration :</strong> connexions aux postes, créations et désactivations de comptes, réinitialisations de
-            mots de passe, modifications de droits ou changements de bases de données.
+            mots de passe, changements de rôle / profil métier ou de configuration PostgreSQL.
           </li>
           <li>
             <strong>Les imports de lots :</strong> les rapports d&apos;importation de masse (nombre de succès / échecs) sont regroupés sous une seule

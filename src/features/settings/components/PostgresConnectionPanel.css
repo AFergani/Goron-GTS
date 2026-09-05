@@ -11,6 +11,15 @@
   gap: 12px;
 }
 
+/* Contenu intégré dans le panneau de l'onglet Paramètres (pas de double cadre). */
+.postgres-config-panel--flat {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
 .postgres-config-panel h4 {
   margin: 0;
   font-size: 15px;
@@ -21,6 +30,14 @@
 .postgres-config-lead {
   margin: 0;
   line-height: 1.45;
+  flex: 1;
+  min-width: 0;
+}
+
+.postgres-config-lead-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .postgres-config-meta {

@@ -72,7 +72,7 @@ export type {
   TechErrorLog,
   TemplateAssignmentRow
 } from "./gtsApi.types";
-export { setGtsApiSessionToken, setOnSessionExpired } from "./gtsApiSession";
+export { setGtsApiSessionToken, setOnSessionExpired, isSessionError, isSessionUserFacingMessage } from "./gtsApiSession";
 
 /** Façade métier : une méthode par canal `gtsApi` / IPC. */
 export const gtsApiClient = {

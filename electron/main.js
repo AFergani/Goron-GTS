@@ -287,6 +287,9 @@ function attachAuthContext(payload) {
   if (!ctx) {
     throw new Error("SESSION_INVALID: Session invalide. Reconnectez-vous.");
   }
+  if (ctx.unavailable) {
+    throw new Error("Le serveur PostgreSQL n'est pas joignable. Réessayez après le retour du service.");
+  }
   if (ctx.expired) {
     throw new Error("SESSION_EXPIRED: Votre session a expiré (limite 13h). Reconnectez-vous.");
   }
@@ -324,7 +327,7 @@ function getOptionalAuthContext(payload) {
   const token = payload && typeof payload === "object" ? payload.sessionToken : null;
   if (!token || !userStore) return null;
   const ctx = sessionMain.validateSession(token, userStore);
-  if (!ctx || ctx.expired) return null;
+  if (!ctx || ctx.expired || ctx.unavailable) return null;
   return ctx;
 }
 

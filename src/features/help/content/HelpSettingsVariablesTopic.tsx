@@ -16,9 +16,6 @@ export function HelpSettingsVariablesTopic() {
 
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
-        <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>Rappel :</strong> cet écran est exclusivement visible si le module <em>Paramètres</em> est activé sur votre compte utilisateur.
-        </div>
         <div className="help-center-table-wrap">
           <table className="help-center-table">
             <thead>
@@ -30,9 +27,13 @@ export function HelpSettingsVariablesTopic() {
             <tbody>
               <tr>
                 <td>
-                  <strong>Responsable</strong>
+                  <strong>Superviseur</strong>
                   <br />
-                  <span className="muted">(ou sup.)</span>
+                  <strong>Responsable de station</strong>
+                  <br />
+                  <strong>Directeur de station</strong>
+                  <br />
+                  <strong>Admin</strong>
                 </td>
                 <td>
                   <strong>Gestion complète :</strong> autorisé à ajouter, modifier et supprimer des variables. Les modifications s&apos;appliquent en
@@ -44,8 +45,7 @@ export function HelpSettingsVariablesTopic() {
                   <strong>Opérateur</strong>
                 </td>
                 <td>
-                  <strong>Consultation seule :</strong> lecture du tableau et actualisation de la liste. Les boutons d&apos;action ne sont pas visibles
-                  et toute tentative de modification est bloquée par le serveur.
+                  <strong>Aucun accès :</strong> les opérateurs n&apos;ont pas accès aux Paramètres.
                 </td>
               </tr>
             </tbody>

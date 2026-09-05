@@ -17,9 +17,6 @@ export function HelpSettingsTemplatesTopic() {
 
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
-        <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>Rappel :</strong> cet onglet n&apos;est visible que si le module <em>Paramètres</em> est activé sur votre compte utilisateur.
-        </div>
         <div className="help-center-table-wrap">
           <table className="help-center-table">
             <thead>
@@ -31,9 +28,13 @@ export function HelpSettingsTemplatesTopic() {
             <tbody>
               <tr>
                 <td>
-                  <strong>Responsable</strong>
+                  <strong>Superviseur</strong>
                   <br />
-                  <span className="muted">(ou sup.)</span>
+                  <strong>Responsable de station</strong>
+                  <br />
+                  <strong>Directeur de station</strong>
+                  <br />
+                  <strong>Admin</strong>
                 </td>
                 <td>
                   <strong>Gestion complète :</strong> remplacement des modèles globaux, consultation des variables, ajout et suppression des
@@ -45,8 +46,7 @@ export function HelpSettingsTemplatesTopic() {
                   <strong>Opérateur</strong>
                 </td>
                 <td>
-                  <strong>Gestion restreinte :</strong> consultation de la liste, accès à l&apos;aide des variables et remplacement des modèles
-                  globaux. <em>L&apos;ajout ou la suppression d&apos;attributions personnalisées lui seront refusés par le serveur.</em>
+                  <strong>Aucun accès :</strong> les opérateurs n&apos;ont pas accès aux Paramètres.
                 </td>
               </tr>
             </tbody>

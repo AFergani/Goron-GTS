@@ -37,8 +37,12 @@ import { useEnabledInterval } from "../features/common/hooks/useEnabledInterval"
 import { useGlobalDraggableModals } from "../features/common/hooks/useGlobalDraggableModals";
 import { useToastStack } from "../features/common/hooks/useToastStack";
 import type { NotifyToast } from "../features/common/model/toast.types";
-import { gtsApiClient } from "../infrastructure/api/gtsApiClient";
-import type { PostgresLabHealth } from "../infrastructure/api/gtsApiClient";
+import {
+  gtsApiClient,
+  isSessionUserFacingMessage,
+  setOnSessionExpired,
+  type PostgresLabHealth
+} from "../infrastructure/api/gtsApiClient";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
 import "../styles/app.css";
@@ -58,7 +62,15 @@ export function AppShell() {
   const { session, setSession, clearSession } = useSession();
   /** Erreurs formulaires auth / bootstrap uniquement (pas de bandeau haut de page métier). */
   const [error, setError] = useState("");
-  const { toasts, notify: notifyToast, dismiss: dismissToast } = useToastStack();
+  const { toasts, notify: notifyToastRaw, dismiss: dismissToast } = useToastStack();
+  /** Filtre les messages de session : une seule alerte via `setOnSessionExpired`. */
+  const notifyToast: NotifyToast = useCallback(
+    (message, variant = "success") => {
+      if (isSessionUserFacingMessage(message)) return;
+      notifyToastRaw(message, variant);
+    },
+    [notifyToastRaw]
+  );
   const notifyError: NotifyToast = useCallback(
     (message) => {
       if (!String(message || "").trim()) return;
@@ -73,6 +85,14 @@ export function AppShell() {
     },
     [notifyToast]
   );
+
+  useEffect(() => {
+    setOnSessionExpired((message) => {
+      notifyToastRaw(message, "error");
+      clearSession();
+    });
+    return () => setOnSessionExpired(null);
+  }, [clearSession, notifyToastRaw]);
   const [credentialsToShare, setCredentialsToShare] = useState<{ username: string; temporaryPassword: string } | null>(
     null
   );
@@ -426,7 +446,6 @@ export function AppShell() {
             requesterRole={session.user.role}
             canManageUsers={settings.canManageUsers}
             canAccessOperatorsTab={settings.canAccessOperatorsTab}
-            canEditPageAccess={settings.canManagePageAccess}
             canManageData={settings.canManageData}
             canDeleteData={settings.canDeleteData}
             activeTab={settings.activeSettingsTab}

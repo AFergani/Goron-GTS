@@ -45,16 +45,19 @@ export function HelpSettingsDatabaseTopic() {
                   <strong>Directeur de station</strong>
                   <br />
                   <strong>Responsable de station</strong>
+                  <br />
+                  <strong>Admin</strong>
                 </td>
                 <td>Configuration PostgreSQL (hôte, port, base, compte technique), test et reconnexion.</td>
               </tr>
               <tr>
                 <td>
-                  <strong>Superviseur / Opérateur</strong>
+                  <strong>Superviseur</strong>
+                  <br />
+                  <strong>Opérateur</strong>
                 </td>
                 <td>
-                  Consultation des indicateurs si l&apos;accès Paramètres est ouvert. Pas de modification de la connexion
-                  PostgreSQL.
+                  <strong>Aucun accès :</strong> cet onglet ne leur est pas visible.
                 </td>
               </tr>
             </tbody>
