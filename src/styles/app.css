@@ -2257,6 +2257,10 @@ th {
   vertical-align: middle;
 }
 
+.main-courante-table.intervention-table tbody td {
+  vertical-align: middle;
+}
+
 /* Sauts de ligne explicites dans information / observation */
 .main-courante-table.mc-entries-table tbody td.mc-cell-wrap {
   white-space: pre-line;
@@ -2310,7 +2314,7 @@ th {
   width: 13%;
 }
 .main-courante-table.intervention-table col.intv-col-motif {
-  width: 20%;
+  width: 18%;
 }
 .main-courante-table.intervention-table col.intv-col-presta {
   width: 11%;
@@ -2324,17 +2328,20 @@ th {
 .main-courante-table.intervention-table col.intv-col-bon {
   width: 7%;
 }
-.main-courante-table.intervention-table col.intv-col-etat {
-  width: 9%;
-}
-.main-courante-table.intervention-table col.intv-col-actions {
-  width: 9%;
+.main-courante-table.intervention-table col.intv-col-status-actions {
+  width: 20%;
 }
 
-.main-courante-table.intervention-table tbody td:nth-child(9),
-.main-courante-table.intervention-table tbody td:nth-child(10) {
-  white-space: nowrap;
+.main-courante-table.intervention-table thead th.intv-col-status-actions,
+.main-courante-table.intervention-table tbody td.intv-col-status-actions {
+  text-align: center;
   vertical-align: middle;
+  white-space: normal;
+}
+
+.main-courante-table.intervention-table tbody td.intv-col-status-actions .table-row-actions {
+  justify-content: center;
+  margin-left: 0;
 }
 
 .main-courante-table.mc-entries-table col.mc-col-date {
@@ -3053,6 +3060,29 @@ th {
   min-height: 72px;
 }
 
+/* Intervention — date / heure / site / prestataire sur une ligne */
+.intervention-entry-modal .intervention-request-meta-grid {
+  grid-template-columns: minmax(8.5rem, 0.85fr) minmax(5.5rem, 0.55fr) minmax(12rem, 1.45fr) minmax(10rem, 1.15fr);
+  margin-bottom: 12px;
+}
+
+.intervention-entry-modal .intervention-request-meta-grid > .mc-site-field-wrap,
+.intervention-entry-modal .intervention-request-meta-grid > .mc-field {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .intervention-entry-modal .intervention-request-meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .intervention-entry-modal .intervention-request-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Intervention — arrivée / départ : une ligne dans la modale (taille intermédiaire) */
 .main-courante-entry-modal .intervention-passage-row {
   display: grid;
@@ -3080,6 +3110,13 @@ th {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-2);
+}
+
+.main-courante-entry-modal.intervention-entry-modal .mc-field > span:first-child,
+.main-courante-entry-modal.intervention-entry-modal .mc-label-row,
+.main-courante-entry-modal.intervention-entry-modal .intervention-passage-group__label,
+.main-courante-entry-modal.intervention-entry-modal .mc-modal-section-title {
+  color: var(--text);
 }
 
 .main-courante-entry-modal .intervention-passage-group__inputs {

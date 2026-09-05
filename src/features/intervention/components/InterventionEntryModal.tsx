@@ -21,8 +21,6 @@ import {
 import type { NotifyToast } from "../../common/model/toast.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
-import { CreateFormSection } from "../../common/components/CreateFormSection";
-import { SearchEntry } from "../../common/components/SearchEntry";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "./IntervenantSearchInput";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
@@ -539,7 +537,7 @@ export function InterventionEntryModal({
   return (
     <>
       <div className="modal-overlay" onClick={isCreateMode ? createCloseGuard.requestClose : onClose}>
-        <section className="modal main-log-modal main-courante-entry-modal" onClick={(e) => e.stopPropagation()}>
+        <section className="modal main-log-modal main-courante-entry-modal intervention-entry-modal" onClick={(e) => e.stopPropagation()}>
           {isCreateMode ? (
             <CreateEntryModalHeader kind="intervention" onCloseRequest={createCloseGuard.requestClose} />
           ) : (
@@ -584,130 +582,124 @@ export function InterventionEntryModal({
           )}
         <div className="mc-field-section mc-field-section-tight">
           <form className="mc-entry-form" onSubmit={onSubmit}>
-            <CreateFormSection title="Date et heure de la demande">
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field">
-                  <span>Date de la demande</span>
-                  <input
-                    type="date"
-                    value={requestDate}
-                    disabled={formLockedClosed}
-                    onChange={(e) => setRequestDate(e.target.value)}
-                  />
-                </label>
-                <label className="mc-field">
-                  <span>Heure de la demande</span>
-                  <TimeInput
-                    value={requestTime}
-                    disabled={formLockedClosed}
-                    onChange={setRequestTime}
-                  />
-                </label>
-              </div>
-            </CreateFormSection>
-
-            <CreateFormSection title="Site et prestataire">
-              {isCreateMode ? (
-                <SearchEntry
-                  sites={sites}
-                  intervenants={intervenants}
-                  selectedSite={selectedSite}
-                  selectedIntervenant={selectedIntervenant}
-                  onSelectedSiteChange={(site) => {
-                    setSiteId(site?.id || "");
-                    if (site) {
-                      setShowPendingSiteForm(false);
-                      setPendingCode("");
-                      setPendingName("");
-                    }
-                  }}
-                  onSelectedIntervenantChange={(item) => {
-                    setIntervenantId(item?.id || "");
-                    if (item) {
-                      setShowPendingIntervenantForm(false);
-                      setPendingIntervenantName("");
-                    }
-                  }}
-                  showPendingSiteForm={showPendingSiteForm}
-                  showPendingIntervenantForm={showPendingIntervenantForm}
-                  onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
-                  onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
-                  pendingSiteForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field">
-                        <span>Nouveau code site</span>
-                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                      </label>
-                      <label className="mc-field">
-                        <span>Nouveau nom de site</span>
-                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                      </label>
-                    </div>
-                  )}
-                  pendingIntervenantForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field mc-field-full">
-                        <span>Nouveau prestataire</span>
-                        <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
-                      </label>
-                    </div>
-                  )}
-                  onNotify={onNotify}
-                  siteButtonLabel="À créer ?"
-                  intervenantButtonLabel="À créer ?"
-                  showSiteAction={!selectedSite}
-                  showIntervenantAction={!selectedIntervenant}
-                />
-              ) : canFixKnownReferences ? (
-                  <>
-                    <SiteSearchInput
-                      sites={sites}
-                      disabled={formLockedClosed}
-                      selectedSite={selectedSite}
-                      onSelectedSiteChange={(site) => setSiteId(site?.id || "")}
-                      copyNotify={onNotify}
-                    />
-                    <IntervenantSearchInput
-                      intervenants={intervenants}
-                      disabled={formLockedClosed}
-                      selectedIntervenant={selectedIntervenant}
-                      onSelectedIntervenantChange={(item) => setIntervenantId(item?.id || "")}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <label className="mc-field">
-                      <span>Site</span>
-                      <SiteDisplayCopyButton
-                        siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
-                        onNotify={onNotify}
-                      />
-                    </label>
-                    <label className="mc-field">
-                      <span>Prestataire</span>
-                      <input value={selectedIntervenant?.name || entry?.intervenantName || "—"} readOnly className="mc-input-readonly" />
-                    </label>
-                  </>
-                )}
-            </CreateFormSection>
-
-            <CreateFormSection title="Motif de l'intervention">
-              <label className="mc-field mc-field-full">
-                <span>Motif</span>
-                <textarea
-                  value={requestReason}
-                  disabled={lockCoreFields || formLockedClosed}
-                  onChange={(e) => setRequestReason(e.target.value)}
-                  className={`mc-textarea intervention-motif-textarea ${lockCoreFields || formLockedClosed ? "mc-textarea-readonly" : ""}`}
+            <div className="mc-form-grid intervention-request-meta-grid">
+              <label className="mc-field">
+                <span>Date de la demande</span>
+                <input
+                  type="date"
+                  value={requestDate}
+                  disabled={formLockedClosed}
+                  onChange={(e) => setRequestDate(e.target.value)}
                 />
               </label>
-            </CreateFormSection>
+              <label className="mc-field">
+                <span>Heure de la demande</span>
+                <TimeInput
+                  value={requestTime}
+                  disabled={formLockedClosed}
+                  onChange={setRequestTime}
+                />
+              </label>
+              {isCreateMode ? (
+                <>
+                  <SiteSearchInput
+                    sites={sites}
+                    selectedSite={selectedSite}
+                    onSelectedSiteChange={(site) => {
+                      setSiteId(site?.id || "");
+                      if (site) {
+                        setShowPendingSiteForm(false);
+                        setPendingCode("");
+                        setPendingName("");
+                      }
+                    }}
+                    copyNotify={onNotify}
+                    showPendingSiteForm={showPendingSiteForm}
+                    onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
+                    siteButtonLabel="À créer ?"
+                    showSiteAction={!selectedSite}
+                    pendingSiteForm={(
+                      <div className="mc-form-grid mc-form-grid-main">
+                        <label className="mc-field">
+                          <span>Nouveau code site</span>
+                          <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+                        </label>
+                        <label className="mc-field">
+                          <span>Nouveau nom de site</span>
+                          <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+                        </label>
+                      </div>
+                    )}
+                  />
+                  <IntervenantSearchInput
+                    intervenants={intervenants}
+                    selectedIntervenant={selectedIntervenant}
+                    onSelectedIntervenantChange={(item) => {
+                      setIntervenantId(item?.id || "");
+                      if (item) {
+                        setShowPendingIntervenantForm(false);
+                        setPendingIntervenantName("");
+                      }
+                    }}
+                    selectedSite={selectedSite}
+                    showPendingIntervenantForm={showPendingIntervenantForm}
+                    onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
+                    intervenantButtonLabel="À créer ?"
+                    showIntervenantAction={!selectedIntervenant}
+                    pendingIntervenantForm={(
+                      <div className="mc-form-grid mc-form-grid-main">
+                        <label className="mc-field mc-field-full">
+                          <span>Nouveau prestataire</span>
+                          <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
+                        </label>
+                      </div>
+                    )}
+                  />
+                </>
+              ) : canFixKnownReferences ? (
+                <>
+                  <SiteSearchInput
+                    sites={sites}
+                    disabled={formLockedClosed}
+                    selectedSite={selectedSite}
+                    onSelectedSiteChange={(site) => setSiteId(site?.id || "")}
+                    copyNotify={onNotify}
+                  />
+                  <IntervenantSearchInput
+                    intervenants={intervenants}
+                    disabled={formLockedClosed}
+                    selectedIntervenant={selectedIntervenant}
+                    onSelectedIntervenantChange={(item) => setIntervenantId(item?.id || "")}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className="mc-field">
+                    <span>Site</span>
+                    <SiteDisplayCopyButton
+                      siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+                      onNotify={onNotify}
+                    />
+                  </label>
+                  <label className="mc-field">
+                    <span>Prestataire</span>
+                    <input value={selectedIntervenant?.name || entry?.intervenantName || "—"} readOnly className="mc-input-readonly" />
+                  </label>
+                </>
+              )}
+            </div>
+
+            <label className="mc-field mc-field-full">
+              <span>Motif</span>
+              <textarea
+                value={requestReason}
+                disabled={lockCoreFields || formLockedClosed}
+                onChange={(e) => setRequestReason(e.target.value)}
+                className={`mc-textarea intervention-motif-textarea ${lockCoreFields || formLockedClosed ? "mc-textarea-readonly" : ""}`}
+              />
+            </label>
             {!showRequiredFieldsOnly ? (
               <>
-                <h4 className="mc-modal-section-title">Compte rendu</h4>
-                <p className="muted mc-ref-hint" style={{ marginTop: 0, marginBottom: 8 }}>
-                  Les dates d&apos;arrivée et de départ reprennent par défaut la date de demande ; modifiez-les si le passage a eu lieu un autre jour.
-                </p>
                 <div className="intervention-passage-row">
                   <div className="intervention-passage-group">
                     <span className="intervention-passage-group__label">Arrivée</span>
