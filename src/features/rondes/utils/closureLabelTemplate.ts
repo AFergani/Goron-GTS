@@ -12,7 +12,7 @@ export type ClosureLabelContext = {
   typePassage?: string;
   /** Heure demandée du créneau planifié (profil). */
   heureDemandee?: string;
-  /** Date de la journée de la ronde (JJ-MM-AAAA). */
+  /** Date de la journée de la ronde (JJ/MM/AAAA). */
   dateDuJour?: string;
   heureArrivee?: string;
   heureDepart?: string;

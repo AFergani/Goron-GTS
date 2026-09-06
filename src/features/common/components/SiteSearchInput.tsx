@@ -6,7 +6,7 @@
  */
 
 import { Copy, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { SiteRef } from "../../../types";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
@@ -46,6 +46,7 @@ export function SiteSearchInput({
 }: SiteSearchInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!selectedSite) {
       setQuery("");
@@ -76,11 +77,13 @@ export function SiteSearchInput({
   const clearField = () => {
     setQuery("");
     onSelectedSiteChange(null);
-    setOpen(false);
+    setOpen(true);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const handleInputChange = (value: string) => {
     setQuery(value);
+    setOpen(true);
     if (selectedSite && formatSiteSelectedLabel(selectedSite) !== value.trim()) {
       onSelectedSiteChange(null);
     }
@@ -99,6 +102,7 @@ export function SiteSearchInput({
           {labelText !== null && labelText !== undefined ? <span>{labelText ?? (optional ? "Site (facultatif)" : "Site")}</span> : null}
           <div className={innerClassName}>
             <input
+              ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => handleInputChange(e.target.value)}

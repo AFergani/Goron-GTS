@@ -597,6 +597,7 @@ export const gtsApiClient = {
     expectedUpdatedAt: string;
     status: RondeStatus;
     cancellationReason?: string;
+    cancellationKind?: "NON_EFFECTUEE" | "ANNULATION";
   }) {
     return sessionCall(window.gtsApi.setRondeStatus, payload);
   },
@@ -621,6 +622,26 @@ export const gtsApiClient = {
   },
   bulkDeleteRondeBatch(payload: { requesterRole: Role; requesterUsername: string; entryIds: string[]; reason: string }) {
     return sessionCall(window.gtsApi.bulkDeleteRondeBatch, payload);
+  },
+  requestRondeBatchDelete(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    entryIds: string[];
+    reason: string;
+  }) {
+    return sessionCall(window.gtsApi.requestRondeBatchDelete, payload);
+  },
+  reviewRondeBatchDeleteRequest(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    requestBatchId: string;
+    decision: "approve" | "reject";
+    reviewReason: string;
+  }) {
+    return sessionCall(window.gtsApi.reviewRondeBatchDeleteRequest, payload);
+  },
+  listRondeBatchDeleteRequests(payload: { requesterRole: Role }) {
+    return sessionCall(window.gtsApi.listRondeBatchDeleteRequests, payload);
   },
   listRondeMotifTypes(payload: { requesterRole: Role }): Promise<RondeMotifTypeRef[]> {
     return sessionCall(window.gtsApi.listRondeMotifTypes, payload);

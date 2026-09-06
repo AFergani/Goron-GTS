@@ -1043,6 +1043,21 @@ class UserStore {
     return rondeDomain.bulkDeleteRondeBatch(this, payload);
   }
 
+  async requestRondeBatchDelete(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.requestRondeBatchDelete(this, payload);
+  }
+
+  async reviewRondeBatchDeleteRequest(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.reviewRondeBatchDeleteRequest(this, payload);
+  }
+
+  async listRondeBatchDeleteRequests(payload) {
+    await this.whenPostgresReady();
+    return rondeDomain.listRondeBatchDeleteRequests(this, payload);
+  }
+
   listRondeMotifTypes({ requesterRole }) {
     return rondeMotifTypesDomain.listRondeMotifTypes(this, { requesterRole });
   }

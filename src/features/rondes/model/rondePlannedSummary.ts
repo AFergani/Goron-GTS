@@ -4,6 +4,7 @@
 
 import type { RondePlannedProfileRef, RondePlannedRoundKind, RondePlannedRecurrenceKind } from "./rondePlanned.types";
 import { RANDOM_PERIOD_DAY } from "./rondePlanned.types";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 
 const WEEKDAY_BITS = [
   { bit: 1, label: "Lun" },
@@ -61,7 +62,9 @@ export function formatRondePlannedLineSummary(line: {
       : formatRondePlannedRoundKind(line.roundKind);
   let rec = "";
   if (line.recurrenceKind === "DATE_RANGE") {
-    rec = `du ${line.rangeStartDate?.trim() || "—"} au ${line.rangeEndDate?.trim() || "—"}`;
+    const fromFr = formatDateShortFr(line.rangeStartDate?.trim() || "") || "—";
+    const toFr = formatDateShortFr(line.rangeEndDate?.trim() || "") || "—";
+    rec = `du ${fromFr} au ${toFr}`;
   } else if (line.recurrenceKind === "DAILY") {
     rec = "chaque jour";
   } else if (line.recurrenceKind === "MONTHLY") {

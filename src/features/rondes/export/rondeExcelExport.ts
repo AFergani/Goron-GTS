@@ -28,9 +28,11 @@ function formatDateFr(dateIso: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function statusLabel(status: RondeEntry["status"]): string {
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") return "Annulé";
+function statusLabel(entry: RondeEntry): string {
+  if (entry.status === "CLOTURE") return "Clôturé";
+  if (entry.status === "ANNULE") {
+    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulé";
+  }
   return "En cours";
 }
 
@@ -49,7 +51,7 @@ export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde cont
       entry.siteDisplay || "",
       originLabel(entry),
       entry.intervenantName || "",
-      statusLabel(entry.status),
+      statusLabel(entry),
       entry.horairesDemandeObs || "",
       entry.arrivalTime || "",
       entry.departureTime || "",

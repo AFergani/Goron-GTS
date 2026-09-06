@@ -2,7 +2,7 @@
  * Presenter rondes : liste, CRUD, statuts, lots exceptionnels.
  *
  * Polling ~20 s. Persistance PostgreSQL. Utilisé par `RondePage`
- * (onglets urgence, planifié, gestion profils déléguée AppShell).
+ * (onglets urgence / planifié ; profils via modales page).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -146,7 +146,8 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
     id: string,
     expectedUpdatedAt: string,
     status: RondeStatus,
-    cancellationReason?: string
+    cancellationReason?: string,
+    cancellationKind?: "NON_EFFECTUEE" | "ANNULATION"
   ) => {
     try {
       await gtsApiClient.setRondeStatus({
@@ -155,7 +156,8 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
         id,
         expectedUpdatedAt,
         status,
-        cancellationReason
+        cancellationReason,
+        cancellationKind
       });
       await loadEntries(true);
       return true;
@@ -223,6 +225,52 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
     }
   };
 
+  const requestBatchDelete = async (entryIds: string[], reason: string) => {
+    try {
+      const res = await gtsApiClient.requestRondeBatchDelete({
+        requesterRole,
+        requesterUsername,
+        entryIds,
+        reason
+      });
+      await loadEntries(true);
+      return res;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Demande de suppression impossible.", "error");
+      return null;
+    }
+  };
+
+  const reviewBatchDeleteRequest = async (
+    requestBatchId: string,
+    decision: "approve" | "reject",
+    reviewReason: string
+  ) => {
+    try {
+      const res = await gtsApiClient.reviewRondeBatchDeleteRequest({
+        requesterRole,
+        requesterUsername,
+        requestBatchId,
+        decision,
+        reviewReason
+      });
+      await loadEntries(true);
+      return res;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Traitement de la demande impossible.", "error");
+      return null;
+    }
+  };
+
+  const listBatchDeleteRequests = async () => {
+    try {
+      return await gtsApiClient.listRondeBatchDeleteRequests({ requesterRole });
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Impossible de charger les demandes.", "error");
+      return [];
+    }
+  };
+
   return {
     entries,
     loading,
@@ -232,6 +280,9 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
     setStatus,
     updateBatchSharedFields,
     bulkCancelBatch,
-    bulkDeleteBatch
+    bulkDeleteBatch,
+    requestBatchDelete,
+    reviewBatchDeleteRequest,
+    listBatchDeleteRequests
   };
 }

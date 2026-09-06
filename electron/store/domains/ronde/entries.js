@@ -14,6 +14,12 @@ const { mapRondeRow, parseJsonObject, toRondeAuditSnapshot, RONDE_ENTRY_SELECT, 
 const { requireRondePersistence } = require("./persistence");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { generateEntityId } = require("../../core/ids");
+const {
+  isPassagePast,
+  hasKnownTerrainData,
+  isBatchFullyPast,
+  isRondeManagerRole
+} = require("./passageRules");
 
 const ORIGIN_KINDS = new Set(["TELESURVEILLANCE", "CLIENT", "AUTRE"]);
 const SOURCES = new Set(["URGENCE", "LIEE_INTERVENTION", "PLANIFIE"]);
@@ -195,13 +201,22 @@ async function listRondes(store, { requesterRole }) {
   await autoCloseExpiredExceptionalRondes(store);
   const rows = await db.all(
     `SELECT ${RONDE_ENTRY_SELECT_R}, m.label AS motif_type_label,
-            m.requires_free_text AS motif_type_requires_free_text
+            m.requires_free_text AS motif_type_requires_free_text,
+            d.requested_at AS batch_delete_requested_at,
+            d.requested_by AS batch_delete_requested_by,
+            d.reason AS batch_delete_reason
      FROM ronde_entries r
      LEFT JOIN data_ronde_motif_types m ON m.id = r.motif_type_id
+     LEFT JOIN ronde_batch_delete_requests d
+       ON d.request_batch_id = r.request_batch_id AND d.status = 'PENDING'
      ORDER BY r.request_date DESC, r.id DESC`,
     []
   );
-  return rows.map(mapRondeRow);
+  const mapped = rows.map(mapRondeRow);
+  if (!isRondeManagerRole(requesterRole)) {
+    return mapped.filter((entry) => !entry.batchDeleteRequestedAt);
+  }
+  return mapped;
 }
 
 /** Clause SQL : ronde contractuelle / planifiée (alignée onglet « Ronde contractuelle »). */
@@ -228,12 +243,18 @@ async function getRondeTodayInProgressCounts(store, { requesterRole, todayIso })
   const db = requireRondePersistence(store, "ronde:todayInProgressCount");
   await autoCloseExpiredExceptionalRondes(store);
   const baseWhere = `status = 'EN_COURS' AND request_date = ?`;
+  const pendingDeleteExclude = !isRondeManagerRole(requesterRole)
+    ? ` AND NOT EXISTS (
+          SELECT 1 FROM ronde_batch_delete_requests d
+          WHERE d.request_batch_id = ronde_entries.request_batch_id AND d.status = 'PENDING'
+        )`
+    : "";
   const contractualRow = await db.get(
-    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND ${CONTRACTUAL_RONDE_SQL}`,
+    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND ${CONTRACTUAL_RONDE_SQL}${pendingDeleteExclude}`,
     [day]
   );
   const exceptionalRow = await db.get(
-    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND NOT ${CONTRACTUAL_RONDE_SQL}`,
+    `SELECT COUNT(*) AS count FROM ronde_entries WHERE ${baseWhere} AND NOT ${CONTRACTUAL_RONDE_SQL}${pendingDeleteExclude}`,
     [day]
   );
   const contractual = Number(contractualRow?.count || 0);
@@ -417,7 +438,8 @@ async function setRondeStatus(store, payload) {
   if (status === "ANNULE" && !reason) {
     store.fail("ronde:status", "Le motif d'annulation est obligatoire.", "RONDE_CANCEL_REASON_REQUIRED");
   }
-  const { row, now } = await db.transaction(async (tx) => {
+  const isManager = isRondeManagerRole(payload.requesterRole);
+  const { row, now, cancellationKind } = await db.transaction(async (tx) => {
     const locked = await tx.get(
       `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE id = ? FOR UPDATE`,
       [entryId]
@@ -431,24 +453,79 @@ async function setRondeStatus(store, payload) {
       "RONDE_CONFLICT",
       "Ronde modifiée ailleurs. Actualisez la liste."
     );
+    let kind = null;
+    if (status === "ANNULE") {
+      const past = isPassagePast(locked);
+      const requestedKind = String(payload.cancellationKind || "").trim().toUpperCase();
+      if (!isManager) {
+        if (locked.source === "PLANIFIE") {
+          store.fail(
+            "ronde:status",
+            "L'opérateur ne peut marquer « non effectuée » que les rondes exceptionnelles.",
+            "RONDE_CANCEL_OPERATOR_PLANNED_FORBIDDEN"
+          );
+        }
+        if (!past) {
+          store.fail(
+            "ronde:status",
+            "Une ronde ne peut être marquée non effectuée qu'après l'heure de passage.",
+            "RONDE_CANCEL_NOT_YET_PAST"
+          );
+        }
+        kind = "NON_EFFECTUEE";
+      } else if (requestedKind === "NON_EFFECTUEE") {
+        // Non effectuée = passage déjà passé (prestataire n'a pas fait). Avant passage → annulation.
+        kind = past ? "NON_EFFECTUEE" : "ANNULATION";
+      } else if (requestedKind === "ANNULATION") {
+        kind = "ANNULATION";
+      } else {
+        kind = "ANNULATION";
+      }
+    }
     const stamp = new Date().toISOString();
     const result = await tx.run(
-      `UPDATE ronde_entries SET status = ?, cancellation_reason = ?, closed_at = ?, updated_at = ?
+      `UPDATE ronde_entries SET status = ?, cancellation_reason = ?, cancellation_kind = ?, closed_at = ?, updated_at = ?
        WHERE id = ? AND updated_at = ?`,
-      [status, status === "ANNULE" ? reason : null, status === "EN_COURS" ? null : stamp,
-        stamp, entryId, payload.expectedUpdatedAt]
+      [
+        status,
+        status === "ANNULE" ? reason : null,
+        status === "ANNULE" ? kind : null,
+        status === "EN_COURS" ? null : stamp,
+        stamp,
+        entryId,
+        payload.expectedUpdatedAt
+      ]
     );
     if (!result.changes) {
       store.fail("ronde:status", "Ronde modifiée ailleurs. Actualisez la liste.", "RONDE_CONFLICT");
     }
-    return { row: locked, now: stamp };
+    return { row: locked, now: stamp, cancellationKind: kind };
   });
   store.logAudit({
     actorUsername: payload.requesterUsername || "unknown",
-    action: status === "ANNULE" ? "RONDE_CANCEL" : status === "CLOTURE" ? "RONDE_CLOSE" : "RONDE_REOPEN",
-    details: { id: entryId,
-      before: { status: row.status, cancellationReason: row.cancellation_reason || "", closedAt: row.closed_at || "" },
-      after: { status, cancellationReason: status === "ANNULE" ? reason : "", closedAt: status === "EN_COURS" ? "" : now } }
+    action:
+      status === "ANNULE"
+        ? cancellationKind === "NON_EFFECTUEE"
+          ? "RONDE_NON_EFFECTUEE"
+          : "RONDE_CANCEL"
+        : status === "CLOTURE"
+          ? "RONDE_CLOSE"
+          : "RONDE_REOPEN",
+    details: {
+      id: entryId,
+      before: {
+        status: row.status,
+        cancellationReason: row.cancellation_reason || "",
+        cancellationKind: row.cancellation_kind || null,
+        closedAt: row.closed_at || ""
+      },
+      after: {
+        status,
+        cancellationReason: status === "ANNULE" ? reason : "",
+        cancellationKind: status === "ANNULE" ? cancellationKind : null,
+        closedAt: status === "EN_COURS" ? "" : now
+      }
+    }
   });
   return mapRondeRow(await getRondeById(db, entryId));
 }
@@ -617,6 +694,13 @@ async function updateRondeBatchSharedFields(store, payload) {
  */
 async function bulkCancelRondeBatch(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  if (!isRondeManagerRole(payload.requesterRole)) {
+    store.fail(
+      "ronde:batch",
+      "L'annulation en lot est réservée au responsable. Marquez les rondes une par une en « non effectuée ».",
+      "RONDE_BATCH_CANCEL_OPERATOR_FORBIDDEN"
+    );
+  }
   const reason = String(payload.reason || "").trim();
   if (!reason) store.fail("ronde:batch", "Le motif d'annulation est obligatoire.", "RONDE_BATCH_CANCEL_REASON_REQUIRED");
   const db = requireRondePersistence(store, "ronde:batch");
@@ -624,54 +708,125 @@ async function bulkCancelRondeBatch(store, payload) {
   const rows = await loadBatchRows(db, ids);
   if (rows.length !== ids.length) store.fail("ronde:batch", "Ronde introuvable.", "RONDE_NOT_FOUND");
   assertCoherentExceptionalBatch(store, rows);
-  const openIds = rows.filter((row) => row.status === "EN_COURS").map((row) => row.id);
-  if (openIds.length) {
-    const placeholders = openIds.map(() => "?").join(", ");
+  const openRows = rows.filter((row) => row.status === "EN_COURS");
+  if (openRows.length) {
     const now = new Date().toISOString();
     await db.transaction(async (tx) => {
-      await loadBatchRows(tx, openIds, { forUpdate: true });
-      await tx.run(
-        `UPDATE ronde_entries SET status = 'ANNULE', cancellation_reason = ?, closed_at = ?, updated_at = ?
-         WHERE id IN (${placeholders}) AND status = 'EN_COURS'`,
-        [reason, now, now, ...openIds]
+      await loadBatchRows(
+        tx,
+        openRows.map((r) => r.id),
+        { forUpdate: true }
       );
+      for (const row of openRows) {
+        await tx.run(
+          `UPDATE ronde_entries SET status = 'ANNULE', cancellation_reason = ?, cancellation_kind = 'ANNULATION',
+           closed_at = ?, updated_at = ? WHERE id = ? AND status = 'EN_COURS'`,
+          [reason, now, now, row.id]
+        );
+      }
     });
   }
-  store.logAudit({ actorUsername: payload.requesterUsername || "unknown", action: "RONDE_BATCH_CANCEL",
-    details: { reason, cancelledCount: openIds.length, skippedCount: rows.length - openIds.length, entryIds: openIds } });
-  return { ok: true, cancelledCount: openIds.length, skippedCount: rows.length - openIds.length };
-}
-
-/** @param {object} store @param {object} row @returns {Promise<string>} */
-async function findCreatorUsername(store, row) {
-  const auditDb = typeof store.getAuditPersistence === "function" ? store.getAuditPersistence() : null;
-  if (!auditDb) return "";
-  const batchId = String(row.request_batch_id || "").trim();
-  const action = batchId ? "RONDE_BATCH_CREATE" : "RONDE_CREATE";
-  try {
-    const logs = await auditDb.all(
-      "SELECT actor_username, details_json FROM audit_logs WHERE action = ? ORDER BY occurred_at DESC LIMIT 300",
-      [action]
-    );
-    for (const log of logs) {
-      const details = parseJsonObject(log.details_json, {});
-      if (batchId ? details.batchId === batchId : details.id === row.id) return String(log.actor_username || "").trim();
+  store.logAudit({
+    actorUsername: payload.requesterUsername || "unknown",
+    action: "RONDE_BATCH_CANCEL",
+    details: {
+      reason,
+      cancelledCount: openRows.length,
+      skippedCount: rows.length - openRows.length,
+      entryIds: openRows.map((r) => r.id)
     }
-  } catch {
-    return "";
-  }
-  return "";
+  });
+  return { ok: true, cancelledCount: openRows.length, skippedCount: rows.length - openRows.length };
 }
 
 /**
- * Supprime les rondes non clôturées d'un lot.
- *
  * @param {import('../../../userStore')} store
- * @param {object} payload
- * @returns {Promise<object>}
+ * @param {object} db
+ * @param {object[]} rows
+ * @param {string} reason
+ * @param {string} actor
  */
+async function applySmartBatchDelete(store, db, rows, reason, actor) {
+  const now = new Date().toISOString();
+  const fullyPast = isBatchFullyPast(rows);
+  let deletedCount = 0;
+  let nonEffectueeCount = 0;
+  let suppressedCount = 0;
+  const closedRows = rows.filter((row) => row.status === "CLOTURE");
+
+  if (fullyPast) {
+    const deletable = rows.filter((row) => row.status !== "CLOTURE");
+    await db.transaction(async (tx) => {
+      for (const row of closedRows) {
+        const snapshot = parseJsonObject(row.request_planning_snapshot_json, null);
+        if (snapshot?.version === 1 && snapshot.createRoundsEnabled !== false) {
+          snapshot.createRoundsEnabled = false;
+          await tx.run(
+            "UPDATE ronde_entries SET request_planning_snapshot_json = ?, updated_at = ? WHERE id = ?",
+            [JSON.stringify(snapshot), now, row.id]
+          );
+        }
+      }
+      if (deletable.length) {
+        const placeholders = deletable.map(() => "?").join(", ");
+        await tx.run(
+          `DELETE FROM ronde_entries WHERE id IN (${placeholders})`,
+          deletable.map((row) => row.id)
+        );
+        deletedCount = deletable.length;
+      }
+    });
+    return { deletedCount, nonEffectueeCount: 0, suppressedCount: 0, skippedCount: closedRows.length };
+  }
+
+  await db.transaction(async (tx) => {
+    for (const row of rows) {
+      if (row.status === "CLOTURE" || hasKnownTerrainData(row)) {
+        const snapshot = parseJsonObject(row.request_planning_snapshot_json, null);
+        let snapJson = null;
+        if (snapshot?.version === 1 && snapshot.createRoundsEnabled !== false) {
+          snapshot.createRoundsEnabled = false;
+          snapJson = JSON.stringify(snapshot);
+        }
+        await tx.run(
+          `UPDATE ronde_entries SET
+             batch_suppressed_at = ?, batch_suppressed_by = ?, batch_suppressed_reason = ?,
+             request_planning_snapshot_json = COALESCE(?, request_planning_snapshot_json),
+             updated_at = ?
+           WHERE id = ?`,
+          [now, actor, reason, snapJson, now, row.id]
+        );
+        suppressedCount += 1;
+      } else if (row.status === "EN_COURS") {
+        await tx.run(
+          `UPDATE ronde_entries SET status = 'ANNULE', cancellation_reason = ?, cancellation_kind = 'NON_EFFECTUEE',
+           closed_at = ?, batch_suppressed_at = ?, batch_suppressed_by = ?, batch_suppressed_reason = ?, updated_at = ?
+           WHERE id = ?`,
+          [reason, now, now, actor, reason, now, row.id]
+        );
+        nonEffectueeCount += 1;
+      } else {
+        await tx.run(
+          `UPDATE ronde_entries SET batch_suppressed_at = ?, batch_suppressed_by = ?, batch_suppressed_reason = ?, updated_at = ?
+           WHERE id = ?`,
+          [now, actor, reason, now, row.id]
+        );
+        suppressedCount += 1;
+      }
+    }
+  });
+  return { deletedCount, nonEffectueeCount, suppressedCount, skippedCount: closedRows.length };
+}
+
 async function bulkDeleteRondeBatch(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
+  if (!isRondeManagerRole(payload.requesterRole)) {
+    store.fail(
+      "ronde:batch",
+      "La suppression de lot est réservée au responsable. Déposez une demande de suppression.",
+      "RONDE_BATCH_DELETE_OPERATOR_FORBIDDEN"
+    );
+  }
   const reason = String(payload.reason || "").trim();
   if (!reason) store.fail("ronde:batch", "Le motif de suppression est obligatoire.", "RONDE_BATCH_DELETE_REASON_REQUIRED");
   const db = requireRondePersistence(store, "ronde:batch");
@@ -679,44 +834,179 @@ async function bulkDeleteRondeBatch(store, payload) {
   const rows = await loadBatchRows(db, ids);
   if (rows.length !== ids.length) store.fail("ronde:batch", "Ronde introuvable.", "RONDE_NOT_FOUND");
   assertCoherentExceptionalBatch(store, rows);
-  const closedRows = rows.filter((row) => row.status === "CLOTURE");
-  const deletable = rows.filter((row) => row.status !== "CLOTURE");
-  const isManager = payload.requesterRole === "RESPONSABLE" || payload.requesterRole === "DEV";
-  if (!isManager) {
-    for (const row of deletable) {
-      const creator = await findCreatorUsername(store, row);
-      if (!creator || creator.toLowerCase() !== String(payload.requesterUsername || "").trim().toLowerCase()) {
-        store.fail("ronde:batch", "Suppression refusée : vous ne pouvez supprimer que vos propres créations.",
-          "RONDE_BATCH_DELETE_FORBIDDEN_NOT_OWNER");
-      }
-    }
+  const actor = String(payload.requesterUsername || "unknown").trim();
+  const result = await applySmartBatchDelete(store, db, rows, reason, actor);
+  const batchId = String(rows[0]?.request_batch_id || "").trim();
+  if (batchId) {
+    await db.run(`DELETE FROM ronde_batch_delete_requests WHERE request_batch_id = ?`, [batchId]);
   }
-  let disabledProgrammingCount = 0;
-  const now = new Date().toISOString();
-  await db.transaction(async (tx) => {
-    await loadBatchRows(tx, ids, { forUpdate: true });
-    for (const row of closedRows) {
-      const snapshot = parseJsonObject(row.request_planning_snapshot_json, null);
-      if (snapshot?.version === 1 && snapshot.createRoundsEnabled !== false) {
-        snapshot.createRoundsEnabled = false;
-        await tx.run(
-          "UPDATE ronde_entries SET request_planning_snapshot_json = ?, updated_at = ? WHERE id = ?",
-          [JSON.stringify(snapshot), now, row.id]
-        );
-        disabledProgrammingCount += 1;
-      }
-    }
-    if (deletable.length) {
-      const placeholders = deletable.map(() => "?").join(", ");
-      await tx.run(`DELETE FROM ronde_entries WHERE id IN (${placeholders})`, deletable.map((row) => row.id));
-    }
+  store.logAudit({
+    actorUsername: actor,
+    action: "RONDE_BATCH_DELETE",
+    details: { reason, ...result, batchId: batchId || null }
   });
-  store.logAudit({ actorUsername: payload.requesterUsername || "unknown", action: "RONDE_BATCH_DELETE",
-    details: { reason, deletedCount: deletable.length, preservedClosedCount: closedRows.length,
-      disabledProgrammingCount, deleted: deletable.map((row) => ({
-        siteDisplay: row.site_display || "", requestDate: row.request_date || "", status: row.status || ""
-      })) } });
-  return { ok: true, deletedCount: deletable.length, skippedCount: closedRows.length };
+  return { ok: true, deletedCount: result.deletedCount, skippedCount: result.skippedCount, ...result };
+}
+
+async function requestRondeBatchDelete(store, payload) {
+  store.ensureDataReaderRole(payload.requesterRole);
+  if (isRondeManagerRole(payload.requesterRole)) {
+    store.fail(
+      "ronde:batchDeleteRequest",
+      "Un responsable peut supprimer le lot directement sans créer de demande.",
+      "RONDE_BATCH_DELETE_REQUEST_NOT_NEEDED"
+    );
+  }
+  const reason = String(payload.reason || "").trim();
+  if (!reason) {
+    store.fail("ronde:batchDeleteRequest", "Le motif de demande est obligatoire.", "RONDE_BATCH_DELETE_REASON_REQUIRED");
+  }
+  const db = requireRondePersistence(store, "ronde:batchDeleteRequest");
+  const ids = [...new Set((payload.entryIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  const rows = await loadBatchRows(db, ids);
+  if (rows.length !== ids.length) store.fail("ronde:batchDeleteRequest", "Ronde introuvable.", "RONDE_NOT_FOUND");
+  assertCoherentExceptionalBatch(store, rows);
+  const batchId = String(rows[0]?.request_batch_id || "").trim();
+  if (!batchId) {
+    store.fail("ronde:batchDeleteRequest", "Ce regroupement n'a pas d'identifiant de lot.", "RONDE_BATCH_ID_REQUIRED");
+  }
+  const existing = await db.get(
+    "SELECT request_batch_id, status FROM ronde_batch_delete_requests WHERE request_batch_id = ?",
+    [batchId]
+  );
+  if (existing?.status === "PENDING") {
+    store.fail(
+      "ronde:batchDeleteRequest",
+      "Une demande de suppression est déjà en attente pour ce lot.",
+      "RONDE_BATCH_DELETE_ALREADY_PENDING"
+    );
+  }
+  const now = new Date().toISOString();
+  const actor = String(payload.requesterUsername || "unknown").trim();
+  if (existing) {
+    await db.run(
+      `UPDATE ronde_batch_delete_requests
+       SET reason = ?, requested_at = ?, requested_by = ?, status = 'PENDING',
+           reviewed_at = NULL, reviewed_by = NULL, review_reason = NULL
+       WHERE request_batch_id = ?`,
+      [reason, now, actor, batchId]
+    );
+  } else {
+    await db.run(
+      `INSERT INTO ronde_batch_delete_requests
+         (request_batch_id, reason, requested_at, requested_by, status)
+       VALUES (?, ?, ?, ?, 'PENDING')`,
+      [batchId, reason, now, actor]
+    );
+  }
+  store.logAudit({
+    actorUsername: actor,
+    action: "RONDE_BATCH_DELETE_REQUEST",
+    details: { batchId, reason, entryCount: rows.length }
+  });
+  return { ok: true, requestBatchId: batchId, requestedAt: now, requestedBy: actor, reason };
+}
+
+async function reviewRondeBatchDeleteRequest(store, payload) {
+  store.ensureDataReaderRole(payload.requesterRole);
+  if (!isRondeManagerRole(payload.requesterRole)) {
+    store.fail(
+      "ronde:batchDeleteReview",
+      "Seul un responsable peut traiter une demande de suppression.",
+      "RONDE_BATCH_DELETE_REVIEW_FORBIDDEN"
+    );
+  }
+  const batchId = String(payload.requestBatchId || "").trim();
+  const decision = String(payload.decision || "").trim().toLowerCase();
+  const reviewReason = String(payload.reviewReason || payload.reason || "").trim();
+  if (!batchId) store.fail("ronde:batchDeleteReview", "Lot manquant.", "RONDE_BATCH_ID_REQUIRED");
+  if (decision !== "approve" && decision !== "reject") {
+    store.fail("ronde:batchDeleteReview", "Décision invalide.", "RONDE_BATCH_DELETE_DECISION_INVALID");
+  }
+  if (!reviewReason) {
+    store.fail("ronde:batchDeleteReview", "Le motif de décision est obligatoire.", "RONDE_BATCH_DELETE_REASON_REQUIRED");
+  }
+  const db = requireRondePersistence(store, "ronde:batchDeleteReview");
+  const pending = await db.get(
+    "SELECT * FROM ronde_batch_delete_requests WHERE request_batch_id = ? AND status = 'PENDING'",
+    [batchId]
+  );
+  if (!pending) {
+    store.fail("ronde:batchDeleteReview", "Aucune demande en attente pour ce lot.", "RONDE_BATCH_DELETE_NOT_FOUND");
+  }
+  const actor = String(payload.requesterUsername || "unknown").trim();
+  const now = new Date().toISOString();
+  if (decision === "reject") {
+    await db.run(
+      `UPDATE ronde_batch_delete_requests
+       SET status = 'REJECTED', reviewed_at = ?, reviewed_by = ?, review_reason = ?
+       WHERE request_batch_id = ?`,
+      [now, actor, reviewReason, batchId]
+    );
+    store.logAudit({
+      actorUsername: actor,
+      action: "RONDE_BATCH_DELETE_REQUEST_REJECT",
+      details: { batchId, reviewReason, request: { reason: pending.reason, requestedBy: pending.requested_by } }
+    });
+    return { ok: true, decision: "reject", requestBatchId: batchId };
+  }
+  const rows = await db.all(`SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ?`, [batchId]);
+  if (!rows.length) {
+    await db.run(`DELETE FROM ronde_batch_delete_requests WHERE request_batch_id = ?`, [batchId]);
+    store.fail("ronde:batchDeleteReview", "Aucune fiche restante pour ce lot.", "RONDE_BATCH_EMPTY");
+  }
+  const applyReason = String(pending.reason || reviewReason).trim();
+  const result = await applySmartBatchDelete(store, db, rows, applyReason, actor);
+  await db.run(
+    `UPDATE ronde_batch_delete_requests
+     SET status = 'APPROVED', reviewed_at = ?, reviewed_by = ?, review_reason = ?
+     WHERE request_batch_id = ?`,
+    [now, actor, reviewReason, batchId]
+  );
+  store.logAudit({
+    actorUsername: actor,
+    action: "RONDE_BATCH_DELETE_REQUEST_APPROVE",
+    details: { batchId, reviewReason, requestReason: pending.reason, ...result }
+  });
+  return { ok: true, decision: "approve", requestBatchId: batchId, ...result };
+}
+
+async function listRondeBatchDeleteRequests(store, { requesterRole }) {
+  store.ensureDataReaderRole(requesterRole);
+  if (!isRondeManagerRole(requesterRole)) {
+    store.fail(
+      "ronde:batchDeleteList",
+      "Seul un responsable peut consulter les demandes de suppression.",
+      "RONDE_BATCH_DELETE_LIST_FORBIDDEN"
+    );
+  }
+  const db = requireRondePersistence(store, "ronde:batchDeleteList");
+  const pending = await db.all(
+    `SELECT request_batch_id, reason, requested_at, requested_by, status
+     FROM ronde_batch_delete_requests WHERE status = 'PENDING'
+     ORDER BY requested_at ASC`,
+    []
+  );
+  const out = [];
+  for (const req of pending) {
+    const entries = await db.all(
+      `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ? ORDER BY request_date ASC`,
+      [req.request_batch_id]
+    );
+    out.push({
+      requestBatchId: req.request_batch_id,
+      reason: req.reason || "",
+      requestedAt: req.requested_at,
+      requestedBy: req.requested_by,
+      status: req.status,
+      entryCount: entries.length,
+      siteDisplay: entries[0]?.site_display || "",
+      dateFrom: entries[0]?.request_date || "",
+      dateTo: entries.length ? entries[entries.length - 1].request_date : "",
+      entryIds: entries.map((e) => e.id)
+    });
+  }
+  return out;
 }
 
 module.exports = {
@@ -725,6 +1015,9 @@ module.exports = {
   createRonde,
   getRondeTodayInProgressCounts,
   listRondes,
+  listRondeBatchDeleteRequests,
+  requestRondeBatchDelete,
+  reviewRondeBatchDeleteRequest,
   setRondeStatus,
   updateRonde,
   updateRondeBatchSharedFields

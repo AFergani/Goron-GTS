@@ -501,6 +501,23 @@ CREATE INDEX IF NOT EXISTS idx_ronde_request_batch ON ronde_entries (request_bat
 CREATE INDEX IF NOT EXISTS idx_ronde_motif_type ON ronde_entries (motif_type_id);
 CREATE INDEX IF NOT EXISTS idx_ronde_origin_intervention ON ronde_entries (origin_intervention_id);
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profile ON ronde_entries (planned_profile_id);
+
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS cancellation_kind TEXT;
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_at TEXT;
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_by TEXT;
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_reason TEXT;
+
+CREATE TABLE IF NOT EXISTS ronde_batch_delete_requests (
+  request_batch_id TEXT PRIMARY KEY,
+  reason TEXT NOT NULL DEFAULT '',
+  requested_at TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  reviewed_at TEXT,
+  reviewed_by TEXT,
+  review_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ronde_batch_delete_status ON ronde_batch_delete_requests (status);
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profiles_active
   ON data_ronde_planned_profiles (is_active, label);
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profile_lines_profile

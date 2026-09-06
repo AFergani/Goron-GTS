@@ -17,6 +17,39 @@ export function dateIsoToWeekdayMask(dateIso: string): number {
   return 1 << idxFromMon;
 }
 
+/**
+ * Masque des jours de semaine présents dans [fromIso, toIso] (inclus).
+ * Retourne 0 si bornes invalides.
+ */
+export function weekdaysMaskForInclusiveDateRange(fromIso: string, toIso: string): number {
+  const from = String(fromIso || "").trim();
+  const to = String(toIso || "").trim();
+  if (!from || !to || to < from) return 0;
+  let mask = 0;
+  let cursor = from;
+  let guard = 0;
+  while (cursor <= to && guard < 400) {
+    mask |= dateIsoToWeekdayMask(cursor);
+    cursor = addDaysIso(cursor, 1);
+    guard += 1;
+  }
+  return mask;
+}
+
+/** Nombre de jours calendaires inclus entre deux ISO (0 si invalide). */
+export function inclusiveCalendarDayCount(fromIso: string, toIso: string): number {
+  const from = String(fromIso || "").trim();
+  const to = String(toIso || "").trim();
+  if (!from || !to || to < from) return 0;
+  let count = 0;
+  let cursor = from;
+  while (cursor <= to && count < 400) {
+    count += 1;
+    cursor = addDaysIso(cursor, 1);
+  }
+  return count;
+}
+
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_RANDOM_SLOTS = 48;
 

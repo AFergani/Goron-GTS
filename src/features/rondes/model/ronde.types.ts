@@ -23,6 +23,20 @@ export type RondeMotifTypeRef = {
 export type RondeOriginKind = "TELESURVEILLANCE" | "CLIENT" | "AUTRE";
 export type RondeSource = "URGENCE" | "LIEE_INTERVENTION" | "PLANIFIE";
 export type RondeStatus = "EN_COURS" | "CLOTURE" | "ANNULE";
+export type RondeCancellationKind = "NON_EFFECTUEE" | "ANNULATION";
+
+export type RondeBatchDeleteRequestRef = {
+  requestBatchId: string;
+  reason: string;
+  requestedAt: string;
+  requestedBy: string;
+  status: string;
+  entryCount: number;
+  siteDisplay: string;
+  dateFrom: string;
+  dateTo: string;
+  entryIds: string[];
+};
 
 export type RondeEntry = {
   id: string;
@@ -49,6 +63,7 @@ export type RondeEntry = {
   report: string;
   status: RondeStatus;
   cancellationReason: string;
+  cancellationKind: RondeCancellationKind | null;
   closedAt: string | null;
   /** Renseigné pour les rondes créées depuis l’onglet planifié (usage interne / corrélation). */
   plannedProfileId: string | null;
@@ -62,6 +77,12 @@ export type RondeEntry = {
   requestBatchId: string | null;
   /** Pour regroupement uniquement ; ne pas afficher tel quel dans l’UI utilisateur. */
   requestPlanningSnapshotJson: string | null;
+  batchSuppressedAt: string | null;
+  batchSuppressedBy: string | null;
+  batchSuppressedReason: string;
+  batchDeleteRequestedAt: string | null;
+  batchDeleteRequestedBy: string | null;
+  batchDeleteReason: string;
 };
 
 export type RondeSavePayload = {

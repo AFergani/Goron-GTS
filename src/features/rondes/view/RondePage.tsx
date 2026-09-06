@@ -1,18 +1,18 @@
 /**
- * Page Rondes : onglets urgence, planifié, gestion profils ; orchestration presenter + référentiels.
+ * Page Rondes : onglets urgence / planifié ; orchestration presenter + référentiels.
  *
- * Barre d’onglets + actions (export, jour/liste, création). Filtres collés au tableau.
+ * Barre d’onglets + actions (export, jour/liste, création, profils, demandes d’arrêt).
  * Affichage liste (contractuelle et exceptionnelle) : filtre Statut par défaut « En cours ».
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
-import type { RondeEntry, RondeOriginKind } from "../model/ronde.types";
+import type { RondeEntry, RondeOriginKind, RondeBatchDeleteRequestRef } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { useRondePresenter } from "../presenter/useRondePresenter";
 import { useRondeReferenceData } from "../presenter/useRondeReferenceData";
@@ -21,16 +21,22 @@ import { RondeEntryModal } from "../components/RondeEntryModal";
 import { RondeRequestModal } from "../components/RondeRequestModal";
 import type { RequestOrigin } from "../components/RondeRequestModal";
 import { RondePageTabsBar } from "../components/RondePageTabsBar";
-import { RondeProfilesManageTab } from "../components/RondeProfilesManageTab";
-import type { RondePlannedProfilePayload } from "../model/rondePlanned.types";
+import type { RondeListView } from "../components/RondePageTabsBar";
+import type { RondePlannedProfilePayload, RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { RondeTable } from "../components/RondeTable";
 import { RondePlannedDaySection } from "../components/RondePlannedDaySection";
+import { RondePlannedProfilesListModal } from "../components/RondePlannedProfilesListModal";
+import { RondePlannedCancellationQueueModal } from "../components/RondePlannedCancellationQueueModal";
+import { RondeBatchDeleteQueueModal } from "../components/RondeBatchDeleteQueueModal";
+import { RondePlannedProfileLifecycleModals } from "../components/RondePlannedProfileLifecycleModals";
+import { useRondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfileLifecycle";
 import { getExceptionalDemandGroup } from "../utils/exceptionalDemandGroup";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { exportRondeToExcel } from "../export/rondeExcelExport";
 import { exportRondeEntryToWord } from "../export/rondeWordExport";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { countTodayInProgressRondes, isContractualRondeEntry } from "../utils/rondeEntryClassification";
+import { isRondeManagerRole } from "../utils/rondePassageRules";
 /** Anciens lots sans snapshot : hydratation minimale pour rouvrir la même modale que à la création. */
 function syntheticPlanningSnapshotForLinkedDemand(row: {
   requestDate: string;
@@ -115,7 +121,9 @@ type RondePageProps = {
   /** Id ronde à ouvrir (navigation depuis une intervention liée). */
   focusRondeId?: string | null;
   onFocusRondeConsumed?: () => void;
-  onUpsertRondePlannedProfile?: (payload: RondePlannedProfilePayload) => void | Promise<void>;
+  onUpsertRondePlannedProfile?: (
+    payload: RondePlannedProfilePayload
+  ) => void | Promise<void | RondePlannedProfileRef>;
   onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<void>;
   onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<void>;
   onReviewRondePlannedProfileCancellationRequest?: (
@@ -140,7 +148,7 @@ export function RondePage({
   onReviewRondePlannedProfileCancellationRequest,
   onSetRondePlannedProfilePlanningEnd
 }: RondePageProps) {
-  const [listView, setListView] = useState<"urgence" | "planifie" | "gestion">("planifie");
+  const [listView, setListView] = useState<RondeListView>("urgence");
   const [displayModeByService, setDisplayModeByService] = useState<{
     planifie: "day" | "list";
     urgence: "day" | "list";
@@ -182,6 +190,12 @@ export function RondePage({
   } | null>(null);
   const [requestPlanningReplay, setRequestPlanningReplay] = useState<RondePlanningSnapshotV1 | null>(null);
   const [openProfileRequest, setOpenProfileRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const [editingProfile, setEditingProfile] = useState<RondePlannedProfileRef | null>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profilesListOpen, setProfilesListOpen] = useState(false);
+  const [cancellationQueueOpen, setCancellationQueueOpen] = useState(false);
+  const [batchDeleteQueueOpen, setBatchDeleteQueueOpen] = useState(false);
+  const [batchDeleteRequests, setBatchDeleteRequests] = useState<RondeBatchDeleteRequestRef[]>([]);
   const [createPreset, setCreatePreset] = useState<{
     source: "PLANIFIE";
     requestDate: string;
@@ -197,6 +211,100 @@ export function RondePage({
 
   const ronde = useRondePresenter({ requesterRole, requesterUsername, onToast });
   const references = useRondeReferenceData(requesterRole, requesterUsername, onToast);
+
+  const closeProfileModal = () => {
+    setProfileModalOpen(false);
+    setEditingProfile(null);
+  };
+
+  const lifecycle = useRondePlannedProfileLifecycle(requesterRole, {
+    onDeleteRondePlannedProfile,
+    onRequestRondePlannedProfileCancellation,
+    onReviewRondePlannedProfileCancellationRequest,
+    onSetRondePlannedProfilePlanningEnd,
+    onReload: references.reload,
+    onNotify: onToast,
+    onAfterDestructiveSuccess: (profileId) => {
+      if (editingProfile?.id === profileId) closeProfileModal();
+    }
+  });
+
+  const pendingCancellationCount = useMemo(
+    () => references.plannedProfiles.filter((p) => Boolean(p.cancellationRequestedAt)).length,
+    [references.plannedProfiles]
+  );
+
+  const canManageRondes = isRondeManagerRole(requesterRole);
+
+  const refreshBatchDeleteRequests = async () => {
+    if (!canManageRondes) {
+      setBatchDeleteRequests([]);
+      return;
+    }
+    const list = await ronde.listBatchDeleteRequests();
+    setBatchDeleteRequests(list);
+  };
+
+  useEffect(() => {
+    if (!canManageRondes) {
+      setBatchDeleteRequests([]);
+      return;
+    }
+    let alive = true;
+    void ronde.listBatchDeleteRequests().then((list) => {
+      if (alive) setBatchDeleteRequests(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [canManageRondes, ronde.entries]);
+
+  const pendingBatchDeleteCount = batchDeleteRequests.length;
+
+  const lastOpenProfileNonce = useRef<number | null>(null);
+
+  const openProfileById = (profileId: string) => {
+    setOpenProfileRequest({ id: profileId, nonce: Date.now() });
+  };
+
+  const openProfileEditor = (profile: RondePlannedProfileRef) => {
+    setEditingProfile(profile);
+    setProfileModalOpen(true);
+    setProfilesListOpen(false);
+  };
+
+  /* Consommation openProfileRequest (toujours montée — plus d’onglet Gestion). */
+  useEffect(() => {
+    if (!openProfileRequest?.id) return;
+    if (lastOpenProfileNonce.current === openProfileRequest.nonce) return;
+    const target = references.plannedProfiles.find((p) => p.id === openProfileRequest.id) ?? null;
+    if (!target) {
+      onToast?.("Programmation introuvable.", "error");
+      lastOpenProfileNonce.current = openProfileRequest.nonce;
+      return;
+    }
+    lastOpenProfileNonce.current = openProfileRequest.nonce;
+    setEditingProfile(target);
+    setProfileModalOpen(true);
+  }, [openProfileRequest?.nonce, openProfileRequest?.id, references.plannedProfiles, onToast]);
+
+  /* Garde le profil édité synchronisé après reload. */
+  useEffect(() => {
+    if (!editingProfile?.id) return;
+    const fresh = references.plannedProfiles.find((p) => p.id === editingProfile.id) ?? null;
+    if (!fresh) {
+      closeProfileModal();
+      return;
+    }
+    if (
+      fresh.updatedAt !== editingProfile.updatedAt ||
+      fresh.cancellationRequestedAt !== editingProfile.cancellationRequestedAt ||
+      fresh.planningValidTo !== editingProfile.planningValidTo ||
+      fresh.isActive !== editingProfile.isActive
+    ) {
+      setEditingProfile(fresh);
+    }
+  }, [references.plannedProfiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Deep-link : ouverture automatique d'une ronde depuis une intervention liée ── */
   useEffect(() => {
@@ -333,6 +441,7 @@ export function RondePage({
             // Créneau virtuel de planification: jamais clôturé tant qu'aucune fiche réelle n'est créée.
             status: "EN_COURS" as const,
             cancellationReason: "",
+            cancellationKind: null,
             closedAt: null,
             plannedProfileId: slot.profileId,
             plannedRoundKind: slot.roundKind,
@@ -340,7 +449,13 @@ export function RondePage({
             closureCustomValues: {},
             requestPlanningSnapshot: null,
             requestBatchId: null,
-            requestPlanningSnapshotJson: null
+            requestPlanningSnapshotJson: null,
+            batchSuppressedAt: null,
+            batchSuppressedBy: null,
+            batchSuppressedReason: "",
+            batchDeleteRequestedAt: null,
+            batchDeleteRequestedBy: null,
+            batchDeleteReason: ""
           });
         });
     }
@@ -422,7 +537,7 @@ export function RondePage({
             <option value="EN_COURS">En cours</option>
             <option value="">Tous</option>
             <option value="CLOTURE">Clôturé</option>
-            <option value="ANNULE">Annulé</option>
+            <option value="ANNULE">Annulé / Non effectuée</option>
           </select>
         </label>
       </TableFiltersBar>
@@ -493,6 +608,89 @@ export function RondePage({
     setRequestModalOpen(true);
   };
 
+  /** Ouvre la demande / programmation liée depuis une fiche (tableau ou rapport). */
+  const openLinkedDemand = (row: {
+    source: RondeEntry["source"];
+    plannedProfileId?: string | null;
+    requestDate: string;
+    motifTypeId: string | null;
+    horairesDemandeObs: string;
+    siteId: string | null;
+    intervenantId: string | null;
+    originInterventionId?: string | null;
+    originKind?: RondeOriginKind;
+    originDetail?: string;
+    planningSnapshot?: RondePlanningSnapshotV1 | null;
+    anchorRondeId?: string | null;
+  }) => {
+    if (row.source === "PLANIFIE" && row.plannedProfileId) {
+      setModalOpen(false);
+      openProfileById(row.plannedProfileId);
+      return;
+    }
+    if (row.source === "URGENCE" || row.source === "LIEE_INTERVENTION") {
+      if (row.anchorRondeId) setLinkedDemandAnchorId(row.anchorRondeId);
+      const replay =
+        row.planningSnapshot?.version === 1
+          ? row.planningSnapshot
+          : syntheticPlanningSnapshotForLinkedDemand(row);
+      setRequestFixedOrigin(
+        row.originInterventionId
+          ? "SUITE_INTERVENTION"
+          : row.originKind === "CLIENT"
+            ? "APPEL_CLIENT"
+            : "AUTRE"
+      );
+      setRequestInitial({
+        requestDate: row.requestDate,
+        motifTypeId: row.motifTypeId,
+        consigne: row.horairesDemandeObs || row.originDetail || "",
+        siteId: row.siteId,
+        intervenantId: row.intervenantId,
+        interventionId: row.originInterventionId ?? null
+      });
+      setRequestPlanningReplay(replay);
+      setModalOpen(false);
+      setRequestModalOpen(true);
+      return;
+    }
+    setLinkedDemandAnchorId(null);
+    const origin: RequestOrigin = row.originInterventionId
+      ? "SUITE_INTERVENTION"
+      : row.originKind === "CLIENT"
+        ? "APPEL_CLIENT"
+        : "AUTRE";
+    setRequestFixedOrigin(origin);
+    setRequestPlanningReplay(null);
+    setRequestInitial({
+      requestDate: row.requestDate,
+      motifTypeId: row.motifTypeId,
+      consigne: row.horairesDemandeObs || row.originDetail || "",
+      siteId: row.siteId,
+      intervenantId: row.intervenantId,
+      interventionId: row.originInterventionId
+    });
+    setModalOpen(false);
+    setRequestModalOpen(true);
+  };
+
+  const openLinkedDemandForEntry = (entry: RondeEntry) => {
+    openLinkedDemand({
+      source: entry.source,
+      plannedProfileId: entry.plannedProfileId,
+      requestDate: entry.requestDate,
+      motifTypeId: entry.motifTypeId,
+      horairesDemandeObs: entry.horairesDemandeObs,
+      siteId: entry.siteId,
+      intervenantId: entry.intervenantId,
+      originInterventionId: entry.originInterventionId,
+      originKind: entry.originKind,
+      originDetail: entry.originDetail,
+      planningSnapshot: entry.requestPlanningSnapshot,
+      anchorRondeId: entry.id
+    });
+  };
+
   const openContractualRow = (entry: RondeEntry) => {
     if (entry.id.startsWith("virtual-planned-")) {
       if (!entry.siteId || !entry.plannedProfileId || !entry.plannedRoundKind || !entry.plannedSlotKey) {
@@ -521,43 +719,81 @@ export function RondePage({
     setModalOpen(true);
   };
 
-  const serviceTabActions =
-    listView === "gestion" ? undefined : (
-      <div className="main-courante-table-toolbar tabs-bar__toolbar">
-        {activeDisplayMode === "list" ? (
-          <button
-            type="button"
-            className="btn-light"
-            title="Exporter Excel (filtres actifs)"
-            aria-label="Exporter données (filtres actifs)"
-            onClick={listView === "planifie" ? handleExportContractual : handleExportExceptional}
-          >
-            Export données
-          </button>
-        ) : null}
-        <div className="row-actions">
-          <ToggleSwitch
-            checked={activeDisplayMode === "day"}
-            onChange={(checked) =>
-              setDisplayModeByService((prev) => ({
-                ...prev,
-                [activeServiceView]: checked ? "day" : "list"
-              }))
-            }
-            label={activeDisplayMode === "day" ? "Affichage jour" : "Affichage liste"}
-            labelFirst
-          />
-        </div>
+  const serviceTabActions = (
+    <div className="main-courante-table-toolbar tabs-bar__toolbar">
+      {listView === "planifie" && onUpsertRondePlannedProfile ? (
         <button
           type="button"
-          className="mc-btn-primary"
-          onClick={() => openRequestModal(listView === "planifie" ? "CONTRAT" : "APPEL_CLIENT")}
+          className="btn-light"
+          title="Parcourir les profils de programmation"
+          onClick={() => setProfilesListOpen(true)}
         >
-          <Plus size={16} aria-hidden />
-          {listView === "planifie" ? "Planifier une ronde" : "Nouvelle ronde"}
+          Profils des rondes
         </button>
+      ) : null}
+      {activeDisplayMode === "list" ? (
+        <button
+          type="button"
+          className="btn-light"
+          title="Exporter Excel (filtres actifs)"
+          aria-label="Exporter données (filtres actifs)"
+          onClick={listView === "planifie" ? handleExportContractual : handleExportExceptional}
+        >
+          Export données
+        </button>
+      ) : null}
+      <div className="row-actions">
+        <ToggleSwitch
+          checked={activeDisplayMode === "day"}
+          onChange={(checked) =>
+            setDisplayModeByService((prev) => ({
+              ...prev,
+              [activeServiceView]: checked ? "day" : "list"
+            }))
+          }
+          label={activeDisplayMode === "day" ? "Affichage jour" : "Affichage liste"}
+          labelFirst
+        />
       </div>
-    );
+      {listView === "planifie" && onUpsertRondePlannedProfile && lifecycle.canManageCancellation && pendingCancellationCount > 0 ? (
+        <button
+          type="button"
+          className="btn-light data-pending-submissions-btn"
+          title={`${pendingCancellationCount} demande(s) d'arrêt à traiter`}
+          onClick={() => setCancellationQueueOpen(true)}
+        >
+          Demandes d&apos;arrêt
+          <span className="tab-badge" aria-hidden>
+            {pendingCancellationCount}
+          </span>
+        </button>
+      ) : null}
+      {listView === "urgence" && canManageRondes && pendingBatchDeleteCount > 0 ? (
+        <button
+          type="button"
+          className="btn-light data-pending-submissions-btn"
+          title={`${pendingBatchDeleteCount} demande(s) de suppression de lot à traiter`}
+          onClick={() => {
+            void refreshBatchDeleteRequests();
+            setBatchDeleteQueueOpen(true);
+          }}
+        >
+          Demandes de suppression
+          <span className="tab-badge" aria-hidden>
+            {pendingBatchDeleteCount}
+          </span>
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="mc-btn-primary ronde-primary-action-btn"
+        onClick={() => openRequestModal(listView === "planifie" ? "CONTRAT" : "APPEL_CLIENT")}
+      >
+        <Plus size={16} aria-hidden />
+        {listView === "urgence" ? "Nouvelle ronde" : "Planifier une ronde"}
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -566,33 +802,8 @@ export function RondePage({
         onListViewChange={setListView}
         todayContractualCount={todayRondeBadgeCounts.contractual}
         todayExceptionalCount={todayRondeBadgeCounts.exceptional}
-        showProgrammations={Boolean(onUpsertRondePlannedProfile)}
-        onOpenProgrammations={() => {
-          setListView("gestion");
-          setOpenProfileRequest(null);
-        }}
         actions={serviceTabActions}
       />
-
-      {listView === "gestion" && onUpsertRondePlannedProfile ? (
-        <RondeProfilesManageTab
-          sites={references.sites}
-          intervenants={references.intervenants}
-          rondeMotifTypes={references.rondeMotifs}
-          profiles={references.plannedProfiles}
-          loading={references.loading}
-          error={references.error}
-          onReload={references.reload}
-          requesterRole={requesterRole}
-          onUpsertRondePlannedProfile={onUpsertRondePlannedProfile}
-          onDeleteRondePlannedProfile={onDeleteRondePlannedProfile}
-          onRequestRondePlannedProfileCancellation={onRequestRondePlannedProfileCancellation}
-          onReviewRondePlannedProfileCancellationRequest={onReviewRondePlannedProfileCancellationRequest}
-          onSetRondePlannedProfilePlanningEnd={onSetRondePlannedProfilePlanningEnd}
-          onNotify={onToast}
-          openProfileRequest={openProfileRequest}
-        />
-      ) : null}
 
       {listView === "planifie" ? (
         <section className="panel main-courante-table-panel">
@@ -627,6 +838,7 @@ export function RondePage({
                 setModalMode("edit");
                 setModalOpen(true);
               }}
+              onOpenProfile={openProfileById}
             />
           ) : (
             <RondeTable
@@ -635,6 +847,8 @@ export function RondePage({
               onExportWord={handleExportRondeWord}
               onOpen={openContractualRow}
               onFollowUp={openContractualRow}
+              onOpenProfile={openProfileById}
+              showOrigin={false}
             />
           )}
         </section>
@@ -663,6 +877,7 @@ export function RondePage({
                   setModalMode("edit");
                   setModalOpen(true);
                 }}
+                onOpenLinkedDemand={openLinkedDemandForEntry}
               />
               <TablePaginationBar
                 currentPage={filters.currentPage}
@@ -714,59 +929,8 @@ export function RondePage({
         onCreatePendingSite={references.createPendingSite}
         onCreatePendingIntervenant={references.createPendingIntervenant}
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
-        onOpenLinkedRequest={(row) => {
-          if (row.source === "PLANIFIE" && row.plannedProfileId) {
-            setModalOpen(false);
-            setListView("gestion");
-            setOpenProfileRequest({ id: row.plannedProfileId, nonce: Date.now() });
-            return;
-          }
-          if (row.source === "URGENCE" || row.source === "LIEE_INTERVENTION") {
-            if (row.anchorRondeId) setLinkedDemandAnchorId(row.anchorRondeId);
-            const replay =
-              row.planningSnapshot?.version === 1 ? row.planningSnapshot : syntheticPlanningSnapshotForLinkedDemand(row);
-            setRequestFixedOrigin(
-              row.originInterventionId
-                ? "SUITE_INTERVENTION"
-                : row.originKind === "CLIENT"
-                  ? "APPEL_CLIENT"
-                  : "AUTRE"
-            );
-            setRequestInitial({
-              requestDate: row.requestDate,
-              motifTypeId: row.motifTypeId,
-              consigne: row.horairesDemandeObs || row.originDetail || "",
-              siteId: row.siteId,
-              intervenantId: row.intervenantId,
-              interventionId: row.originInterventionId ?? null
-            });
-            setRequestPlanningReplay(replay);
-            setModalOpen(false);
-            setRequestModalOpen(true);
-            return;
-          }
-          setLinkedDemandAnchorId(null);
-          const origin: RequestOrigin =
-            row.source === "PLANIFIE"
-              ? "CONTRAT"
-              : row.originInterventionId
-                ? "SUITE_INTERVENTION"
-                : row.originKind === "CLIENT"
-                  ? "APPEL_CLIENT"
-                  : "AUTRE";
-          setRequestFixedOrigin(origin);
-          setRequestPlanningReplay(null);
-          setRequestInitial({
-            requestDate: row.requestDate,
-            motifTypeId: row.motifTypeId,
-            consigne: row.horairesDemandeObs || row.originDetail || "",
-            siteId: row.siteId,
-            intervenantId: row.intervenantId,
-            interventionId: row.originInterventionId
-          });
-          setModalOpen(false);
-          setRequestModalOpen(true);
-        }}
+        onOpenLinkedRequest={openLinkedDemand}
+        requesterRole={requesterRole}
       />
       <RondeRequestModal
         isOpen={requestModalOpen}
@@ -786,10 +950,12 @@ export function RondePage({
         requesterRole={requesterRole}
         linkedBatchEntries={linkedDemandAnchorId && linkedDemandGroup.length ? linkedDemandGroup : null}
         onSaveLinkedBatch={(payload) => ronde.updateBatchSharedFields(payload)}
-        bulkCancelLinkedBatch={ronde.bulkCancelBatch}
-        bulkDeleteLinkedBatch={
-          requesterRole === "RESPONSABLE" || requesterRole === "DEV" ? ronde.bulkDeleteBatch : undefined
+        cancelLinkedBatchOne={async (entry, reason, kind) =>
+          ronde.setStatus(entry.id, entry.updatedAt, "ANNULE", reason, kind)
         }
+        bulkCancelLinkedBatch={canManageRondes ? ronde.bulkCancelBatch : undefined}
+        bulkDeleteLinkedBatch={canManageRondes ? ronde.bulkDeleteBatch : undefined}
+        requestLinkedBatchDelete={!canManageRondes ? ronde.requestBatchDelete : undefined}
         onOpenLinkedBatchRonde={(e) => {
           setRequestModalOpen(false);
           setRequestPlanningReplay(null);
@@ -825,9 +991,108 @@ export function RondePage({
           if (!onUpsertRondePlannedProfile) {
             throw new Error("La création de profil n'est pas disponible.");
           }
-          await Promise.resolve(onUpsertRondePlannedProfile(payload));
+          const result = await onUpsertRondePlannedProfile(payload);
           await references.reload();
+          return result ?? undefined;
         }}
+        onAfterProfileCreated={(profile) => {
+          setRequestModalOpen(false);
+          setRequestPlanningReplay(null);
+          setLinkedDemandAnchorId(null);
+          openProfileEditor(profile);
+        }}
+      />
+
+      {onUpsertRondePlannedProfile ? (
+        <RondeRequestModal
+          isOpen={profileModalOpen}
+          editProfile={editingProfile}
+          sites={references.sites}
+          intervenants={references.intervenants}
+          rondeMotifs={references.rondeMotifs}
+          requesterRole={requesterRole}
+          onNotify={onToast}
+          onClose={closeProfileModal}
+          onStopProfile={
+            lifecycle.canManageCancellation && onSetRondePlannedProfilePlanningEnd && editingProfile
+              ? () => lifecycle.beginStop(editingProfile)
+              : undefined
+          }
+          onRequestStopProfile={
+            !lifecycle.canManageCancellation &&
+            onRequestRondePlannedProfileCancellation &&
+            editingProfile &&
+            !editingProfile.cancellationRequestedAt
+              ? () => lifecycle.beginRequestCancellation(editingProfile)
+              : undefined
+          }
+          onDeleteProfile={
+            lifecycle.canDelete && onDeleteRondePlannedProfile && editingProfile
+              ? () => lifecycle.beginDelete(editingProfile)
+              : undefined
+          }
+          onCreateProfile={async (payload) => {
+            const result = await onUpsertRondePlannedProfile(payload);
+            await references.reload();
+            if (result) setEditingProfile(result);
+            return result ?? undefined;
+          }}
+        />
+      ) : null}
+
+      <RondePlannedProfilesListModal
+        isOpen={profilesListOpen}
+        profiles={references.plannedProfiles}
+        onClose={() => setProfilesListOpen(false)}
+        onOpenProfile={openProfileEditor}
+      />
+
+      <RondePlannedCancellationQueueModal
+        isOpen={cancellationQueueOpen}
+        profiles={references.plannedProfiles}
+        onClose={() => setCancellationQueueOpen(false)}
+        onApprove={(profile) => {
+          lifecycle.beginStop(profile);
+        }}
+        onReject={(profile) => {
+          lifecycle.beginReject(profile);
+        }}
+        onOpenProfile={(profile) => {
+          setCancellationQueueOpen(false);
+          openProfileEditor(profile);
+        }}
+      />
+
+      <RondeBatchDeleteQueueModal
+        isOpen={batchDeleteQueueOpen}
+        requests={batchDeleteRequests}
+        onClose={() => setBatchDeleteQueueOpen(false)}
+        onApprove={async (requestBatchId, reviewReason) => {
+          const res = await ronde.reviewBatchDeleteRequest(requestBatchId, "approve", reviewReason);
+          if (res?.ok) {
+            onToast?.("Demande de suppression approuvée.");
+            await refreshBatchDeleteRequests();
+            return true;
+          }
+          return false;
+        }}
+        onReject={async (requestBatchId, reviewReason) => {
+          const res = await ronde.reviewBatchDeleteRequest(requestBatchId, "reject", reviewReason);
+          if (res?.ok) {
+            onToast?.("Demande de suppression refusée.");
+            await refreshBatchDeleteRequests();
+            return true;
+          }
+          return false;
+        }}
+      />
+
+      <RondePlannedProfileLifecycleModals
+        lifecycle={lifecycle}
+        hasSetPlanningEnd={Boolean(onSetRondePlannedProfilePlanningEnd)}
+        hasReviewCancellation={Boolean(onReviewRondePlannedProfileCancellationRequest)}
+        hasRequestCancellation={Boolean(onRequestRondePlannedProfileCancellation)}
+        hasDelete={Boolean(onDeleteRondePlannedProfile)}
       />
 
     </>

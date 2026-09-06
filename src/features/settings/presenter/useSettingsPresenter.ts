@@ -907,10 +907,10 @@ export function useSettingsPresenter({
   };
 
   const onUpsertRondePlannedProfile = async (payload: RondePlannedProfilePayload) => {
-    if (!session) return;
+    if (!session) throw new Error("Session inactive.");
     onError("");
     try {
-      await gtsApiClient.upsertRondePlannedProfile({
+      const result = await gtsApiClient.upsertRondePlannedProfile({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         ...payload,
@@ -920,31 +920,42 @@ export function useSettingsPresenter({
       });
       onToast(payload.id ? "Profil de planification mis à jour." : "Profil de planification créé.");
       await loadRondePlannedProfiles();
+      return result;
     } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Erreur à l'enregistrement du profil."));
+      const message = extractUserFacingErrorMessage(err, "Erreur à l'enregistrement du profil.");
+      onError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 
   const onDeleteRondePlannedProfile = async (id: string, reason: string) => {
-    if (!session) return;
+    if (!session) throw new Error("Session inactive.");
     onError("");
     try {
-      await gtsApiClient.deleteRondePlannedProfile({
+      const result = await gtsApiClient.deleteRondePlannedProfile({
         requesterRole: session.user.role,
         requesterUsername: session.user.username,
         id,
         reason,
         expectedUpdatedAt: rondePlannedProfiles.find((item) => item.id === id)?.updatedAt ?? null
       });
-      onToast("Profil de planification supprimé.");
+      const action = (result as { action?: string } | null)?.action;
+      onToast(
+        action === "deactivated"
+          ? "Programmation désactivée (rondes clôturées conservées)."
+          : "Profil de planification supprimé."
+      );
       await loadRondePlannedProfiles();
+      return result;
     } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Erreur de suppression du profil."));
+      const message = extractUserFacingErrorMessage(err, "Erreur de suppression du profil.");
+      onError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 
   const onRequestRondePlannedProfileCancellation = async (id: string, reason: string) => {
-    if (!session) return;
+    if (!session) throw new Error("Session inactive.");
     onError("");
     try {
       await gtsApiClient.requestRondePlannedProfileCancellation({
@@ -957,7 +968,9 @@ export function useSettingsPresenter({
       onToast("Demande d'annulation envoyée.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Impossible d'envoyer la demande d'annulation."));
+      const message = extractUserFacingErrorMessage(err, "Impossible d'envoyer la demande d'annulation.");
+      onError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 
@@ -965,7 +978,7 @@ export function useSettingsPresenter({
     id: string,
     payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
   ) => {
-    if (!session) return;
+    if (!session) throw new Error("Session inactive.");
     onError("");
     try {
       await gtsApiClient.reviewRondePlannedProfileCancellationRequest({
@@ -978,12 +991,14 @@ export function useSettingsPresenter({
       onToast(payload.decision === "approve" ? "Demande d'annulation acceptée." : "Demande d'annulation refusée.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Impossible de traiter la demande d'annulation."));
+      const message = extractUserFacingErrorMessage(err, "Impossible de traiter la demande d'annulation.");
+      onError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 
   const onSetRondePlannedProfilePlanningEnd = async (id: string, planningEndDate: string, reason: string) => {
-    if (!session) return;
+    if (!session) throw new Error("Session inactive.");
     onError("");
     try {
       await gtsApiClient.setRondePlannedProfilePlanningEnd({
@@ -997,7 +1012,9 @@ export function useSettingsPresenter({
       onToast("Date de fin de planification enregistrée.");
       await loadRondePlannedProfiles();
     } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Impossible d'enregistrer la fin de planification."));
+      const message = extractUserFacingErrorMessage(err, "Impossible d'enregistrer la fin de planification.");
+      onError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 

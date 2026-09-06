@@ -4,7 +4,7 @@
  * Effets de formulaire : `[isOpen, mode]` création ; `[isOpen, mode, entry?.id]` édition.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
@@ -24,8 +24,10 @@ import { TimeInput } from "../../common/components/TimeInput";
 import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { RondeLinkedBatchPanel } from "./RondeLinkedBatchPanel";
-import { addDaysIso, dateIsoToWeekdayMask, generateRandomSlotSpecs } from "../model/rondePlannedSlotEngine";
+import { addDaysIso, dateIsoToWeekdayMask, generateRandomSlotSpecs, inclusiveCalendarDayCount, weekdaysMaskForInclusiveDateRange } from "../model/rondePlannedSlotEngine";
 import { formatLocalDateIso, formatLocalTimeHm } from "../model/rondeCalendarLocal";
+import { formatRondePlannedLineSummary } from "../model/rondePlannedSummary";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -39,10 +41,21 @@ type RondeRequestModalProps = {
   requesterRole?: Role;
   /** Profil à éditer — si fourni, la modale s'ouvre en mode édition */
   editProfile?: RondePlannedProfileRef | null;
+  /** Actions cycle de vie (édition profil uniquement) — ouvertes via confirmations parent. */
+  onStopProfile?: () => void;
+  onRequestStopProfile?: () => void;
+  onDeleteProfile?: () => void;
   onClose: () => void;
   onNotify?: NotifyToast;
-  /** Crée ou met à jour un profil de planification (avec `id` en édition) */
-  onCreateProfile: (payload: RondePlannedProfilePayload & { autoValidate?: boolean }) => Promise<void> | void;
+  /** Crée ou met à jour un profil de planification (avec `id` en édition). Retourne le profil enregistré si disponible. */
+  onCreateProfile: (
+    payload: RondePlannedProfilePayload & { autoValidate?: boolean }
+  ) => Promise<RondePlannedProfileRef | void> | RondePlannedProfileRef | void;
+  /**
+   * Après création d'un profil contractuel (hors édition) : ouvrir le récap / édition
+   * sans fermer immédiatement la demande côté parent.
+   */
+  onAfterProfileCreated?: (profile: RondePlannedProfileRef) => void;
   /** Crée une ronde exceptionnelle — optionnel en mode profil seul */
   onCreateEntry?: (payload: {
     siteId: string | null;
@@ -89,6 +102,11 @@ type RondeRequestModalProps = {
     intervenantName: string;
     requestPlanningSnapshotJson?: string | null;
   }) => Promise<boolean>;
+  cancelLinkedBatchOne?: (
+    entry: RondeEntry,
+    reason: string,
+    kind: "NON_EFFECTUEE" | "ANNULATION"
+  ) => Promise<boolean>;
   bulkCancelLinkedBatch?: (
     entryIds: string[],
     reason: string
@@ -96,7 +114,17 @@ type RondeRequestModalProps = {
   bulkDeleteLinkedBatch?: (
     entryIds: string[],
     reason: string
-  ) => Promise<{ ok: boolean; deletedCount: number } | null>;
+  ) => Promise<{
+    ok: boolean;
+    deletedCount: number;
+    skippedCount?: number;
+    nonEffectueeCount?: number;
+    suppressedCount?: number;
+  } | null>;
+  requestLinkedBatchDelete?: (
+    entryIds: string[],
+    reason: string
+  ) => Promise<{ ok: boolean; requestBatchId: string } | null>;
   onOpenLinkedBatchRonde?: (entry: RondeEntry) => void;
   /** Retour vers le rapport de ronde d'ancrage (navigation Rapport → Demande → Rapport). */
   onNavigateBackToAnchorRonde?: () => void;
@@ -146,6 +174,28 @@ type LineDraft = {
   includeHolidays: boolean;
   includeHolidayEves: boolean;
 };
+
+/** Résumé lisible d'une ligne brouillon (aperçu / récap demande). */
+function formatLineDraftSummary(line: LineDraft): string {
+  const intervalMinutes = line.intervalHours.trim()
+    ? Math.max(1, Math.round(Number(line.intervalHours) * 60))
+    : null;
+  const roundsCount = line.randomRoundsCount.trim()
+    ? Math.max(1, Math.round(Number(line.randomRoundsCount)))
+    : null;
+  return formatRondePlannedLineSummary({
+    roundKind: line.roundKind,
+    recurrenceKind: "WEEKLY",
+    weekdaysMask: line.weekdaysMask,
+    monthDay: null,
+    requestedTime: line.requestedTime.trim() || null,
+    intervalMinutes: Number.isFinite(intervalMinutes as number) ? intervalMinutes : null,
+    randomPeriodMask: RANDOM_PERIOD_DAY | RANDOM_PERIOD_NIGHT,
+    randomWindowStart: line.randomWindowStart.trim() || null,
+    randomWindowEnd: line.randomWindowEnd.trim() || null,
+    randomRoundsCount: Number.isFinite(roundsCount as number) ? roundsCount : null
+  });
+}
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -288,6 +338,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
   const [pendingIntervenantName, setPendingIntervenantName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  /** Clé du dernier auto-alignement Jour unique (évite d’écraser les saisies manuelles). */
+  const singleDayAutoKeyRef = useRef<string | null>(null);
 
   const isEdit = Boolean(props.editProfile);
   const isManager = props.requesterRole === "RESPONSABLE" || props.requesterRole === "DEV";
@@ -509,18 +561,34 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
   };
 
   const addLine = () => {
+    const from = validFrom.trim();
+    const todayIso = formatLocalDateIso(new Date());
+    const isToday = Boolean(isSingleDay && from && from === todayIso);
+    const dayMask =
+      isSingleDay && from
+        ? dateIsoToWeekdayMask(from)
+        : validityRangeWeekdayLock != null
+          ? validityRangeWeekdayLock
+          : 0;
+    const fromTimeNorm = TIME_RE.test(validFromTime.trim())
+      ? validFromTime.trim()
+      : isSingleDay
+        ? isToday
+          ? formatLocalTimeHm(new Date())
+          : "00:00"
+        : "08:00";
     setLines((prev) => [
       ...prev,
       {
         id: crypto?.randomUUID?.() ?? `line-${Date.now()}-${prev.length + 1}`,
         roundKind: "OPENING",
-        requestedTime: "08:00",
-        randomWindowStart: "",
-        randomWindowEnd: "",
+        requestedTime: isSingleDay ? fromTimeNorm : "08:00",
+        randomWindowStart: isSingleDay ? fromTimeNorm : "",
+        randomWindowEnd: isSingleDay ? "23:59" : "",
         randomRoundsCount: "",
         intervalHours: "",
         intervalEndTime: "23:59",
-        weekdaysMask: 0,
+        weekdaysMask: dayMask,
         includeHolidays: false,
         includeHolidayEves: false
       }
@@ -604,7 +672,6 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       }
 
       if (intervalMinutes != null) {
-        const endTime = ln.intervalEndTime.trim() || "23:59";
         const intervalAnchor =
           requestDate.trim() === validFrom.trim()
             ? { demandDateIso: requestDate.trim(), demandTimeHm: (requestTime.trim() || "00:00") }
@@ -627,8 +694,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       if (roundsCount != null) {
         for (const dayIso of dateAnchors) {
           if (!lineAppliesOnDate(ln, dayIso)) continue;
-          const maxMinute = dayIso === rangeEndIso && ln.intervalEndTime.trim()
-            ? hhmmToMinutes(ln.intervalEndTime.trim())
+          const maxMinute = dayIso === rangeEndIso
+            ? hhmmToMinutes(toTimeNorm)
             : (23 * 60) + 59;
           const span = Math.max(0, maxMinute);
           for (let i = 0; i < roundsCount; i += 1) {
@@ -656,21 +723,126 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     [isContract, isEdit, isLinkedExistingBatch, lines, validFrom, validFromTime, validTo, validToTime, motifTypeId, props.holidays, requestDate, requestTime]
   );
 
-  useEffect(() => {
-    if (!isSingleDay) return;
-    if (!validFrom.trim()) return;
-    if (validTo === validFrom) return;
-    setValidTo(validFrom);
+  /**
+   * Plage de validité courte (Du→Au, ≤ 7 j.) hors « Jour unique » :
+   * les toggles L→D sont figés sur les jours présents dans la plage (ex. aléatoire + date de fin).
+   */
+  const validityRangeWeekdayLock = useMemo(() => {
+    if (isSingleDay) return null;
+    const from = validFrom.trim();
+    const to = validTo.trim();
+    if (!from || !to || to < from) return null;
+    const dayCount = inclusiveCalendarDayCount(from, to);
+    if (dayCount < 1 || dayCount > 7) return null;
+    const mask = weekdaysMaskForInclusiveDateRange(from, to);
+    return mask > 0 ? mask : null;
   }, [isSingleDay, validFrom, validTo]);
+
+  const lockWeekdaysFromValidityRange = validityRangeWeekdayLock != null;
+
+  useEffect(() => {
+    if (validityRangeWeekdayLock == null) return;
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((line) => {
+        let draft = line;
+        if (draft.weekdaysMask !== validityRangeWeekdayLock) {
+          draft = { ...draft, weekdaysMask: validityRangeWeekdayLock };
+          changed = true;
+        }
+        /* Plage déjà bornée : fériés / veilles n’ajoutent rien d’utile. */
+        if (draft.includeHolidays || draft.includeHolidayEves) {
+          draft = { ...draft, includeHolidays: false, includeHolidayEves: false };
+          changed = true;
+        }
+        return draft;
+      });
+      return changed ? next : prev;
+    });
+  }, [validityRangeWeekdayLock]);
+
+  useEffect(() => {
+    if (!isSingleDay) {
+      singleDayAutoKeyRef.current = null;
+      return;
+    }
+    const from = validFrom.trim();
+    if (!from) return;
+    if (validTo !== from) setValidTo(from);
+
+    const dayMask = dateIsoToWeekdayMask(from);
+    const todayIso = formatLocalDateIso(new Date());
+    const isToday = from === todayIso;
+    const autoKey = `${from}|${isToday ? "today" : "other"}`;
+    const shouldAutoAlignTimes = singleDayAutoKeyRef.current !== autoKey;
+    const wasOtherDay = singleDayAutoKeyRef.current?.endsWith("|other") === true;
+
+    let fromTimeNorm = TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "";
+    if (shouldAutoAlignTimes) {
+      singleDayAutoKeyRef.current = autoKey;
+      if (isToday) {
+        if (!fromTimeNorm || wasOtherDay) {
+          fromTimeNorm = formatLocalTimeHm(new Date());
+          setValidFromTime(fromTimeNorm);
+        }
+        setValidToTime("23:59");
+      } else {
+        fromTimeNorm = "00:00";
+        setValidFromTime("00:00");
+        setValidToTime("23:59");
+      }
+    }
+
+    const applyFromTime = fromTimeNorm || (TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "00:00");
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((line) => {
+        let draft = line;
+        if (dayMask && line.weekdaysMask !== dayMask) {
+          draft = { ...draft, weekdaysMask: dayMask };
+          changed = true;
+        }
+        if (shouldAutoAlignTimes) {
+          if (line.roundKind === "RANDOM") {
+            if (draft.randomWindowStart !== applyFromTime || draft.randomWindowEnd !== "23:59") {
+              draft = { ...draft, randomWindowStart: applyFromTime, randomWindowEnd: "23:59" };
+              changed = true;
+            }
+          } else if (
+            draft.requestedTime !== applyFromTime &&
+            (line.roundKind === "OPENING" || line.roundKind === "CLOSING" || line.roundKind === "ACCOMPAGNEMENT")
+          ) {
+            draft = { ...draft, requestedTime: applyFromTime };
+            changed = true;
+          }
+        }
+        return draft;
+      });
+      return changed ? next : prev;
+    });
+  }, [isSingleDay, validFrom, validTo, validFromTime]);
 
   if (!props.isOpen) return null;
 
   const onSubmit = async () => {
     setError("");
     const effectiveValidTo = isSingleDay ? validFrom.trim() : validTo.trim();
-    const linesForSubmit = isSingleDay
-      ? lines.map((line) => ({ ...line, weekdaysMask: 0, includeHolidays: true, includeHolidayEves: true }))
-      : lines;
+    const singleDayMask = isSingleDay && validFrom.trim() ? dateIsoToWeekdayMask(validFrom.trim()) : 0;
+    const rangeLockMask =
+      !isSingleDay && validFrom.trim() && effectiveValidTo
+        ? (() => {
+            const count = inclusiveCalendarDayCount(validFrom.trim(), effectiveValidTo);
+            if (count < 1 || count > 7) return 0;
+            return weekdaysMaskForInclusiveDateRange(validFrom.trim(), effectiveValidTo);
+          })()
+        : 0;
+    const linesForSubmit =
+      isSingleDay || rangeLockMask
+        ? lines.map((line) => ({
+            ...line,
+            weekdaysMask: (isSingleDay ? singleDayMask : rangeLockMask) || line.weekdaysMask
+          }))
+        : lines;
     let pendingSiteDisplay: string | null = null;
     let pendingIntervenantDisplay: string | null = null;
     const isExceptionalCreate = !isContract && !isEdit && !isLinkedExistingBatch && Boolean(props.onCreateEntry);
@@ -730,9 +902,6 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           if (!effectiveValidTo.trim()) {
             return setError(`Ligne ${i + 1}: avec un intervalle sans fenêtre, renseignez une date de fin de validité.`);
           }
-          if (!ln.intervalEndTime.trim()) {
-            return setError(`Ligne ${i + 1}: indiquez l'heure de fin de validité.`);
-          }
         }
       }
     }
@@ -767,7 +936,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             randomWindowEnd: ln.randomWindowEnd,
             randomRoundsCount: ln.randomRoundsCount,
             intervalHours: ln.intervalHours,
-            intervalEndTime: ln.intervalEndTime,
+            intervalEndTime: validToTimeNorm,
             weekdaysMask: ln.weekdaysMask,
             includeHolidays: ln.includeHolidays,
             includeHolidayEves: ln.includeHolidayEves
@@ -824,7 +993,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             randomWindowEnd: ln.randomWindowEnd,
             randomRoundsCount: ln.randomRoundsCount,
             intervalHours: ln.intervalHours,
-            intervalEndTime: ln.intervalEndTime,
+            intervalEndTime: validToTimeNorm,
             weekdaysMask: ln.weekdaysMask,
             includeHolidays: ln.includeHolidays,
             includeHolidayEves: ln.includeHolidayEves
@@ -899,7 +1068,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           rangeEndDate: null
         };
       });
-      await Promise.resolve(
+      const saved = await Promise.resolve(
         props.onCreateProfile({
           /* Identifiant inclus en édition */
           ...(isEdit && props.editProfile ? { id: props.editProfile.id } : {}),
@@ -917,7 +1086,19 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           ...(!isEdit && isManager ? { autoValidate: true } : {})
         })
       );
-      props.onClose();
+      if (
+        !isEdit &&
+        saved &&
+        typeof saved === "object" &&
+        "id" in saved &&
+        saved.id &&
+        props.onAfterProfileCreated
+      ) {
+        props.onAfterProfileCreated(saved);
+        return;
+      }
+      /* Édition : rester ouvert pour consulter le récap ; création sans callback : fermer. */
+      if (!isEdit) props.onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
@@ -1104,27 +1285,25 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               title="Heure de début (vide = 00:00)"
               aria-label="Heure de début de validité"
             />
-            <span className="ronde-planned-profile-modal__validity-label">Au</span>
-            <input
-              type="date"
-              value={isSingleDay ? (validFrom || validTo) : validTo}
-              disabled={isSingleDay}
-              onChange={(e) => setValidTo(e.target.value)}
-              aria-label="Date de fin de validité"
-            />
-            <TimeInput
-              value={validToTime}
-              disabled={isSingleDay}
-              onChange={setValidToTime}
-              title="Heure de fin (vide = 23:59)"
-              aria-label="Heure de fin de validité"
-            />
-            <ToggleSwitch
-              checked={isSingleDay}
-              onChange={setIsSingleDay}
-              label="Jour unique"
-              labelFirst
-            />
+            {!isSingleDay ? (
+              <>
+                <span className="ronde-planned-profile-modal__validity-label">Au</span>
+                <input
+                  type="date"
+                  value={validTo}
+                  onChange={(e) => setValidTo(e.target.value)}
+                  aria-label="Date de fin de validité"
+                />
+                <TimeInput
+                  value={validToTime}
+                  onChange={setValidToTime}
+                  title="Heure de fin (vide = 23:59)"
+                  aria-label="Heure de fin de validité"
+                />
+              </>
+            ) : (
+              <span className="muted ronde-planned-profile-modal__validity-single-hint">Jour unique</span>
+            )}
           </div>
           <div className="ronde-planned-profile-modal__lines-header">
             <span className="ronde-planned-profile-modal__lines-title">Lignes de planification</span>
@@ -1156,7 +1335,17 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                     onChange={(e) => {
                       const nextKind = e.target.value as RoundKind;
                       updateLine(index, { roundKind: nextKind });
-                      if (nextKind === "ACCOMPAGNEMENT") setIsSingleDay(true);
+                      if (nextKind === "ACCOMPAGNEMENT") {
+                        setIsSingleDay(true);
+                        return;
+                      }
+                      // Quitter Accompagnement : désactiver Jour unique s'il ne reste aucune ligne accompagnement.
+                      if (line.roundKind === "ACCOMPAGNEMENT") {
+                        const stillHasAccompagnement = lines.some(
+                          (other, otherIndex) => otherIndex !== index && other.roundKind === "ACCOMPAGNEMENT"
+                        );
+                        if (!stillHasAccompagnement) setIsSingleDay(false);
+                      }
                     }}
                   >
                     <option value="OPENING">Ouverture</option>
@@ -1166,14 +1355,16 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                   </select>
                 </label>
                 <div className="ronde-request-line-grid__controls">
-                  <div className="ronde-request-line-grid__row ronde-request-line-grid__row--first">
-                    {line.roundKind !== "RANDOM" ? (
+                  {line.roundKind !== "RANDOM" ? (
+                    <div className="ronde-request-line-grid__row ronde-request-line-grid__row--first">
                       <label className="ronde-request-line-grid__field-large">
-                        {line.roundKind === "OPENING" ? "Heure demandée" : "Heure demandée"}
+                        Heure demandée
                         <TimeInput value={line.requestedTime} onChange={(value) => updateLine(index, { requestedTime: value })} />
                       </label>
-                    ) : (
-                      <>
+                    </div>
+                  ) : (
+                    <div className="ronde-request-line-grid__row ronde-request-line-grid__row--random-modes">
+                      <div className="ronde-request-line-grid__mode-group" role="group" aria-label="Mode intervalle">
                         <label>
                           Intervalle (heures)
                           <input
@@ -1184,42 +1375,57 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                             onChange={(e) => updateLine(index, { intervalHours: e.target.value })}
                           />
                         </label>
-                        {!isContract ? (
-                          <label>
-                            Heure de fin
-                            <TimeInput
-                              value={line.intervalEndTime}
-                              disabled={!line.intervalHours.trim() || Boolean(line.randomWindowStart.trim() && line.randomWindowEnd.trim())}
-                              onChange={(value) => updateLine(index, { intervalEndTime: value })}
-                            />
-                          </label>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                  {line.roundKind === "RANDOM" ? (
-                    <div className="ronde-request-line-grid__row ronde-request-line-grid__row--second">
-                      <label>
-                        Fenêtre de
-                        <TimeInput value={line.randomWindowStart} onChange={(value) => updateLine(index, { randomWindowStart: value })} />
-                      </label>
-                      <label>
-                        Fenêtre à
-                        <TimeInput value={line.randomWindowEnd} onChange={(value) => updateLine(index, { randomWindowEnd: value })} />
-                      </label>
-                      <label>
-                        Nombre de rondes
-                        <input
-                          type="number"
-                          min={1}
-                          value={line.randomRoundsCount}
-                          disabled={Boolean(line.intervalHours)}
-                          onChange={(e) => updateLine(index, { randomRoundsCount: e.target.value })}
-                        />
-                      </label>
+                      </div>
+                      <span className="ronde-request-line-grid__mode-or" aria-hidden>
+                        ou
+                      </span>
+                      <div className="ronde-request-line-grid__mode-group" role="group" aria-label="Mode fenêtre">
+                        <label>
+                          Fenêtre de
+                          <TimeInput value={line.randomWindowStart} onChange={(value) => updateLine(index, { randomWindowStart: value })} />
+                        </label>
+                        <label>
+                          Fenêtre à
+                          <TimeInput value={line.randomWindowEnd} onChange={(value) => updateLine(index, { randomWindowEnd: value })} />
+                        </label>
+                        <label>
+                          Nombre de rondes
+                          <input
+                            type="number"
+                            min={1}
+                            value={line.randomRoundsCount}
+                            disabled={Boolean(line.intervalHours)}
+                            onChange={(e) => updateLine(index, { randomRoundsCount: e.target.value })}
+                          />
+                        </label>
+                      </div>
                     </div>
-                  ) : null}
+                  )}
                 </div>
+              </div>
+              <div className="ronde-planned-profile-line__weekday-toggles">
+                <span className="muted" style={{ marginRight: 8 }}>Jours spécifiques</span>
+                <ToggleSwitch
+                  checked={isSingleDay}
+                  disabled={lockWeekdaysFromValidityRange}
+                  onChange={setIsSingleDay}
+                  label="Jour unique"
+                  labelFirst
+                />
+                <ToggleSwitch
+                  checked={line.includeHolidayEves}
+                  disabled={lockWeekdaysFromValidityRange}
+                  onChange={(next) => updateLine(index, { includeHolidayEves: next })}
+                  label="Veille jour férié"
+                  labelFirst
+                />
+                <ToggleSwitch
+                  checked={line.includeHolidays}
+                  disabled={lockWeekdaysFromValidityRange}
+                  onChange={(next) => updateLine(index, { includeHolidays: next })}
+                  label="Jours fériés"
+                  labelFirst
+                />
               </div>
               <div className="ronde-planned-profile-line__weekday-toggles">
                 <span className="muted" style={{ marginRight: 8 }}>L à D</span>
@@ -1227,6 +1433,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                   <ToggleSwitch
                     key={d.bit}
                     checked={(line.weekdaysMask & d.bit) !== 0}
+                    disabled={isSingleDay || lockWeekdaysFromValidityRange}
                     onChange={(next) =>
                       updateLine(index, { weekdaysMask: next ? line.weekdaysMask | d.bit : line.weekdaysMask & ~d.bit })
                     }
@@ -1235,47 +1442,60 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                   />
                 ))}
               </div>
-              <div className="ronde-planned-profile-line__weekday-toggles">
-                <span className="muted" style={{ marginRight: 8 }}>Jours spécifiques</span>
-                <ToggleSwitch
-                  checked={line.includeHolidayEves}
-                  onChange={(next) => updateLine(index, { includeHolidayEves: next })}
-                  label="Veille jour férié"
-                  labelFirst
-                />
-                <ToggleSwitch
-                  checked={line.includeHolidays}
-                  onChange={(next) => updateLine(index, { includeHolidays: next })}
-                  label="Jours fériés"
-                  labelFirst
-                />
-              </div>
             </fieldset>
           ))}
-          {!isContract && !isEdit && !isLinkedExistingBatch ? (
-            <section className="panel" style={{ marginTop: 8, padding: 12 }}>
-              <div className="muted" style={{ marginBottom: 6 }}>Aperçu génération</div>
-              {lines.map((_, index) => (
-                <div key={`preview-line-${index}`} className="muted">
-                  Ligne {index + 1}: {exceptionalPreview.perLine[index] ?? 0} ronde{(exceptionalPreview.perLine[index] ?? 0) > 1 ? "s" : ""}
-                </div>
-              ))}
-              <div style={{ marginTop: 6, fontWeight: 600 }}>
-                Total: {exceptionalPreview.items.length} ronde{exceptionalPreview.items.length > 1 ? "s" : ""}
+          {!isLinkedExistingBatch ? (
+            <section className="panel ronde-request-recap" style={{ marginTop: 8, padding: 12 }}>
+              <div className="muted" style={{ marginBottom: 6 }}>
+                {isEdit ? "Récapitulatif de la programmation" : "Récapitulatif"}
               </div>
+              {lines.length === 0 ? (
+                <div className="muted">Aucune ligne de planification.</div>
+              ) : (
+                lines.map((line, index) => (
+                  <div key={`recap-line-${line.id || index}`} className="muted ronde-request-recap__line">
+                    Ligne {index + 1}: {formatLineDraftSummary(line)}
+                    {!isContract && !isEdit ? (
+                      <>
+                        {" "}
+                        → {exceptionalPreview.perLine[index] ?? 0} ronde
+                        {(exceptionalPreview.perLine[index] ?? 0) > 1 ? "s" : ""}
+                      </>
+                    ) : null}
+                  </div>
+                ))
+              )}
+              {(isContract || isEdit) && validFrom.trim() ? (
+                <div style={{ marginTop: 6 }} className="muted">
+                  Validité : du {formatDateShortFr(validFrom.trim()) || "—"}
+                  {TIME_RE.test(validFromTime.trim()) ? ` ${validFromTime.trim()}` : ""}
+                  {" au "}
+                  {formatDateShortFr((isSingleDay ? validFrom.trim() : validTo.trim()) || "") || "—"}
+                  {TIME_RE.test(validToTime.trim()) ? ` ${validToTime.trim()}` : ""}
+                  {isSingleDay ? " · Jour unique" : ""}
+                </div>
+              ) : null}
+              {!isContract && !isEdit ? (
+                <div style={{ marginTop: 6, fontWeight: 600 }}>
+                  Total : {exceptionalPreview.items.length} ronde{exceptionalPreview.items.length > 1 ? "s" : ""}
+                </div>
+              ) : null}
             </section>
           ) : null}
           {isLinkedExistingBatch &&
           props.requesterRole &&
           props.onOpenLinkedBatchRonde &&
-          props.bulkCancelLinkedBatch &&
+          props.cancelLinkedBatchOne &&
           props.linkedBatchEntries?.length ? (
             <RondeLinkedBatchPanel
               entries={props.linkedBatchEntries}
+              requesterRole={props.requesterRole}
               onOpenRonde={props.onOpenLinkedBatchRonde}
               onNotify={props.onNotify}
-              bulkCancelBatch={props.bulkCancelLinkedBatch}
-              bulkDeleteBatch={props.bulkDeleteLinkedBatch}
+              onCancelOne={props.cancelLinkedBatchOne}
+              bulkCancelBatch={isManager ? props.bulkCancelLinkedBatch : undefined}
+              bulkDeleteBatch={isManager ? props.bulkDeleteLinkedBatch : undefined}
+              requestBatchDelete={!isManager ? props.requestLinkedBatchDelete : undefined}
               onBatchDestructiveDone={props.onClose}
             />
           ) : null}
@@ -1284,6 +1504,21 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
         <div className="row-actions modal-actions ronde-request-modal__footer">
           <button type="button" className="btn-light" onClick={props.onClose}>Fermer</button>
           <div className="row-actions ronde-request-modal__footer-right">
+            {isEdit && props.onStopProfile ? (
+              <button type="button" className="btn-light" onClick={props.onStopProfile} disabled={submitting}>
+                Arrêter
+              </button>
+            ) : null}
+            {isEdit && !props.onStopProfile && props.onRequestStopProfile ? (
+              <button type="button" className="btn-light" onClick={props.onRequestStopProfile} disabled={submitting}>
+                Demander l&apos;arrêt
+              </button>
+            ) : null}
+            {isEdit && props.onDeleteProfile ? (
+              <button type="button" className="btn-danger" onClick={props.onDeleteProfile} disabled={submitting}>
+                Supprimer
+              </button>
+            ) : null}
             <button type="button" onClick={() => void onSubmit()} disabled={submitting}>
               {submitting
                 ? "Enregistrement…"

@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
-import type { SiteRef, IntervenantRef } from "../../../types";
+import type { SiteRef, IntervenantRef, Role } from "../../../types";
 import {
   isRondeAutoClosureReport,
   type RondeEntry,
@@ -16,6 +16,7 @@ import {
   type RondeSavePayload,
   type RondeSource
 } from "../model/ronde.types";
+import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
@@ -96,8 +97,10 @@ type RondeEntryModalProps = {
     id: string,
     expectedUpdatedAt: string,
     status: "EN_COURS" | "CLOTURE" | "ANNULE",
-    cancellationReason?: string
+    cancellationReason?: string,
+    cancellationKind?: "NON_EFFECTUEE" | "ANNULATION"
   ) => Promise<boolean>;
+  requesterRole?: Role;
   onCreatePendingSite: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant: (name: string) => Promise<boolean>;
   /** Toasts copie code site, etc. */
@@ -150,7 +153,8 @@ export function RondeEntryModal({
   onNotify,
   onNavigateToLinkedIntervention,
   onOpenLinkedRequest,
-  createPreset
+  createPreset,
+  requesterRole
 }: RondeEntryModalProps) {
   const [requestDate, setRequestDate] = useState(formatNowDate());
   const [siteId, setSiteId] = useState("");
@@ -584,12 +588,20 @@ export function RondeEntryModal({
     if (statusActionBusy) return;
     const cleanReason = cancelReasonInput.trim();
     if (!cleanReason) {
-      setFieldError("Le motif d'annulation est obligatoire.");
+      setFieldError("Le motif est obligatoire.");
+      return;
+    }
+    const isManager = isRondeManagerRole(requesterRole);
+    const past = isRondePassagePast(entry);
+    // Non effectuée = après passage (opérateur). Responsable = annulation administrative.
+    const kind: "NON_EFFECTUEE" | "ANNULATION" = isManager ? "ANNULATION" : "NON_EFFECTUEE";
+    if (!isManager && !past) {
+      setFieldError("Une ronde ne peut être marquée non effectuée qu'après l'heure de passage.");
       return;
     }
     setFieldError("");
     setStatusActionBusy("cancel");
-    const ok = await onSetStatus(entry.id, entry.updatedAt, "ANNULE", cleanReason);
+    const ok = await onSetStatus(entry.id, entry.updatedAt, "ANNULE", cleanReason, kind);
     setStatusActionBusy(null);
     if (ok) {
       setShowCancelReasonDialog(false);
@@ -597,6 +609,13 @@ export function RondeEntryModal({
       onClose();
     }
   };
+
+  const isManagerRole = isRondeManagerRole(requesterRole);
+  const cancelIsNonEffectuee = Boolean(entry && !isManagerRole && isRondePassagePast(entry));
+  const canShowCancelAction =
+    Boolean(entry) &&
+    entry!.status === "EN_COURS" &&
+    (isManagerRole || (entry!.source !== "PLANIFIE" && isRondePassagePast(entry!)));
 
   const lockFields = formLockedClosed || formLockedCanceled;
   const lockActions = statusActionBusy !== null;
@@ -793,17 +812,16 @@ export function RondeEntryModal({
 
       {showExecutionBlock ? (
         <>
-          <h4 className="mc-modal-section-title">Compte rendu</h4>
-
-          <p className="ronde-cr-summary-type">
-            {(entry?.source === "PLANIFIE" && entry.plannedRoundKind) || isPlannedCreatePreset
-              ? formatPlannedRoundKindLabel(
-                  ((entry?.plannedRoundKind || createPreset?.plannedRoundKind) ?? "RANDOM") as RondePlannedRoundKind
-                )
-              : selectedMotifLabel}
-          </p>
-          <p className="muted ronde-cr-summary-journee">
-            Journée du <strong>{formatJourneeDuLabel(requestDate)}</strong>
+          <p className="ronde-cr-summary-line">
+            <strong>
+              {(entry?.source === "PLANIFIE" && entry.plannedRoundKind) || isPlannedCreatePreset
+                ? formatPlannedRoundKindLabel(
+                    ((entry?.plannedRoundKind || createPreset?.plannedRoundKind) ?? "RANDOM") as RondePlannedRoundKind
+                  )
+                : selectedMotifLabel}
+            </strong>
+            {" - Journée du "}
+            <strong>{formatJourneeDuLabel(requestDate)}</strong>
             {plannedLineRequestedTime ? (
               <>
                 {" "}
@@ -845,7 +863,7 @@ export function RondeEntryModal({
             </p>
           ) : null}
 
-          <div className="mc-form-grid mc-form-grid-main">
+          <div className="mc-form-grid mc-form-grid-main ronde-cr-times-row">
             <label className="mc-field">
               <span>Heure arrivée</span>
               <TimeInput
@@ -862,8 +880,6 @@ export function RondeEntryModal({
                 onChange={setDepartureTime}
               />
             </label>
-          </div>
-          <div className="mc-form-grid mc-form-grid-main">
             <label className="mc-field">
               <span>N° bon</span>
               <input value={workOrderNumber} disabled={lockFields} onChange={(e) => setWorkOrderNumber(e.target.value)} />
@@ -928,18 +944,24 @@ export function RondeEntryModal({
             </button>
           </div>
           <div className="mc-modal-footer-end">
-            <button
-              type="button"
-              className="btn-danger"
-              disabled={lockFields || entry?.status === "ANNULE" || lockActions}
-              onClick={() => {
-                setFieldError("");
-                setCancelReasonInput("");
-                setShowCancelReasonDialog(true);
-              }}
-            >
-              {statusActionBusy === "cancel" ? "Annulation…" : "Annuler la ronde"}
-            </button>
+            {canShowCancelAction ? (
+              <button
+                type="button"
+                className="btn-danger"
+                disabled={lockFields || lockActions}
+                onClick={() => {
+                  setFieldError("");
+                  setCancelReasonInput("");
+                  setShowCancelReasonDialog(true);
+                }}
+              >
+                {statusActionBusy === "cancel"
+                  ? "Enregistrement…"
+                  : cancelIsNonEffectuee
+                    ? "Ronde non effectuée"
+                    : "Annuler la ronde"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-light"
@@ -1012,7 +1034,7 @@ export function RondeEntryModal({
     <>
       <div className="modal-overlay" onClick={isPureCreateMode ? createCloseGuard.requestClose : onClose}>
       <section
-        className={`modal main-log-modal main-courante-entry-modal ${splitLinkedLayout ? "linked-ronde-split-modal" : ""}`}
+        className={`modal main-log-modal main-courante-entry-modal ronde-entry-modal ${splitLinkedLayout ? "linked-ronde-split-modal" : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {!useReportModalLayout ? (
@@ -1057,7 +1079,9 @@ export function RondeEntryModal({
                   }
                 }}
               >
-                Demande liée
+                {entry?.source === "PLANIFIE" || isPlannedCreatePreset
+                  ? "Voir programmation"
+                  : "Demande liée"}
               </button>
               <button
                 type="button"
@@ -1102,9 +1126,13 @@ export function RondeEntryModal({
 
       <ConfirmModal
         isOpen={showCancelReasonDialog}
-        title="Motif d'annulation"
-        message="Le motif est obligatoire pour annuler la ronde."
-        confirmLabel="Confirmer annulation"
+        title={cancelIsNonEffectuee ? "Ronde non effectuée" : "Annuler la ronde"}
+        message={
+          cancelIsNonEffectuee
+            ? "Le motif est obligatoire. La ronde sera marquée comme non effectuée par le prestataire."
+            : "Le motif est obligatoire pour confirmer l'annulation de cette ronde déjà passée."
+        }
+        confirmLabel={cancelIsNonEffectuee ? "Confirmer non effectuée" : "Confirmer annulation"}
         confirmClassName="btn-danger"
         confirmDisabled={!cancelReasonInput.trim()}
         cancelLabel="Fermer"
@@ -1118,7 +1146,11 @@ export function RondeEntryModal({
             rows={2}
             value={cancelReasonInput}
             onChange={(e) => setCancelReasonInput(e.target.value)}
-            placeholder="Ex: doublon / demande annulée"
+            placeholder={
+              cancelIsNonEffectuee
+                ? "Ex: prestataire absent / accès impossible"
+                : "Ex: doublon / demande annulée"
+            }
             autoFocus
           />
         </label>

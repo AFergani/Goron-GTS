@@ -849,6 +849,12 @@ th {
   display: grid;
   place-items: center;
   padding: 16px;
+  z-index: 1000;
+}
+
+/* Confirmation / 2ᵉ niveau ouverte depuis une modale déjà ouverte (au-dessus des thead sticky, etc.) */
+.modal-overlay .modal-overlay {
+  z-index: 1100;
 }
 
 /* Au-dessus du panneau connexion (.login-panel) tout en évitant les problèmes d’empilement sous Electron */
@@ -1668,6 +1674,41 @@ th {
 
 .ronde-linked-batch-table-scroll {
   max-height: 240px;
+  overflow: auto;
+}
+
+.ronde-linked-batch-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface, var(--bg, #0f1f3a));
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.ronde-linked-batch-check-col {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ronde-linked-batch-check-col input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.ronde-linked-batch-check-col input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ronde-linked-batch-actions-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ronde-linked-batch-actions-col .row-actions {
+  justify-content: flex-end;
 }
 
 .table-scroll-x .data-table-fixed {
@@ -2181,6 +2222,11 @@ th {
 }
 
 .ronde-request-date-cell {
+  /* Pas de display:flex sur le <td> : ça casse la hauteur de ligne / bordure. */
+  vertical-align: middle;
+}
+
+.ronde-request-date-cell__inner {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2257,7 +2303,8 @@ th {
   vertical-align: middle;
 }
 
-.main-courante-table.intervention-table tbody td {
+.main-courante-table.intervention-table tbody td,
+.main-courante-table.ronde-table tbody td {
   vertical-align: middle;
 }
 
@@ -2278,6 +2325,12 @@ th {
 .main-courante-table.ronde-table col.ronde-col-origin {
   width: 11%;
 }
+.main-courante-table.ronde-table.ronde-table--no-origin col.ronde-col-site {
+  width: 20%;
+}
+.main-courante-table.ronde-table.ronde-table--no-origin col.ronde-col-presta {
+  width: 15%;
+}
 .main-courante-table.ronde-table col.ronde-col-presta {
   width: 11%;
 }
@@ -2290,21 +2343,20 @@ th {
 .main-courante-table.ronde-table col.ronde-col-bon {
   width: 7%;
 }
-.main-courante-table.ronde-table col.ronde-col-etat {
-  width: 9%;
-}
-.main-courante-table.ronde-table col.ronde-col-actions {
-  width: 8%;
+.main-courante-table.ronde-table col.ronde-col-status-actions {
+  width: 20%;
 }
 
-.main-courante-table.ronde-table tbody td:nth-child(10) {
-  white-space: nowrap;
+.main-courante-table.ronde-table thead th.ronde-col-status-actions,
+.main-courante-table.ronde-table tbody td.ronde-col-status-actions {
+  text-align: center;
   vertical-align: middle;
+  white-space: normal;
 }
 
-.main-courante-table.ronde-table tbody td:nth-child(11) {
-  white-space: nowrap;
-  vertical-align: middle;
+.main-courante-table.ronde-table tbody td.ronde-col-status-actions .table-row-actions {
+  justify-content: center;
+  margin-left: 0;
 }
 
 .main-courante-table.intervention-table col.intv-col-date {
@@ -3115,7 +3167,11 @@ th {
 .main-courante-entry-modal.intervention-entry-modal .mc-field > span:first-child,
 .main-courante-entry-modal.intervention-entry-modal .mc-label-row,
 .main-courante-entry-modal.intervention-entry-modal .intervention-passage-group__label,
-.main-courante-entry-modal.intervention-entry-modal .mc-modal-section-title {
+.main-courante-entry-modal.intervention-entry-modal .mc-modal-section-title,
+.main-courante-entry-modal.ronde-entry-modal .mc-field > span:first-child,
+.main-courante-entry-modal.ronde-entry-modal .mc-label-row,
+.main-courante-entry-modal.ronde-entry-modal .mc-modal-section-title,
+.main-courante-entry-modal.ronde-entry-modal .mc-section-label {
   color: var(--text);
 }
 
@@ -3428,6 +3484,15 @@ th {
   min-width: 140px;
 }
 
+/* Largeur fixe : « Planifier une ronde » / « Nouvelle ronde » ne décalent pas la barre. */
+.ronde-primary-action-btn {
+  width: 12rem;
+  min-width: 12rem;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
 .main-courante-entry-modal select {
   border-color: var(--border-hi);
   border-radius: 8px;
@@ -3691,7 +3756,7 @@ th {
 
 .ronde-request-line-grid__controls {
   display: grid;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto;
   gap: 8px;
   min-width: 0;
 }
@@ -3707,8 +3772,29 @@ th {
   justify-content: flex-start;
 }
 
-.ronde-request-line-grid__row--second {
-  justify-content: flex-start;
+.ronde-request-line-grid__row--random-modes {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ronde-request-line-grid__mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.ronde-request-line-grid__mode-or {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  padding-bottom: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: lowercase;
 }
 
 .ronde-request-line-grid__field-large {
@@ -3716,19 +3802,23 @@ th {
   max-width: 100%;
 }
 
-.ronde-request-line-grid__row label {
+.ronde-request-line-grid__row label,
+.ronde-request-line-grid__mode-group label {
   min-width: 0;
   width: auto;
   flex: 0 0 auto;
 }
 
 .ronde-request-line-grid__row input:not([type="date"]):not([type="time"]),
-.ronde-request-line-grid__row select {
+.ronde-request-line-grid__row select,
+.ronde-request-line-grid__mode-group input:not([type="date"]):not([type="time"]),
+.ronde-request-line-grid__mode-group select {
   width: auto;
   min-width: 150px;
 }
 
-.ronde-request-line-grid__row input[type="number"] {
+.ronde-request-line-grid__row input[type="number"],
+.ronde-request-line-grid__mode-group input[type="number"] {
   min-width: 110px;
 }
 
@@ -3738,6 +3828,10 @@ th {
   width: 100%;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.ronde-request-recap__line + .ronde-request-recap__line {
+  margin-top: 4px;
 }
 
 .ronde-request-modal__footer > :first-child {
@@ -3762,8 +3856,14 @@ th {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 
+  .ronde-request-line-grid__row--random-modes {
+    flex-wrap: wrap;
+  }
+
   .ronde-request-line-grid__row input:not([type="date"]):not([type="time"]),
   .ronde-request-line-grid__row select,
+  .ronde-request-line-grid__mode-group input:not([type="date"]):not([type="time"]),
+  .ronde-request-line-grid__mode-group select,
   .ronde-request-line-grid__field-large {
     min-width: 0;
     width: 100%;
@@ -3899,6 +3999,11 @@ th {
   color: var(--text-2);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.ronde-planned-profile-modal__validity-single-hint {
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 @media (max-width: 520px) {
@@ -4200,22 +4305,202 @@ fieldset.ronde-planned-weekdays {
   vertical-align: middle;
 }
 
+/* Modales Profils / Demandes d'arrêt (rondes contractuelles) */
+.ronde-planned-cancellation-queue-modal {
+  width: min(720px, 96vw);
+  max-height: min(86vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Même gabarit largeur/hauteur que les formulaires de ronde ; hauteur fixe + scroll interne. */
+.modal.fransor-help-modal.ronde-planned-profiles-list-modal {
+  width: min(1180px, 96vw);
+  max-width: min(1180px, 96vw);
+  height: min(90vh, calc(100vh - 32px));
+  max-height: min(90vh, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.ronde-planned-profiles-list-modal .mc-modal-head {
+  flex: 0 0 auto;
+}
+
+.ronde-planned-profiles-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.ronde-planned-profiles-list-toolbar .btn-light.is-active {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 1px;
+}
+
+.ronde-planned-profiles-list-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.ronde-planned-profiles-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 20px;
+}
+
+.ronde-planned-profiles-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px) {
+  .ronde-planned-profiles-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ronde-planned-profiles-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ronde-planned-profiles-card {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Annule la hauteur fixe des <button> globaux (--gts-control-height). */
+  height: 100%;
+  min-height: 148px;
+  max-height: 260px;
+  align-items: stretch;
+  justify-content: flex-start;
+  white-space: normal;
+  line-height: 1.35;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ronde-planned-profiles-card:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.04));
+}
+
+.ronde-planned-profiles-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ronde-planned-profiles-card__head strong {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.95rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ronde-planned-profiles-card__presta {
+  font-size: 0.88em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ronde-planned-profiles-card__summary {
+  font-size: 0.82em;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.ronde-planned-profiles-card__summary-line {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.ronde-planned-profiles-card__cancel-hint {
+  font-size: 0.8em;
+  margin-top: auto;
+}
+
+.ronde-planned-profiles-list-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  box-sizing: border-box;
+}
+
+.ronde-cancellation-queue-btn,
+.data-pending-submissions-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ronde-planned-quick-modal .ronde-planned-quick-modal__form {
   gap: 12px;
   display: grid;
 }
 
-.ronde-cr-summary-type {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
+.ronde-cr-summary-line {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--text);
 }
 
-.ronde-cr-summary-journee {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.45;
+.ronde-cr-times-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .ronde-cr-times-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .ronde-cr-times-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ronde-closure-fields-grid {

@@ -1,18 +1,22 @@
 /**
- * Tableau des fiches ronde (tri, statuts, actions icônes).
+ * Tableau des fiches ronde : tri, copie code site, colonne État / Actions (boutons texte).
+ *
+ * Utilisé en liste contractuelle et exceptionnelle.
  */
 
-import { Check, Eye, FileText } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import type { RondeEntry } from "../model/ronde.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 
-function statusLabel(status: RondeEntry["status"]) {
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") return "Annulé";
+function statusLabel(entry: RondeEntry) {
+  if (entry.status === "CLOTURE") return "Clôturé";
+  if (entry.status === "ANNULE") {
+    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulé";
+  }
   return "En cours";
 }
 
@@ -38,14 +42,7 @@ function plannedKindTone(kind: RondePlannedRoundKind): "opening" | "closing" | "
 }
 
 function formatRequestDate(dateIso: string) {
-  if (!dateIso) return "—";
-  const parsed = Date.parse(`${dateIso}T12:00:00`);
-  if (Number.isNaN(parsed)) return "—";
-  return new Date(parsed).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
+  return formatDateShortFr(dateIso) || "—";
 }
 
 function normalizeOriginDetail(entry: RondeEntry): string {
@@ -63,9 +60,6 @@ type RondeSortKey =
   | "siteDisplay"
   | "origin"
   | "intervenant"
-  | "arrival"
-  | "departure"
-  | "duration"
   | "status";
 
 type RondeTableProps = {
@@ -73,19 +67,31 @@ type RondeTableProps = {
   onOpen: (entry: RondeEntry) => void;
   onFollowUp: (entry: RondeEntry) => void;
   onExportWord?: (entry: RondeEntry) => void;
+  /** Ouvre la programmation liée (rondes contractuelles). */
+  onOpenProfile?: (profileId: string) => void;
+  /** Ouvre la demande liée (rondes exceptionnelles). */
+  onOpenLinkedDemand?: (entry: RondeEntry) => void;
+  /** Colonne Origine (masquée en contractuel : toujours télésurveillance). */
+  showOrigin?: boolean;
   onNotify?: NotifyToast;
 };
 
-export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify }: RondeTableProps) {
+export function RondeTable({
+  entries,
+  onOpen,
+  onFollowUp,
+  onExportWord,
+  onOpenProfile,
+  onOpenLinkedDemand,
+  showOrigin = true,
+  onNotify
+}: RondeTableProps) {
   const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
     requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     origin: (a: RondeEntry, b: RondeEntry) => originSummary(a).localeCompare(originSummary(b), "fr"),
     intervenant: (a: RondeEntry, b: RondeEntry) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
-    arrival: (a: RondeEntry, b: RondeEntry) => (a.arrivalTime || "").localeCompare(b.arrivalTime || ""),
-    departure: (a: RondeEntry, b: RondeEntry) => (a.departureTime || "").localeCompare(b.departureTime || ""),
-    duration: (a: RondeEntry, b: RondeEntry) => (a.durationMinutes || 0) - (b.durationMinutes || 0),
-    status: (a: RondeEntry, b: RondeEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
+    status: (a: RondeEntry, b: RondeEntry) => statusLabel(a).localeCompare(statusLabel(b), "fr")
   };
 
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<RondeEntry, RondeSortKey>(entries, comparators, {
@@ -101,101 +107,133 @@ export function RondeTable({ entries, onOpen, onFollowUp, onExportWord, onNotify
 
   return (
     <div className="main-courante-table-wrap">
-      <table className="main-courante-table ronde-table">
+      <table className={`main-courante-table ronde-table${showOrigin ? "" : " ronde-table--no-origin"}`}>
         <colgroup>
           <col className="ronde-col-date" />
           <col className="ronde-col-site" />
-          <col className="ronde-col-origin" />
+          {showOrigin ? <col className="ronde-col-origin" /> : null}
           <col className="ronde-col-presta" />
           <col className="ronde-col-time" />
           <col className="ronde-col-time" />
           <col className="ronde-col-duree" />
           <col className="ronde-col-bon" />
-          <col className="ronde-col-etat" />
-          <col className="ronde-col-actions" />
+          <col className="ronde-col-status-actions" />
         </colgroup>
         <thead>
           <tr>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("requestDate")}>Date demande {sortLabel("requestDate")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("siteDisplay")}>Site {sortLabel("siteDisplay")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("origin")}>Origine {sortLabel("origin")}</button></th>
+            {showOrigin ? (
+              <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("origin")}>Origine {sortLabel("origin")}</button></th>
+            ) : null}
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("intervenant")}>Prestataire {sortLabel("intervenant")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("arrival")}>H arrivée {sortLabel("arrival")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("departure")}>H départ {sortLabel("departure")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("duration")}>Durée {sortLabel("duration")}</button></th>
+            <th>H arrivée</th>
+            <th>H départ</th>
+            <th>Durée</th>
             <th>N° bon</th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("status")}>État {sortLabel("status")}</button></th>
-            <th>Actions</th>
+            <th className="ronde-col-status-actions">
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("status")}>
+                État / Actions {sortLabel("status")}
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
           {sortedEntries.map((entry) => (
             <tr key={entry.id}>
               <td className="ronde-request-date-cell">
-                {entry.plannedRoundKind ? (
-                  <span
-                    className={`ronde-kind-badge ronde-kind-badge--${plannedKindTone(entry.plannedRoundKind as RondePlannedRoundKind)}`}
-                    title={`Type planifié : ${formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}`}
-                  >
-                    {formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}
-                  </span>
-                ) : null}
-                <span>{formatRequestDate(entry.requestDate)}</span>
+                <div className="ronde-request-date-cell__inner">
+                  {entry.plannedRoundKind ? (
+                    <span
+                      className={`ronde-kind-badge ronde-kind-badge--${plannedKindTone(entry.plannedRoundKind as RondePlannedRoundKind)}`}
+                      title={`Type planifié : ${formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}`}
+                    >
+                      {formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)}
+                    </span>
+                  ) : null}
+                  <span>{formatRequestDate(entry.requestDate)}</span>
+                </div>
               </td>
               <td className="mc-site-wrap">
                 <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
               </td>
-              <td>
-                <div className="ronde-origin-cell">
-                  <span className="ronde-origin-badge">{entry.originKind === "TELESURVEILLANCE" ? "Télésurveillance" : entry.originKind === "CLIENT" ? "Client" : "Autre"}</span>
-                  <span className="ronde-origin-detail">
-                    {entry.originKind === "TELESURVEILLANCE"
-                      ? normalizeOriginDetail(entry)
-                      : entry.originDetail?.trim() || (entry.originKind === "CLIENT" ? "Sans précision" : "Sans précision")}
-                    {entry.source === "LIEE_INTERVENTION" ? " · liée int." : ""}
-                  </span>
-                </div>
-              </td>
+              {showOrigin ? (
+                <td>
+                  <div className="ronde-origin-cell">
+                    <span className="ronde-origin-badge">{entry.originKind === "TELESURVEILLANCE" ? "Télésurveillance" : entry.originKind === "CLIENT" ? "Client" : "Autre"}</span>
+                    <span className="ronde-origin-detail">
+                      {entry.originKind === "TELESURVEILLANCE"
+                        ? normalizeOriginDetail(entry)
+                        : entry.originDetail?.trim() || (entry.originKind === "CLIENT" ? "Sans précision" : "Sans précision")}
+                      {entry.source === "LIEE_INTERVENTION" ? " · liée int." : ""}
+                    </span>
+                  </div>
+                </td>
+              ) : null}
               <td>{entry.intervenantName || "—"}</td>
               <td>{entry.arrivalTime || "—"}</td>
               <td>{entry.departureTime || "—"}</td>
               <td>{entry.durationMinutes == null ? "—" : `${entry.durationMinutes} min`}</td>
               <td>{entry.workOrderNumber || "—"}</td>
-              <td>
-                <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
-                  <span className="mc-status-badge__dot" aria-hidden />
-                  <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
-                </span>
-              </td>
-              <td>
-                <div className="row-actions table-row-actions">
-                  {entry.status === "EN_COURS" ? (
-                    <button
-                      type="button"
-                      className="table-action-btn table-action-btn--validate"
-                      title="Compléter / clôturer"
-                      aria-label="Compléter / clôturer"
-                      onClick={() => onFollowUp(entry)}
-                    >
-                      <Check size={16} />
-                    </button>
+              <td className="ronde-col-status-actions">
+                <div className="mc-status-actions-stack">
+                  <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
+                    <span className="mc-status-badge__dot" aria-hidden />
+                    <span className="mc-status-badge__label">{statusLabel(entry)}</span>
+                  </span>
+                  {entry.batchDeleteRequestedAt ? (
+                    <span className="muted" style={{ fontSize: "0.8em" }} title={entry.batchDeleteReason || undefined}>
+                      Suppression demandée
+                    </span>
                   ) : null}
-                  {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
-                    <button type="button" className="table-action-btn" title="Ouvrir" aria-label="Ouvrir" onClick={() => onOpen(entry)}>
-                      <Eye size={16} />
-                    </button>
-                  ) : null}
-                  {onExportWord && (entry.status === "CLOTURE" || entry.status === "ANNULE") ? (
-                    <button
-                      type="button"
-                      className="table-action-btn table-action-btn--word"
-                      title="Exporter Word"
-                      aria-label="Exporter la fiche Word"
-                      onClick={() => onExportWord(entry)}
-                    >
-                      <FileText size={16} />
-                    </button>
-                  ) : null}
+                  <div className="row-actions table-row-actions table-row-actions--text">
+                    {entry.status === "EN_COURS" ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn--text table-action-btn--validate"
+                        onClick={() => onFollowUp(entry)}
+                      >
+                        Clôturer
+                      </button>
+                    ) : null}
+                    {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn--text"
+                        onClick={() => onOpen(entry)}
+                      >
+                        Voir le détail
+                      </button>
+                    ) : null}
+                    {onOpenProfile && entry.plannedProfileId ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn--text"
+                        onClick={() => onOpenProfile(entry.plannedProfileId!)}
+                      >
+                        Voir programmation
+                      </button>
+                    ) : null}
+                    {onOpenLinkedDemand &&
+                    (entry.source === "URGENCE" || entry.source === "LIEE_INTERVENTION") ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn--text"
+                        onClick={() => onOpenLinkedDemand(entry)}
+                      >
+                        Demande liée
+                      </button>
+                    ) : null}
+                    {onExportWord && (entry.status === "CLOTURE" || entry.status === "ANNULE") ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn--text table-action-btn--word"
+                        onClick={() => onExportWord(entry)}
+                      >
+                        Export Word
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </td>
             </tr>

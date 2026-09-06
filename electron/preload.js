@@ -157,6 +157,9 @@ contextBridge.exposeInMainWorld("gtsApi", {
   updateRondeBatchSharedFields: (payload) => ipcRenderer.invoke("ronde:batchUpdate", payload),
   bulkCancelRondeBatch: (payload) => ipcRenderer.invoke("ronde:batchCancel", payload),
   bulkDeleteRondeBatch: (payload) => ipcRenderer.invoke("ronde:batchDelete", payload),
+  requestRondeBatchDelete: (payload) => ipcRenderer.invoke("ronde:batchDeleteRequest", payload),
+  reviewRondeBatchDeleteRequest: (payload) => ipcRenderer.invoke("ronde:batchDeleteReview", payload),
+  listRondeBatchDeleteRequests: (payload) => ipcRenderer.invoke("ronde:batchDeleteList", payload),
 
   // --- Gardiennage ---
   listGardiennages: (payload) => ipcRenderer.invoke("gardiennage:list", payload),

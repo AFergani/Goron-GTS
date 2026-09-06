@@ -39,7 +39,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
     intro:
       "Syntaxe {nom_du_jeton}. Fichier : intervention-template.docx dans data/templates. Les champs complémentaires configurés ci‑dessous sont disponibles sous la forme {clé} (ex. {reference_client}).",
     variables: [
-      { token: "{dateDemande}", description: "Date de la demande (JJ-MM-AAAA)." },
+      { token: "{dateDemande}", description: "Date de la demande (JJ/MM/AAAA)." },
       { token: "{dateDemandeIso}", description: "Date ISO (AAAA-MM-JJ)." },
       { token: "{heureDemande}", description: "Heure de l’appel / demande." },
       { token: "{site}", description: "Site (libellé affiché)." },
@@ -65,7 +65,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{site_label}", description: "Nom du site (code du site), libellé affiché sur la fiche." },
       { token: "{type_passage}", description: "Ouverture / Fermeture / Aléatoire jour · nuit (lié au type de ronde)." },
       { token: "{heure_demandee}", description: "Heure demandée issue du profil (ouverture / fermeture)." },
-      { token: "{date_du_jour}", description: "Date de la journée de la ronde (JJ-MM-AAAA)." },
+      { token: "{date_du_jour}", description: "Date de la journée de la ronde (JJ/MM/AAAA)." },
       { token: "{heure_arrivee}", description: "Heure d’arrivée." },
       { token: "{heure_depart}", description: "Heure de départ." },
       { token: "{numero_bon}", description: "N° bon." },
@@ -95,7 +95,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{site_label}", description: "Nom du site (code du site)." },
       { token: "{type_passage}", description: "Type de passage planifié." },
       { token: "{heure_demandee}", description: "Heure demandée (profil)." },
-      { token: "{date_du_jour}", description: "Date de la journée (JJ-MM-AAAA)." },
+      { token: "{date_du_jour}", description: "Date de la journée (JJ/MM/AAAA)." },
       { token: "{heure_arrivee}", description: "Heure d’arrivée." },
       { token: "{heure_depart}", description: "Heure de départ." },
       { token: "{numero_bon}", description: "N° bon." },

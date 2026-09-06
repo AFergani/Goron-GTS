@@ -106,7 +106,8 @@ export function HelpRondesTopic() {
 
         <h4 className="help-center-subsection-title">1. La programmation (configuration responsable)</h4>
         <p className="muted">
-          L&apos;onglet <strong>Ronde contractuelle</strong> (ou <strong>Programmations</strong>) permet de définir le cadre : choix du site,
+          L&apos;onglet <strong>Ronde contractuelle</strong> (bouton <strong>Planifier une ronde</strong>, ou
+          <strong> Profils</strong> / <strong>Voir programmation</strong>) permet de définir le cadre : choix du site,
           du prestataire, dates de validité (<strong>Du / Au</strong>) et consignes permanentes destinées aux agents. L&apos;enregistrement crée
           un profil actif, mais <strong>ne génère pas de fiches instantanément</strong>.
         </p>
@@ -118,9 +119,9 @@ export function HelpRondesTopic() {
             <strong>Pour lancer une ronde :</strong> ouvrez le créneau attendu pour matérialiser et créer la fiche de ronde du jour.
           </li>
           <li>
-            <strong>Modification / arrêt :</strong> pour modifier la règle globale, utilisez <strong>Modifier la programmation</strong>.
-            Pour stopper définitivement le flux, définissez une date de fin avec motif. Désactiver ou supprimer une programmation conserve
-            l&apos;historique des fiches déjà clôturées.
+            <strong>Modification / arrêt :</strong> utilisez <strong>Voir programmation</strong> (liste / jour) ou
+            <strong> Profils</strong>, puis <strong>Arrêter</strong> / <strong>Supprimer</strong> dans la fiche. Les
+            responsables traitent aussi les <strong>Demandes d&apos;arrêt</strong> depuis la barre d&apos;actions.
           </li>
           <li>
             <strong>Clôture :</strong> le compte rendu texte est <strong>obligatoire</strong> sur chaque fiche contractuelle clôturée. Aucune

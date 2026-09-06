@@ -138,6 +138,8 @@ type RondePlannedDaySectionProps = {
   onNotify?: NotifyToast;
   onOpenCreatePlanned: (slot: ApplicablePlannedSlot, dayIso: string) => void;
   onOpenEntry: (entry: RondeEntry) => void;
+  /** Ouvre la programmation liée au créneau (vue contractuelle). */
+  onOpenProfile?: (profileId: string) => void;
 };
 
 export function RondePlannedDaySection({
@@ -149,7 +151,8 @@ export function RondePlannedDaySection({
   mode = "planned",
   onNotify,
   onOpenCreatePlanned,
-  onOpenEntry
+  onOpenEntry,
+  onOpenProfile
 }: RondePlannedDaySectionProps) {
   const [dayIso, setDayIso] = useState(formatTodayIso);
   const [exportingEntryId, setExportingEntryId] = useState<string | null>(null);
@@ -313,6 +316,16 @@ export function RondePlannedDaySection({
                                   {formatPlannedRoundKindLabel(slot.roundKind)}
                                 </button>
                                 <span className="muted ronde-planned-day-status">{statusShort(existing)}</span>
+                                {onOpenProfile ? (
+                                  <button
+                                    type="button"
+                                    className="btn-light table-action-btn--text"
+                                    title="Voir la programmation"
+                                    onClick={() => onOpenProfile(slot.profileId)}
+                                  >
+                                    Voir programmation
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   className="action-icon-btn btn-light"
@@ -335,9 +348,21 @@ export function RondePlannedDaySection({
                                 </button>
                               </>
                             ) : (
-                              <button type="button" className="btn-light" onClick={() => onOpenCreatePlanned(slot, dayIso)}>
-                                {formatPlannedRoundKindLabel(slot.roundKind)}
-                              </button>
+                              <>
+                                <button type="button" className="btn-light" onClick={() => onOpenCreatePlanned(slot, dayIso)}>
+                                  {formatPlannedRoundKindLabel(slot.roundKind)}
+                                </button>
+                                {onOpenProfile ? (
+                                  <button
+                                    type="button"
+                                    className="btn-light table-action-btn--text"
+                                    title="Voir la programmation"
+                                    onClick={() => onOpenProfile(slot.profileId)}
+                                  >
+                                    Voir programmation
+                                  </button>
+                                ) : null}
+                              </>
                             )}
                           </div>
                         );

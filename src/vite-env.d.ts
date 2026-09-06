@@ -33,7 +33,8 @@ import type {
   RondeOriginKind,
   RondeSavePayload,
   RondeSource,
-  RondeStatus
+  RondeStatus,
+  RondeBatchDeleteRequestRef
 } from "./features/rondes/model/ronde.types";
 import type {
   RondeClosureFieldType,
@@ -644,6 +645,7 @@ declare global {
         expectedUpdatedAt: string;
         status: RondeStatus;
         cancellationReason?: string;
+        cancellationKind?: "NON_EFFECTUEE" | "ANNULATION";
       }) => Promise<RondeEntry>;
       updateRondeBatchSharedFields: (payload: {
         requesterRole: Role;
@@ -670,7 +672,36 @@ declare global {
         requesterUsername: string;
         entryIds: string[];
         reason: string;
-      }) => Promise<{ ok: boolean; deletedCount: number; skippedCount: number }>;
+      }) => Promise<{
+        ok: boolean;
+        deletedCount: number;
+        skippedCount: number;
+        nonEffectueeCount?: number;
+        suppressedCount?: number;
+      }>;
+      requestRondeBatchDelete: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        entryIds: string[];
+        reason: string;
+      }) => Promise<{ ok: boolean; requestBatchId: string; requestedAt: string; requestedBy: string; reason: string }>;
+      reviewRondeBatchDeleteRequest: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        requestBatchId: string;
+        decision: "approve" | "reject";
+        reviewReason: string;
+      }) => Promise<{
+        ok: boolean;
+        decision: "approve" | "reject";
+        requestBatchId: string;
+        deletedCount?: number;
+        nonEffectueeCount?: number;
+        suppressedCount?: number;
+      }>;
+      listRondeBatchDeleteRequests: (payload: {
+        requesterRole: Role;
+      }) => Promise<RondeBatchDeleteRequestRef[]>;
       listRondeMotifTypes: (payload: { requesterRole: Role }) => Promise<RondeMotifTypeRef[]>;
       createRondeMotifType: (payload: {
         requesterRole: Role;

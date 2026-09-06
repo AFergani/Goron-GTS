@@ -6,7 +6,7 @@
  */
 
 import { X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
@@ -46,6 +46,7 @@ export function IntervenantSearchInput({
 }: IntervenantSearchInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!selectedIntervenant) {
@@ -64,11 +65,13 @@ export function IntervenantSearchInput({
   const clearField = () => {
     setQuery("");
     onSelectedIntervenantChange(null);
-    setOpen(false);
+    setOpen(true);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const onInputChange = (value: string) => {
     setQuery(value);
+    setOpen(true);
     if (selectedIntervenant && selectedIntervenant.name !== value.trim()) {
       onSelectedIntervenantChange(null);
     }
@@ -87,6 +90,7 @@ export function IntervenantSearchInput({
           {labelText !== null && labelText !== undefined ? <span>{labelText}</span> : null}
           <div className={`mc-site-input-inner${showClear ? " mc-site-input-inner--with-clear" : ""}`}>
             <input
+              ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => onInputChange(e.target.value)}

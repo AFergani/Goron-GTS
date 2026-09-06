@@ -610,16 +610,16 @@ export function AppShell() {
             }
             focusRondeId={focusRondeIdFromIntervention}
             onFocusRondeConsumed={() => setFocusRondeIdFromIntervention(null)}
-            onUpsertRondePlannedProfile={(payload) => void settings.onUpsertRondePlannedProfile(payload)}
-            onDeleteRondePlannedProfile={(id, reason) => void settings.onDeleteRondePlannedProfile(id, reason)}
+            onUpsertRondePlannedProfile={(payload) => settings.onUpsertRondePlannedProfile(payload)}
+            onDeleteRondePlannedProfile={(id, reason) => settings.onDeleteRondePlannedProfile(id, reason)}
             onRequestRondePlannedProfileCancellation={(id, reason) =>
-              void settings.onRequestRondePlannedProfileCancellation(id, reason)
+              settings.onRequestRondePlannedProfileCancellation(id, reason)
             }
             onReviewRondePlannedProfileCancellationRequest={(id, payload) =>
-              void settings.onReviewRondePlannedProfileCancellationRequest(id, payload)
+              settings.onReviewRondePlannedProfileCancellationRequest(id, payload)
             }
             onSetRondePlannedProfilePlanningEnd={(id, planningEndDate, reason) =>
-              void settings.onSetRondePlannedProfilePlanningEnd(id, planningEndDate, reason)
+              settings.onSetRondePlannedProfilePlanningEnd(id, planningEndDate, reason)
             }
           />
         )}

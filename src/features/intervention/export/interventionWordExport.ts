@@ -84,7 +84,7 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
             spacing: { after: 260 },
             children: [new TextRun({ text: "Fiche d'intervention", bold: true, size: 30 })]
           }),
-          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Date de l'intervention : ${safeDocxText(entry.requestDate)}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Date de l'intervention : ${safeDocxText(formatDateShortFr(entry.requestDate) || entry.requestDate)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de l'appel : ${safeDocxText(entry.requestTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Site : ${safeDocxText(entry.siteDisplay)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Motif de l'intervention : ${safeDocxText(entry.requestReason)}`)] }),

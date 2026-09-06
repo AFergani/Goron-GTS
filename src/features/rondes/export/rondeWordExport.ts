@@ -28,9 +28,11 @@ let templateMissingWarningShown = false;
 export const DEFAULT_RONDE_WORD_TEMPLATE_FILE = "ronde-template.docx";
 type RondeTemplateFlowKind = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE";
 
-function statusLabelFr(status: RondeEntry["status"]): string {
-  if (status === "CLOTURE") return "Clôturée";
-  if (status === "ANNULE") return "Annulée";
+function statusLabelFr(entry: RondeEntry): string {
+  if (entry.status === "CLOTURE") return "Clôturée";
+  if (entry.status === "ANNULE") {
+    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulée";
+  }
   return "En cours";
 }
 
@@ -101,7 +103,7 @@ function buildTemplateData(
       entry.durationMinutes == null ? "—" : safeDocxText(`${entry.durationMinutes} min`),
     numero_bon: safeDocxText(entry.workOrderNumber),
     compte_rendu: safeDocxText(entry.report),
-    statut: safeDocxText(statusLabelFr(entry.status)),
+    statut: safeDocxText(statusLabelFr(entry)),
     type_passage: safeDocxText(roundKindLabel(entry)),
     date_logique_passage: safeDocxText(logicalDateFr),
     date_logique: safeDocxText(logicalDateFr),

@@ -13,8 +13,9 @@
 const RONDE_ENTRY_SELECT = `id, created_at, updated_at, source, origin_intervention_id, site_id, site_display,
   request_date, motif_type_id, motif_category, motif_other, horaires_demande_obs, origin_kind, origin_detail,
   intervenant_id, intervenant_name, arrival_time, departure_time, duration_minutes, work_order_number, report,
-  status, cancellation_reason, closed_at, planned_profile_id, planned_round_kind, planned_slot_key,
-  closure_custom_values_json, request_planning_snapshot_json, request_batch_id`;
+  status, cancellation_reason, cancellation_kind, closed_at, planned_profile_id, planned_round_kind, planned_slot_key,
+  closure_custom_values_json, request_planning_snapshot_json, request_batch_id,
+  batch_suppressed_at, batch_suppressed_by, batch_suppressed_reason`;
 
 /**
  * Même colonnes avec préfixe `r.` pour les jointures motif.
@@ -109,6 +110,9 @@ function mapRondeRow(row) {
     report: row.report || "",
     status: row.status,
     cancellationReason: row.cancellation_reason || "",
+    cancellationKind: row.cancellation_kind === "ANNULATION" || row.cancellation_kind === "NON_EFFECTUEE"
+      ? row.cancellation_kind
+      : null,
     closedAt: row.closed_at || null,
     plannedProfileId: row.planned_profile_id || null,
     plannedRoundKind: row.planned_round_kind || null,
@@ -120,7 +124,13 @@ function mapRondeRow(row) {
       ? (typeof row.request_planning_snapshot_json === "string"
         ? row.request_planning_snapshot_json
         : JSON.stringify(row.request_planning_snapshot_json))
-      : null
+      : null,
+    batchSuppressedAt: row.batch_suppressed_at || null,
+    batchSuppressedBy: row.batch_suppressed_by || null,
+    batchSuppressedReason: row.batch_suppressed_reason || "",
+    batchDeleteRequestedAt: row.batch_delete_requested_at || null,
+    batchDeleteRequestedBy: row.batch_delete_requested_by || null,
+    batchDeleteReason: row.batch_delete_reason || ""
   };
 }
 
