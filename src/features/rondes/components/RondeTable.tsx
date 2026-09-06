@@ -211,7 +211,7 @@ export function RondeTable({
                         className="table-action-btn table-action-btn--text"
                         onClick={() => onOpenProfile(entry.plannedProfileId!)}
                       >
-                        Voir programmation
+                        Demande liée
                       </button>
                     ) : null}
                     {onOpenLinkedDemand &&

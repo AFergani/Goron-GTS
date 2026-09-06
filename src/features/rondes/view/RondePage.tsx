@@ -208,6 +208,10 @@ export function RondePage({
     motifTypeId?: string | null;
   } | null>(null);
   const [linkedDemandAnchorId, setLinkedDemandAnchorId] = useState<string | null>(null);
+  /** D'où on a ouvert la demande liée (pour le bouton retour). */
+  const [linkedDemandOrigin, setLinkedDemandOrigin] = useState<"ronde-report" | "batch-delete-queue" | null>(
+    null
+  );
 
   const ronde = useRondePresenter({ requesterRole, requesterUsername, onToast });
   const references = useRondeReferenceData(requesterRole, requesterUsername, onToast);
@@ -259,7 +263,10 @@ export function RondePage({
     };
   }, [canManageRondes, ronde.entries]);
 
-  const pendingBatchDeleteCount = batchDeleteRequests.length;
+  const pendingBatchDeleteCount = useMemo(
+    () => batchDeleteRequests.filter((row) => row.status === "PENDING").length,
+    [batchDeleteRequests]
+  );
 
   const lastOpenProfileNonce = useRef<number | null>(null);
 
@@ -600,11 +607,16 @@ export function RondePage({
   const activeServiceView = listView === "urgence" ? "urgence" : "planifie";
   const activeDisplayMode = displayModeByService[activeServiceView];
 
+  const clearLinkedDemandNavigation = () => {
+    setRequestPlanningReplay(null);
+    setLinkedDemandAnchorId(null);
+    setLinkedDemandOrigin(null);
+  };
+
   const openRequestModal = (origin: RequestOrigin) => {
     setRequestFixedOrigin(origin);
     setRequestInitial(null);
-    setRequestPlanningReplay(null);
-    setLinkedDemandAnchorId(null);
+    clearLinkedDemandNavigation();
     setRequestModalOpen(true);
   };
 
@@ -622,6 +634,8 @@ export function RondePage({
     originDetail?: string;
     planningSnapshot?: RondePlanningSnapshotV1 | null;
     anchorRondeId?: string | null;
+    /** Contexte de navigation pour le bouton retour. */
+    returnOrigin?: "ronde-report" | "batch-delete-queue" | null;
   }) => {
     if (row.source === "PLANIFIE" && row.plannedProfileId) {
       setModalOpen(false);
@@ -630,6 +644,8 @@ export function RondePage({
     }
     if (row.source === "URGENCE" || row.source === "LIEE_INTERVENTION") {
       if (row.anchorRondeId) setLinkedDemandAnchorId(row.anchorRondeId);
+      else setLinkedDemandAnchorId(null);
+      setLinkedDemandOrigin(row.returnOrigin ?? (row.anchorRondeId ? "ronde-report" : null));
       const replay =
         row.planningSnapshot?.version === 1
           ? row.planningSnapshot
@@ -654,7 +670,7 @@ export function RondePage({
       setRequestModalOpen(true);
       return;
     }
-    setLinkedDemandAnchorId(null);
+    clearLinkedDemandNavigation();
     const origin: RequestOrigin = row.originInterventionId
       ? "SUITE_INTERVENTION"
       : row.originKind === "CLIENT"
@@ -674,7 +690,10 @@ export function RondePage({
     setRequestModalOpen(true);
   };
 
-  const openLinkedDemandForEntry = (entry: RondeEntry) => {
+  const openLinkedDemandForEntry = (
+    entry: RondeEntry,
+    returnOrigin: "ronde-report" | "batch-delete-queue" | null = "ronde-report"
+  ) => {
     openLinkedDemand({
       source: entry.source,
       plannedProfileId: entry.plannedProfileId,
@@ -687,7 +706,8 @@ export function RondePage({
       originKind: entry.originKind,
       originDetail: entry.originDetail,
       planningSnapshot: entry.requestPlanningSnapshot,
-      anchorRondeId: entry.id
+      anchorRondeId: entry.id,
+      returnOrigin
     });
   };
 
@@ -768,20 +788,26 @@ export function RondePage({
           </span>
         </button>
       ) : null}
-      {listView === "urgence" && canManageRondes && pendingBatchDeleteCount > 0 ? (
+      {listView === "urgence" && canManageRondes ? (
         <button
           type="button"
           className="btn-light data-pending-submissions-btn"
-          title={`${pendingBatchDeleteCount} demande(s) de suppression de lot à traiter`}
+          title={
+            pendingBatchDeleteCount > 0
+              ? `${pendingBatchDeleteCount} demande(s) de suppression à traiter`
+              : "Historique des demandes de suppression de lot"
+          }
           onClick={() => {
             void refreshBatchDeleteRequests();
             setBatchDeleteQueueOpen(true);
           }}
         >
           Demandes de suppression
-          <span className="tab-badge" aria-hidden>
-            {pendingBatchDeleteCount}
-          </span>
+          {pendingBatchDeleteCount > 0 ? (
+            <span className="tab-badge" aria-hidden>
+              {pendingBatchDeleteCount}
+            </span>
+          ) : null}
         </button>
       ) : null}
       <button
@@ -838,7 +864,6 @@ export function RondePage({
                 setModalMode("edit");
                 setModalOpen(true);
               }}
-              onOpenProfile={openProfileById}
             />
           ) : (
             <RondeTable
@@ -891,7 +916,7 @@ export function RondePage({
           ) : (
             <RondePlannedDaySection
               mode="entries"
-              entries={filteredEntries}
+              entries={ronde.entries.filter((entry) => !isContractualRondeEntry(entry))}
               profiles={references.plannedProfiles}
               intervenants={references.intervenants}
               rondeMotifs={references.rondeMotifs}
@@ -936,8 +961,7 @@ export function RondePage({
         isOpen={requestModalOpen}
         onClose={() => {
           setRequestModalOpen(false);
-          setRequestPlanningReplay(null);
-          setLinkedDemandAnchorId(null);
+          clearLinkedDemandNavigation();
         }}
         fixedOrigin={requestFixedOrigin}
         initialRequestDate={requestInitial?.requestDate}
@@ -958,27 +982,44 @@ export function RondePage({
         requestLinkedBatchDelete={!canManageRondes ? ronde.requestBatchDelete : undefined}
         onOpenLinkedBatchRonde={(e) => {
           setRequestModalOpen(false);
-          setRequestPlanningReplay(null);
-          setLinkedDemandAnchorId(null);
+          clearLinkedDemandNavigation();
           setCreatePreset(null);
           setActiveEntry(e);
           setModalMode("edit");
           setModalOpen(true);
         }}
-        onNavigateBackToAnchorRonde={linkedDemandAnchorId ? () => {
-          const anchor = ronde.entries.find((e) => e.id === linkedDemandAnchorId);
-          if (!anchor) {
-            onToast?.("Rapport de ronde d'origine introuvable.", "error");
-            return;
-          }
-          setRequestModalOpen(false);
-          setRequestPlanningReplay(null);
-          setLinkedDemandAnchorId(null);
-          setCreatePreset(null);
-          setActiveEntry(anchor);
-          setModalMode("edit");
-          setModalOpen(true);
-        } : undefined}
+        navigateBack={
+          linkedDemandOrigin === "batch-delete-queue"
+            ? {
+                label: "Demandes de suppression",
+                title: "Retour aux demandes de suppression",
+                onNavigate: () => {
+                  setRequestModalOpen(false);
+                  clearLinkedDemandNavigation();
+                  void refreshBatchDeleteRequests();
+                  setBatchDeleteQueueOpen(true);
+                }
+              }
+            : linkedDemandOrigin === "ronde-report" && linkedDemandAnchorId
+              ? {
+                  label: "Rapport de ronde",
+                  title: "Retour au rapport de ronde",
+                  onNavigate: () => {
+                    const anchor = ronde.entries.find((e) => e.id === linkedDemandAnchorId);
+                    if (!anchor) {
+                      onToast?.("Rapport de ronde d'origine introuvable.", "error");
+                      return;
+                    }
+                    setRequestModalOpen(false);
+                    clearLinkedDemandNavigation();
+                    setCreatePreset(null);
+                    setActiveEntry(anchor);
+                    setModalMode("edit");
+                    setModalOpen(true);
+                  }
+                }
+              : null
+        }
         onNotify={onToast}
         sites={references.sites}
         intervenants={references.intervenants}
@@ -997,8 +1038,7 @@ export function RondePage({
         }}
         onAfterProfileCreated={(profile) => {
           setRequestModalOpen(false);
-          setRequestPlanningReplay(null);
-          setLinkedDemandAnchorId(null);
+          clearLinkedDemandNavigation();
           openProfileEditor(profile);
         }}
       />
@@ -1067,6 +1107,19 @@ export function RondePage({
         isOpen={batchDeleteQueueOpen}
         requests={batchDeleteRequests}
         onClose={() => setBatchDeleteQueueOpen(false)}
+        onOpenLinkedDemand={(request) => {
+          const anchorId = request.entryIds[0];
+          const entry =
+            (anchorId ? ronde.entries.find((e) => e.id === anchorId) : null) ||
+            ronde.entries.find((e) => e.requestBatchId === request.requestBatchId) ||
+            null;
+          if (!entry) {
+            onToast?.("Demande liée introuvable (fiches absentes ou déjà traitées).", "error");
+            return;
+          }
+          setBatchDeleteQueueOpen(false);
+          openLinkedDemandForEntry(entry, "batch-delete-queue");
+        }}
         onApprove={async (requestBatchId, reviewReason) => {
           const res = await ronde.reviewBatchDeleteRequest(requestBatchId, "approve", reviewReason);
           if (res?.ok) {

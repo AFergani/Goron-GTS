@@ -1,11 +1,12 @@
 /**
- * Onglet jour planifié : navigation calendrier, créneaux, demandes et exports du jour.
+ * Vue journée : uniquement les passages encore « En cours » (exploitation du jour).
+ * La vue liste conserve filtres, clôturées / annulées et actions avancées.
  */
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileDown, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { RondeMotifTypeRef, RondeEntry } from "../model/ronde.types";
-import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
+import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { HolidayRef, IntervenantRef } from "../../../types";
 import {
   ApplicablePlannedSlot,
@@ -13,7 +14,6 @@ import {
   formatPlannedRoundKindLabel,
   groupSlotsBySite
 } from "../model/plannedSlots";
-import { exportRondeEntryToWord } from "../export/rondeWordExport";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 
@@ -53,12 +53,6 @@ function findPlannedEntryForSlot(
   });
 }
 
-function statusShort(entry: RondeEntry): string {
-  if (entry.status === "CLOTURE") return "Clôturée";
-  if (entry.status === "ANNULE") return "Annulée";
-  return "En cours";
-}
-
 function hhmmToMinutes(value: string): number | null {
   const trimmed = String(value || "").trim();
   if (!/^\d{2}:\d{2}$/.test(trimmed)) return null;
@@ -88,44 +82,57 @@ function enumerateDatesInclusive(fromIso: string, toIso: string): string[] {
   return out;
 }
 
-function logicalRoundTypeLabel(entry: RondeEntry): string {
+/** Type de passage (sans numéro) pour une fiche exceptionnelle. */
+function exceptionalPassageKindLabel(entry: RondeEntry): string {
+  if (entry.plannedRoundKind) {
+    return formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind);
+  }
   const snapshotLines = entry.requestPlanningSnapshot?.lines ?? [];
   const requestedTime = extractRequestedTimeFromObs(entry.horairesDemandeObs || "");
-
   if (requestedTime) {
-    const opening = snapshotLines.some(
-      (line) => line.roundKind === "OPENING" && String(line.requestedTime || "").trim() === requestedTime
-    );
-    if (opening) return "Ouverture";
-
-    const closing = snapshotLines.some(
-      (line) => line.roundKind === "CLOSING" && String(line.requestedTime || "").trim() === requestedTime
-    );
-    if (closing) return "Fermeture";
-
-    const accompagnement = snapshotLines.some(
-      (line) => line.roundKind === "ACCOMPAGNEMENT" && String(line.requestedTime || "").trim() === requestedTime
-    );
-    if (accompagnement) return "Accompagnement";
-  }
-
-  const randomLine = snapshotLines.find((line) => line.roundKind === "RANDOM");
-  if (randomLine) {
-    const start = hhmmToMinutes(randomLine.randomWindowStart || "");
-    const end = hhmmToMinutes(randomLine.randomWindowEnd || "");
-    if (start != null && end != null) {
-      if (start < end) return "Aléatoire (jour)";
-      if (start > end) return "Aléatoire (nuit)";
+    for (const line of snapshotLines) {
+      const t = String(line.requestedTime || "").trim();
+      if (t !== requestedTime) continue;
+      if (line.roundKind === "OPENING") return "Ouverture";
+      if (line.roundKind === "CLOSING") return "Fermeture";
+      if (line.roundKind === "ACCOMPAGNEMENT") return "Accompagnement";
+      if (line.roundKind === "RANDOM") return "Aléatoire";
     }
-    return "Aléatoire";
   }
-
   const obs = String(entry.horairesDemandeObs || "").toLowerCase();
   if (obs.includes("ouverture")) return "Ouverture";
   if (obs.includes("fermeture")) return "Fermeture";
   if (obs.includes("accompagnement")) return "Accompagnement";
-  if (obs.includes("aléatoire") || obs.includes("aleatoire")) return "Aléatoire";
-  return "Passage";
+  if (obs.includes("aléatoire") || obs.includes("aleatoire") || obs.includes("random")) return "Aléatoire";
+  // Lots multi-passages sans détail : traiter comme aléatoire pour la numérotation.
+  return "Aléatoire";
+}
+
+function compareEntriesByRequestedTime(a: RondeEntry, b: RondeEntry): number {
+  const am = hhmmToMinutes(extractRequestedTimeFromObs(a.horairesDemandeObs || "") || "") ?? 0;
+  const bm = hhmmToMinutes(extractRequestedTimeFromObs(b.horairesDemandeObs || "") || "") ?? 0;
+  if (am !== bm) return am - bm;
+  return a.id.localeCompare(b.id);
+}
+
+/**
+ * Numérote les libellés d'un même type sur la journée / le site (ex. Aléatoire N°1, Aléatoire N°2).
+ * Un type unique sur le site reste sans numéro (ex. « Ouverture »).
+ */
+function numberPassageLabels(items: Array<{ id: string; kind: string }>): Map<string, string> {
+  const totals = new Map<string, number>();
+  for (const item of items) {
+    totals.set(item.kind, (totals.get(item.kind) || 0) + 1);
+  }
+  const seen = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const item of items) {
+    const n = (seen.get(item.kind) || 0) + 1;
+    seen.set(item.kind, n);
+    const total = totals.get(item.kind) || 1;
+    labels.set(item.id, total > 1 ? `${item.kind} N°${n}` : item.kind);
+  }
+  return labels;
 }
 
 type RondePlannedDaySectionProps = {
@@ -138,28 +145,36 @@ type RondePlannedDaySectionProps = {
   onNotify?: NotifyToast;
   onOpenCreatePlanned: (slot: ApplicablePlannedSlot, dayIso: string) => void;
   onOpenEntry: (entry: RondeEntry) => void;
-  /** Ouvre la programmation liée au créneau (vue contractuelle). */
-  onOpenProfile?: (profileId: string) => void;
 };
 
 export function RondePlannedDaySection({
   entries,
   profiles,
-  intervenants,
-  rondeMotifs,
   holidays,
   mode = "planned",
   onNotify,
   onOpenCreatePlanned,
-  onOpenEntry,
-  onOpenProfile
+  onOpenEntry
 }: RondePlannedDaySectionProps) {
   const [dayIso, setDayIso] = useState(formatTodayIso);
-  const [exportingEntryId, setExportingEntryId] = useState<string | null>(null);
 
   const holidayDateIsos = useMemo(() => holidays.map((item) => item.dateIso), [holidays]);
-  const slots = useMemo(() => buildApplicablePlannedSlots(profiles, dayIso, holidayDateIsos), [profiles, dayIso, holidayDateIsos]);
-  const rows = useMemo(() => groupSlotsBySite(slots), [slots]);
+  const slots = useMemo(
+    () => buildApplicablePlannedSlots(profiles, dayIso, holidayDateIsos),
+    [profiles, dayIso, holidayDateIsos]
+  );
+
+  /** Créneaux encore à traiter : pas de fiche, ou fiche encore EN_COURS. */
+  const openPlannedSlots = useMemo(() => {
+    return slots.filter((slot) => {
+      const existing = findPlannedEntryForSlot(entries, dayIso, slot);
+      if (!existing) return true;
+      return existing.status === "EN_COURS";
+    });
+  }, [slots, entries, dayIso]);
+
+  const rows = useMemo(() => groupSlotsBySite(openPlannedSlots), [openPlannedSlots]);
+
   const displayDateByEntryId = useMemo(() => {
     const assignments = new Map<string, string>();
     const byBatch = new Map<string, RondeEntry[]>();
@@ -172,39 +187,31 @@ export function RondePlannedDaySection({
     }
 
     for (const batchEntries of byBatch.values()) {
-      const snapshot = batchEntries[0]?.requestPlanningSnapshot;
-      if (!snapshot || snapshot.validTo < snapshot.validFrom) continue;
-      const allSameDate = batchEntries.every((entry) => entry.requestDate === batchEntries[0].requestDate);
-      if (!allSameDate) continue;
-
-      const slots: Array<{ dayIso: string; minute: number }> = [];
-      const days = enumerateDatesInclusive(snapshot.validFrom, snapshot.validTo);
-      for (const dayIso of days) {
-        for (const line of snapshot.lines) {
-          if (line.roundKind !== "OPENING" && line.roundKind !== "CLOSING" && line.roundKind !== "ACCOMPAGNEMENT") continue;
-          const minute = hhmmToMinutes(line.requestedTime || "");
-          slots.push({ dayIso, minute: minute ?? 0 });
-        }
-      }
-      if (!slots.length) continue;
-
-      const sortedSlots = slots.sort((a, b) => (a.dayIso === b.dayIso ? a.minute - b.minute : a.dayIso.localeCompare(b.dayIso)));
-      const sortedEntries = [...batchEntries].sort((a, b) => {
+      const snap = batchEntries.find((e) => e.requestPlanningSnapshot)?.requestPlanningSnapshot;
+      const from = String(snap?.validFrom || "").trim();
+      const to = String(snap?.validTo || from).trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) continue;
+      const dates = enumerateDatesInclusive(from, /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : from);
+      if (!dates.length) continue;
+      const sorted = [...batchEntries].sort((a, b) => {
         const am = hhmmToMinutes(extractRequestedTimeFromObs(a.horairesDemandeObs || "") || "") ?? 0;
         const bm = hhmmToMinutes(extractRequestedTimeFromObs(b.horairesDemandeObs || "") || "") ?? 0;
         if (am !== bm) return am - bm;
-        return a.createdAt.localeCompare(b.createdAt);
+        return a.id.localeCompare(b.id);
       });
-
-      for (let i = 0; i < sortedEntries.length && i < sortedSlots.length; i += 1) {
-        assignments.set(sortedEntries[i].id, sortedSlots[i].dayIso);
-      }
+      sorted.forEach((entry, index) => {
+        assignments.set(entry.id, dates[Math.min(index, dates.length - 1)] || entry.requestDate);
+      });
     }
 
     return assignments;
   }, [entries]);
+
   const entryRows = useMemo(() => {
-    const dayEntries = entries.filter((entry) => (displayDateByEntryId.get(entry.id) ?? entry.requestDate) === dayIso);
+    const dayEntries = entries.filter((entry) => {
+      if (entry.status !== "EN_COURS") return false;
+      return (displayDateByEntryId.get(entry.id) ?? entry.requestDate) === dayIso;
+    });
     const grouped = new Map<string, { siteId: string; siteDisplay: string; items: RondeEntry[] }>();
     for (const entry of dayEntries) {
       const key = entry.siteId || entry.siteDisplay || entry.id;
@@ -219,16 +226,25 @@ export function RondePlannedDaySection({
         items: [entry]
       });
     }
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).map((row) => {
+      const items = [...row.items].sort(compareEntriesByRequestedTime);
+      const labels = numberPassageLabels(
+        items.map((entry) => ({ id: entry.id, kind: exceptionalPassageKindLabel(entry) }))
+      );
+      return { ...row, items, labels };
+    });
   }, [entries, dayIso, displayDateByEntryId]);
 
   const today = formatTodayIso();
   const isToday = dayIso === today;
+  const openCount =
+    mode === "planned"
+      ? openPlannedSlots.length
+      : entryRows.reduce((acc, row) => acc + row.items.length, 0);
 
   return (
     <>
       <div className="ronde-planned-day-toolbar">
-        {/* Navigateur de date [<] [date] [>] [reset] label */}
         <div className="gard-date-nav">
           <button
             type="button"
@@ -267,20 +283,12 @@ export function RondePlannedDaySection({
             </button>
           )}
           <span className="gard-date-nav-label">{formatDateLongRonde(dayIso)}</span>
-          {isToday && <span className="gard-today-badge">Aujourd'hui</span>}
+          {isToday && <span className="gard-today-badge">Aujourd&apos;hui</span>}
         </div>
         <span className="muted" style={{ marginTop: 4 }}>
-          {mode === "planned"
-            ? (
-              slots.length
-                ? `${slots.length} passage${slots.length > 1 ? "s" : ""} prévu${slots.length > 1 ? "s" : ""} selon les profils actifs.`
-                : "Aucun passage prévu pour cette date (vérifiez les profils et les jours / récurrences)."
-            )
-            : (
-              entryRows.length
-                ? `${entryRows.reduce((acc, row) => acc + row.items.length, 0)} passage${entryRows.reduce((acc, row) => acc + row.items.length, 0) > 1 ? "s" : ""} prévu${entryRows.reduce((acc, row) => acc + row.items.length, 0) > 1 ? "s" : ""} pour cette date.`
-                : "Aucun passage prévu pour cette date."
-            )}
+          {openCount
+            ? `${openCount} passage${openCount > 1 ? "s" : ""} en cours pour cette date.`
+            : "Aucun passage en cours pour cette date (voir la vue liste pour l'historique)."}
         </span>
       </div>
 
@@ -294,140 +302,90 @@ export function RondePlannedDaySection({
           </thead>
           <tbody>
             {mode === "planned"
-              ? rows.map((row) => (
-                <tr key={row.siteId}>
-                  <td className="mc-site-wrap">
-                    <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
-                  </td>
-                  <td>
-                    <div className="ronde-planned-day-passages-grid">
-                      {row.slots.map((slot) => {
-                        const existing = findPlannedEntryForSlot(entries, dayIso, slot);
-                        return (
-                          <div key={`${row.siteId}-${slot.slotKey}-${slot.roundKind}`} className="ronde-planned-day-passage-item">
-                            {existing ? (
-                              <>
+              ? rows.map((row) => {
+                  const slotLabels = numberPassageLabels(
+                    row.slots.map((slot) => ({
+                      id: `${slot.slotKey}-${slot.roundKind}`,
+                      kind: formatPlannedRoundKindLabel(slot.roundKind)
+                    }))
+                  );
+                  return (
+                  <tr key={row.siteId}>
+                    <td className="mc-site-wrap">
+                      <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
+                    </td>
+                    <td>
+                      <div className="ronde-planned-day-passages-grid">
+                        {row.slots.map((slot) => {
+                          const existing = findPlannedEntryForSlot(entries, dayIso, slot);
+                          const label =
+                            slotLabels.get(`${slot.slotKey}-${slot.roundKind}`) ||
+                            formatPlannedRoundKindLabel(slot.roundKind);
+                          return (
+                            <div
+                              key={`${row.siteId}-${slot.slotKey}-${slot.roundKind}`}
+                              className="ronde-planned-day-passage-item"
+                            >
+                              {existing ? (
                                 <button
                                   type="button"
                                   className="btn-light"
                                   title="Ouvrir la fiche ronde"
                                   onClick={() => onOpenEntry(existing)}
                                 >
-                                  {formatPlannedRoundKindLabel(slot.roundKind)}
+                                  {label}
                                 </button>
-                                <span className="muted ronde-planned-day-status">{statusShort(existing)}</span>
-                                {onOpenProfile ? (
-                                  <button
-                                    type="button"
-                                    className="btn-light table-action-btn--text"
-                                    title="Voir la programmation"
-                                    onClick={() => onOpenProfile(slot.profileId)}
-                                  >
-                                    Voir programmation
-                                  </button>
-                                ) : null}
+                              ) : (
                                 <button
                                   type="button"
-                                  className="action-icon-btn btn-light"
-                                  disabled={exportingEntryId === existing.id}
-                                  title="Exporter Word (modèle du profil)"
-                                  aria-label="Exporter Word (modèle du profil)"
-                                  onClick={async () => {
-                                    setExportingEntryId(existing.id);
-                                    try {
-                                      await exportRondeEntryToWord(existing, { profileLabel: slot.profileLabel, profiles });
-                                      onNotify?.("Document Word exporté.");
-                                    } catch (err) {
-                                      onNotify?.(err instanceof Error ? err.message : "Export Word impossible.", "error");
-                                    } finally {
-                                      setExportingEntryId(null);
-                                    }
-                                  }}
+                                  className="btn-light"
+                                  onClick={() => onOpenCreatePlanned(slot, dayIso)}
                                 >
-                                  <FileDown size={16} aria-hidden />
+                                  {label}
                                 </button>
-                              </>
-                            ) : (
-                              <>
-                                <button type="button" className="btn-light" onClick={() => onOpenCreatePlanned(slot, dayIso)}>
-                                  {formatPlannedRoundKindLabel(slot.roundKind)}
-                                </button>
-                                {onOpenProfile ? (
-                                  <button
-                                    type="button"
-                                    className="btn-light table-action-btn--text"
-                                    title="Voir la programmation"
-                                    onClick={() => onOpenProfile(slot.profileId)}
-                                  >
-                                    Voir programmation
-                                  </button>
-                                ) : null}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                  );
+                })
               : entryRows.map((row) => (
-                <tr key={row.siteId}>
-                  <td className="mc-site-wrap">
-                    <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
-                  </td>
-                  <td>
-                    <div className="ronde-planned-day-passages-grid">
-                      {row.items.map((entry) => (
-                        <div key={entry.id} className="ronde-planned-day-passage-item">
-                          <button
-                            type="button"
-                            className="btn-light"
-                            title="Ouvrir la fiche ronde"
-                            onClick={() => onOpenEntry(entry)}
-                          >
-                            {logicalRoundTypeLabel(entry)}
-                          </button>
-                          <span className="muted ronde-planned-day-status">{statusShort(entry)}</span>
-                          {entry.status === "CLOTURE" ? (
+                  <tr key={row.siteId}>
+                    <td className="mc-site-wrap">
+                      <SiteDisplayCopyButton variant="table" siteLabel={row.siteDisplay || ""} onNotify={onNotify} />
+                    </td>
+                    <td>
+                      <div className="ronde-planned-day-passages-grid">
+                        {row.items.map((entry) => (
+                          <div key={entry.id} className="ronde-planned-day-passage-item">
                             <button
                               type="button"
-                              className="action-icon-btn btn-light"
-                              disabled={exportingEntryId === entry.id}
-                              title="Exporter Word"
-                              aria-label="Exporter Word"
-                              onClick={async () => {
-                                setExportingEntryId(entry.id);
-                                try {
-                                  await exportRondeEntryToWord(entry, { profiles });
-                                  onNotify?.("Document Word exporté.");
-                                } catch (err) {
-                                  onNotify?.(err instanceof Error ? err.message : "Export Word impossible.", "error");
-                                } finally {
-                                  setExportingEntryId(null);
-                                }
-                              }}
+                              className="btn-light"
+                              title="Ouvrir la fiche ronde"
+                              onClick={() => onOpenEntry(entry)}
                             >
-                              <FileDown size={16} aria-hidden />
+                              {row.labels.get(entry.id) || exceptionalPassageKindLabel(entry)}
                             </button>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             {mode === "planned" && !rows.length ? (
               <tr>
                 <td colSpan={2} className="muted">
-                  Aucun site avec planification pour cette journée.
+                  Aucun site avec passage en cours pour cette journée.
                 </td>
               </tr>
             ) : null}
             {mode === "entries" && !entryRows.length ? (
               <tr>
                 <td colSpan={2} className="muted">
-                  Aucun passage prévu pour cette date.
+                  Aucun passage en cours pour cette date.
                 </td>
               </tr>
             ) : null}

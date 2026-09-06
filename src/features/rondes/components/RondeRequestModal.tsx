@@ -126,8 +126,15 @@ type RondeRequestModalProps = {
     reason: string
   ) => Promise<{ ok: boolean; requestBatchId: string } | null>;
   onOpenLinkedBatchRonde?: (entry: RondeEntry) => void;
-  /** Retour vers le rapport de ronde d'ancrage (navigation Rapport → Demande → Rapport). */
-  onNavigateBackToAnchorRonde?: () => void;
+  /**
+   * Retour contextuel depuis la demande liée
+   * (rapport d'ancrage, file de suppression, etc.).
+   */
+  navigateBack?: {
+    label: string;
+    title?: string;
+    onNavigate: () => void;
+  } | null;
   onCreatePendingSite?: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant?: (name: string) => Promise<boolean>;
 };
@@ -176,25 +183,34 @@ type LineDraft = {
 };
 
 /** Résumé lisible d'une ligne brouillon (aperçu / récap demande). */
-function formatLineDraftSummary(line: LineDraft): string {
+function formatLineDraftSummary(
+  line: LineDraft,
+  opts?: { omitWeekdayRecurrence?: boolean }
+): string {
   const intervalMinutes = line.intervalHours.trim()
     ? Math.max(1, Math.round(Number(line.intervalHours) * 60))
     : null;
   const roundsCount = line.randomRoundsCount.trim()
     ? Math.max(1, Math.round(Number(line.randomRoundsCount)))
     : null;
-  return formatRondePlannedLineSummary({
-    roundKind: line.roundKind,
-    recurrenceKind: "WEEKLY",
-    weekdaysMask: line.weekdaysMask,
-    monthDay: null,
-    requestedTime: line.requestedTime.trim() || null,
-    intervalMinutes: Number.isFinite(intervalMinutes as number) ? intervalMinutes : null,
-    randomPeriodMask: RANDOM_PERIOD_DAY | RANDOM_PERIOD_NIGHT,
-    randomWindowStart: line.randomWindowStart.trim() || null,
-    randomWindowEnd: line.randomWindowEnd.trim() || null,
-    randomRoundsCount: Number.isFinite(roundsCount as number) ? roundsCount : null
-  });
+  const omitWeekdayRecurrence = Boolean(opts?.omitWeekdayRecurrence);
+  const recurrenceKind =
+    omitWeekdayRecurrence || !line.weekdaysMask ? "DAILY" : "WEEKLY";
+  return formatRondePlannedLineSummary(
+    {
+      roundKind: line.roundKind,
+      recurrenceKind,
+      weekdaysMask: line.weekdaysMask,
+      monthDay: null,
+      requestedTime: line.requestedTime.trim() || null,
+      intervalMinutes: Number.isFinite(intervalMinutes as number) ? intervalMinutes : null,
+      randomPeriodMask: RANDOM_PERIOD_DAY | RANDOM_PERIOD_NIGHT,
+      randomWindowStart: line.randomWindowStart.trim() || null,
+      randomWindowEnd: line.randomWindowEnd.trim() || null,
+      randomRoundsCount: Number.isFinite(roundsCount as number) ? roundsCount : null
+    },
+    { omitRecurrence: omitWeekdayRecurrence }
+  );
 }
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -1118,17 +1134,17 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                 : "Planifier une ronde"}
           </h3>
           <div className="row-actions">
-            {props.onNavigateBackToAnchorRonde && (
+            {props.navigateBack ? (
               <button
                 type="button"
                 className="btn-light"
-                title="Retour au rapport de ronde"
-                aria-label="Rapport de ronde"
-                onClick={props.onNavigateBackToAnchorRonde}
+                title={props.navigateBack.title || props.navigateBack.label}
+                aria-label={props.navigateBack.label}
+                onClick={props.navigateBack.onNavigate}
               >
-                Rapport de ronde
+                {props.navigateBack.label}
               </button>
-            )}
+            ) : null}
             <button type="button" className="mc-modal-close" onClick={props.onClose} aria-label="Fermer">
               ×
             </button>
@@ -1454,7 +1470,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               ) : (
                 lines.map((line, index) => (
                   <div key={`recap-line-${line.id || index}`} className="muted ronde-request-recap__line">
-                    Ligne {index + 1}: {formatLineDraftSummary(line)}
+                    Ligne {index + 1}:{" "}
+                    {formatLineDraftSummary(line, {
+                      omitWeekdayRecurrence: isSingleDay || lockWeekdaysFromValidityRange
+                    })}
                     {!isContract && !isEdit ? (
                       <>
                         {" "}

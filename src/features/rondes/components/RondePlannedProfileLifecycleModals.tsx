@@ -6,6 +6,7 @@
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { formatLocalDateIso } from "../model/rondeCalendarLocal";
 import type { RondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfileLifecycle";
+import { RondeConfirmReasonField } from "./RondeConfirmReasonField";
 import { RondePlannedStopPlanningModal } from "./RondePlannedStopPlanningModal";
 
 type RondePlannedProfileLifecycleModalsProps = {
@@ -25,7 +26,7 @@ export function RondePlannedProfileLifecycleModals({
 }: RondePlannedProfileLifecycleModalsProps) {
   return (
     <>
-      {(hasSetPlanningEnd || hasReviewCancellation) ? (
+      {hasSetPlanningEnd || hasReviewCancellation ? (
         <RondePlannedStopPlanningModal
           isOpen={Boolean(lc.stopTarget)}
           profileLabel={lc.stopTarget?.label || ""}
@@ -49,20 +50,13 @@ export function RondePlannedProfileLifecycleModals({
           onCancel={lc.cancelRequest}
           onConfirm={() => void lc.confirmRequestCancellation()}
         >
-          <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
-            <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
-              Motif (obligatoire) <span className="text-error">*</span>
-            </span>
-            <textarea
-              className="mc-textarea"
-              value={lc.requestReason}
-              onChange={(e) => lc.setRequestReason(e.target.value)}
-              rows={3}
-              placeholder="Ex. fin de contrat demandée par le client"
-              disabled={lc.requestSubmitting}
-              autoFocus
-            />
-          </label>
+          <RondeConfirmReasonField
+            value={lc.requestReason}
+            onChange={lc.setRequestReason}
+            placeholder="Ex. fin de contrat demandée par le client"
+            disabled={lc.requestSubmitting}
+            autoFocus
+          />
         </ConfirmModal>
       ) : null}
 
@@ -80,20 +74,13 @@ export function RondePlannedProfileLifecycleModals({
           onCancel={lc.cancelReject}
           onConfirm={() => void lc.confirmReject()}
         >
-          <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
-            <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
-              Motif (obligatoire) <span className="text-error">*</span>
-            </span>
-            <textarea
-              className="mc-textarea"
-              value={lc.rejectReason}
-              onChange={(e) => lc.setRejectReason(e.target.value)}
-              rows={3}
-              placeholder="Ex. arrêt non validé, contrat encore actif"
-              disabled={lc.rejectSubmitting}
-              autoFocus
-            />
-          </label>
+          <RondeConfirmReasonField
+            value={lc.rejectReason}
+            onChange={lc.setRejectReason}
+            placeholder="Ex. arrêt non validé, contrat encore actif"
+            disabled={lc.rejectSubmitting}
+            autoFocus
+          />
         </ConfirmModal>
       ) : null}
 
@@ -112,20 +99,13 @@ export function RondePlannedProfileLifecycleModals({
           onCancel={lc.cancelDelete}
           onConfirm={() => void lc.confirmDelete()}
         >
-          <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
-            <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
-              Motif (obligatoire) <span className="text-error">*</span>
-            </span>
-            <textarea
-              className="mc-textarea"
-              value={lc.deleteReason}
-              onChange={(e) => lc.setDeleteReason(e.target.value)}
-              rows={3}
-              placeholder="Ex.: prestation annulée par le client"
-              disabled={lc.deleteSubmitting}
-              autoFocus
-            />
-          </label>
+          <RondeConfirmReasonField
+            value={lc.deleteReason}
+            onChange={lc.setDeleteReason}
+            placeholder="Ex.: prestation annulée par le client"
+            disabled={lc.deleteSubmitting}
+            autoFocus
+          />
         </ConfirmModal>
       ) : null}
     </>

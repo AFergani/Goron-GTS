@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { summarizeRondePlannedProfile } from "../model/rondePlannedSummary";
+import { RondePendingRequestsQueueModal } from "./RondePendingRequestsQueueModal";
 
 type RondePlannedCancellationQueueModalProps = {
   isOpen: boolean;
@@ -23,7 +24,7 @@ export function RondePlannedCancellationQueueModal({
   onReject,
   onOpenProfile
 }: RondePlannedCancellationQueueModalProps) {
-  const pending = useMemo(
+  const pendingProfiles = useMemo(
     () =>
       profiles
         .filter((p) => Boolean(p.cancellationRequestedAt))
@@ -33,94 +34,46 @@ export function RondePlannedCancellationQueueModal({
     [profiles]
   );
 
-  if (!isOpen) return null;
+  const rows = useMemo(
+    () =>
+      pendingProfiles.map((row) => ({
+        id: row.id,
+        title: (row.siteDisplay || row.label || "").trim() || "—",
+        subtitle: (
+          <span title={summarizeRondePlannedProfile(row)}>{summarizeRondePlannedProfile(row)}</span>
+        ),
+        requestedBy: row.cancellationRequestedBy || "",
+        reason: row.cancellationRequestReason || ""
+      })),
+    [pendingProfiles]
+  );
+
+  const profileById = useMemo(() => new Map(pendingProfiles.map((p) => [p.id, p])), [pendingProfiles]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <section
-        className="modal fransor-help-modal ronde-planned-cancellation-queue-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ronde-cancellation-queue-title"
-      >
-        <header className="mc-modal-head">
-          <h3 id="ronde-cancellation-queue-title" className="mc-modal-title">
-            Demandes d&apos;arrêt
-          </h3>
-          <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
-            ×
-          </button>
-        </header>
-
-        <p className="muted data-pending-submissions-hint">
-          Validez ou refusez les demandes d&apos;arrêt de programmation en attente.
-        </p>
-
-        <div className="table-scroll-x">
-          <table className="data-table-fixed">
-            <thead>
-              <tr>
-                <th>Profil</th>
-                <th>Demandeur</th>
-                <th>Motif</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!pending.length ? (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    Aucune demande en attente.
-                  </td>
-                </tr>
-              ) : (
-                pending.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <div>
-                        <strong>{(row.siteDisplay || row.label || "").trim() || "—"}</strong>
-                      </div>
-                      <div className="muted" style={{ fontSize: "0.85em" }} title={summarizeRondePlannedProfile(row)}>
-                        {summarizeRondePlannedProfile(row)}
-                      </div>
-                    </td>
-                    <td>{row.cancellationRequestedBy || "—"}</td>
-                    <td>{row.cancellationRequestReason || "—"}</td>
-                    <td>
-                      <div className="row-actions table-row-actions table-row-actions--text">
-                        {onOpenProfile ? (
-                          <button
-                            type="button"
-                            className="table-action-btn table-action-btn--text"
-                            onClick={() => onOpenProfile(row)}
-                          >
-                            Voir
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="table-action-btn table-action-btn--text table-action-btn--validate"
-                          onClick={() => onApprove(row)}
-                        >
-                          Accepter
-                        </button>
-                        <button
-                          type="button"
-                          className="table-action-btn table-action-btn--text"
-                          onClick={() => onReject(row)}
-                        >
-                          Refuser
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+    <RondePendingRequestsQueueModal
+      isOpen={isOpen}
+      title="Demandes d'arrêt"
+      hint="Validez ou refusez les demandes d'arrêt de programmation en attente."
+      subjectColumnLabel="Profil"
+      rows={rows}
+      onClose={onClose}
+      onAccept={(id) => {
+        const profile = profileById.get(id);
+        if (profile) onApprove(profile);
+      }}
+      onReject={(id) => {
+        const profile = profileById.get(id);
+        if (profile) onReject(profile);
+      }}
+      onView={
+        onOpenProfile
+          ? (id) => {
+              const profile = profileById.get(id);
+              if (profile) onOpenProfile(profile);
+            }
+          : undefined
+      }
+    />
   );
 }

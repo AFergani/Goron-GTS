@@ -101,13 +101,14 @@ export function HelpRondesTopic() {
         <h3 className="help-center-card-title">📅 Gérer les rondes contractuelles</h3>
         <p className="muted">
           Les rondes contractuelles s&apos;articulent autour d&apos;une règle fixe établie par les responsables, que l&apos;exploitation
-          matérialise chaque jour.
+          matérialise chaque jour. La <strong>vue journée</strong> ne montre que les passages encore <strong>en cours</strong> ;
+          la <strong>vue liste</strong> sert au suivi et à l&apos;historique.
         </p>
 
         <h4 className="help-center-subsection-title">1. La programmation (configuration responsable)</h4>
         <p className="muted">
           L&apos;onglet <strong>Ronde contractuelle</strong> (bouton <strong>Planifier une ronde</strong>, ou
-          <strong> Profils</strong> / <strong>Voir programmation</strong>) permet de définir le cadre : choix du site,
+          <strong> Profils</strong> / <strong>Demande liée</strong>) permet de définir le cadre : choix du site,
           du prestataire, dates de validité (<strong>Du / Au</strong>) et consignes permanentes destinées aux agents. L&apos;enregistrement crée
           un profil actif, mais <strong>ne génère pas de fiches instantanément</strong>.
         </p>
@@ -119,7 +120,7 @@ export function HelpRondesTopic() {
             <strong>Pour lancer une ronde :</strong> ouvrez le créneau attendu pour matérialiser et créer la fiche de ronde du jour.
           </li>
           <li>
-            <strong>Modification / arrêt :</strong> utilisez <strong>Voir programmation</strong> (liste / jour) ou
+            <strong>Modification / arrêt :</strong> utilisez <strong>Demande liée</strong> en vue liste ou
             <strong> Profils</strong>, puis <strong>Arrêter</strong> / <strong>Supprimer</strong> dans la fiche. Les
             responsables traitent aussi les <strong>Demandes d&apos;arrêt</strong> depuis la barre d&apos;actions.
           </li>
@@ -132,6 +133,10 @@ export function HelpRondesTopic() {
 
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">⚡ Créer une ronde exceptionnelle</h3>
+        <p className="muted">
+          La <strong>vue journée</strong> affiche uniquement les fiches encore <strong>en cours</strong> du jour sélectionné.
+          Passez en <strong>vue liste</strong> pour filtrer, consulter l&apos;historique ou ouvrir une <strong>Demande liée</strong>.
+        </p>
         <ol className="muted help-center-list help-center-list--ordered">
           <li>
             Rendez-vous dans l&apos;onglet <strong>Ronde exceptionnelle</strong> et cliquez sur <strong>Nouvelle ronde</strong> (l&apos;origine

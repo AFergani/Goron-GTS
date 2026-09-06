@@ -9,6 +9,7 @@ import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
+import { RondeConfirmReasonField } from "./RondeConfirmReasonField";
 
 function statusWordFr(status: RondeEntry["status"], entry: RondeEntry): string {
   if (status === "CLOTURE") return "Clôturé";
@@ -266,15 +267,7 @@ export function RondeLinkedBatchPanel({
           if (ok) onNotify?.(kind === "NON_EFFECTUEE" ? "Ronde marquée non effectuée." : "Ronde annulée.");
         }}
       >
-        <label className="form-block" style={{ marginTop: 10 }}>
-          Motif obligatoire
-          <textarea
-            className="mc-textarea"
-            rows={3}
-            value={cancelOneReason}
-            onChange={(e) => setCancelOneReason(e.target.value)}
-          />
-        </label>
+        <RondeConfirmReasonField value={cancelOneReason} onChange={setCancelOneReason} autoFocus />
       </ConfirmModal>
 
       <ConfirmModal
@@ -299,21 +292,13 @@ export function RondeLinkedBatchPanel({
           }
         }}
       >
-        <label className="form-block" style={{ marginTop: 10 }}>
-          Motif obligatoire
-          <textarea
-            className="mc-textarea"
-            rows={3}
-            value={cancelSelectedReason}
-            onChange={(e) => setCancelSelectedReason(e.target.value)}
-          />
-        </label>
+        <RondeConfirmReasonField value={cancelSelectedReason} onChange={setCancelSelectedReason} autoFocus />
       </ConfirmModal>
 
       <ConfirmModal
         isOpen={confirmDeleteOpen && Boolean(bulkDeleteBatch)}
         title="Supprimer le lot"
-        message="Avant la fin du lot : fiches sans données → non effectuées ; fiches avec données conservées (motif/date de suppression). Après la fin du lot : suppression des fiches non clôturées. Motif obligatoire."
+        message="Avant la fin du lot : fiches sans données → non effectuées ; fiches avec données conservées (motif/date de suppression). Après la fin du lot : suppression des fiches non clôturées."
         confirmLabel="Supprimer le lot"
         confirmClassName="btn-danger"
         confirmDisabled={!deleteReason.trim()}
@@ -342,18 +327,19 @@ export function RondeLinkedBatchPanel({
           }
         }}
       >
-        <label className="form-block" style={{ marginTop: 10 }}>
-          Motif obligatoire
-          <textarea className="mc-textarea" rows={3} value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} />
-        </label>
+        <RondeConfirmReasonField
+          value={deleteReason}
+          onChange={setDeleteReason}
+          placeholder="Ex. prestation annulée par le client"
+          autoFocus
+        />
       </ConfirmModal>
 
       <ConfirmModal
         isOpen={confirmRequestDeleteOpen && Boolean(requestBatchDelete)}
         title="Demander la suppression du lot"
-        message="Le lot sera masqué pour les opérateurs jusqu'à validation ou refus par un responsable. Motif obligatoire."
+        message="Le lot sera masqué pour les opérateurs jusqu'à validation ou refus par un responsable. Expliquez pourquoi vous demandez la suppression."
         confirmLabel="Envoyer la demande"
-        confirmClassName="btn-danger"
         confirmDisabled={!requestDeleteReason.trim()}
         onCancel={() => setConfirmRequestDeleteOpen(false)}
         onConfirm={async () => {
@@ -370,15 +356,12 @@ export function RondeLinkedBatchPanel({
           }
         }}
       >
-        <label className="form-block" style={{ marginTop: 10 }}>
-          Motif obligatoire
-          <textarea
-            className="mc-textarea"
-            rows={3}
-            value={requestDeleteReason}
-            onChange={(e) => setRequestDeleteReason(e.target.value)}
-          />
-        </label>
+        <RondeConfirmReasonField
+          value={requestDeleteReason}
+          onChange={setRequestDeleteReason}
+          placeholder="Ex. lot créé par erreur, prestation annulée"
+          autoFocus
+        />
       </ConfirmModal>
     </>
   );

@@ -30,7 +30,13 @@ export type RondeBatchDeleteRequestRef = {
   reason: string;
   requestedAt: string;
   requestedBy: string;
-  status: string;
+  /** Nom affiché du demandeur (repli = login technique). */
+  requestedByDisplay: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | string;
+  reviewedAt: string | null;
+  reviewedBy: string;
+  reviewedByDisplay: string;
+  reviewReason: string;
   entryCount: number;
   siteDisplay: string;
   dateFrom: string;

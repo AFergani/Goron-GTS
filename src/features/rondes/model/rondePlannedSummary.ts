@@ -27,12 +27,18 @@ export function formatRondePlannedRoundKind(kind: RondePlannedRoundKind, randomP
     return "Aléatoire (jour · nuit)";
   }
   switch (kind) {
-    case "OPENING":    return "Ouverture";
-    case "CLOSING":    return "Fermeture";
-    case "ACCOMPAGNEMENT": return "Accompagnement";
-    case "RANDOM_DAY": return "Aléatoire (jour)";
-    case "RANDOM_NIGHT": return "Aléatoire (nuit)";
-    default: return kind;
+    case "OPENING":
+      return "Ouverture";
+    case "CLOSING":
+      return "Fermeture";
+    case "ACCOMPAGNEMENT":
+      return "Accompagnement";
+    case "RANDOM_DAY":
+      return "Aléatoire (jour)";
+    case "RANDOM_NIGHT":
+      return "Aléatoire (nuit)";
+    default:
+      return kind;
   }
 }
 
@@ -42,39 +48,52 @@ export function formatRondePlannedIntervalMinutes(minutes: number | null | undef
   return `Toutes les ${minutes} min`;
 }
 
-export function formatRondePlannedLineSummary(line: {
-  roundKind: RondePlannedRoundKind;
-  recurrenceKind: RondePlannedRecurrenceKind;
-  weekdaysMask: number;
-  monthDay: number | null;
-  requestedTime: string | null;
-  intervalMinutes: number | null;
-  randomPeriodMask?: number | null;
-  randomWindowStart?: string | null;
-  randomWindowEnd?: string | null;
-  randomRoundsCount?: number | null;
-  rangeStartDate?: string | null;
-  rangeEndDate?: string | null;
-}): string {
+export function formatRondePlannedLineSummary(
+  line: {
+    roundKind: RondePlannedRoundKind;
+    recurrenceKind: RondePlannedRecurrenceKind;
+    weekdaysMask: number;
+    monthDay: number | null;
+    requestedTime: string | null;
+    intervalMinutes: number | null;
+    randomPeriodMask?: number | null;
+    randomWindowStart?: string | null;
+    randomWindowEnd?: string | null;
+    randomRoundsCount?: number | null;
+    rangeStartDate?: string | null;
+    rangeEndDate?: string | null;
+  },
+  options?: {
+    /**
+     * Masque la récurrence dans le libellé (ex. plage courte ≤ 7 j. déjà décrite par la validité,
+     * ou jour unique) — évite un faux « hebdo Lun, Dim » sur une nuit Du→Au.
+     */
+    omitRecurrence?: boolean;
+  }
+): string {
   const kind =
     line.roundKind === "RANDOM"
       ? formatRondePlannedRoundKind("RANDOM", line.randomPeriodMask)
       : formatRondePlannedRoundKind(line.roundKind);
-  let rec = "";
-  if (line.recurrenceKind === "DATE_RANGE") {
-    const fromFr = formatDateShortFr(line.rangeStartDate?.trim() || "") || "—";
-    const toFr = formatDateShortFr(line.rangeEndDate?.trim() || "") || "—";
-    rec = `du ${fromFr} au ${toFr}`;
-  } else if (line.recurrenceKind === "DAILY") {
-    rec = "chaque jour";
-  } else if (line.recurrenceKind === "MONTHLY") {
-    rec = `mensuel j.${line.monthDay ?? "—"}`;
-  } else {
-    const parts: string[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      if (line.weekdaysMask & (1 << i)) parts.push(WEEKDAY_BITS[i].label);
+  let recPart = "";
+  if (!options?.omitRecurrence) {
+    let rec = "";
+    if (line.recurrenceKind === "DATE_RANGE") {
+      const fromFr = formatDateShortFr(line.rangeStartDate?.trim() || "") || "—";
+      const toFr = formatDateShortFr(line.rangeEndDate?.trim() || "") || "—";
+      rec = `du ${fromFr} au ${toFr}`;
+    } else if (line.recurrenceKind === "DAILY") {
+      rec = "chaque jour";
+    } else if (line.recurrenceKind === "MONTHLY") {
+      rec = `mensuel j.${line.monthDay ?? "—"}`;
+    } else {
+      const parts: string[] = [];
+      for (let i = 0; i < 7; i += 1) {
+        if (line.weekdaysMask & (1 << i)) parts.push(WEEKDAY_BITS[i].label);
+      }
+      rec = parts.length ? `hebdo ${parts.join(", ")}` : "hebdo —";
     }
-    rec = parts.length ? `hebdo ${parts.join(", ")}` : "hebdo —";
+    recPart = ` (${rec})`;
   }
   const time =
     line.roundKind === "OPENING" || line.roundKind === "CLOSING" || line.roundKind === "ACCOMPAGNEMENT"
@@ -91,7 +110,7 @@ export function formatRondePlannedLineSummary(line: {
     line.roundKind === "RANDOM" && line.randomRoundsCount != null && line.randomRoundsCount >= 1
       ? ` · ${line.randomRoundsCount} ronde(s)`
       : "";
-  return `${kind} (${rec})${time}${freq}${win}${rc}`;
+  return `${kind}${recPart}${time}${freq}${win}${rc}`;
 }
 
 export function summarizeRondePlannedProfile(profile: RondePlannedProfileRef): string {

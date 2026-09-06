@@ -883,20 +883,21 @@ async function requestRondeBatchDelete(store, payload) {
   }
   const now = new Date().toISOString();
   const actor = String(payload.requesterUsername || "unknown").trim();
+  const siteDisplay = String(rows[0]?.site_display || "").trim();
   if (existing) {
     await db.run(
       `UPDATE ronde_batch_delete_requests
        SET reason = ?, requested_at = ?, requested_by = ?, status = 'PENDING',
-           reviewed_at = NULL, reviewed_by = NULL, review_reason = NULL
+           reviewed_at = NULL, reviewed_by = NULL, review_reason = NULL, site_display = ?
        WHERE request_batch_id = ?`,
-      [reason, now, actor, batchId]
+      [reason, now, actor, siteDisplay, batchId]
     );
   } else {
     await db.run(
       `INSERT INTO ronde_batch_delete_requests
-         (request_batch_id, reason, requested_at, requested_by, status)
-       VALUES (?, ?, ?, ?, 'PENDING')`,
-      [batchId, reason, now, actor]
+         (request_batch_id, reason, requested_at, requested_by, status, site_display)
+       VALUES (?, ?, ?, ?, 'PENDING', ?)`,
+      [batchId, reason, now, actor, siteDisplay]
     );
   }
   store.logAudit({
@@ -981,26 +982,52 @@ async function listRondeBatchDeleteRequests(store, { requesterRole }) {
     );
   }
   const db = requireRondePersistence(store, "ronde:batchDeleteList");
-  const pending = await db.all(
-    `SELECT request_batch_id, reason, requested_at, requested_by, status
-     FROM ronde_batch_delete_requests WHERE status = 'PENDING'
-     ORDER BY requested_at ASC`,
+  const requests = await db.all(
+    `SELECT request_batch_id, reason, requested_at, requested_by, status,
+            reviewed_at, reviewed_by, review_reason, site_display
+     FROM ronde_batch_delete_requests
+     ORDER BY CASE status WHEN 'PENDING' THEN 0 WHEN 'REJECTED' THEN 1 ELSE 2 END,
+              requested_at DESC`,
     []
   );
+  const usersDb = typeof store.getUsersPersistence === "function" ? store.getUsersPersistence() : null;
+  const displayByUsername = new Map();
+  if (usersDb && usersDb.isOpen()) {
+    const usernames = [
+      ...new Set(
+        requests
+          .flatMap((req) => [req.requested_by, req.reviewed_by])
+          .map((u) => String(u || "").trim())
+          .filter(Boolean)
+      )
+    ];
+    for (const username of usernames) {
+      const row = await usersDb.get("SELECT full_name FROM users WHERE username = ?", [username]);
+      const fullName = String(row?.full_name || "").trim();
+      if (fullName) displayByUsername.set(username, fullName);
+    }
+  }
   const out = [];
-  for (const req of pending) {
+  for (const req of requests) {
     const entries = await db.all(
       `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ? ORDER BY request_date ASC`,
       [req.request_batch_id]
     );
+    const requestedBy = String(req.requested_by || "").trim();
+    const reviewedBy = String(req.reviewed_by || "").trim();
     out.push({
       requestBatchId: req.request_batch_id,
       reason: req.reason || "",
       requestedAt: req.requested_at,
-      requestedBy: req.requested_by,
-      status: req.status,
+      requestedBy,
+      requestedByDisplay: displayByUsername.get(requestedBy) || requestedBy,
+      status: req.status || "PENDING",
+      reviewedAt: req.reviewed_at || null,
+      reviewedBy,
+      reviewedByDisplay: reviewedBy ? displayByUsername.get(reviewedBy) || reviewedBy : "",
+      reviewReason: req.review_reason || "",
       entryCount: entries.length,
-      siteDisplay: entries[0]?.site_display || "",
+      siteDisplay: String(req.site_display || "").trim() || entries[0]?.site_display || "",
       dateFrom: entries[0]?.request_date || "",
       dateTo: entries.length ? entries[entries.length - 1].request_date : "",
       entryIds: entries.map((e) => e.id)

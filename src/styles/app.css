@@ -4408,6 +4408,20 @@ fieldset.ronde-planned-weekdays {
   background: var(--surface-hover, rgba(255, 255, 255, 0.04));
 }
 
+.ronde-batch-delete-card {
+  cursor: default;
+}
+
+.ronde-batch-delete-card:hover {
+  background: transparent;
+}
+
+.ronde-batch-delete-card__actions {
+  margin-top: auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .ronde-planned-profiles-card__head {
   display: flex;
   flex-wrap: wrap;

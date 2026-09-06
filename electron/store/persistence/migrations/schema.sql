@@ -515,8 +515,10 @@ CREATE TABLE IF NOT EXISTS ronde_batch_delete_requests (
   status TEXT NOT NULL DEFAULT 'PENDING',
   reviewed_at TEXT,
   reviewed_by TEXT,
-  review_reason TEXT
+  review_reason TEXT,
+  site_display TEXT
 );
+ALTER TABLE ronde_batch_delete_requests ADD COLUMN IF NOT EXISTS site_display TEXT;
 CREATE INDEX IF NOT EXISTS idx_ronde_batch_delete_status ON ronde_batch_delete_requests (status);
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profiles_active
   ON data_ronde_planned_profiles (is_active, label);

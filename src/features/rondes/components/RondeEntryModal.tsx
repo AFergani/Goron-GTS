@@ -1079,9 +1079,7 @@ export function RondeEntryModal({
                   }
                 }}
               >
-                {entry?.source === "PLANIFIE" || isPlannedCreatePreset
-                  ? "Voir programmation"
-                  : "Demande liée"}
+                Demande liée
               </button>
               <button
                 type="button"
