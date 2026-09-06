@@ -10,12 +10,12 @@ import type { NotifyToast } from "../../common/model/toast.types";
 
 export type RondePlannedProfileLifecycleHandlers = {
   onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<unknown>;
-  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<void>;
+  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<unknown>;
   onReviewRondePlannedProfileCancellationRequest?: (
     id: string,
     payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
-  ) => void | Promise<void>;
-  onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<void>;
+  ) => void | Promise<unknown>;
+  onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<unknown>;
   onReload: () => void | Promise<void>;
   onNotify?: NotifyToast;
   /** Appelé après une action réussie qui invalide l'édition en cours (ex. fermer la modale profil). */

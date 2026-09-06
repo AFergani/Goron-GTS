@@ -4436,6 +4436,7 @@ fieldset.ronde-planned-weekdays {
   font-size: 0.95rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -4460,6 +4461,7 @@ fieldset.ronde-planned-weekdays {
 .ronde-planned-profiles-card__summary-line {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   white-space: normal;

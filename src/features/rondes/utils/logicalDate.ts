@@ -2,16 +2,13 @@
  * Date logique d’une ronde (passage après minuit, créneau nuit).
  */
 
+import { hhmmToMinutes, isRondeTimeHm } from "./rondeTime";
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const ISO_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const NIGHT_TRANSITION_LIMIT_MINUTES = 6 * 60;
 
 function isIsoDate(value: string): boolean {
   return ISO_DATE_RE.test(String(value || "").trim());
-}
-
-function isIsoTime(value: string): boolean {
-  return ISO_TIME_RE.test(String(value || "").trim());
 }
 
 function addDaysToIsoDate(dateIso: string, days: number): string {
@@ -22,12 +19,6 @@ function addDaysToIsoDate(dateIso: string, days: number): string {
   const month = String(base.getMonth() + 1).padStart(2, "0");
   const day = String(base.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function toMinutes(timeIso: string): number {
-  const [h, m] = String(timeIso || "").split(":").map((part) => Number(part));
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return -1;
-  return h * 60 + m;
 }
 
 function isNightRoundKind(kind: string | null | undefined): boolean {
@@ -55,11 +46,17 @@ export function computeRondeLogicalDate(params: {
   if (isNightRound) {
     const arrivalTime = String(params.arrivalTime || "").trim();
     const departureTime = String(params.departureTime || "").trim();
-    const referenceTime = isIsoTime(arrivalTime) ? arrivalTime : isIsoTime(departureTime) ? departureTime : "";
-    const referenceMinutes = referenceTime ? toMinutes(referenceTime) : -1;
-    if (referenceMinutes >= 0 && referenceMinutes < NIGHT_TRANSITION_LIMIT_MINUTES) {
-      autoLogicalDate = addDaysToIsoDate(requestDate, 1);
-      shiftedAfterMidnight = true;
+    const referenceTime = isRondeTimeHm(arrivalTime)
+      ? arrivalTime
+      : isRondeTimeHm(departureTime)
+        ? departureTime
+        : "";
+    if (referenceTime) {
+      const referenceMinutes = hhmmToMinutes(referenceTime);
+      if (referenceMinutes < NIGHT_TRANSITION_LIMIT_MINUTES) {
+        autoLogicalDate = addDaysToIsoDate(requestDate, 1);
+        shiftedAfterMidnight = true;
+      }
     }
   }
 

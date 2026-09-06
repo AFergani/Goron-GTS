@@ -6,6 +6,8 @@ import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { RondeEntry } from "../model/ronde.types";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import { rondeOriginLabelFr, rondeStatusLabelFr } from "./rondeExportFormat";
 
 const HEADERS = [
   "Date demande",
@@ -21,37 +23,15 @@ const HEADERS = [
   "Compte-rendu"
 ] as const;
 
-function formatDateFr(dateIso: string): string {
-  if (!dateIso) return "";
-  const d = new Date(`${dateIso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function statusLabel(entry: RondeEntry): string {
-  if (entry.status === "CLOTURE") return "Clôturé";
-  if (entry.status === "ANNULE") {
-    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulé";
-  }
-  return "En cours";
-}
-
-function originLabel(entry: RondeEntry): string {
-  if (entry.source === "PLANIFIE") return "Planifiée";
-  if (entry.originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (entry.originKind === "CLIENT") return "Client";
-  return "Autre";
-}
-
 export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde contractuelle" | "Ronde exceptionnelle"): void {
   const rows: Array<Array<string | number>> = [
     [...HEADERS],
     ...entries.map((entry) => [
-      formatDateFr(entry.requestDate),
+      formatDateShortFr(entry.requestDate) || "",
       entry.siteDisplay || "",
-      originLabel(entry),
+      rondeOriginLabelFr(entry),
       entry.intervenantName || "",
-      statusLabel(entry),
+      rondeStatusLabelFr(entry),
       entry.horairesDemandeObs || "",
       entry.arrivalTime || "",
       entry.departureTime || "",

@@ -3,18 +3,12 @@
  */
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import {
   INTERVENTION_NO_WORK_ORDER_LABEL,
   type InterventionEntry
 } from "../../intervention/model/intervention.types";
 import type { NotifyToast } from "../../common/model/toast.types";
-
-function formatDateFr(dateIso: string) {
-  if (!dateIso) return "—";
-  const t = Date.parse(`${dateIso}T12:00:00`);
-  if (Number.isNaN(t)) return "—";
-  return new Date(t).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
 
 type InterventionLinkedReadonlyPanelProps = {
   entry: InterventionEntry;
@@ -34,7 +28,7 @@ export function InterventionLinkedReadonlyPanel({ entry, onNotify }: Interventio
       </div>
       <div className="linked-intervention-ro-field">
         <span>Date / heure de la demande</span>
-        {formatDateFr(entry.requestDate)}
+        {formatDateShortFr(entry.requestDate) || "—"}
         {entry.requestTime ? ` · ${entry.requestTime}` : ""}
       </div>
       <div className="linked-intervention-ro-field">

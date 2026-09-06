@@ -21,28 +21,13 @@ import type { RondeEntry } from "../model/ronde.types";
 import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import { plannedProfileWordTemplateFileName } from "./profileTemplateFilename";
+import { rondeOriginSummaryFr, rondeStatusLabelFr } from "./rondeExportFormat";
 
 let templateMissingWarningShown = false;
 
 /** Fichier installable depuis Paramètres → Données → Gestion des modèles ; utilisé si aucun modèle spécifique au profil. */
 export const DEFAULT_RONDE_WORD_TEMPLATE_FILE = "ronde-template.docx";
 type RondeTemplateFlowKind = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE";
-
-function statusLabelFr(entry: RondeEntry): string {
-  if (entry.status === "CLOTURE") return "Clôturée";
-  if (entry.status === "ANNULE") {
-    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulée";
-  }
-  return "En cours";
-}
-
-function originSummary(entry: RondeEntry): string {
-  if (entry.originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (entry.originKind === "CLIENT") {
-    return entry.originDetail.trim() ? `Client — ${entry.originDetail.trim()}` : "Client";
-  }
-  return entry.originDetail.trim() ? `Autre — ${entry.originDetail.trim()}` : "Autre";
-}
 
 function roundKindLabel(entry: RondeEntry): string {
   const k = entry.plannedRoundKind;
@@ -96,14 +81,14 @@ function buildTemplateData(
       entry.motifDetail.trim() ? `${entry.motifTypeLabel.trim()} (${entry.motifDetail.trim()})` : entry.motifTypeLabel
     ),
     horaires_demande_obs: safeDocxText(entry.horairesDemandeObs),
-    origine: safeDocxText(originSummary(entry)),
+    origine: safeDocxText(rondeOriginSummaryFr(entry)),
     heure_arrivee: safeDocxText(entry.arrivalTime),
     heure_depart: safeDocxText(entry.departureTime),
     duree_minutes:
       entry.durationMinutes == null ? "—" : safeDocxText(`${entry.durationMinutes} min`),
     numero_bon: safeDocxText(entry.workOrderNumber),
     compte_rendu: safeDocxText(entry.report),
-    statut: safeDocxText(statusLabelFr(entry)),
+    statut: safeDocxText(rondeStatusLabelFr(entry, { feminine: true })),
     type_passage: safeDocxText(roundKindLabel(entry)),
     date_logique_passage: safeDocxText(logicalDateFr),
     date_logique: safeDocxText(logicalDateFr),

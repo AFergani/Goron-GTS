@@ -7,6 +7,7 @@
 import type { RondePlannedProfileLineRef, RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT } from "./rondePlanned.types";
 import { formatLocalDateIso } from "./rondeCalendarLocal";
+import { hhmmToMinutes, isRondeTimeHm } from "../utils/rondeTime";
 
 /** Bits semaine : lun=1 … dim=64 */
 export function dateIsoToWeekdayMask(dateIso: string): number {
@@ -50,7 +51,6 @@ export function inclusiveCalendarDayCount(fromIso: string, toIso: string): numbe
   return count;
 }
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_RANDOM_SLOTS = 48;
 
 export type GeneratedPlannedSlot = {
@@ -62,23 +62,8 @@ export type GeneratedPlannedSlot = {
   calendarDateIso: string;
 };
 
-function timeToMinutes(t: string): number {
-  const m = TIME_RE.exec(String(t || "").trim());
-  if (!m) return 0;
-  const h = Number(m[1]);
-  const min = Number(String(t).slice(3, 5));
-  return h * 60 + min;
-}
-
-function minutesToHHMM(total: number): string {
-  const m = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
 export function windowCrossesMidnight(startHHMM: string, endHHMM: string): boolean {
-  return timeToMinutes(endHHMM) <= timeToMinutes(startHHMM);
+  return hhmmToMinutes(endHHMM) <= hhmmToMinutes(startHHMM);
 }
 
 export function addDaysIso(dateIso: string, deltaDays: number): string {
@@ -159,7 +144,7 @@ function parseLocalDateTime(dateIso: string, hhmm: string): Date {
 export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchorDateIso: string): GeneratedPlannedSlot[] {
   const ws = line.randomWindowStart?.trim() || "";
   const we = line.randomWindowEnd?.trim() || "";
-  if (!TIME_RE.test(ws) || !TIME_RE.test(we)) {
+  if (!isRondeTimeHm(ws) || !isRondeTimeHm(we)) {
     const out: GeneratedPlannedSlot[] = [];
     const mask =
       line.randomPeriodMask == null || !Number.isFinite(Number(line.randomPeriodMask))
@@ -191,8 +176,8 @@ export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchor
   }
 
   const crosses = windowCrossesMidnight(ws, we);
-  const startM = timeToMinutes(ws);
-  const endM = timeToMinutes(we);
+  const startM = hhmmToMinutes(ws);
+  const endM = hhmmToMinutes(we);
   const span = crosses ? 24 * 60 - startM + endM : Math.max(0, endM - startM);
   if (span <= 0) {
     const t0 = new Date(`${anchorDateIso}T${ws}:00`);
@@ -294,7 +279,7 @@ export function randomAnchorDatesForTargetDay(
   }
   const ws = line.randomWindowStart?.trim() || "";
   const we = line.randomWindowEnd?.trim() || "";
-  if (!TIME_RE.test(ws) || !TIME_RE.test(we)) return [...anchors];
+  if (!isRondeTimeHm(ws) || !isRondeTimeHm(we)) return [...anchors];
   if (!windowCrossesMidnight(ws, we)) return [...anchors];
   const prev = addDaysIso(targetDateIso, -1);
   if (

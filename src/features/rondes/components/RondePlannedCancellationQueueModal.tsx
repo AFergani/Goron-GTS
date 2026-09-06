@@ -1,10 +1,11 @@
 /**
- * Modale « Demandes d'arrêt » : file d'attente Accepter / Refuser pour les responsables.
+ * Modale « Demandes d'arrêt » : file cartes Accepter / Refuser pour les responsables.
  */
 
 import { useMemo } from "react";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { summarizeRondePlannedProfile } from "../model/rondePlannedSummary";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { RondePendingRequestsQueueModal } from "./RondePendingRequestsQueueModal";
 
 type RondePlannedCancellationQueueModalProps = {
@@ -36,15 +37,22 @@ export function RondePlannedCancellationQueueModal({
 
   const rows = useMemo(
     () =>
-      pendingProfiles.map((row) => ({
-        id: row.id,
-        title: (row.siteDisplay || row.label || "").trim() || "—",
-        subtitle: (
-          <span title={summarizeRondePlannedProfile(row)}>{summarizeRondePlannedProfile(row)}</span>
-        ),
-        requestedBy: row.cancellationRequestedBy || "",
-        reason: row.cancellationRequestReason || ""
-      })),
+      pendingProfiles.map((row) => {
+        const requestedAt = String(row.cancellationRequestedAt || "").trim();
+        const datePart = requestedAt.slice(0, 10);
+        return {
+          id: row.id,
+          title: (row.siteDisplay || row.label || "").trim() || "—",
+          subtitle: (
+            <span title={summarizeRondePlannedProfile(row)}>{summarizeRondePlannedProfile(row)}</span>
+          ),
+          requestedBy: row.cancellationRequestedBy || "",
+          reason: row.cancellationRequestReason || "",
+          metaLine: /^\d{4}-\d{2}-\d{2}/.test(datePart)
+            ? formatDateShortFr(datePart) || datePart
+            : requestedAt || undefined
+        };
+      }),
     [pendingProfiles]
   );
 
@@ -55,8 +63,8 @@ export function RondePlannedCancellationQueueModal({
       isOpen={isOpen}
       title="Demandes d'arrêt"
       hint="Validez ou refusez les demandes d'arrêt de programmation en attente."
-      subjectColumnLabel="Profil"
       rows={rows}
+      searchPlaceholder="Site, profil, demandeur, motif…"
       onClose={onClose}
       onAccept={(id) => {
         const profile = profileById.get(id);
@@ -74,6 +82,7 @@ export function RondePlannedCancellationQueueModal({
             }
           : undefined
       }
+      viewLabel="Voir le profil"
     />
   );
 }

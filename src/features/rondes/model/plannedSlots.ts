@@ -4,15 +4,15 @@
  * S’appuie sur `rondePlannedSlotEngine` pour la génération aléatoire et les récurrences.
  */
 
-import type { RondePlannedProfileLineRef, RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
+import type { RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
 import {
   addDaysIso,
-  dateIsoToWeekdayMask,
   generateRandomSlotSpecs,
   lineAndProfileApplyOnDate,
   profilePlanningAppliesOnDate,
   randomAnchorDatesForTargetDay
 } from "./rondePlannedSlotEngine";
+import { formatRondePlannedRoundKind } from "./rondePlannedSummary";
 
 /** Créneau applicable pour une journée et une ligne de profil. */
 export type ApplicablePlannedSlot = {
@@ -33,68 +33,12 @@ export type ApplicablePlannedSlot = {
   planningHint: string;
 };
 
-export { dateIsoToWeekdayMask };
-
-export function formatPlannedRoundKindLabel(kind: RondePlannedRoundKind): string {
-  switch (kind) {
-    case "OPENING":
-      return "Ouverture";
-    case "CLOSING":
-      return "Fermeture";
-    case "ACCOMPAGNEMENT":
-      return "Accompagnement";
-    case "RANDOM":
-      return "Aléatoire";
-    case "RANDOM_DAY":
-      return "Aléatoire jour";
-    case "RANDOM_NIGHT":
-      return "Aléatoire nuit";
-    default:
-      return kind;
-  }
-}
-
-export function formatPlannedRoundKindModalTitle(kind: RondePlannedRoundKind): string {
-  switch (kind) {
-    case "OPENING":
-      return "Ronde d'ouverture";
-    case "CLOSING":
-      return "Ronde de fermeture";
-    case "ACCOMPAGNEMENT":
-      return "Ronde d'accompagnement";
-    case "RANDOM":
-      return "Ronde aléatoire";
-    case "RANDOM_DAY":
-      return "Ronde aléatoire (jour)";
-    case "RANDOM_NIGHT":
-      return "Ronde aléatoire (nuit)";
-    default:
-      return formatPlannedRoundKindLabel(kind);
-  }
-}
-
-/** Récurrence au niveau ligne uniquement (sans plage globale du profil). */
-export function lineAppliesOnDate(line: RondePlannedProfileLineRef, dateIso: string): boolean {
-  const d = new Date(`${dateIso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return false;
-  switch (line.recurrenceKind) {
-    case "DATE_RANGE": {
-      const a = line.rangeStartDate?.trim();
-      const b = line.rangeEndDate?.trim();
-      if (!a || !b) return false;
-      return dateIso >= a && dateIso <= b;
-    }
-    case "DAILY":
-      return true;
-    case "WEEKLY":
-      // Règle métier: aucun toggle jour coché => appliquer sur tous les jours de la plage.
-      if ((line.weekdaysMask ?? 0) <= 0) return true;
-      return (line.weekdaysMask & dateIsoToWeekdayMask(dateIso)) !== 0;
-    case "MONTHLY":
-      return line.monthDay != null && d.getDate() === line.monthDay;
-    default:
-      return false;
-  }
+/** Libellé UI d’un type de passage (délégué au formateur unique). */
+export function formatPlannedRoundKindLabel(
+  kind: RondePlannedRoundKind,
+  randomPeriodMask?: number | null
+): string {
+  return formatRondePlannedRoundKind(kind, randomPeriodMask);
 }
 
 export function buildApplicablePlannedSlots(

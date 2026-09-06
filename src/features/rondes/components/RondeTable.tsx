@@ -11,28 +11,12 @@ import type { RondeEntry } from "../model/ronde.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
-
-function statusLabel(entry: RondeEntry) {
-  if (entry.status === "CLOTURE") return "Clôturé";
-  if (entry.status === "ANNULE") {
-    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulé";
-  }
-  return "En cours";
-}
-
-function statusTone(status: RondeEntry["status"]) {
-  if (status === "CLOTURE") return "cloture";
-  if (status === "ANNULE") return "en-attente";
-  return "en-cours";
-}
-
-function originSummary(entry: RondeEntry) {
-  if (entry.originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (entry.originKind === "CLIENT") {
-    return entry.originDetail.trim() ? `Client — ${entry.originDetail.trim()}` : "Client";
-  }
-  return entry.originDetail.trim() ? `Autre — ${entry.originDetail.trim()}` : "Autre";
-}
+import {
+  rondeOriginKindShortFr,
+  rondeOriginSummaryFr,
+  rondeStatusLabelFr,
+  rondeStatusTone
+} from "../export/rondeExportFormat";
 
 function plannedKindTone(kind: RondePlannedRoundKind): "opening" | "closing" | "random" {
   if (kind === "OPENING") return "opening";
@@ -89,9 +73,11 @@ export function RondeTable({
   const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
     requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
-    origin: (a: RondeEntry, b: RondeEntry) => originSummary(a).localeCompare(originSummary(b), "fr"),
+    origin: (a: RondeEntry, b: RondeEntry) =>
+      rondeOriginSummaryFr(a).localeCompare(rondeOriginSummaryFr(b), "fr"),
     intervenant: (a: RondeEntry, b: RondeEntry) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
-    status: (a: RondeEntry, b: RondeEntry) => statusLabel(a).localeCompare(statusLabel(b), "fr")
+    status: (a: RondeEntry, b: RondeEntry) =>
+      rondeStatusLabelFr(a).localeCompare(rondeStatusLabelFr(b), "fr")
   };
 
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<RondeEntry, RondeSortKey>(entries, comparators, {
@@ -160,7 +146,7 @@ export function RondeTable({
               {showOrigin ? (
                 <td>
                   <div className="ronde-origin-cell">
-                    <span className="ronde-origin-badge">{entry.originKind === "TELESURVEILLANCE" ? "Télésurveillance" : entry.originKind === "CLIENT" ? "Client" : "Autre"}</span>
+                    <span className="ronde-origin-badge">{rondeOriginKindShortFr(entry.originKind)}</span>
                     <span className="ronde-origin-detail">
                       {entry.originKind === "TELESURVEILLANCE"
                         ? normalizeOriginDetail(entry)
@@ -177,9 +163,9 @@ export function RondeTable({
               <td>{entry.workOrderNumber || "—"}</td>
               <td className="ronde-col-status-actions">
                 <div className="mc-status-actions-stack">
-                  <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
+                  <span className={`mc-status-badge mc-status-badge--${rondeStatusTone(entry.status)}`}>
                     <span className="mc-status-badge__dot" aria-hidden />
-                    <span className="mc-status-badge__label">{statusLabel(entry)}</span>
+                    <span className="mc-status-badge__label">{rondeStatusLabelFr(entry)}</span>
                   </span>
                   {entry.batchDeleteRequestedAt ? (
                     <span className="muted" style={{ fontSize: "0.8em" }} title={entry.batchDeleteReason || undefined}>

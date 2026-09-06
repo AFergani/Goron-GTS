@@ -6,7 +6,7 @@ import type { RondePlannedProfileRef, RondePlannedRoundKind, RondePlannedRecurre
 import { RANDOM_PERIOD_DAY } from "./rondePlanned.types";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 
-const WEEKDAY_BITS = [
+export const RONDE_WEEKDAY_BITS = [
   { bit: 1, label: "Lun" },
   { bit: 2, label: "Mar" },
   { bit: 4, label: "Mer" },
@@ -20,8 +20,9 @@ export function formatRondePlannedRoundKind(kind: RondePlannedRoundKind, randomP
   if (kind === "RANDOM") {
     const m =
       randomPeriodMask == null || !Number.isFinite(Number(randomPeriodMask))
-        ? 3
+        ? null
         : Math.min(3, Math.max(1, Math.round(Number(randomPeriodMask))));
+    if (m == null) return "Aléatoire";
     if (m === RANDOM_PERIOD_DAY) return "Aléatoire (jour)";
     if (m === 2) return "Aléatoire (nuit)";
     return "Aléatoire (jour · nuit)";
@@ -73,7 +74,12 @@ export function formatRondePlannedLineSummary(
 ): string {
   const kind =
     line.roundKind === "RANDOM"
-      ? formatRondePlannedRoundKind("RANDOM", line.randomPeriodMask)
+      ? formatRondePlannedRoundKind(
+          "RANDOM",
+          line.randomPeriodMask == null || !Number.isFinite(Number(line.randomPeriodMask))
+            ? 3
+            : line.randomPeriodMask
+        )
       : formatRondePlannedRoundKind(line.roundKind);
   let recPart = "";
   if (!options?.omitRecurrence) {
@@ -89,7 +95,7 @@ export function formatRondePlannedLineSummary(
     } else {
       const parts: string[] = [];
       for (let i = 0; i < 7; i += 1) {
-        if (line.weekdaysMask & (1 << i)) parts.push(WEEKDAY_BITS[i].label);
+        if (line.weekdaysMask & (1 << i)) parts.push(RONDE_WEEKDAY_BITS[i].label);
       }
       rec = parts.length ? `hebdo ${parts.join(", ")}` : "hebdo —";
     }

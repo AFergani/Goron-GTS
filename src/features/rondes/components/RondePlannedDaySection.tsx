@@ -16,11 +16,9 @@ import {
 } from "../model/plannedSlots";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-
-function formatTodayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { getLocalDateIso } from "../../common/utils/localDateIso";
+import { enumerateInclusiveDateIsos, findPlannedEntryForSlot, hhmmToMinutes } from "../utils/rondeDateTime";
+import { extractRondeRequestedTimeHm } from "../utils/rondePassageRules";
 
 function shiftDateRonde(iso: string, delta: number): string {
   const [y, m, day] = iso.split("-").map(Number);
@@ -37,67 +35,20 @@ function formatDateLongRonde(iso: string): string {
   });
 }
 
-function findPlannedEntryForSlot(
-  entries: RondeEntry[],
-  dateIso: string,
-  slot: ApplicablePlannedSlot
-): RondeEntry | undefined {
-  return entries.find((e) => {
-    if (e.source !== "PLANIFIE" || e.requestDate !== dateIso || e.siteId !== slot.siteId) return false;
-    if (e.plannedProfileId !== slot.profileId || e.plannedRoundKind !== slot.roundKind) return false;
-    if (slot.slotKey) {
-      if (!e.plannedSlotKey) return false;
-      return e.plannedSlotKey === slot.slotKey;
-    }
-    return !e.plannedSlotKey;
-  });
-}
-
-function hhmmToMinutes(value: string): number | null {
-  const trimmed = String(value || "").trim();
-  if (!/^\d{2}:\d{2}$/.test(trimmed)) return null;
-  const [hh, mm] = trimmed.split(":").map(Number);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
-  return hh * 60 + mm;
-}
-
-function extractRequestedTimeFromObs(obs: string): string | null {
-  const match = String(obs || "").match(/Heure demandée:\s*([0-2]\d:[0-5]\d)/i);
-  return match?.[1] ?? null;
-}
-
-function enumerateDatesInclusive(fromIso: string, toIso: string): string[] {
-  if (!fromIso || !toIso || toIso < fromIso) return [];
-  const out: string[] = [];
-  const current = new Date(`${fromIso}T12:00:00`);
-  const end = new Date(`${toIso}T12:00:00`);
-  while (current.getTime() <= end.getTime()) {
-    const y = current.getFullYear();
-    const m = String(current.getMonth() + 1).padStart(2, "0");
-    const d = String(current.getDate()).padStart(2, "0");
-    out.push(`${y}-${m}-${d}`);
-    current.setDate(current.getDate() + 1);
-  }
-  return out;
-}
-
 /** Type de passage (sans numéro) pour une fiche exceptionnelle. */
 function exceptionalPassageKindLabel(entry: RondeEntry): string {
   if (entry.plannedRoundKind) {
     return formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind);
   }
   const snapshotLines = entry.requestPlanningSnapshot?.lines ?? [];
-  const requestedTime = extractRequestedTimeFromObs(entry.horairesDemandeObs || "");
-  if (requestedTime) {
-    for (const line of snapshotLines) {
-      const t = String(line.requestedTime || "").trim();
-      if (t !== requestedTime) continue;
-      if (line.roundKind === "OPENING") return "Ouverture";
-      if (line.roundKind === "CLOSING") return "Fermeture";
-      if (line.roundKind === "ACCOMPAGNEMENT") return "Accompagnement";
-      if (line.roundKind === "RANDOM") return "Aléatoire";
-    }
+  const requestedTime = extractRondeRequestedTimeHm(entry);
+  for (const line of snapshotLines) {
+    const t = String(line.requestedTime || "").trim();
+    if (t !== requestedTime) continue;
+    if (line.roundKind === "OPENING") return "Ouverture";
+    if (line.roundKind === "CLOSING") return "Fermeture";
+    if (line.roundKind === "ACCOMPAGNEMENT") return "Accompagnement";
+    if (line.roundKind === "RANDOM") return "Aléatoire";
   }
   const obs = String(entry.horairesDemandeObs || "").toLowerCase();
   if (obs.includes("ouverture")) return "Ouverture";
@@ -109,8 +60,8 @@ function exceptionalPassageKindLabel(entry: RondeEntry): string {
 }
 
 function compareEntriesByRequestedTime(a: RondeEntry, b: RondeEntry): number {
-  const am = hhmmToMinutes(extractRequestedTimeFromObs(a.horairesDemandeObs || "") || "") ?? 0;
-  const bm = hhmmToMinutes(extractRequestedTimeFromObs(b.horairesDemandeObs || "") || "") ?? 0;
+  const am = hhmmToMinutes(extractRondeRequestedTimeHm(a));
+  const bm = hhmmToMinutes(extractRondeRequestedTimeHm(b));
   if (am !== bm) return am - bm;
   return a.id.localeCompare(b.id);
 }
@@ -156,7 +107,7 @@ export function RondePlannedDaySection({
   onOpenCreatePlanned,
   onOpenEntry
 }: RondePlannedDaySectionProps) {
-  const [dayIso, setDayIso] = useState(formatTodayIso);
+  const [dayIso, setDayIso] = useState(getLocalDateIso);
 
   const holidayDateIsos = useMemo(() => holidays.map((item) => item.dateIso), [holidays]);
   const slots = useMemo(
@@ -191,14 +142,9 @@ export function RondePlannedDaySection({
       const from = String(snap?.validFrom || "").trim();
       const to = String(snap?.validTo || from).trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) continue;
-      const dates = enumerateDatesInclusive(from, /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : from);
+      const dates = enumerateInclusiveDateIsos(from, /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : from);
       if (!dates.length) continue;
-      const sorted = [...batchEntries].sort((a, b) => {
-        const am = hhmmToMinutes(extractRequestedTimeFromObs(a.horairesDemandeObs || "") || "") ?? 0;
-        const bm = hhmmToMinutes(extractRequestedTimeFromObs(b.horairesDemandeObs || "") || "") ?? 0;
-        if (am !== bm) return am - bm;
-        return a.id.localeCompare(b.id);
-      });
+      const sorted = [...batchEntries].sort(compareEntriesByRequestedTime);
       sorted.forEach((entry, index) => {
         assignments.set(entry.id, dates[Math.min(index, dates.length - 1)] || entry.requestDate);
       });
@@ -235,7 +181,7 @@ export function RondePlannedDaySection({
     });
   }, [entries, dayIso, displayDateByEntryId]);
 
-  const today = formatTodayIso();
+  const today = getLocalDateIso();
   const isToday = dayIso === today;
   const openCount =
     mode === "planned"

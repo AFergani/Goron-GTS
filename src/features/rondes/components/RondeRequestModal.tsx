@@ -26,11 +26,33 @@ import { SearchEntry } from "../../common/components/SearchEntry";
 import { RondeLinkedBatchPanel } from "./RondeLinkedBatchPanel";
 import { addDaysIso, dateIsoToWeekdayMask, generateRandomSlotSpecs, inclusiveCalendarDayCount, weekdaysMaskForInclusiveDateRange } from "../model/rondePlannedSlotEngine";
 import { formatLocalDateIso, formatLocalTimeHm } from "../model/rondeCalendarLocal";
-import { formatRondePlannedLineSummary } from "../model/rondePlannedSummary";
+import { RONDE_WEEKDAY_BITS } from "../model/rondePlannedSummary";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import { enumerateInclusiveDateIsos, hhmmToMinutes, isRondeTimeHm, minutesToHm } from "../utils/rondeDateTime";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { mapRequestOriginToApiKind, type RequestOrigin } from "../model/requestOrigin";
+import {
+  formatLineDraftSummary,
+  holidayMatchers,
+  isWeekdayEnabled,
+  lineRefToDraft,
+  type LineDraft,
+  type RoundKindDraft
+} from "../model/rondeRequestLineDraft";
+import { buildIntervalTimesAcrossValidity } from "../utils/buildIntervalTimesAcrossValidity";
+import { formatDemandeEmiseContext } from "../utils/formatDemandeEmiseContext";
+
+export type { RequestOrigin } from "../model/requestOrigin";
+
+type RoundKind = RoundKindDraft;
+
+function parseDateTimeSafeMs(dateIso: string, hhmm: string): number | null {
+  const d = new Date(`${String(dateIso || "").trim()}T${String(hhmm || "").trim()}:00`);
+  const ms = d.getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
 
 type RondeRequestModalProps = {
   isOpen: boolean;
@@ -139,199 +161,6 @@ type RondeRequestModalProps = {
   onCreatePendingIntervenant?: (name: string) => Promise<boolean>;
 };
 
-export type RequestOrigin = "CONTRAT" | "APPEL_CLIENT" | "SUITE_INTERVENTION" | "AUTRE";
-type RoundKind = "OPENING" | "CLOSING" | "ACCOMPAGNEMENT" | "RANDOM";
-
-function mapRequestOriginToApiKind(origin: RequestOrigin): RondeOriginKind {
-  if (origin === "APPEL_CLIENT") return "CLIENT";
-  if (origin === "CONTRAT") return "TELESURVEILLANCE";
-  return "AUTRE";
-}
-
-function lineRefToDraft(line: RondePlannedProfileLineRef): LineDraft {
-  const rk: RoundKind =
-    line.roundKind === "OPENING" || line.roundKind === "CLOSING" || line.roundKind === "ACCOMPAGNEMENT" || line.roundKind === "RANDOM"
-      ? line.roundKind
-      : "RANDOM";
-  return {
-    id: line.id,
-    roundKind: rk,
-    requestedTime: line.requestedTime ?? "",
-    randomWindowStart: line.randomWindowStart ?? "",
-    randomWindowEnd: line.randomWindowEnd ?? "",
-    randomRoundsCount: line.randomRoundsCount != null ? String(line.randomRoundsCount) : "",
-    intervalHours: line.intervalMinutes != null ? String(line.intervalMinutes / 60) : "",
-    intervalEndTime: "23:59",
-    weekdaysMask: line.weekdaysMask,
-    includeHolidays: Boolean(line.includeHolidays),
-    includeHolidayEves: Boolean(line.includeHolidayEves)
-  };
-}
-
-type LineDraft = {
-  id: string;
-  roundKind: RoundKind;
-  requestedTime: string;
-  randomWindowStart: string;
-  randomWindowEnd: string;
-  randomRoundsCount: string;
-  intervalHours: string;
-  intervalEndTime: string;
-  weekdaysMask: number;
-  includeHolidays: boolean;
-  includeHolidayEves: boolean;
-};
-
-/** Résumé lisible d'une ligne brouillon (aperçu / récap demande). */
-function formatLineDraftSummary(
-  line: LineDraft,
-  opts?: { omitWeekdayRecurrence?: boolean }
-): string {
-  const intervalMinutes = line.intervalHours.trim()
-    ? Math.max(1, Math.round(Number(line.intervalHours) * 60))
-    : null;
-  const roundsCount = line.randomRoundsCount.trim()
-    ? Math.max(1, Math.round(Number(line.randomRoundsCount)))
-    : null;
-  const omitWeekdayRecurrence = Boolean(opts?.omitWeekdayRecurrence);
-  const recurrenceKind =
-    omitWeekdayRecurrence || !line.weekdaysMask ? "DAILY" : "WEEKLY";
-  return formatRondePlannedLineSummary(
-    {
-      roundKind: line.roundKind,
-      recurrenceKind,
-      weekdaysMask: line.weekdaysMask,
-      monthDay: null,
-      requestedTime: line.requestedTime.trim() || null,
-      intervalMinutes: Number.isFinite(intervalMinutes as number) ? intervalMinutes : null,
-      randomPeriodMask: RANDOM_PERIOD_DAY | RANDOM_PERIOD_NIGHT,
-      randomWindowStart: line.randomWindowStart.trim() || null,
-      randomWindowEnd: line.randomWindowEnd.trim() || null,
-      randomRoundsCount: Number.isFinite(roundsCount as number) ? roundsCount : null
-    },
-    { omitRecurrence: omitWeekdayRecurrence }
-  );
-}
-
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-function hhmmToMinutes(time: string): number {
-  const value = String(time || "").trim();
-  if (!TIME_RE.test(value)) return 0;
-  const [hours, minutes] = value.split(":").map(Number);
-  return (hours * 60) + minutes;
-}
-
-function formatMinutesAsTime(totalMinutes: number): string {
-  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
-  const hours = Math.floor(normalized / 60);
-  const minutes = normalized % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-}
-
-function isWeekdayEnabled(weekdaysMask: number, dateIso: string): boolean {
-  if (!Number.isFinite(Number(weekdaysMask)) || Number(weekdaysMask) <= 0) return true;
-  return (Number(weekdaysMask) & dateIsoToWeekdayMask(dateIso)) !== 0;
-}
-
-function enumerateDatesInclusive(startIso: string, endIso: string): string[] {
-  const out: string[] = [];
-  let cursor = startIso;
-  while (cursor <= endIso) {
-    out.push(cursor);
-    cursor = addDaysIso(cursor, 1);
-    if (out.length > 5000) break;
-  }
-  return out;
-}
-
-function holidayMatchers(holidays: HolidayRef[] | undefined) {
-  const set = new Set((holidays || []).map((h) => String(h.dateIso || "").trim()).filter(Boolean));
-  return {
-    isHoliday: (iso: string) => set.has(String(iso || "").trim()),
-    isHolidayEve: (iso: string) => set.has(addDaysIso(String(iso || "").trim(), 1))
-  };
-}
-
-function buildIntervalTimesAcrossValidity(
-  startIso: string,
-  startTime: string,
-  endIso: string,
-  endTime: string,
-  intervalMinutes: number,
-  anchor?: { demandDateIso: string; demandTimeHm: string } | null
-): Array<{ requestDate: string; requestedTime: string }> {
-  const safeInterval = Math.max(1, Math.round(intervalMinutes));
-  const startTrim = String(startIso || "").trim();
-  const startTimeTrim = TIME_RE.test(String(startTime || "").trim()) ? String(startTime).trim() : "00:00";
-  const endTrim = String(endIso || "").trim();
-  const endTimeTrim = TIME_RE.test(String(endTime || "").trim()) ? String(endTime).trim() : "23:59";
-  const anchorDate = anchor?.demandDateIso?.trim();
-  const anchorTime = anchor?.demandTimeHm?.trim();
-  const useAnchor = Boolean(
-    anchorDate &&
-      anchorDate === startTrim &&
-      anchorTime &&
-      TIME_RE.test(anchorTime)
-  );
-  const periodStartCandidate = useAnchor ? new Date(`${startTrim}T${anchorTime}:00`) : new Date(`${startTrim}T${startTimeTrim}:00`);
-  let periodStartMs = periodStartCandidate.getTime();
-  if (Number.isNaN(periodStartMs)) {
-    periodStartMs = new Date(`${startTrim}T${startTimeTrim}:00`).getTime();
-  }
-  const periodStart = new Date(periodStartMs);
-  const periodEnd = new Date(`${endTrim}T${endTimeTrim}:00`);
-  if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd < periodStart) {
-    return [];
-  }
-  const out: Array<{ requestDate: string; requestedTime: string }> = [];
-  const cursor = new Date(periodStart.getTime());
-  let safety = 0;
-  while (cursor <= periodEnd && safety < 2000) {
-    out.push({
-      requestDate: formatLocalDateIso(cursor),
-      requestedTime: `${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`
-    });
-    cursor.setMinutes(cursor.getMinutes() + safeInterval);
-    safety += 1;
-  }
-  return out;
-}
-
-function parseDateTimeSafeMs(dateIso: string, hhmm: string): number | null {
-  const d = new Date(`${String(dateIso || "").trim()}T${String(hhmm || "").trim()}:00`);
-  const ms = d.getTime();
-  return Number.isNaN(ms) ? null : ms;
-}
-
-/** Contexte français pour traces / observations (date + heure de la demande). */
-function formatDemandeEmiseContext(dateIso: string, timeHm: string): string {
-  const trimmed = String(dateIso || "").trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  const d = m
-    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0)
-    : new Date(`${trimmed}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  const dateFr = d.toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
-  const t = String(timeHm || "").trim();
-  return t ? `Demande émise le ${dateFr} à ${t}` : `Demande émise le ${dateFr}`;
-}
-
-const WEEKDAY_BITS = [
-  { bit: 1, label: "Lun" },
-  { bit: 2, label: "Mar" },
-  { bit: 4, label: "Mer" },
-  { bit: 8, label: "Jeu" },
-  { bit: 16, label: "Ven" },
-  { bit: 32, label: "Sam" },
-  { bit: 64, label: "Dim" }
-] as const;
-
 export function RondeRequestModal(props: RondeRequestModalProps) {
   const [requestDate, setRequestDate] = useState("");
   const [requestTime, setRequestTime] = useState("");
@@ -417,17 +246,17 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       setRequestDate(String(s.requestDate || "").trim() || today);
       {
         const rt = String(s.requestTime ?? "").trim();
-        setRequestTime(TIME_RE.test(rt) ? rt : "00:00");
+        setRequestTime(isRondeTimeHm(rt) ? rt : "00:00");
       }
       setValidFrom(String(s.validFrom || "").trim() || today);
       {
         const vft = String(s.validFromTime ?? "").trim();
-        setValidFromTime(TIME_RE.test(vft) ? vft : (String(s.requestTime ?? "").trim() || "00:00"));
+        setValidFromTime(isRondeTimeHm(vft) ? vft : (String(s.requestTime ?? "").trim() || "00:00"));
       }
       setValidTo(String(s.validTo || "").trim() || "");
       {
         const vtt = String(s.validToTime ?? "").trim();
-        setValidToTime(TIME_RE.test(vtt) ? vtt : "23:59");
+        setValidToTime(isRondeTimeHm(vtt) ? vtt : "23:59");
       }
       setSiteId(s.siteId ?? null);
       setIntervenantId(String(s.intervenantId || "").trim());
@@ -586,7 +415,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
         : validityRangeWeekdayLock != null
           ? validityRangeWeekdayLock
           : 0;
-    const fromTimeNorm = TIME_RE.test(validFromTime.trim())
+    const fromTimeNorm = isRondeTimeHm(validFromTime.trim())
       ? validFromTime.trim()
       : isSingleDay
         ? isToday
@@ -617,18 +446,18 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     if (!safeFrom || !rangeEndIso || rangeEndIso < safeFrom) {
       return { items: [] as Array<{ requestDate: string; requestedTime: string; lineIndex: number }>, perLine: [] as number[] };
     }
-    const fromTimeNorm = TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "00:00";
-    const toTimeNorm = TIME_RE.test(validToTime.trim()) ? validToTime.trim() : "23:59";
+    const fromTimeNorm = isRondeTimeHm(validFromTime.trim()) ? validFromTime.trim() : "00:00";
+    const toTimeNorm = isRondeTimeHm(validToTime.trim()) ? validToTime.trim() : "23:59";
     const validityStartMs = parseDateTimeSafeMs(safeFrom, fromTimeNorm);
     const validityEndMs = parseDateTimeSafeMs(rangeEndIso, toTimeNorm);
     if (validityStartMs == null || validityEndMs == null || validityEndMs < validityStartMs) {
       return { items: [] as Array<{ requestDate: string; requestedTime: string; lineIndex: number }>, perLine: [] as number[] };
     }
-    const dateAnchors = enumerateDatesInclusive(safeFrom, rangeEndIso);
+    const dateAnchors = enumerateInclusiveDateIsos(safeFrom, rangeEndIso);
     const items: Array<{ requestDate: string; requestedTime: string; lineIndex: number }> = [];
     const perLine = lines.map(() => 0);
     const pushIfInValidity = (requestDateIso: string, requestedTimeHm: string, lineIndex: number) => {
-      const timeNorm = TIME_RE.test(String(requestedTimeHm || "").trim()) ? String(requestedTimeHm).trim() : "00:00";
+      const timeNorm = isRondeTimeHm(String(requestedTimeHm || "").trim()) ? String(requestedTimeHm).trim() : "00:00";
       const ms = parseDateTimeSafeMs(requestDateIso, timeNorm);
       if (ms == null || ms < validityStartMs || ms > validityEndMs) return;
       items.push({ requestDate: requestDateIso, requestedTime: requestedTimeHm, lineIndex });
@@ -716,7 +545,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           const span = Math.max(0, maxMinute);
           for (let i = 0; i < roundsCount; i += 1) {
             const minute = roundsCount <= 1 ? 0 : Math.round((i * span) / (roundsCount - 1));
-            pushIfInValidity(dayIso, formatMinutesAsTime(minute), lineIndex);
+            pushIfInValidity(dayIso, minutesToHm(minute), lineIndex);
           }
         }
         continue;
@@ -793,7 +622,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     const shouldAutoAlignTimes = singleDayAutoKeyRef.current !== autoKey;
     const wasOtherDay = singleDayAutoKeyRef.current?.endsWith("|other") === true;
 
-    let fromTimeNorm = TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "";
+    let fromTimeNorm = isRondeTimeHm(validFromTime.trim()) ? validFromTime.trim() : "";
     if (shouldAutoAlignTimes) {
       singleDayAutoKeyRef.current = autoKey;
       if (isToday) {
@@ -809,7 +638,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
       }
     }
 
-    const applyFromTime = fromTimeNorm || (TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "00:00");
+    const applyFromTime = fromTimeNorm || (isRondeTimeHm(validFromTime.trim()) ? validFromTime.trim() : "00:00");
     setLines((prev) => {
       let changed = false;
       const next = prev.map((line) => {
@@ -887,10 +716,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     }
     if (!requestDate.trim()) return setError("La date de la demande est obligatoire.");
     const requestTimeNorm = requestTime.trim() || "00:00";
-    if (!TIME_RE.test(requestTimeNorm)) return setError("Indiquez une heure de demande valide (HH:mm).");
+    if (!isRondeTimeHm(requestTimeNorm)) return setError("Indiquez une heure de demande valide (HH:mm).");
     if (!validFrom.trim()) return setError("La date de début de validité est obligatoire.");
-    const validFromTimeNorm = TIME_RE.test(validFromTime.trim()) ? validFromTime.trim() : "00:00";
-    const validToTimeNorm = TIME_RE.test(validToTime.trim()) ? validToTime.trim() : "23:59";
+    const validFromTimeNorm = isRondeTimeHm(validFromTime.trim()) ? validFromTime.trim() : "00:00";
+    const validToTimeNorm = isRondeTimeHm(validToTime.trim()) ? validToTime.trim() : "23:59";
     const validStartMs = parseDateTimeSafeMs(validFrom.trim(), validFromTimeNorm);
     const validEndMs = parseDateTimeSafeMs(effectiveValidTo || validFrom.trim(), validToTimeNorm);
     if (validStartMs == null || validEndMs == null || validEndMs < validStartMs) {
@@ -1445,7 +1274,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               </div>
               <div className="ronde-planned-profile-line__weekday-toggles">
                 <span className="muted" style={{ marginRight: 8 }}>L à D</span>
-                {WEEKDAY_BITS.map((d) => (
+                {RONDE_WEEKDAY_BITS.map((d) => (
                   <ToggleSwitch
                     key={d.bit}
                     checked={(line.weekdaysMask & d.bit) !== 0}
@@ -1487,10 +1316,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               {(isContract || isEdit) && validFrom.trim() ? (
                 <div style={{ marginTop: 6 }} className="muted">
                   Validité : du {formatDateShortFr(validFrom.trim()) || "—"}
-                  {TIME_RE.test(validFromTime.trim()) ? ` ${validFromTime.trim()}` : ""}
+                  {isRondeTimeHm(validFromTime.trim()) ? ` ${validFromTime.trim()}` : ""}
                   {" au "}
                   {formatDateShortFr((isSingleDay ? validFrom.trim() : validTo.trim()) || "") || "—"}
-                  {TIME_RE.test(validToTime.trim()) ? ` ${validToTime.trim()}` : ""}
+                  {isRondeTimeHm(validToTime.trim()) ? ` ${validToTime.trim()}` : ""}
                   {isSingleDay ? " · Jour unique" : ""}
                 </div>
               ) : null}

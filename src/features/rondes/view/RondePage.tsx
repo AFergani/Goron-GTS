@@ -8,7 +8,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
-import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -16,10 +15,8 @@ import type { RondeEntry, RondeOriginKind, RondeBatchDeleteRequestRef } from "..
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { useRondePresenter } from "../presenter/useRondePresenter";
 import { useRondeReferenceData } from "../presenter/useRondeReferenceData";
-import { buildApplicablePlannedSlots } from "../model/plannedSlots";
 import { RondeEntryModal } from "../components/RondeEntryModal";
 import { RondeRequestModal } from "../components/RondeRequestModal";
-import type { RequestOrigin } from "../components/RondeRequestModal";
 import { RondePageTabsBar } from "../components/RondePageTabsBar";
 import type { RondeListView } from "../components/RondePageTabsBar";
 import type { RondePlannedProfilePayload, RondePlannedProfileRef } from "../model/rondePlanned.types";
@@ -29,6 +26,7 @@ import { RondePlannedProfilesListModal } from "../components/RondePlannedProfile
 import { RondePlannedCancellationQueueModal } from "../components/RondePlannedCancellationQueueModal";
 import { RondeBatchDeleteQueueModal } from "../components/RondeBatchDeleteQueueModal";
 import { RondePlannedProfileLifecycleModals } from "../components/RondePlannedProfileLifecycleModals";
+import { RondeListFiltersBar } from "../components/RondeListFiltersBar";
 import { useRondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfileLifecycle";
 import { getExceptionalDemandGroup } from "../utils/exceptionalDemandGroup";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
@@ -37,81 +35,9 @@ import { exportRondeEntryToWord } from "../export/rondeWordExport";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { countTodayInProgressRondes, isContractualRondeEntry } from "../utils/rondeEntryClassification";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
-/** Anciens lots sans snapshot : hydratation minimale pour rouvrir la même modale que à la création. */
-function syntheticPlanningSnapshotForLinkedDemand(row: {
-  requestDate: string;
-  motifTypeId: string | null;
-  horairesDemandeObs: string;
-  siteId: string | null;
-  intervenantId: string | null;
-  originInterventionId?: string | null;
-  originKind?: RondeOriginKind;
-  originDetail?: string;
-}): RondePlanningSnapshotV1 {
-  const origin: RequestOrigin = row.originInterventionId
-    ? "SUITE_INTERVENTION"
-    : row.originKind === "CLIENT"
-      ? "APPEL_CLIENT"
-      : row.originKind === "TELESURVEILLANCE"
-        ? "CONTRAT"
-        : "AUTRE";
-  const rawDetail = String(row.originDetail ?? row.horairesDemandeObs ?? "").trim();
-  const suitePrefix = /^Suite intervention\.\s*/i;
-  const consigne = origin === "SUITE_INTERVENTION" ? rawDetail.replace(suitePrefix, "").trim() : rawDetail;
-  return {
-    version: 1,
-    requestDate: row.requestDate,
-    requestTime: "00:00",
-    validFrom: row.requestDate,
-    validTo: "",
-    origin,
-    motifTypeId: String(row.motifTypeId ?? "").trim(),
-    consigne,
-    siteId: row.siteId ?? null,
-    intervenantId: String(row.intervenantId ?? ""),
-    createRoundsEnabled: true,
-    lines: [
-      {
-        roundKind: "OPENING",
-        requestedTime: "08:00",
-        randomWindowStart: "",
-        randomWindowEnd: "",
-        randomRoundsCount: "",
-        intervalHours: "",
-        intervalEndTime: "23:59",
-        weekdaysMask: 0,
-        includeHolidays: false,
-        includeHolidayEves: false
-      }
-    ],
-    originInterventionId: row.originInterventionId ?? null
-  };
-}
-
-function findExistingPlannedEntryForSlot(entries: RondeEntry[], dateIso: string, slotKey: string, profileId: string) {
-  return entries.find(
-    (entry) =>
-      entry.source === "PLANIFIE" &&
-      entry.requestDate === dateIso &&
-      entry.plannedProfileId === profileId &&
-      entry.plannedSlotKey === slotKey
-  );
-}
-
-function enumerateDateRangeInclusive(fromIso: string, toIso: string): string[] {
-  if (!fromIso || !toIso || fromIso > toIso) return [];
-  const out: string[] = [];
-  const cursor = new Date(`${fromIso}T12:00:00`);
-  const end = new Date(`${toIso}T12:00:00`);
-  while (cursor.getTime() <= end.getTime()) {
-    const y = cursor.getFullYear();
-    const m = String(cursor.getMonth() + 1).padStart(2, "0");
-    const d = String(cursor.getDate()).padStart(2, "0");
-    out.push(`${y}-${m}-${d}`);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return out;
-}
+import { requestOriginFromStoredEntry, type RequestOrigin } from "../model/requestOrigin";
+import { syntheticPlanningSnapshotForLinkedDemand } from "../utils/syntheticPlanningSnapshot";
+import { buildPlannedFallbackVirtualEntries } from "../utils/buildPlannedFallbackVirtualEntries";
 
 type RondePageProps = {
   requesterRole: Role;
@@ -124,13 +50,13 @@ type RondePageProps = {
   onUpsertRondePlannedProfile?: (
     payload: RondePlannedProfilePayload
   ) => void | Promise<void | RondePlannedProfileRef>;
-  onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<void>;
-  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<void>;
+  onDeleteRondePlannedProfile?: (id: string, reason: string) => void | Promise<unknown>;
+  onRequestRondePlannedProfileCancellation?: (id: string, reason: string) => void | Promise<unknown>;
   onReviewRondePlannedProfileCancellationRequest?: (
     id: string,
     payload: { decision: "approve" | "reject"; reviewReason: string; planningEndDate?: string }
-  ) => void | Promise<void>;
-  onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<void>;
+  ) => void | Promise<unknown>;
+  onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<unknown>;
 };
 
 const RONDE_DISPLAY_MODE_STORAGE_KEY = "rondeDisplayModeByService.v1";
@@ -403,78 +329,25 @@ export function RondePage({
   }, []);
   const contractualRangeFrom = filters.dateFrom || todayIso;
   const contractualRangeTo = filters.dateTo || filters.dateFrom || todayIso;
-  const plannedFallbackVirtualEntries = useMemo(() => {
-    const dateRange = enumerateDateRangeInclusive(contractualRangeFrom, contractualRangeTo);
-    if (!dateRange.length) return [];
-    const holidayDateIsos = references.holidays.map((h) => h.dateIso);
-    const intervenantById = new Map(references.intervenants.map((i) => [i.id, i.name]));
-    const existingPlannedByDate = new Map<string, RondeEntry[]>();
-    for (const entry of ronde.entries) {
-      if (entry.source !== "PLANIFIE") continue;
-      const current = existingPlannedByDate.get(entry.requestDate);
-      if (current) current.push(entry);
-      else existingPlannedByDate.set(entry.requestDate, [entry]);
-    }
-    const virtualRows: RondeEntry[] = [];
-    for (const dateIso of dateRange) {
-      const daySlots = buildApplicablePlannedSlots(references.plannedProfiles, dateIso, holidayDateIsos);
-      const dayEntries = existingPlannedByDate.get(dateIso) || [];
-      daySlots
-        .filter((slot) => !findExistingPlannedEntryForSlot(dayEntries, dateIso, slot.slotKey, slot.profileId))
-        .forEach((slot, index) => {
-          virtualRows.push({
-            id: `virtual-planned-${dateIso}-${slot.profileId}-${slot.slotKey}-${index}`,
-            createdAt: "",
-            updatedAt: "",
-            source: "PLANIFIE" as const,
-            originInterventionId: null,
-            siteId: slot.siteId,
-            siteDisplay: slot.siteDisplay,
-            requestDate: dateIso,
-            motifTypeId: slot.motifTypeId,
-            motifTypeLabel: "",
-            motifRequiresFreeText: false,
-            motifDetail: "",
-            horairesDemandeObs: slot.planningHint || "",
-            originKind: "TELESURVEILLANCE" as const,
-            originDetail: "Planifiée",
-            intervenantId: slot.defaultIntervenantId,
-            intervenantName: slot.defaultIntervenantId ? intervenantById.get(slot.defaultIntervenantId) || "" : "",
-            arrivalTime: "",
-            departureTime: "",
-            durationMinutes: null,
-            workOrderNumber: "",
-            report: "",
-            // Créneau virtuel de planification: jamais clôturé tant qu'aucune fiche réelle n'est créée.
-            status: "EN_COURS" as const,
-            cancellationReason: "",
-            cancellationKind: null,
-            closedAt: null,
-            plannedProfileId: slot.profileId,
-            plannedRoundKind: slot.roundKind,
-            plannedSlotKey: slot.slotKey,
-            closureCustomValues: {},
-            requestPlanningSnapshot: null,
-            requestBatchId: null,
-            requestPlanningSnapshotJson: null,
-            batchSuppressedAt: null,
-            batchSuppressedBy: null,
-            batchSuppressedReason: "",
-            batchDeleteRequestedAt: null,
-            batchDeleteRequestedBy: null,
-            batchDeleteReason: ""
-          });
-        });
-    }
-    return virtualRows;
-  }, [
-    contractualRangeFrom,
-    contractualRangeTo,
-    references.holidays,
-    references.intervenants,
-    references.plannedProfiles,
-    ronde.entries
-  ]);
+  const plannedFallbackVirtualEntries = useMemo(
+    () =>
+      buildPlannedFallbackVirtualEntries({
+        entries: ronde.entries,
+        profiles: references.plannedProfiles,
+        holidays: references.holidays,
+        intervenants: references.intervenants,
+        dateFrom: contractualRangeFrom,
+        dateTo: contractualRangeTo
+      }),
+    [
+      contractualRangeFrom,
+      contractualRangeTo,
+      references.holidays,
+      references.intervenants,
+      references.plannedProfiles,
+      ronde.entries
+    ]
+  );
   const contractualListEntries = useMemo(
     () => [...contractualEntries, ...plannedFallbackVirtualEntries],
     [contractualEntries, plannedFallbackVirtualEntries]
@@ -509,46 +382,28 @@ export function RondePage({
       });
   }, [contractualListEntries, familyFilter, filters.dateFrom, filters.dateTo, filters.search, intervenantFilter, references.sites, statusFilter]);
   const sharedListFiltersBar = (
-    <div className="list-panel-filters">
-      <TableFiltersBar
-        search={filters.search}
-        onSearchChange={filters.setSearch}
-        dateFrom={filters.dateFrom}
-        onDateFromChange={filters.setDateFrom}
-        dateTo={filters.dateTo}
-        onDateToChange={filters.setDateTo}
-        searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
-        onReset={() => { filters.reset(); setStatusFilter("EN_COURS"); setFamilyFilter(""); setIntervenantFilter(""); }}
-      >
-        <label>
-          Famille
-          <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-            <option value="">Toutes</option>
-            {familyOptions.map((f) => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Prestataire
-          <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-            <option value="">Tous</option>
-            {references.intervenants.map((i) => (
-              <option key={i.id} value={i.id}>{i.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Statut
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="EN_COURS">En cours</option>
-            <option value="">Tous</option>
-            <option value="CLOTURE">Clôturé</option>
-            <option value="ANNULE">Annulé / Non effectuée</option>
-          </select>
-        </label>
-      </TableFiltersBar>
-    </div>
+    <RondeListFiltersBar
+      search={filters.search}
+      onSearchChange={filters.setSearch}
+      dateFrom={filters.dateFrom}
+      onDateFromChange={filters.setDateFrom}
+      dateTo={filters.dateTo}
+      onDateToChange={filters.setDateTo}
+      onReset={() => {
+        filters.reset();
+        setStatusFilter("EN_COURS");
+        setFamilyFilter("");
+        setIntervenantFilter("");
+      }}
+      familyFilter={familyFilter}
+      onFamilyFilterChange={setFamilyFilter}
+      familyOptions={familyOptions}
+      intervenantFilter={intervenantFilter}
+      onIntervenantFilterChange={setIntervenantFilter}
+      intervenantOptions={references.intervenants}
+      statusFilter={statusFilter}
+      onStatusFilterChange={setStatusFilter}
+    />
   );
 
   const handleExportContractual = () => {
@@ -650,13 +505,7 @@ export function RondePage({
         row.planningSnapshot?.version === 1
           ? row.planningSnapshot
           : syntheticPlanningSnapshotForLinkedDemand(row);
-      setRequestFixedOrigin(
-        row.originInterventionId
-          ? "SUITE_INTERVENTION"
-          : row.originKind === "CLIENT"
-            ? "APPEL_CLIENT"
-            : "AUTRE"
-      );
+      setRequestFixedOrigin(requestOriginFromStoredEntry(row));
       setRequestInitial({
         requestDate: row.requestDate,
         motifTypeId: row.motifTypeId,
@@ -671,12 +520,7 @@ export function RondePage({
       return;
     }
     clearLinkedDemandNavigation();
-    const origin: RequestOrigin = row.originInterventionId
-      ? "SUITE_INTERVENTION"
-      : row.originKind === "CLIENT"
-        ? "APPEL_CLIENT"
-        : "AUTRE";
-    setRequestFixedOrigin(origin);
+    setRequestFixedOrigin(requestOriginFromStoredEntry(row));
     setRequestPlanningReplay(null);
     setRequestInitial({
       requestDate: row.requestDate,

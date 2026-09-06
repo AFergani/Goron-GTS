@@ -9,15 +9,8 @@ import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
+import { rondeStatusLabelFr } from "../export/rondeExportFormat";
 import { RondeConfirmReasonField } from "./RondeConfirmReasonField";
-
-function statusWordFr(status: RondeEntry["status"], entry: RondeEntry): string {
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") {
-    return entry.cancellationKind === "NON_EFFECTUEE" ? "Non effectuée" : "Annulé";
-  }
-  return "En cours";
-}
 
 type RondeLinkedBatchPanelProps = {
   entries: RondeEntry[];
@@ -191,7 +184,7 @@ export function RondeLinkedBatchPanel({
                     ) : null}
                     <td>{formatDateShortFr(e.requestDate) || "—"}</td>
                     <td>
-                      {statusWordFr(e.status, e)}
+                      {rondeStatusLabelFr(e)}
                       {e.batchSuppressedAt ? (
                         <div className="muted" style={{ fontSize: "0.8em" }}>
                           Lot supprimé le {formatDateShortFr(e.batchSuppressedAt.slice(0, 10)) || e.batchSuppressedAt}

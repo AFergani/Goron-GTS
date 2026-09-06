@@ -3,8 +3,7 @@
  */
 
 import type { RondeEntry } from "../model/ronde.types";
-
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+import { isRondeTimeHm } from "./rondeTime";
 
 export function extractRondeRequestedTimeHm(entry: RondeEntry): string {
   const obs = String(entry.horairesDemandeObs || "");
@@ -14,11 +13,11 @@ export function extractRondeRequestedTimeHm(entry: RondeEntry): string {
   if (snap?.lines?.length) {
     for (const ln of snap.lines) {
       const t = String(ln.requestedTime || "").trim();
-      if (TIME_RE.test(t)) return t;
+      if (isRondeTimeHm(t)) return t;
     }
   }
   const rt = String(snap?.requestTime || "").trim();
-  if (TIME_RE.test(rt)) return rt;
+  if (isRondeTimeHm(rt)) return rt;
   return "00:00";
 }
 
