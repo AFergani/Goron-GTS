@@ -1,7 +1,7 @@
 /**
  * Tableau interventions : tri, copie code site, colonne État / Actions (boutons texte).
  *
- * Badges statut et file d’attente DB. Dates au format français.
+ * Badges statut et dates au format français.
  */
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
@@ -10,33 +10,12 @@ import {
   INTERVENTION_NO_WORK_ORDER_LABEL,
   type InterventionEntry
 } from "../model/intervention.types";
+import {
+  formatInterventionDateTime,
+  statusLabelFr,
+  statusTone
+} from "../export/interventionExportFormat";
 import type { NotifyToast } from "../../common/model/toast.types";
-
-function statusLabel(status: InterventionEntry["status"]) {
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") return "Annulé";
-  return "En cours";
-}
-
-function statusTone(status: InterventionEntry["status"]) {
-  if (status === "CLOTURE") return "cloture";
-  if (status === "ANNULE") return "en-attente";
-  return "en-cours";
-}
-
-function formatDateTime(date: string, time: string) {
-  if (!date) return "—";
-  const iso = `${date}T${time || "00:00"}:00`;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
 
 type InterventionTableProps = {
   entries: InterventionEntry[];
@@ -47,17 +26,21 @@ type InterventionTableProps = {
 };
 
 export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNotify }: InterventionTableProps) {
-  type InterventionSortKey = "date" | "site" | "motif" | "prestataire" | "arrivee" | "depart" | "delai" | "etat";
+  type InterventionSortKey = "date" | "site" | "prestataire" | "etat";
+
+  const requestDateTimeMs = (entry: InterventionEntry) => {
+    const date = String(entry.requestDate || "").trim();
+    const time = String(entry.requestTime || "00:00").trim() || "00:00";
+    if (!date) return 0;
+    const ms = Date.parse(`${date}T${time}:00`);
+    return Number.isFinite(ms) ? ms : 0;
+  };
 
   const comparators: Record<InterventionSortKey, (a: InterventionEntry, b: InterventionEntry) => number> = {
-    date: (a: InterventionEntry, b: InterventionEntry) => `${a.requestDate} ${a.requestTime}`.localeCompare(`${b.requestDate} ${b.requestTime}`),
-    site: (a: InterventionEntry, b: InterventionEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
-    motif: (a: InterventionEntry, b: InterventionEntry) => (a.requestReason || "").localeCompare(b.requestReason || "", "fr"),
-    prestataire: (a: InterventionEntry, b: InterventionEntry) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
-    arrivee: (a: InterventionEntry, b: InterventionEntry) => (a.arrivalTime || "").localeCompare(b.arrivalTime || ""),
-    depart: (a: InterventionEntry, b: InterventionEntry) => (a.departureTime || "").localeCompare(b.departureTime || ""),
-    delai: (a: InterventionEntry, b: InterventionEntry) => (a.delayMinutes || 0) - (b.delayMinutes || 0),
-    etat: (a: InterventionEntry, b: InterventionEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
+    date: (a, b) => requestDateTimeMs(a) - requestDateTimeMs(b),
+    site: (a, b) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
+    prestataire: (a, b) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
+    etat: (a, b) => statusLabelFr(a.status).localeCompare(statusLabelFr(b.status), "fr")
   };
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<InterventionEntry, InterventionSortKey>(entries, comparators, {
     key: "date",
@@ -88,10 +71,10 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>Date / Demande {sortLabel("date")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Clients (Code site) {sortLabel("site")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("prestataire")}>Prestataire {sortLabel("prestataire")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("motif")}>Motif {sortLabel("motif")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("arrivee")}>H arrivée {sortLabel("arrivee")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("depart")}>H départ {sortLabel("depart")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("delai")}>Délai {sortLabel("delai")}</button></th>
+            <th>Motif</th>
+            <th>H arrivée</th>
+            <th>H départ</th>
+            <th>Délai</th>
             <th>N° bon</th>
             <th className="intv-col-status-actions">
               <button type="button" className="table-sort-btn" onClick={() => toggleSort("etat")}>
@@ -103,7 +86,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
         <tbody>
           {sortedEntries.map((entry) => (
             <tr key={entry.id}>
-              <td>{formatDateTime(entry.requestDate, entry.requestTime)}</td>
+              <td>{formatInterventionDateTime(entry.requestDate, entry.requestTime)}</td>
               <td className="mc-site-wrap">
                 <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
               </td>
@@ -117,7 +100,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
                 <div className="mc-status-actions-stack">
                   <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
                     <span className="mc-status-badge__dot" aria-hidden />
-                    <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
+                    <span className="mc-status-badge__label">{statusLabelFr(entry.status)}</span>
                   </span>
                   <div className="row-actions table-row-actions table-row-actions--text">
                     {entry.status === "EN_COURS" ? (

@@ -14,7 +14,7 @@ import {
 } from "../../common/utils/docxTemplateHelpers";
 import { safeExportFilenamePart } from "../../common/utils/exportFilename";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
-import { formatDateShortFr } from "../utils/formatDateShortFr";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { computeRondeLogicalDate } from "../utils/logicalDate";
 import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";
 import type { RondeEntry } from "../model/ronde.types";

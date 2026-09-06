@@ -16,31 +16,13 @@ import {
   renderDocxtemplaterBlob,
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { safeExportFilenamePart } from "../../common/utils/exportFilename";
+import { billingLabelFr, statusLabelFr } from "./interventionExportFormat";
 
 const INTERVENTION_TEMPLATE_NAME = "intervention-template.docx";
 const INTERVENTION_TEMPLATE_URL = "/templates/intervention-template.docx";
 let templateMissingWarningShown = false;
-
-function formatDateFr(dateIso: string): string {
-  if (!dateIso) return "—";
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  const day = String(parsed.getDate()).padStart(2, "0");
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const year = String(parsed.getFullYear());
-  return `${day}-${month}-${year}`;
-}
-
-function statusLabelFr(status: InterventionEntry["status"]): string {
-  if (status === "EN_COURS") return "En cours";
-  if (status === "CLOTURE") return "Clôturée";
-  return "Annulée";
-}
-
-function billingLabelFr(status: InterventionEntry["billingStatus"]): string {
-  return status === "NON_FACTURABLE" ? "Non facturable" : "Facturable";
-}
 
 async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null> {
   try {
@@ -62,7 +44,7 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       extras[k] = safeDocxText(v);
     }
     return renderDocxtemplaterBlob(buffer, {
-      dateDemande: safeDocxText(formatDateFr(entry.requestDate)),
+      dateDemande: safeDocxText(formatDateShortFr(entry.requestDate) || "—"),
       dateDemandeIso: safeDocxText(entry.requestDate),
       heureDemande: safeDocxText(entry.requestTime),
       site: safeDocxText(entry.siteDisplay),
@@ -123,7 +105,7 @@ export async function exportInterventionEntryToWord(entry: InterventionEntry): P
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry)));
   const part = safeExportFilenamePart(entry.siteDisplay || entry.workOrderNumber || "intervention");
-  const datePart = safeExportFilenamePart(formatDateFr(entry.requestDate));
+  const datePart = safeExportFilenamePart(formatDateShortFr(entry.requestDate) || "date");
   const name = `Intervention_${part}_${datePart}.docx`;
   downloadBlob(blob, name);
 }

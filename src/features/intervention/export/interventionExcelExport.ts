@@ -3,12 +3,17 @@
  */
 
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
+import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 import * as XLSX from "xlsx";
 import {
   INTERVENTION_NO_WORK_ORDER_LABEL,
   type InterventionEntry
 } from "../model/intervention.types";
-import { exportTimestampFrForFilename } from "./interventionExportFormat";
+import {
+  billingLabelFr,
+  formatInterventionDateTime,
+  statusLabelFr
+} from "./interventionExportFormat";
 
 const HEADERS = [
   "Date / Demande",
@@ -24,37 +29,11 @@ const HEADERS = [
   "Facturation"
 ] as const;
 
-function toFrDateTime(dateIso: string, timeIso: string): string {
-  if (!dateIso) return "";
-  if (!timeIso) {
-    const asDate = new Date(`${dateIso}T00:00:00`);
-    return asDate.toLocaleDateString("fr-FR");
-  }
-  const asDate = new Date(`${dateIso}T${timeIso}:00`);
-  return asDate.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function statusLabelFr(status: InterventionEntry["status"]): string {
-  if (status === "EN_COURS") return "En cours";
-  if (status === "CLOTURE") return "Cloture";
-  return "Annule";
-}
-
-function billingLabelFr(status: InterventionEntry["billingStatus"]): string {
-  return status === "NON_FACTURABLE" ? "Non facturable" : "Facturable";
-}
-
 export function exportInterventionToExcel(entries: InterventionEntry[]): void {
   const rows: Array<Array<string | number>> = [
     [...HEADERS],
     ...entries.map((entry) => [
-      toFrDateTime(entry.requestDate, entry.requestTime),
+      formatInterventionDateTime(entry.requestDate, entry.requestTime),
       entry.siteDisplay || "",
       entry.requestReason || "",
       entry.intervenantName || "",

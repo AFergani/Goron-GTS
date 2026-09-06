@@ -1,16 +1,37 @@
 /**
- * Helpers d’export partagés (horodatage fichier).
- *
- * Réutilisé par les exports Excel intervention, ronde, gardiennage.
+ * Formatage dates / statuts intervention (UI tableau + exports Excel / Word).
  */
 
-/** Horodatage `JJ-MM-AAAA_HHhMM` pour noms de fichiers exportés. */
-export function exportTimestampFrForFilename(): string {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const year = String(now.getFullYear());
-  const hour = String(now.getHours()).padStart(2, "0");
-  const minute = String(now.getMinutes()).padStart(2, "0");
-  return `${day}-${month}-${year}_${hour}h${minute}`;
+import type { InterventionEntry } from "../model/intervention.types";
+
+export function formatInterventionDateTime(date: string, time: string): string {
+  if (!date) return "—";
+  const iso = `${date}T${time || "00:00"}:00`;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+/** Libellé statut pour tableau et exports. */
+export function statusLabelFr(status: InterventionEntry["status"]): string {
+  if (status === "CLOTURE") return "Clôturé";
+  if (status === "ANNULE") return "Annulé";
+  return "En cours";
+}
+
+/** Variante badge CSS (`mc-status-badge--*`). */
+export function statusTone(status: InterventionEntry["status"]): "cloture" | "en-attente" | "en-cours" {
+  if (status === "CLOTURE") return "cloture";
+  if (status === "ANNULE") return "en-attente";
+  return "en-cours";
+}
+
+export function billingLabelFr(status: InterventionEntry["billingStatus"]): string {
+  return status === "NON_FACTURABLE" ? "Non facturable" : "Facturable";
 }

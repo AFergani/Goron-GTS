@@ -4,8 +4,7 @@
  * Les listes « en attente » sont gérées dans Paramètres ; ici seuls sites/intervenants
  * validés + callbacks `createPending*` pour les modales de saisie.
  *
- * Utilisé par : `InterventionPage`, `InterventionEntryModal` (via la page).
- * `IntervenantSearchInput` réutilisé aussi par rondes et gardiennage.
+ * Utilisé par : `InterventionPage` (sites / intervenants / createPending* pour la modale).
  */
 
 import { useCallback, useEffect, useState } from "react";

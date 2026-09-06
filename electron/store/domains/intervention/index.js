@@ -5,12 +5,10 @@
  */
 
 const entries = require("./entries");
-const wordExtraFields = require("./wordExtraFields");
 const { mapInterventionRow, parseExportExtraJson } = require("./mapping");
 
 module.exports = {
   mapInterventionRow,
   parseExportExtraJson,
-  ...entries,
-  ...wordExtraFields
+  ...entries
 };

@@ -18,22 +18,64 @@ const {
 const { requireInterventionPersistence } = require("./persistence");
 
 /**
- * Filtre les valeurs d'export selon les champs configurés dans PostgreSQL.
+ * Normalise `exportExtraValues` avant persistance JSON.
+ *
+ * Allowlist = variables FORM=INTERVENTION (`data_form_variables`)
+ * ∪ champs legacy éventuels (`data_intervention_word_extra_fields`)
+ * ∪ clés système date logique.
+ * Les clés déjà présentes dans le payload (orphelins / merge update) sont conservées
+ * si elles respectent le format de clé technique.
  *
  * @param {import('../../persistence/persistenceContract').PersistenceAdapter} db
  * @param {object} payload
  * @returns {Promise<string>}
  */
 async function normalizeExportExtraJson(db, payload) {
-  const defs = await db.all(
-    "SELECT field_key FROM data_intervention_word_extra_fields ORDER BY sort_order",
-    []
-  );
-  const raw = payload.exportExtraValues && typeof payload.exportExtraValues === "object"
-    ? payload.exportExtraValues
-    : {};
+  const RESERVED_KEYS = new Set(["date_logique_passage", "date_logique", "transition_date"]);
+  const KEY_RE = /^[a-z][a-z0-9_]{0,62}$/i;
+  const raw =
+    payload.exportExtraValues && typeof payload.exportExtraValues === "object"
+      ? payload.exportExtraValues
+      : {};
+
+  const allow = new Set(RESERVED_KEYS);
+  try {
+    const formRows = await db.all(
+      `SELECT DISTINCT v.field_key AS field_key
+       FROM data_form_variables v
+       INNER JOIN data_form_variable_assignments a ON a.variable_id = v.id
+       WHERE v.is_active = 1
+         AND UPPER(a.assignment_kind) = 'FORM'
+         AND UPPER(a.assignment_value) = 'INTERVENTION'`,
+      []
+    );
+    for (const row of formRows) {
+      const key = String(row.field_key || "").trim();
+      if (key) allow.add(key);
+    }
+  } catch {
+    // Table variables absente : on s'appuie sur legacy + clés payload valides.
+  }
+  try {
+    const legacyRows = await db.all(
+      "SELECT field_key FROM data_intervention_word_extra_fields ORDER BY sort_order",
+      []
+    );
+    for (const row of legacyRows) {
+      const key = String(row.field_key || "").trim();
+      if (key) allow.add(key);
+    }
+  } catch {
+    // Table legacy absente ou vide : normal après bascule Paramètres → Variables.
+  }
+
   const out = {};
-  for (const { field_key: key } of defs) out[key] = String(raw[key] ?? "").trim().slice(0, 4000);
+  for (const [key, value] of Object.entries(raw)) {
+    const k = String(key || "").trim();
+    if (!k || k.length > 64) continue;
+    if (!allow.has(k) && !KEY_RE.test(k)) continue;
+    out[k] = String(value ?? "").trim().slice(0, 4000);
+  }
   return JSON.stringify(out);
 }
 

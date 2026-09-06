@@ -5,7 +5,7 @@
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { RondeEntry } from "../model/ronde.types";
-import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";
+import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 
 const HEADERS = [
   "Date demande",

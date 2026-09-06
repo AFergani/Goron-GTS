@@ -1,14 +1,15 @@
 /**
  * Recherche prestataire (autocomplete, min. 3 caractères).
  *
- * Réutilisé dans interventions, rondes et gardiennage. Affiche le nom, pas d’identifiant technique.
+ * Réutilisé via SearchEntry et les modales intervention / rondes.
+ * Affiche le nom, pas d’identifiant technique.
  */
 
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
-import { PendingSiteIntervenantRefActions } from "../../common/components/PendingSiteIntervenantRefActions";
+import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
 
 function filterIntervenantsByName(intervenants: IntervenantRef[], query: string, limit = 50): IntervenantRef[] {
   const text = String(query || "").trim().toLowerCase();
@@ -148,18 +149,9 @@ export function IntervenantSearchInput({
           />
         ) : null}
       </div>
-      {showPendingIntervenantForm && !selectedIntervenant ? (
+      {showPendingIntervenantForm && !selectedIntervenant && pendingIntervenantForm ? (
         <div className="pending-ref-inline-form-layout pending-ref-inline-form-layout--full">
-          <div className="pending-ref-inline-form-column pending-ref-inline-form-column--full">
-            {pendingIntervenantForm ?? (
-              <div className="pending-ref-inline-grid pending-ref-inline-grid--single">
-                <label className="mc-field mc-field-full">
-                  <span>Nouveau prestataire</span>
-                  <input value="" onChange={() => {}} />
-                </label>
-              </div>
-            )}
-          </div>
+          <div className="pending-ref-inline-form-column pending-ref-inline-form-column--full">{pendingIntervenantForm}</div>
         </div>
       ) : null}
       {showNoResultsHint ? <p className="muted mc-site-hint">Aucun prestataire ne correspond à cette recherche.</p> : null}

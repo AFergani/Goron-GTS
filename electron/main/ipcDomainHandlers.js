@@ -58,7 +58,6 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["data:rondePlannedProfiles:reviewCancellation", "reviewRondePlannedProfileCancellationRequest"],
   ["data:rondePlannedProfiles:setPlanningEnd", "setRondePlannedProfilePlanningEnd"],
   ["data:rondePlannedProfiles:setValidated", "setRondePlannedProfileValidated"],
-  ["data:interventionWordExtraFields:list", "listInterventionWordExtraFields"],
   ["data:formVariables:list", "listFormVariables"],
   ["data:formVariables:save", "saveFormVariables"],
   ["fransor:responsables:list", "listFransorResponsables"],

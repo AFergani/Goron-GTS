@@ -9,7 +9,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
-import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
+import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import type {

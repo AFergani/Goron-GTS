@@ -7,8 +7,6 @@
 
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 
-export { isValidTime, normalizeTimeForSave };
-
 export function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
 }
@@ -19,7 +17,7 @@ function toMinutes(timeIso: string): number {
   return h * 60 + m;
 }
 
-export function addDaysIso(dateIso: string, days: number): string {
+function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(`${dateIso}T12:00:00`);
   if (Number.isNaN(d.getTime())) return dateIso;
   d.setDate(d.getDate() + days);
@@ -29,7 +27,7 @@ export function addDaysIso(dateIso: string, days: number): string {
   return `${y}-${mo}-${da}`;
 }
 
-export function parseDateTimeMs(dateIso: string, timeIso: string): number | null {
+function parseDateTimeMs(dateIso: string, timeIso: string): number | null {
   if (!isIsoDate(dateIso) || !isValidTime(timeIso)) return null;
   const ms = Date.parse(`${dateIso}T${timeIso}:00`);
   return Number.isFinite(ms) ? ms : null;
@@ -96,7 +94,7 @@ export function resolvePassageDatesForSave(params: {
 }
 
 /** Délai demande → arrivée en minutes (même règles que le backend / colonne « Délai »). */
-export function computeInterventionDelayMinutes(params: {
+function computeInterventionDelayMinutes(params: {
   requestDate: string;
   requestTime: string;
   arrivalDate?: string | null;

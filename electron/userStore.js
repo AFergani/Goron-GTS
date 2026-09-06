@@ -996,11 +996,6 @@ class UserStore {
     return interventionDomain.setInterventionBillingStatus(this, payload);
   }
 
-  async listInterventionWordExtraFields(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.listInterventionWordExtraFields(this, payload);
-  }
-
   // --- Rondes (PostgreSQL only, dossier domains/ronde) ---
 
   async listRondes({ requesterRole }) {

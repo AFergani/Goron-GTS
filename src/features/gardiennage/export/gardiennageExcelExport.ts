@@ -8,7 +8,7 @@
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { GardiennageEntry } from "../model/gardiennage.types";
-import { exportTimestampFrForFilename } from "../../intervention/export/interventionExportFormat";
+import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 
 const HEADERS = [
   "Site",

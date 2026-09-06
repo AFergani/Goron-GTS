@@ -740,19 +740,6 @@ declare global {
         validated: boolean;
         expectedUpdatedAt?: string | null;
       }) => Promise<RondePlannedProfileRef>;
-      listInterventionWordExtraFields: (payload: { requesterRole: Role }) => Promise<
-        Array<{
-          id: string;
-          sortOrder: number;
-          fieldKey: string;
-          label: string;
-          fieldType: RondeClosureFieldType;
-          placeholder: string;
-          options: string[];
-          createdAt: string;
-          updatedAt: string;
-        }>
-      >;
       // --- Variables de formulaire ---
       listFormVariables: (payload: { requesterRole: Role }) => Promise<FormVariableDef[]>;
       saveFormVariables: (payload: {

@@ -114,7 +114,6 @@ contextBridge.exposeInMainWorld("gtsApi", {
     ipcRenderer.invoke("data:rondePlannedProfiles:setPlanningEnd", payload),
   setRondePlannedProfileValidated: (payload) =>
     ipcRenderer.invoke("data:rondePlannedProfiles:setValidated", payload),
-  listInterventionWordExtraFields: (payload) => ipcRenderer.invoke("data:interventionWordExtraFields:list", payload),
   listFormVariables: (payload) => ipcRenderer.invoke("data:formVariables:list", payload),
   saveFormVariables: (payload) => ipcRenderer.invoke("data:formVariables:save", payload),
 

@@ -1,5 +1,5 @@
 /**
- * Champ horaire partagé : picker natif + saisie rapide (ex. `12` + Entrée → `12:00`).
+ * Champ horaire partagé : picker natif + saisie rapide (ex. `1500` + Tab → `15:00`).
  *
  * Utilisé sur toutes les modales métier (intervention, ronde, gardiennage).
  */
@@ -15,7 +15,7 @@ type TimeInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "valu
 };
 
 /**
- * Champ `type="time"` avec normalisation Entrée / blur pour saisie compacte.
+ * Champ `type="time"` avec normalisation Entrée / Tab / blur pour saisie compacte.
  *
  * @param props - Valeur contrôlée, callback `onChange`, props HTML transmises à l'input
  */
@@ -39,6 +39,13 @@ export function TimeInput({
     return true;
   };
 
+  const flushDigitBuffer = (fallbackValue: string) => {
+    const source = digitBufferRef.current || fallbackValue;
+    const ok = tryNormalize(source);
+    digitBufferRef.current = "";
+    return ok;
+  };
+
   return (
     <input
       type="time"
@@ -46,7 +53,8 @@ export function TimeInput({
       value={value}
       disabled={disabled}
       onChange={(event) => {
-        digitBufferRef.current = "";
+        // Ne pas vider le buffer ici : le navigateur déclenche onChange à chaque
+        // segment HH/MM pendant la saisie chiffée, ce qui cassait `1500` + Tab → `00:00`.
         onChange(event.target.value);
       }}
       onFocus={(event) => {
@@ -60,12 +68,21 @@ export function TimeInput({
           } else if (event.key === "Backspace") {
             digitBufferRef.current = digitBufferRef.current.slice(0, -1);
           } else if (event.key === "Enter") {
-            const source = digitBufferRef.current || event.currentTarget.value;
-            if (tryNormalize(source)) {
+            if (flushDigitBuffer(event.currentTarget.value)) {
               event.preventDefault();
             }
-            digitBufferRef.current = "";
+          } else if (event.key === "Tab") {
+            // Normaliser avant le blur / focus suivant (même logique que Entrée).
+            flushDigitBuffer(event.currentTarget.value);
           } else if (event.key === "Escape") {
+            digitBufferRef.current = "";
+          } else if (
+            event.key === "ArrowUp" ||
+            event.key === "ArrowDown" ||
+            event.key === "ArrowLeft" ||
+            event.key === "ArrowRight"
+          ) {
+            // Navigation / spinner natif : abandonner la saisie compacte en cours.
             digitBufferRef.current = "";
           }
         }
@@ -73,9 +90,7 @@ export function TimeInput({
       }}
       onBlur={(event) => {
         if (!disabled && normalizeOnBlur) {
-          const source = digitBufferRef.current || event.currentTarget.value;
-          tryNormalize(source);
-          digitBufferRef.current = "";
+          flushDigitBuffer(event.currentTarget.value);
         }
         onBlur?.(event);
       }}

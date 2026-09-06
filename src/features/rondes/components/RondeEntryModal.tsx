@@ -23,7 +23,7 @@ import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPan
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
-import { IntervenantSearchInput } from "../../intervention/components/IntervenantSearchInput";
+import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
@@ -31,7 +31,7 @@ import { TimeInput } from "../../common/components/TimeInput";
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 import { RondeClosureFieldsEditor } from "./RondeClosureFieldsEditor";
 import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate";
-import { formatDateShortFr } from "../utils/formatDateShortFr";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import { profileLineMatchesEmittedRoundKind } from "../utils/profileLineMatchesSlot";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
