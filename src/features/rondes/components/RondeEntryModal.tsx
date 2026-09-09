@@ -1,10 +1,10 @@
 /**
  * Modale fiche ronde (saisie, clôture, intervention liée, référentiels en attente).
  *
- * Hydratation : `[isOpen, mode]` création ; `[isOpen, mode, entry?.id]` édition.
+ * Hydratation / état : useRondeEntryForm. Orchestration submit + actions statut.
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { type FormEvent } from "react";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 import type { SiteRef, IntervenantRef, Role } from "../../../types";
 import {
@@ -15,35 +15,28 @@ import {
   type RondeSource
 } from "../model/ronde.types";
 import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
-import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
+import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
-import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
-import { resolvePlannedLineRequestedTime } from "../utils/plannedHeureDemandee";
-import { computeRondeLogicalDate } from "../utils/logicalDate";
-import { formatLocalDateIso } from "../model/rondeCalendarLocal";
-import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
+import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { NotifyToast } from "../../common/model/toast.types";
-import {
-  computeDurationMinutes,
-  isIsoDate
-} from "../utils/rondeEntryFormHelpers";
 import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
 import { RondeEntryRequestSection } from "./RondeEntryRequestSection";
 import { RondeEntryExecutionSection } from "./RondeEntryExecutionSection";
 import { RondeEntryReasonDialogs } from "./RondeEntryReasonDialogs";
+import {
+  useRondeEntryForm,
+  type RondeEntryCreatePreset,
+  type RondeEntryMode
+} from "../hooks/useRondeEntryForm";
 
-type Mode = "create" | "edit";
-
-function formatNowDate() {
-  return formatLocalDateIso(new Date());
-}
+type Mode = RondeEntryMode;
 
 type RondeEntryModalProps = {
   isOpen: boolean;
@@ -96,17 +89,7 @@ type RondeEntryModalProps = {
     /** Ouverture « Demande liée » depuis une fiche ronde déjà créée */
     anchorRondeId?: string | null;
   }) => void;
-  createPreset?: {
-    source: "PLANIFIE";
-    requestDate: string;
-    siteId: string;
-    intervenantId: string | null;
-    plannedProfileId: string;
-    plannedRoundKind: string;
-    plannedSlotKey: string;
-    planningHint?: string;
-    motifTypeId?: string | null;
-  } | null;
+  createPreset?: RondeEntryCreatePreset | null;
 };
 
 export function RondeEntryModal({
@@ -130,259 +113,87 @@ export function RondeEntryModal({
   createPreset,
   requesterRole
 }: RondeEntryModalProps) {
-  const [requestDate, setRequestDate] = useState(formatNowDate());
-  const [siteId, setSiteId] = useState("");
-  const [motifTypeId, setMotifTypeId] = useState("");
-  const [motifDetail, setMotifDetail] = useState("");
-  const [horairesDemandeObs, setHorairesDemandeObs] = useState("");
-  const [originKind, setOriginKind] = useState<RondeOriginKind>("TELESURVEILLANCE");
-  const [originDetail, setOriginDetail] = useState("");
-  const [intervenantId, setIntervenantId] = useState("");
-  const [arrivalTime, setArrivalTime] = useState("");
-  const [departureTime, setDepartureTime] = useState("");
-  const [workOrderNumber, setWorkOrderNumber] = useState("");
-  const [report, setReport] = useState("");
-  const [closureCustomValues, setClosureCustomValues] = useState<Record<string, string>>({});
-  const [logicalDateOverride, setLogicalDateOverride] = useState("");
-  const [fieldError, setFieldError] = useState("");
-  const [pendingCode, setPendingCode] = useState("");
-  const [pendingName, setPendingName] = useState("");
-  const [pendingIntervenantName, setPendingIntervenantName] = useState("");
-  const [showPendingSiteForm, setShowPendingSiteForm] = useState(false);
-  const [showPendingIntervenantForm, setShowPendingIntervenantForm] = useState(false);
-  const [showCancelReasonDialog, setShowCancelReasonDialog] = useState(false);
-  const [cancelReasonInput, setCancelReasonInput] = useState("");
-  const [statusActionBusy, setStatusActionBusy] = useState<"save" | "cancel" | "close" | "reopen" | null>(null);
-
-  const isCreateMode = mode === "create";
-  const formLockedClosed = entry?.status === "CLOTURE";
-  const formLockedCanceled = entry?.status === "ANNULE";
-  const splitLinkedLayout = Boolean(linkedInterventionEntry?.id && isCreateMode);
-  const isPlannedCreatePreset = isCreateMode && createPreset?.source === "PLANIFIE";
-  const isPureCreateMode = isCreateMode && !isPlannedCreatePreset;
-  const useReportModalLayout = !isCreateMode || isPlannedCreatePreset;
-  const showExecutionBlock = !isCreateMode || isPlannedCreatePreset;
-
-  const selectedSite = useMemo(() => sites.find((site) => site.id === siteId) || null, [siteId, sites]);
-  const selectedIntervenant = useMemo(
-    () => intervenants.find((item) => item.id === intervenantId) || null,
-    [intervenantId, intervenants]
-  );
-  const selectedMotifLabel = useMemo(() => {
-    const fromState = rondeMotifs.find((m) => m.id === motifTypeId)?.label?.trim();
-    if (fromState) return fromState;
-    const fromEntry = String(entry?.motifTypeLabel || "").trim();
-    if (fromEntry) return fromEntry;
-    return "—";
-  }, [rondeMotifs, motifTypeId, entry?.motifTypeLabel]);
-  /** Motif système « Voir Consigne » en priorité, sinon premier motif disponible */
-  const defaultMotifTypeId = useMemo(() => getDefaultSystemRefId(rondeMotifs), [rondeMotifs]);
-  const activePlannedProfile = useMemo(() => {
-    const plannedProfileId =
-      (isCreateMode && createPreset?.source === "PLANIFIE" ? createPreset.plannedProfileId : entry?.plannedProfileId) || "";
-    if (!plannedProfileId) return null;
-    return plannedProfiles.find((item) => item.id === plannedProfileId) ?? null;
-  }, [isCreateMode, createPreset?.source, createPreset?.plannedProfileId, entry?.plannedProfileId, plannedProfiles]);
-
-  /** Heure demandée issue du profil / ligne de planification (passages planifiés). */
-  const plannedLineRequestedTime = useMemo(() => {
-    const isCreatePlanned = isCreateMode && createPreset?.source === "PLANIFIE";
-    return resolvePlannedLineRequestedTime({
-      plannedProfileId: isCreatePlanned ? createPreset.plannedProfileId : entry?.plannedProfileId,
-      plannedRoundKind: isCreatePlanned ? createPreset.plannedRoundKind : entry?.plannedRoundKind,
-      plannedSlotKey: isCreatePlanned ? createPreset.plannedSlotKey : entry?.plannedSlotKey,
-      profiles: plannedProfiles,
-      fallbackArrivalTime: isCreatePlanned ? arrivalTime : entry?.arrivalTime
-    });
-  }, [
-    isCreateMode,
-    createPreset?.source,
-    createPreset?.plannedProfileId,
-    createPreset?.plannedRoundKind,
-    createPreset?.plannedSlotKey,
-    arrivalTime,
-    entry?.plannedProfileId,
-    entry?.plannedRoundKind,
-    entry?.plannedSlotKey,
-    entry?.arrivalTime,
-    plannedProfiles
-  ]);
-
-  const durationMinutes = useMemo(
-    () => computeDurationMinutes(requestDate, normalizeTimeForSave(arrivalTime), normalizeTimeForSave(departureTime)),
-    [arrivalTime, departureTime, requestDate]
-  );
-  const logicalDateComputed = useMemo(
-    () =>
-      computeRondeLogicalDate({
-        requestDate,
-        plannedRoundKind:
-          (isCreateMode && createPreset?.source === "PLANIFIE" ? createPreset.plannedRoundKind : entry?.plannedRoundKind) || null,
-        arrivalTime: normalizeTimeForSave(arrivalTime),
-        departureTime: normalizeTimeForSave(departureTime),
-        preferredDate: logicalDateOverride || null
-      }),
-    [requestDate, isCreateMode, createPreset?.source, createPreset?.plannedRoundKind, entry?.plannedRoundKind, arrivalTime, departureTime, logicalDateOverride]
-  );
-  const effectiveLogicalDate = logicalDateComputed.logicalDate;
-  const hasLogicalDateTransition = Boolean(
-    isIsoDate(requestDate) && isIsoDate(effectiveLogicalDate) && effectiveLogicalDate !== requestDate
-  );
-  const logicalDateTransitionLabel = hasLogicalDateTransition
-    ? `${formatDateShortFr(requestDate)} -> ${formatDateShortFr(effectiveLogicalDate)}`
-    : "";
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setFieldError("");
-    if (!isCreateMode) return;
-    setShowPendingSiteForm(false);
-    setShowPendingIntervenantForm(false);
-    setShowCancelReasonDialog(false);
-    setCancelReasonInput("");
-    setPendingCode("");
-    setPendingName("");
-    setPendingIntervenantName("");
-
-    if (createPreset?.source === "PLANIFIE") {
-      setRequestDate(createPreset.requestDate || formatNowDate());
-      setSiteId(createPreset.siteId || "");
-      setMotifTypeId(createPreset.motifTypeId || "");
-      setMotifDetail("");
-      setHorairesDemandeObs(createPreset.planningHint || "");
-      setOriginKind("TELESURVEILLANCE");
-      setOriginDetail("");
-      setIntervenantId(createPreset.intervenantId || "");
-      setArrivalTime("");
-      setDepartureTime("");
-      setWorkOrderNumber("");
-      setReport("");
-      setClosureCustomValues({});
-      setLogicalDateOverride("");
-      return;
-    }
-
-    if (linkedInterventionEntry?.id) {
-      setRequestDate(formatNowDate());
-      setSiteId(linkedInterventionEntry.siteId || "");
-      setMotifTypeId("");
-      setMotifDetail("");
-      setHorairesDemandeObs("");
-      setOriginKind("TELESURVEILLANCE");
-      setOriginDetail("");
-      setIntervenantId(linkedInterventionEntry.intervenantId || "");
-      setArrivalTime("");
-      setDepartureTime("");
-      setWorkOrderNumber("");
-      setReport("");
-      setClosureCustomValues({});
-      setLogicalDateOverride("");
-      return;
-    }
-
-    setRequestDate(formatNowDate());
-    setSiteId("");
-    setMotifTypeId("");
-    setMotifDetail("");
-    setHorairesDemandeObs("");
-    setOriginKind("TELESURVEILLANCE");
-    setOriginDetail("");
-    setIntervenantId("");
-    setArrivalTime("");
-    setDepartureTime("");
-    setWorkOrderNumber("");
-    setReport("");
-    setClosureCustomValues({});
-    setLogicalDateOverride("");
-  }, [isOpen, isCreateMode, linkedInterventionEntry?.id, createPreset?.source, createPreset?.plannedSlotKey]);
-
-  /** Défaut motif système « Voir Consigne » quand la liste référentielle arrive (dépendances réduites, cf. règle formulaires). */
-  useEffect(() => {
-    if (!isOpen || !isCreateMode) return;
-    if (motifTypeId) return;
-    if (defaultMotifTypeId) setMotifTypeId(defaultMotifTypeId);
-  }, [isOpen, isCreateMode, defaultMotifTypeId, motifTypeId]);
-
-  useEffect(() => {
-    if (!isOpen || isCreateMode || !entry) return;
-    setFieldError("");
-    setShowPendingSiteForm(false);
-    setShowPendingIntervenantForm(false);
-    setShowCancelReasonDialog(false);
-    setCancelReasonInput("");
-    setPendingCode("");
-    setPendingName("");
-    setPendingIntervenantName("");
-    setRequestDate(entry.requestDate || formatNowDate());
-    setSiteId(entry.siteId || "");
-    setMotifTypeId(entry.motifTypeId || "");
-    setMotifDetail(entry.motifDetail || "");
-    setHorairesDemandeObs(entry.horairesDemandeObs || "");
-    setOriginKind(entry.originKind || "TELESURVEILLANCE");
-    setOriginDetail(entry.originDetail || "");
-    setIntervenantId(entry.intervenantId || "");
-    setArrivalTime(entry.arrivalTime || "");
-    setDepartureTime(entry.departureTime || "");
-    setWorkOrderNumber(entry.workOrderNumber || "");
-    setReport(entry.report || "");
-    setClosureCustomValues(entry.closureCustomValues || {});
-    setLogicalDateOverride(
-      String((entry.closureCustomValues || {}).date_logique_passage || (entry.closureCustomValues || {}).date_logique || "").trim()
-    );
-  }, [isOpen, isCreateMode, entry?.id]);
-
-  const isRondeCreateDirty = useMemo(() => {
-    if (!isCreateMode) return false;
-    const linked = linkedInterventionEntry;
-    const siteChangedFromLinked =
-      linked?.id &&
-      (siteId !== (linked.siteId || "") || intervenantId !== (linked.intervenantId || ""));
-    const siteOrIvStandalone = !linked?.id && Boolean(siteId || intervenantId);
-    const motifChangedFromDefault =
-      Boolean(motifTypeId && defaultMotifTypeId && motifTypeId !== defaultMotifTypeId);
-    return Boolean(
-      pendingCode.trim() ||
-        pendingName.trim() ||
-        pendingIntervenantName.trim() ||
-        showPendingSiteForm ||
-        showPendingIntervenantForm ||
-        motifDetail.trim() ||
-        horairesDemandeObs.trim() ||
-        originDetail.trim() ||
-        originKind !== "TELESURVEILLANCE" ||
-        requestDate !== formatNowDate() ||
-        siteChangedFromLinked ||
-        siteOrIvStandalone ||
-        motifChangedFromDefault
-    );
-  }, [
-    isCreateMode,
-    linkedInterventionEntry?.id,
-    linkedInterventionEntry?.siteId,
-    linkedInterventionEntry?.intervenantId,
-    siteId,
-    intervenantId,
-    pendingCode,
-    pendingName,
-    pendingIntervenantName,
-    showPendingSiteForm,
-    showPendingIntervenantForm,
-    motifDetail,
-    horairesDemandeObs,
-    originDetail,
-    originKind,
-    requestDate,
-    motifTypeId,
-    defaultMotifTypeId
-  ]);
-
-  const createCloseGuard = useCreateModalCloseGuard({
-    enabled: isPureCreateMode && !showCancelReasonDialog,
-    isDirty: isRondeCreateDirty,
+  const form = useRondeEntryForm({
+    isOpen,
+    mode,
+    entry,
+    sites,
+    intervenants,
+    rondeMotifs,
+    plannedProfiles,
+    linkedInterventionEntry,
+    createPreset,
     onClose
   });
 
+  const {
+    requestDate,
+    setRequestDate,
+    siteId,
+    setSiteId,
+    motifTypeId,
+    setMotifTypeId,
+    motifDetail,
+    setMotifDetail,
+    horairesDemandeObs,
+    setHorairesDemandeObs,
+    originKind,
+    setOriginKind,
+    originDetail,
+    setOriginDetail,
+    intervenantId,
+    setIntervenantId,
+    arrivalTime,
+    setArrivalTime,
+    departureTime,
+    setDepartureTime,
+    workOrderNumber,
+    setWorkOrderNumber,
+    report,
+    setReport,
+    closureCustomValues,
+    setClosureCustomValues,
+    fieldError,
+    setFieldError,
+    pendingCode,
+    setPendingCode,
+    pendingName,
+    setPendingName,
+    pendingIntervenantName,
+    setPendingIntervenantName,
+    showPendingSiteForm,
+    setShowPendingSiteForm,
+    showPendingIntervenantForm,
+    setShowPendingIntervenantForm,
+    showCancelReasonDialog,
+    setShowCancelReasonDialog,
+    cancelReasonInput,
+    setCancelReasonInput,
+    statusActionBusy,
+    setStatusActionBusy,
+    isCreateMode,
+    formLockedClosed,
+    formLockedCanceled,
+    splitLinkedLayout,
+    isPlannedCreatePreset,
+    isPureCreateMode,
+    useReportModalLayout,
+    showExecutionBlock,
+    selectedSite,
+    selectedIntervenant,
+    selectedMotifLabel,
+    activePlannedProfile,
+    plannedLineRequestedTime,
+    durationMinutes,
+    logicalDateComputed,
+    effectiveLogicalDate,
+    hasLogicalDateTransition,
+    logicalDateTransitionLabel,
+    createCloseGuard
+  } = form;
+
   if (!isOpen) return null;
+
 
   const buildPayload = (freshPending?: { siteDisplay?: string; intervenantName?: string }): RondeSavePayload | null => {
     const resolvedSiteDisplay = selectedSite

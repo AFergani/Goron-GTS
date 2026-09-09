@@ -2,12 +2,20 @@
  * Helpers HH:MM partagés (moteur créneaux, demande, règles de passage, date logique).
  */
 
+import { isValidTime } from "../../common/utils/timeInput";
+
 /** Regex HH:MM 24h stricte. */
 export const RONDE_TIME_HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Indique si la valeur est une heure HH:MM valide. */
 export function isRondeTimeHm(value: string): boolean {
-  return RONDE_TIME_HM_RE.test(String(value || "").trim());
+  return isValidTime(value);
+}
+
+/** HH:MM trimée si valide, sinon le fallback. */
+export function normalizeRondeHmOr(value: string, fallback: string): string {
+  const trimmed = String(value || "").trim();
+  return isRondeTimeHm(trimmed) ? trimmed : fallback;
 }
 
 /** Convertit HH:MM en minutes depuis minuit (0 si invalide). */

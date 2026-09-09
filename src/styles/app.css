@@ -4131,6 +4131,21 @@ fieldset.ronde-planned-weekdays {
   min-width: 0;
 }
 
+.ronde-planned-profile-line--just-added {
+  animation: ronde-line-just-added 1.2s ease;
+}
+
+@keyframes ronde-line-just-added {
+  0% {
+    border-color: var(--accent, #2563eb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #2563eb) 25%, transparent);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
 .ronde-planned-profile-line__section {
   min-width: 0;
 }

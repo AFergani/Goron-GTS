@@ -85,7 +85,9 @@ export function RondeLinkedBatchPanel({
   const selectedCancellableIds = selectedIds.filter((id) => inProgressIds.includes(id));
   const allInProgressSelected =
     inProgressIds.length > 0 && selectedCancellableIds.length === inProgressIds.length;
-  const pendingDelete = Boolean(sortedEntries[0]?.batchDeleteRequestedAt);
+  const pendingDelete = sortedEntries.some((e) => Boolean(e.batchDeleteRequestedAt));
+  const pendingDeleteEntry = sortedEntries.find((e) => Boolean(e.batchDeleteRequestedAt)) ?? null;
+  const canSelectRows = isManager || Boolean(requestBatchDelete);
 
   /** « Non effectuée » = prestataire n’a pas fait : uniquement après passage, côté opérateur. */
   const cancelOneIsNonEffectuee = Boolean(
@@ -99,25 +101,25 @@ export function RondeLinkedBatchPanel({
           Fiches du lot · {sortedEntries.length} passage{sortedEntries.length > 1 ? "s" : ""} (en cours {counts.EN_COURS},
           clôturés {counts.CLOTURE}, annulés {counts.ANNULE})
         </p>
-        {pendingDelete && isManager ? (
+        {pendingDelete && pendingDeleteEntry ? (
           <p className="muted" style={{ margin: "0 0 10px", fontSize: "0.9em" }}>
             Demande de suppression en attente
-            {sortedEntries[0]?.batchDeleteRequestedBy ? ` (${sortedEntries[0].batchDeleteRequestedBy})` : ""}
-            {sortedEntries[0]?.batchDeleteReason ? ` — ${sortedEntries[0].batchDeleteReason}` : ""}.
+            {pendingDeleteEntry.batchDeleteRequestedBy ? ` (${pendingDeleteEntry.batchDeleteRequestedBy})` : ""}
+            {pendingDeleteEntry.batchDeleteReason ? ` — ${pendingDeleteEntry.batchDeleteReason}` : ""}.
           </p>
         ) : null}
         <p className="muted" style={{ margin: "0 0 10px", fontSize: "0.9em" }}>
           {isManager
-            ? "Annulation unitaire des fiches en cours. Suppression du lot avec règles avant/après passage."
-            : "Marquez une ronde déjà passée comme non effectuée. Pour supprimer tout le flux, déposez une demande au responsable."}
+            ? "Annulation unitaire ou groupée des fiches en cours. Suppression du lot avec règles avant/après passage."
+            : "Marquez une ronde déjà passée comme non effectuée. Cochez des rondes en cours pour demander leur suppression (validation responsable)."}
         </p>
 
-        {isManager ? (
+        {canSelectRows ? (
           <div className="row-actions ronde-linked-batch-selection-bar" style={{ marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
             <button
               type="button"
               className="btn-light"
-              disabled={!inProgressIds.length || allInProgressSelected}
+              disabled={!inProgressIds.length || allInProgressSelected || pendingDelete}
               onClick={() => setSelectedIds([...inProgressIds])}
             >
               Tout sélectionner
@@ -130,7 +132,7 @@ export function RondeLinkedBatchPanel({
             >
               Rien sélectionner
             </button>
-            {bulkCancelBatch ? (
+            {isManager && bulkCancelBatch ? (
               <button
                 type="button"
                 className="btn-light"
@@ -144,6 +146,20 @@ export function RondeLinkedBatchPanel({
                 {selectedCancellableIds.length ? ` (${selectedCancellableIds.length})` : ""}
               </button>
             ) : null}
+            {!isManager && requestBatchDelete ? (
+              <button
+                type="button"
+                className="btn-danger"
+                disabled={!selectedCancellableIds.length || pendingDelete}
+                onClick={() => {
+                  setRequestDeleteReason("");
+                  setConfirmRequestDeleteOpen(true);
+                }}
+              >
+                Demander la suppression des rondes cochées
+                {selectedCancellableIds.length ? ` (${selectedCancellableIds.length})` : ""}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -151,7 +167,7 @@ export function RondeLinkedBatchPanel({
           <table className="ronde-demand-consult__table ronde-linked-batch-table">
             <thead>
               <tr>
-                {isManager ? <th className="ronde-linked-batch-check-col" aria-hidden /> : null}
+                {canSelectRows ? <th className="ronde-linked-batch-check-col" aria-hidden /> : null}
                 <th>Passage</th>
                 <th>Statut</th>
                 <th className="ronde-linked-batch-actions-col">Actions</th>
@@ -165,12 +181,12 @@ export function RondeLinkedBatchPanel({
                 const checked = selectedCancellableIds.includes(e.id);
                 return (
                   <tr key={e.id}>
-                    {isManager ? (
+                    {canSelectRows ? (
                       <td className="ronde-linked-batch-check-col">
                         <input
                           type="checkbox"
                           checked={checked}
-                          disabled={e.status !== "EN_COURS"}
+                          disabled={e.status !== "EN_COURS" || pendingDelete}
                           onChange={(ev) => {
                             if (ev.target.checked) {
                               setSelectedIds((prev) => (prev.includes(e.id) ? prev : [...prev, e.id]));
@@ -185,6 +201,12 @@ export function RondeLinkedBatchPanel({
                     <td>{formatDateShortFr(e.requestDate) || "—"}</td>
                     <td>
                       {rondeStatusLabelFr(e)}
+                      {e.batchDeleteRequestedAt ? (
+                        <div className="muted" style={{ fontSize: "0.8em" }}>
+                          Suppression demandée
+                          {e.batchDeleteReason ? ` — ${e.batchDeleteReason}` : ""}
+                        </div>
+                      ) : null}
                       {e.batchSuppressedAt ? (
                         <div className="muted" style={{ fontSize: "0.8em" }}>
                           Lot supprimé le {formatDateShortFr(e.batchSuppressedAt.slice(0, 10)) || e.batchSuppressedAt}
@@ -226,11 +248,6 @@ export function RondeLinkedBatchPanel({
           {isManager && bulkDeleteBatch && sortedEntries.length ? (
             <button type="button" className="btn-danger" onClick={() => setConfirmDeleteOpen(true)}>
               Supprimer tout le lot
-            </button>
-          ) : null}
-          {!isManager && requestBatchDelete && sortedEntries.length && !pendingDelete ? (
-            <button type="button" className="btn-danger" onClick={() => setConfirmRequestDeleteOpen(true)}>
-              Demander la suppression du lot
             </button>
           ) : null}
         </div>
@@ -330,20 +347,19 @@ export function RondeLinkedBatchPanel({
 
       <ConfirmModal
         isOpen={confirmRequestDeleteOpen && Boolean(requestBatchDelete)}
-        title="Demander la suppression du lot"
-        message="Le lot sera masqué pour les opérateurs jusqu'à validation ou refus par un responsable. Expliquez pourquoi vous demandez la suppression."
+        title="Demander la suppression des rondes cochées"
+        message={`${selectedCancellableIds.length} ronde(s) en cours seront masquées jusqu'à validation ou refus par un responsable. Expliquez pourquoi vous demandez la suppression.`}
         confirmLabel="Envoyer la demande"
-        confirmDisabled={!requestDeleteReason.trim()}
+        confirmDisabled={!requestDeleteReason.trim() || !selectedCancellableIds.length}
         onCancel={() => setConfirmRequestDeleteOpen(false)}
         onConfirm={async () => {
           const r = requestDeleteReason.trim();
-          if (!requestBatchDelete || !r) return;
-          const res = await requestBatchDelete(
-            sortedEntries.map((x) => x.id),
-            r
-          );
+          const ids = [...selectedCancellableIds];
+          if (!requestBatchDelete || !r || !ids.length) return;
+          const res = await requestBatchDelete(ids, r);
           setConfirmRequestDeleteOpen(false);
           if (res?.ok) {
+            setSelectedIds([]);
             onNotify?.("Demande de suppression envoyée.");
             onBatchDestructiveDone?.();
           }

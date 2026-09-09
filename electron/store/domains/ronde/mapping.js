@@ -64,6 +64,23 @@ function parsePlanningSnapshot(raw) {
 }
 
 /**
+ * Ids ciblés d'une demande de suppression (null = tout le lot, compat. anciennes demandes).
+ * @param {unknown} raw
+ * @returns {string[]|null}
+ */
+function parseBatchDeleteEntryIds(raw) {
+  if (raw == null || raw === "") return null;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!Array.isArray(parsed)) return null;
+    const ids = [...new Set(parsed.map((x) => String(x || "").trim()).filter(Boolean))];
+    return ids.length ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Identifiant de fiche ronde (trim).
  *
  * @param {import('../../../userStore')} store
@@ -85,6 +102,10 @@ function requireEntryId(store, payload, source) {
  */
 function mapRondeRow(row) {
   const label = String(row.motif_type_label || row.motif_category || "").trim();
+  const scopedDeleteIds = parseBatchDeleteEntryIds(row.batch_delete_entry_ids_json);
+  const pendingApplies =
+    Boolean(row.batch_delete_requested_at) &&
+    (!scopedDeleteIds || scopedDeleteIds.includes(String(row.id || "").trim()));
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -128,9 +149,9 @@ function mapRondeRow(row) {
     batchSuppressedAt: row.batch_suppressed_at || null,
     batchSuppressedBy: row.batch_suppressed_by || null,
     batchSuppressedReason: row.batch_suppressed_reason || "",
-    batchDeleteRequestedAt: row.batch_delete_requested_at || null,
-    batchDeleteRequestedBy: row.batch_delete_requested_by || null,
-    batchDeleteReason: row.batch_delete_reason || ""
+    batchDeleteRequestedAt: pendingApplies ? row.batch_delete_requested_at || null : null,
+    batchDeleteRequestedBy: pendingApplies ? row.batch_delete_requested_by || null : null,
+    batchDeleteReason: pendingApplies ? row.batch_delete_reason || "" : ""
   };
 }
 
@@ -158,6 +179,7 @@ module.exports = {
   RONDE_ENTRY_SELECT_R,
   RONDE_PLANNED_PROFILE_SELECT,
   mapRondeRow,
+  parseBatchDeleteEntryIds,
   parseJsonObject,
   parsePlanningSnapshot,
   requireEntryId,

@@ -6,7 +6,7 @@ import { addDaysIso } from "../model/rondePlannedSlotEngine";
 import type { RondeEntry } from "../model/ronde.types";
 import type { ApplicablePlannedSlot } from "../model/plannedSlots";
 
-export { hhmmToMinutes, isRondeTimeHm, minutesToHm, RONDE_TIME_HM_RE } from "./rondeTime";
+export { hhmmToMinutes, isRondeTimeHm, minutesToHm, normalizeRondeHmOr, RONDE_TIME_HM_RE } from "./rondeTime";
 
 /** Liste inclusive des dates ISO entre deux bornes. */
 export function enumerateInclusiveDateIsos(fromIso: string, toIso: string, maxDays = 5000): string[] {

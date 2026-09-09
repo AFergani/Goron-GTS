@@ -4,7 +4,11 @@
 
 import type { RondeOriginKind } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
-import { requestOriginFromStoredEntry } from "../model/requestOrigin";
+import {
+  requestOriginFromStoredEntry,
+  stripSuiteInterventionPrefix
+} from "../model/requestOrigin";
+import { createDefaultLineDraft } from "../model/rondeRequestLineDraft";
 
 export function syntheticPlanningSnapshotForLinkedDemand(row: {
   requestDate: string;
@@ -18,8 +22,8 @@ export function syntheticPlanningSnapshotForLinkedDemand(row: {
 }): RondePlanningSnapshotV1 {
   const origin = requestOriginFromStoredEntry(row);
   const rawDetail = String(row.originDetail ?? row.horairesDemandeObs ?? "").trim();
-  const suitePrefix = /^Suite intervention\.\s*/i;
-  const consigne = origin === "SUITE_INTERVENTION" ? rawDetail.replace(suitePrefix, "").trim() : rawDetail;
+  const consigne = origin === "SUITE_INTERVENTION" ? stripSuiteInterventionPrefix(rawDetail) : rawDetail;
+  const defaultLine = createDefaultLineDraft();
   return {
     version: 1,
     requestDate: row.requestDate,
@@ -34,16 +38,16 @@ export function syntheticPlanningSnapshotForLinkedDemand(row: {
     createRoundsEnabled: true,
     lines: [
       {
-        roundKind: "OPENING",
-        requestedTime: "08:00",
-        randomWindowStart: "",
-        randomWindowEnd: "",
-        randomRoundsCount: "",
-        intervalHours: "",
-        intervalEndTime: "23:59",
-        weekdaysMask: 0,
-        includeHolidays: false,
-        includeHolidayEves: false
+        roundKind: defaultLine.roundKind,
+        requestedTime: defaultLine.requestedTime,
+        randomWindowStart: defaultLine.randomWindowStart,
+        randomWindowEnd: defaultLine.randomWindowEnd,
+        randomRoundsCount: defaultLine.randomRoundsCount,
+        intervalHours: defaultLine.intervalHours,
+        intervalEndTime: defaultLine.intervalEndTime,
+        weekdaysMask: defaultLine.weekdaysMask,
+        includeHolidays: defaultLine.includeHolidays,
+        includeHolidayEves: defaultLine.includeHolidayEves
       }
     ],
     originInterventionId: row.originInterventionId ?? null

@@ -1,11 +1,12 @@
 /**
  * Styles du centre d'aide (modale large, sidebar rubriques, cartes contenu).
  *
- * Palette alignée sur les modales métier (`mc-modal-*`, badges, tableaux d’aide).
+ * Utilise les tokens de thème (`--surf`, `--deep`, `--text`, etc.) pour suivre
+ * clair / sombre — indépendant de la sidebar principale de l’app.
  * Importé par `HelpCenterModal.tsx` uniquement.
  */
 
-/* Centre d'aide : deux colonnes (navigation + contenu), thème cohérent avec les modales existantes */
+/* Centre d'aide : deux colonnes (navigation + contenu), thème cohérent avec les modales */
 
 .help-center-overlay {
   z-index: 1300;
@@ -43,8 +44,8 @@
   width: min(300px, 34vw);
   flex-shrink: 0;
   min-height: 0;
-  background: linear-gradient(180deg, #0f203d 0%, #0a172d 100%);
-  border-right: 1px solid var(--border-hi);
+  background: var(--deep);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
@@ -56,7 +57,7 @@
   margin: 0 8px 6px;
   font-size: 0.82rem;
   font-weight: 700;
-  color: #b8c9e6;
+  color: var(--text-2);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   flex-shrink: 0;
@@ -90,18 +91,18 @@
   border-radius: 10px;
   padding: 0;
   background: transparent;
-  color: #b8c9e6;
+  color: var(--text-2);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .help-center-nav-chevron:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--hover);
+  color: var(--text);
 }
 
 .help-center-nav-chevron:focus-visible {
-  outline: 2px solid #f0c14d;
+  outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
 }
 
@@ -127,26 +128,27 @@
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 13px;
-  color: #c8d7ee;
+  color: var(--text-2);
   background: transparent;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .help-center-nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--hover);
+  color: var(--text);
 }
 
 .help-center-nav-item:focus-visible {
-  outline: 2px solid #f0c14d;
+  outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
 }
 
 .help-center-nav-item--active {
-  background: rgba(99, 102, 241, 0.35);
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .help-center-nav-emoji {
@@ -163,7 +165,7 @@
 .help-center-sidebar-footer {
   flex-shrink: 0;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border);
 }
 
 .help-center-close-sidebar {
@@ -205,18 +207,18 @@
   padding: 14px 16px;
   margin-bottom: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--card);
+  box-shadow: none;
 }
 
 .help-center-card--accent {
-  border-color: rgba(59, 130, 246, 0.35);
-  background: rgba(37, 99, 235, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surf));
 }
 
 .help-center-card--muted {
   border-color: var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--deep);
 }
 
 .help-center-card-title {
@@ -234,7 +236,7 @@
 .help-center-subsection {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 }
 
 .help-center-subsection-title {
@@ -326,11 +328,11 @@
 .help-center-table th {
   font-weight: 600;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--deep);
 }
 
 .help-center-table tbody tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--card);
 }
 
 .help-center-main h4 {

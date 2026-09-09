@@ -45,10 +45,7 @@ function exceptionalPassageKindLabel(entry: RondeEntry): string {
   for (const line of snapshotLines) {
     const t = String(line.requestedTime || "").trim();
     if (t !== requestedTime) continue;
-    if (line.roundKind === "OPENING") return "Ouverture";
-    if (line.roundKind === "CLOSING") return "Fermeture";
-    if (line.roundKind === "ACCOMPAGNEMENT") return "Accompagnement";
-    if (line.roundKind === "RANDOM") return "Aléatoire";
+    if (line.roundKind) return formatPlannedRoundKindLabel(line.roundKind as RondePlannedRoundKind);
   }
   const obs = String(entry.horairesDemandeObs || "").toLowerCase();
   if (obs.includes("ouverture")) return "Ouverture";

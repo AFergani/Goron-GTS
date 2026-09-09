@@ -3,7 +3,7 @@
  */
 
 import { formatLocalDateIso } from "../model/rondeCalendarLocal";
-import { isRondeTimeHm } from "./rondeTime";
+import { normalizeRondeHmOr, isRondeTimeHm } from "./rondeTime";
 
 export function buildIntervalTimesAcrossValidity(
   startIso: string,
@@ -15,9 +15,9 @@ export function buildIntervalTimesAcrossValidity(
 ): Array<{ requestDate: string; requestedTime: string }> {
   const safeInterval = Math.max(1, Math.round(intervalMinutes));
   const startTrim = String(startIso || "").trim();
-  const startTimeTrim = isRondeTimeHm(String(startTime || "").trim()) ? String(startTime).trim() : "00:00";
+  const startTimeTrim = normalizeRondeHmOr(String(startTime || ""), "00:00");
   const endTrim = String(endIso || "").trim();
-  const endTimeTrim = isRondeTimeHm(String(endTime || "").trim()) ? String(endTime).trim() : "23:59";
+  const endTimeTrim = normalizeRondeHmOr(String(endTime || ""), "23:59");
   const anchorDate = anchor?.demandDateIso?.trim();
   const anchorTime = anchor?.demandTimeHm?.trim();
   const useAnchor = Boolean(

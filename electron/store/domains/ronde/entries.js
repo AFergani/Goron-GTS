@@ -10,7 +10,7 @@ const holidaysDomain = require("../data/holidays");
 const interventionDomain = require("../intervention");
 const exceptionalSlots = require("./exceptionalSlotsEngine");
 const { autoCloseExpiredExceptionalRondes } = require("./autoClose");
-const { mapRondeRow, parseJsonObject, toRondeAuditSnapshot, RONDE_ENTRY_SELECT, RONDE_ENTRY_SELECT_R, requireEntryId } = require("./mapping");
+const { mapRondeRow, parseJsonObject, parseBatchDeleteEntryIds, toRondeAuditSnapshot, RONDE_ENTRY_SELECT, RONDE_ENTRY_SELECT_R, requireEntryId } = require("./mapping");
 const { requireRondePersistence } = require("./persistence");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { generateEntityId } = require("../../core/ids");
@@ -204,7 +204,8 @@ async function listRondes(store, { requesterRole }) {
             m.requires_free_text AS motif_type_requires_free_text,
             d.requested_at AS batch_delete_requested_at,
             d.requested_by AS batch_delete_requested_by,
-            d.reason AS batch_delete_reason
+            d.reason AS batch_delete_reason,
+            d.entry_ids_json AS batch_delete_entry_ids_json
      FROM ronde_entries r
      LEFT JOIN data_ronde_motif_types m ON m.id = r.motif_type_id
      LEFT JOIN ronde_batch_delete_requests d
@@ -247,6 +248,10 @@ async function getRondeTodayInProgressCounts(store, { requesterRole, todayIso })
     ? ` AND NOT EXISTS (
           SELECT 1 FROM ronde_batch_delete_requests d
           WHERE d.request_batch_id = ronde_entries.request_batch_id AND d.status = 'PENDING'
+            AND (
+              NULLIF(BTRIM(COALESCE(d.entry_ids_json, '')), '') IS NULL
+              OR d.entry_ids_json::jsonb @> jsonb_build_array(ronde_entries.id)
+            )
         )`
     : "";
   const contractualRow = await db.get(
@@ -863,9 +868,19 @@ async function requestRondeBatchDelete(store, payload) {
   }
   const db = requireRondePersistence(store, "ronde:batchDeleteRequest");
   const ids = [...new Set((payload.entryIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) {
+    store.fail("ronde:batchDeleteRequest", "Sélectionnez au moins une ronde en cours.", "RONDE_BATCH_DELETE_EMPTY");
+  }
   const rows = await loadBatchRows(db, ids);
   if (rows.length !== ids.length) store.fail("ronde:batchDeleteRequest", "Ronde introuvable.", "RONDE_NOT_FOUND");
   assertCoherentExceptionalBatch(store, rows);
+  if (rows.some((row) => row.status !== "EN_COURS")) {
+    store.fail(
+      "ronde:batchDeleteRequest",
+      "Seules les rondes en cours peuvent faire l'objet d'une demande de suppression.",
+      "RONDE_BATCH_DELETE_STATUS_INVALID"
+    );
+  }
   const batchId = String(rows[0]?.request_batch_id || "").trim();
   if (!batchId) {
     store.fail("ronde:batchDeleteRequest", "Ce regroupement n'a pas d'identifiant de lot.", "RONDE_BATCH_ID_REQUIRED");
@@ -884,28 +899,30 @@ async function requestRondeBatchDelete(store, payload) {
   const now = new Date().toISOString();
   const actor = String(payload.requesterUsername || "unknown").trim();
   const siteDisplay = String(rows[0]?.site_display || "").trim();
+  const entryIdsJson = JSON.stringify(ids);
   if (existing) {
     await db.run(
       `UPDATE ronde_batch_delete_requests
        SET reason = ?, requested_at = ?, requested_by = ?, status = 'PENDING',
-           reviewed_at = NULL, reviewed_by = NULL, review_reason = NULL, site_display = ?
+           reviewed_at = NULL, reviewed_by = NULL, review_reason = NULL, site_display = ?,
+           entry_ids_json = ?
        WHERE request_batch_id = ?`,
-      [reason, now, actor, siteDisplay, batchId]
+      [reason, now, actor, siteDisplay, entryIdsJson, batchId]
     );
   } else {
     await db.run(
       `INSERT INTO ronde_batch_delete_requests
-         (request_batch_id, reason, requested_at, requested_by, status, site_display)
-       VALUES (?, ?, ?, ?, 'PENDING', ?)`,
-      [batchId, reason, now, actor, siteDisplay]
+         (request_batch_id, reason, requested_at, requested_by, status, site_display, entry_ids_json)
+       VALUES (?, ?, ?, ?, 'PENDING', ?, ?)`,
+      [batchId, reason, now, actor, siteDisplay, entryIdsJson]
     );
   }
   store.logAudit({
     actorUsername: actor,
     action: "RONDE_BATCH_DELETE_REQUEST",
-    details: { batchId, reason, entryCount: rows.length }
+    details: { batchId, reason, entryCount: rows.length, entryIds: ids }
   });
-  return { ok: true, requestBatchId: batchId, requestedAt: now, requestedBy: actor, reason };
+  return { ok: true, requestBatchId: batchId, requestedAt: now, requestedBy: actor, reason, entryIds: ids };
 }
 
 async function reviewRondeBatchDeleteRequest(store, payload) {
@@ -951,10 +968,14 @@ async function reviewRondeBatchDeleteRequest(store, payload) {
     });
     return { ok: true, decision: "reject", requestBatchId: batchId };
   }
-  const rows = await db.all(`SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ?`, [batchId]);
+  const rowsAll = await db.all(`SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ?`, [batchId]);
+  const scopedIds = parseBatchDeleteEntryIds(pending.entry_ids_json);
+  const rows = scopedIds
+    ? rowsAll.filter((row) => scopedIds.includes(String(row.id || "").trim()))
+    : rowsAll;
   if (!rows.length) {
     await db.run(`DELETE FROM ronde_batch_delete_requests WHERE request_batch_id = ?`, [batchId]);
-    store.fail("ronde:batchDeleteReview", "Aucune fiche restante pour ce lot.", "RONDE_BATCH_EMPTY");
+    store.fail("ronde:batchDeleteReview", "Aucune fiche restante pour cette demande.", "RONDE_BATCH_EMPTY");
   }
   const applyReason = String(pending.reason || reviewReason).trim();
   const result = await applySmartBatchDelete(store, db, rows, applyReason, actor);
@@ -984,7 +1005,7 @@ async function listRondeBatchDeleteRequests(store, { requesterRole }) {
   const db = requireRondePersistence(store, "ronde:batchDeleteList");
   const requests = await db.all(
     `SELECT request_batch_id, reason, requested_at, requested_by, status,
-            reviewed_at, reviewed_by, review_reason, site_display
+            reviewed_at, reviewed_by, review_reason, site_display, entry_ids_json
      FROM ronde_batch_delete_requests
      ORDER BY CASE status WHEN 'PENDING' THEN 0 WHEN 'REJECTED' THEN 1 ELSE 2 END,
               requested_at DESC`,
@@ -1009,10 +1030,15 @@ async function listRondeBatchDeleteRequests(store, { requesterRole }) {
   }
   const out = [];
   for (const req of requests) {
-    const entries = await db.all(
+    const scopedIds = parseBatchDeleteEntryIds(req.entry_ids_json);
+    let entries = await db.all(
       `SELECT ${RONDE_ENTRY_SELECT} FROM ronde_entries WHERE request_batch_id = ? ORDER BY request_date ASC`,
       [req.request_batch_id]
     );
+    if (scopedIds) {
+      const allowed = new Set(scopedIds);
+      entries = entries.filter((e) => allowed.has(String(e.id || "").trim()));
+    }
     const requestedBy = String(req.requested_by || "").trim();
     const reviewedBy = String(req.reviewed_by || "").trim();
     out.push({
@@ -1026,11 +1052,11 @@ async function listRondeBatchDeleteRequests(store, { requesterRole }) {
       reviewedBy,
       reviewedByDisplay: reviewedBy ? displayByUsername.get(reviewedBy) || reviewedBy : "",
       reviewReason: req.review_reason || "",
-      entryCount: entries.length,
+      entryCount: entries.length || (scopedIds ? scopedIds.length : 0),
       siteDisplay: String(req.site_display || "").trim() || entries[0]?.site_display || "",
       dateFrom: entries[0]?.request_date || "",
       dateTo: entries.length ? entries[entries.length - 1].request_date : "",
-      entryIds: entries.map((e) => e.id)
+      entryIds: entries.length ? entries.map((e) => e.id) : scopedIds || []
     });
   }
   return out;

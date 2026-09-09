@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { Role } from "../../../types";
@@ -27,9 +26,9 @@ import { RondePlannedCancellationQueueModal } from "../components/RondePlannedCa
 import { RondeBatchDeleteQueueModal } from "../components/RondeBatchDeleteQueueModal";
 import { RondePlannedProfileLifecycleModals } from "../components/RondePlannedProfileLifecycleModals";
 import { RondeListFiltersBar } from "../components/RondeListFiltersBar";
+import { RondeServiceTabActions } from "../components/RondeServiceTabActions";
 import { useRondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfileLifecycle";
 import { getExceptionalDemandGroup } from "../utils/exceptionalDemandGroup";
-import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { exportRondeToExcel } from "../export/rondeExcelExport";
 import { exportRondeEntryToWord } from "../export/rondeWordExport";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
@@ -38,6 +37,8 @@ import { isRondeManagerRole } from "../utils/rondePassageRules";
 import { requestOriginFromStoredEntry, type RequestOrigin } from "../model/requestOrigin";
 import { syntheticPlanningSnapshotForLinkedDemand } from "../utils/syntheticPlanningSnapshot";
 import { buildPlannedFallbackVirtualEntries } from "../utils/buildPlannedFallbackVirtualEntries";
+import { useRondeDisplayMode } from "../hooks/useRondeDisplayMode";
+import { filterAndSortRondeListEntries } from "../utils/filterAndSortRondeListEntries";
 
 type RondePageProps = {
   requesterRole: Role;
@@ -59,8 +60,6 @@ type RondePageProps = {
   onSetRondePlannedProfilePlanningEnd?: (id: string, planningEndDate: string, reason: string) => void | Promise<unknown>;
 };
 
-const RONDE_DISPLAY_MODE_STORAGE_KEY = "rondeDisplayModeByService.v1";
-
 export function RondePage({
   requesterRole,
   requesterUsername,
@@ -75,24 +74,7 @@ export function RondePage({
   onSetRondePlannedProfilePlanningEnd
 }: RondePageProps) {
   const [listView, setListView] = useState<RondeListView>("urgence");
-  const [displayModeByService, setDisplayModeByService] = useState<{
-    planifie: "day" | "list";
-    urgence: "day" | "list";
-  }>(() => {
-    if (typeof window === "undefined") {
-      return { planifie: "day", urgence: "list" };
-    }
-    try {
-      const raw = window.localStorage.getItem(RONDE_DISPLAY_MODE_STORAGE_KEY);
-      if (!raw) return { planifie: "day", urgence: "list" };
-      const parsed = JSON.parse(raw) as Partial<Record<"planifie" | "urgence", "day" | "list">>;
-      const planifie = parsed.planifie === "day" || parsed.planifie === "list" ? parsed.planifie : "day";
-      const urgence = parsed.urgence === "day" || parsed.urgence === "list" ? parsed.urgence : "list";
-      return { planifie, urgence };
-    } catch {
-      return { planifie: "day", urgence: "list" };
-    }
-  });
+  const { displayModeByService, setDisplayModeByService } = useRondeDisplayMode();
   const filters = useTableFilters();
   /** Défaut « en cours » en affichage liste : clôturées et annulées masquées tant qu'on ne les demande pas. */
   const [statusFilter, setStatusFilterRaw] = useState("EN_COURS");
@@ -286,34 +268,18 @@ export function RondePage({
   }, [linkedDemandAnchorId, ronde.entries]);
 
   const filteredEntries = useMemo(() => {
-    const query = filters.search.trim().toLowerCase();
-    const effectiveDateTo = filters.dateTo || filters.dateFrom;
-    const siteById = new Map(references.sites.map((s) => [s.id, s]));
-    return ronde.entries
-      .filter((entry) => {
-        if (isContractualRondeEntry(entry)) return false;
-        if (filters.dateFrom && entry.requestDate < filters.dateFrom) return false;
-        if (effectiveDateTo && entry.requestDate > effectiveDateTo) return false;
-        if (statusFilter && entry.status !== statusFilter) return false;
-        if (intervenantFilter && entry.intervenantId !== intervenantFilter) return false;
-        if (familyFilter) {
-          const site = entry.siteId ? siteById.get(entry.siteId) : null;
-          if (!site || (site.famille || "") !== familyFilter) return false;
-        }
-        if (!query) return true;
-        return (
-          entry.siteDisplay.toLowerCase().includes(query) ||
-          entry.intervenantName.toLowerCase().includes(query) ||
-          entry.horairesDemandeObs.toLowerCase().includes(query) ||
-          entry.report.toLowerCase().includes(query) ||
-          entry.workOrderNumber.toLowerCase().includes(query)
-        );
-      })
-      .sort((a, b) => {
-        const left = Date.parse(`${a.requestDate}T12:00:00`);
-        const right = Date.parse(`${b.requestDate}T12:00:00`);
-        return right - left;
-      });
+    return filterAndSortRondeListEntries(
+      ronde.entries.filter((entry) => !isContractualRondeEntry(entry)),
+      {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        status: statusFilter,
+        intervenantId: intervenantFilter,
+        family: familyFilter,
+        search: filters.search,
+        sites: references.sites
+      }
+    );
   }, [filters.dateFrom, filters.dateTo, filters.search, familyFilter, intervenantFilter, references.sites, ronde.entries, statusFilter]);
 
   const contractualEntries = useMemo(
@@ -323,10 +289,7 @@ export function RondePage({
         .sort((a, b) => b.requestDate.localeCompare(a.requestDate)),
     [ronde.entries]
   );
-  const todayIso = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }, []);
+  const todayIso = useMemo(() => getLocalDateIso(), []);
   const contractualRangeFrom = filters.dateFrom || todayIso;
   const contractualRangeTo = filters.dateTo || filters.dateFrom || todayIso;
   const plannedFallbackVirtualEntries = useMemo(
@@ -353,33 +316,15 @@ export function RondePage({
     [contractualEntries, plannedFallbackVirtualEntries]
   );
   const filteredContractualListEntries = useMemo(() => {
-    const query = filters.search.trim().toLowerCase();
-    const effectiveDateTo = filters.dateTo || filters.dateFrom;
-    const siteById = new Map(references.sites.map((s) => [s.id, s]));
-    return contractualListEntries
-      .filter((entry) => {
-        if (filters.dateFrom && entry.requestDate < filters.dateFrom) return false;
-        if (effectiveDateTo && entry.requestDate > effectiveDateTo) return false;
-        if (statusFilter && entry.status !== statusFilter) return false;
-        if (intervenantFilter && entry.intervenantId !== intervenantFilter) return false;
-        if (familyFilter) {
-          const site = entry.siteId ? siteById.get(entry.siteId) : null;
-          if (!site || (site.famille || "") !== familyFilter) return false;
-        }
-        if (!query) return true;
-        return (
-          entry.siteDisplay.toLowerCase().includes(query) ||
-          entry.intervenantName.toLowerCase().includes(query) ||
-          entry.horairesDemandeObs.toLowerCase().includes(query) ||
-          entry.report.toLowerCase().includes(query) ||
-          entry.workOrderNumber.toLowerCase().includes(query)
-        );
-      })
-      .sort((a, b) => {
-        const left = Date.parse(`${a.requestDate}T12:00:00`);
-        const right = Date.parse(`${b.requestDate}T12:00:00`);
-        return right - left;
-      });
+    return filterAndSortRondeListEntries(contractualListEntries, {
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      status: statusFilter,
+      intervenantId: intervenantFilter,
+      family: familyFilter,
+      search: filters.search,
+      sites: references.sites
+    });
   }, [contractualListEntries, familyFilter, filters.dateFrom, filters.dateTo, filters.search, intervenantFilter, references.sites, statusFilter]);
   const sharedListFiltersBar = (
     <RondeListFiltersBar
@@ -453,11 +398,6 @@ export function RondePage({
   useEffect(() => {
     if (filters.currentPage > totalPages) filters.setCurrentPage(totalPages);
   }, [filters.currentPage, totalPages]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(RONDE_DISPLAY_MODE_STORAGE_KEY, JSON.stringify(displayModeByService));
-  }, [displayModeByService]);
 
   const activeServiceView = listView === "urgence" ? "urgence" : "planifie";
   const activeDisplayMode = displayModeByService[activeServiceView];
@@ -584,85 +524,29 @@ export function RondePage({
   };
 
   const serviceTabActions = (
-    <div className="main-courante-table-toolbar tabs-bar__toolbar">
-      {listView === "planifie" && onUpsertRondePlannedProfile ? (
-        <button
-          type="button"
-          className="btn-light"
-          title="Parcourir les profils de programmation"
-          onClick={() => setProfilesListOpen(true)}
-        >
-          Profils des rondes
-        </button>
-      ) : null}
-      {activeDisplayMode === "list" ? (
-        <button
-          type="button"
-          className="btn-light"
-          title="Exporter Excel (filtres actifs)"
-          aria-label="Exporter données (filtres actifs)"
-          onClick={listView === "planifie" ? handleExportContractual : handleExportExceptional}
-        >
-          Export données
-        </button>
-      ) : null}
-      <div className="row-actions">
-        <ToggleSwitch
-          checked={activeDisplayMode === "day"}
-          onChange={(checked) =>
-            setDisplayModeByService((prev) => ({
-              ...prev,
-              [activeServiceView]: checked ? "day" : "list"
-            }))
-          }
-          label={activeDisplayMode === "day" ? "Affichage jour" : "Affichage liste"}
-          labelFirst
-        />
-      </div>
-      {listView === "planifie" && onUpsertRondePlannedProfile && lifecycle.canManageCancellation && pendingCancellationCount > 0 ? (
-        <button
-          type="button"
-          className="btn-light data-pending-submissions-btn"
-          title={`${pendingCancellationCount} demande(s) d'arrêt à traiter`}
-          onClick={() => setCancellationQueueOpen(true)}
-        >
-          Demandes d&apos;arrêt
-          <span className="tab-badge" aria-hidden>
-            {pendingCancellationCount}
-          </span>
-        </button>
-      ) : null}
-      {listView === "urgence" && canManageRondes ? (
-        <button
-          type="button"
-          className="btn-light data-pending-submissions-btn"
-          title={
-            pendingBatchDeleteCount > 0
-              ? `${pendingBatchDeleteCount} demande(s) de suppression à traiter`
-              : "Historique des demandes de suppression de lot"
-          }
-          onClick={() => {
-            void refreshBatchDeleteRequests();
-            setBatchDeleteQueueOpen(true);
-          }}
-        >
-          Demandes de suppression
-          {pendingBatchDeleteCount > 0 ? (
-            <span className="tab-badge" aria-hidden>
-              {pendingBatchDeleteCount}
-            </span>
-          ) : null}
-        </button>
-      ) : null}
-      <button
-        type="button"
-        className="mc-btn-primary ronde-primary-action-btn"
-        onClick={() => openRequestModal(listView === "planifie" ? "CONTRAT" : "APPEL_CLIENT")}
-      >
-        <Plus size={16} aria-hidden />
-        {listView === "urgence" ? "Nouvelle ronde" : "Planifier une ronde"}
-      </button>
-    </div>
+    <RondeServiceTabActions
+      listView={listView}
+      activeDisplayMode={activeDisplayMode}
+      canUpsertProfiles={Boolean(onUpsertRondePlannedProfile)}
+      canManageCancellation={lifecycle.canManageCancellation}
+      pendingCancellationCount={pendingCancellationCount}
+      canManageBatchDelete={canManageRondes}
+      pendingBatchDeleteCount={pendingBatchDeleteCount}
+      onOpenProfilesList={() => setProfilesListOpen(true)}
+      onExport={listView === "planifie" ? handleExportContractual : handleExportExceptional}
+      onDisplayModeChange={(mode) =>
+        setDisplayModeByService((prev) => ({
+          ...prev,
+          [activeServiceView]: mode
+        }))
+      }
+      onOpenCancellationQueue={() => setCancellationQueueOpen(true)}
+      onOpenBatchDeleteQueue={() => {
+        void refreshBatchDeleteRequests();
+        setBatchDeleteQueueOpen(true);
+      }}
+      onCreate={() => openRequestModal(listView === "planifie" ? "CONTRAT" : "APPEL_CLIENT")}
+    />
   );
 
   return (
@@ -879,11 +763,6 @@ export function RondePage({
           const result = await onUpsertRondePlannedProfile(payload);
           await references.reload();
           return result ?? undefined;
-        }}
-        onAfterProfileCreated={(profile) => {
-          setRequestModalOpen(false);
-          clearLinkedDemandNavigation();
-          openProfileEditor(profile);
         }}
       />
 
