@@ -1,14 +1,15 @@
 /**
  * Tableau des gardiennages (tri colonnes, badges type et statut).
  *
- * Actions : clôturer (si actif/planifié), modifier, supprimer.
- * Colonne Période optionnelle (affichage liste).
- * Vue journée : `hoursForDate` affiche la portion horaire du jour, pas le créneau entier.
- * Date de création + badge de type (H24 / récurrent / ponctuel, jour ou nuit) dans les deux vues.
+ * Colonne fusionnée « État / Actions » (boutons texte), alignée interventions / main courante.
+ * Actions : Clôturer (règles métier horaires), Modifier / Voir le détail, Supprimer.
+ * Colonne « Planning » : badge de type + période (liste) + horaires.
+ * Vue journée : créneaux de nuit affichés avec la fin réelle (ex. 20:00 → 08:00) + icône lune.
  * Colonne Site : clic pour copier le code (comme les autres tableaux métier).
  */
 
-import { Check, Infinity, Moon, Pencil, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Infinity, Moon } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -16,20 +17,7 @@ import type { GardiennageEntry } from "../model/gardiennage.types";
 import { canManuallyCloseGardiennage, gardiennageCloseBlockedLabel } from "../model/gardiennageClosure";
 import { clipGardiennageHoursToDay, formatGardiennageDayHours } from "../model/gardiennageDayHours";
 import { classifyGardiennageKind } from "../model/gardiennageKind";
-
-function statusLabel(status: GardiennageEntry["status"]) {
-  if (status === "ACTIF") return "Actif";
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") return "Annulé";
-  return "En cours"; /* PLANIFIE */
-}
-
-function statusTone(status: GardiennageEntry["status"]) {
-  if (status === "ACTIF") return "en-cours";
-  if (status === "CLOTURE") return "cloture";
-  if (status === "ANNULE") return "annule";
-  return "info"; /* PLANIFIE → bleu neutre */
-}
+import { statusLabelFr, statusTone } from "../export/gardiennageExportFormat";
 
 function formatDateFr(iso: string): string {
   if (!iso) return "—";
@@ -75,6 +63,10 @@ function isOpenEndedH24(entry: GardiennageEntry): boolean {
   return Boolean(snap?.isOpenEnded && snap?.isContinuous);
 }
 
+function isTerminalStatus(status: GardiennageEntry["status"]): boolean {
+  return status === "CLOTURE" || status === "ANNULE";
+}
+
 function OpenEndedInfinityMark() {
   const label = "Jusqu'à nouvel ordre";
   return (
@@ -86,7 +78,7 @@ function OpenEndedInfinityMark() {
 
 type GardiennageTableProps = {
   entries: GardiennageEntry[];
-  /** Affiche la colonne Période (Du → Au) — pour l'onglet Planification */
+  /** Affiche les dates Du → Au dans la colonne Planning (onglet liste) */
   showPeriode?: boolean;
   /**
    * Date de la vue « journée » (`YYYY-MM-DD`) : horaires clippés sur ce jour.
@@ -104,22 +96,42 @@ type GardiennageTableProps = {
  *
  * @param entry - Ligne gardiennage
  * @param hoursForDate - Date vue journée, ou absente en liste
- * @returns Libellé React (texte, infini H24 ouvert, ou tiret)
+ * @returns Libellé React (texte, infini H24 ouvert, ou tiret) + indicateur nocturne éventuel
  */
-function renderHoursLabel(entry: GardiennageEntry, hoursForDate?: string) {
+function renderHoursCell(entry: GardiennageEntry, hoursForDate?: string) {
   if (hoursForDate) {
     const clipped = clipGardiennageHoursToDay(entry, hoursForDate);
-    return clipped ? formatGardiennageDayHours(clipped) : "—";
+    if (!clipped) {
+      return { label: "—" as ReactNode, overnight: false, overnightTitle: "" };
+    }
+    const overnightTitle = clipped.overnight
+      ? "Créneau nocturne (se termine le lendemain)"
+      : "";
+    return {
+      label: formatGardiennageDayHours(clipped),
+      overnight: clipped.overnight,
+      overnightTitle
+    };
   }
-  if (!entry.startTime) return "—";
+  if (!entry.startTime) {
+    return { label: "—" as ReactNode, overnight: false, overnightTitle: "" };
+  }
   if (isOpenEndedH24(entry)) {
-    return (
-      <>
-        {entry.startTime} → <OpenEndedInfinityMark />
-      </>
-    );
+    return {
+      label: (
+        <>
+          {entry.startTime} → <OpenEndedInfinityMark />
+        </>
+      ),
+      overnight: false,
+      overnightTitle: ""
+    };
   }
-  return entry.endTime ? `${entry.startTime} → ${entry.endTime}` : entry.startTime;
+  return {
+    label: entry.endTime ? `${entry.startTime} → ${entry.endTime}` : entry.startTime,
+    overnight: Boolean(entry.crossesMidnight),
+    overnightTitle: "Créneau nocturne (se termine le lendemain)"
+  };
 }
 
 /**
@@ -148,16 +160,20 @@ export function GardiennageTable({
   onClose,
   onNotify
 }: GardiennageTableProps) {
-  type GardiennageSortKey = "createdAt" | "site" | "periode" | "horaires" | "prestataire" | "statut";
+  type GardiennageSortKey = "createdAt" | "site" | "planning" | "prestataire" | "statut";
 
   const comparators: Record<GardiennageSortKey, (a: GardiennageEntry, b: GardiennageEntry) => number> = {
     createdAt: (a: GardiennageEntry, b: GardiennageEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     site: (a: GardiennageEntry, b: GardiennageEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
-    periode: (a: GardiennageEntry, b: GardiennageEntry) =>
-      `${a.recurrenceStartDate || ""}|${a.recurrenceEndDate || ""}`.localeCompare(`${b.recurrenceStartDate || ""}|${b.recurrenceEndDate || ""}`),
-    horaires: (a: GardiennageEntry, b: GardiennageEntry) => `${a.startTime || ""}|${a.endTime || ""}`.localeCompare(`${b.startTime || ""}|${b.endTime || ""}`),
+    planning: (a: GardiennageEntry, b: GardiennageEntry) => {
+      const byPeriode = `${a.recurrenceStartDate || ""}|${a.recurrenceEndDate || ""}`.localeCompare(
+        `${b.recurrenceStartDate || ""}|${b.recurrenceEndDate || ""}`
+      );
+      if (byPeriode !== 0) return byPeriode;
+      return `${a.startTime || ""}|${a.endTime || ""}`.localeCompare(`${b.startTime || ""}|${b.endTime || ""}`);
+    },
     prestataire: (a: GardiennageEntry, b: GardiennageEntry) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
-    statut: (a: GardiennageEntry, b: GardiennageEntry) => statusLabel(a.status).localeCompare(statusLabel(b.status), "fr")
+    statut: (a: GardiennageEntry, b: GardiennageEntry) => statusLabelFr(a.status).localeCompare(statusLabelFr(b.status), "fr")
   };
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<GardiennageEntry, GardiennageSortKey>(entries, comparators, {
     key: "createdAt",
@@ -175,32 +191,37 @@ export function GardiennageTable({
         <colgroup>
           <col className="gard-col-created" />
           <col className="gard-col-site" />
-          {showPeriode && <col className="gard-col-periode" />}
-          <col className="gard-col-creneau" />
           <col className="gard-col-presta" />
-          <col className="gard-col-statut" />
-          <col className="gard-col-actions" />
+          <col className="gard-col-planning" />
+          <col className="gard-col-status-actions" />
         </colgroup>
         <thead>
           <tr>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("createdAt")}>Créé le {sortLabel("createdAt")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
-            {showPeriode && <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("periode")}>Période {sortLabel("periode")}</button></th>}
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("horaires")}>Horaires {sortLabel("horaires")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("prestataire")}>Prestataire {sortLabel("prestataire")}</button></th>
-            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("statut")}>Statut {sortLabel("statut")}</button></th>
-            <th className="col-actions" aria-label="Actions" />
+            <th>
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("planning")}>
+                {showPeriode ? "Période / Horaires" : "Horaires"} {sortLabel("planning")}
+              </button>
+            </th>
+            <th className="gard-col-status-actions">
+              <button type="button" className="table-sort-btn" onClick={() => toggleSort("statut")}>
+                État / Actions {sortLabel("statut")}
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
           {sortedEntries.map((entry) => {
+            const terminal = isTerminalStatus(entry.status);
             const closeBlocked = gardiennageCloseBlockedLabel(entry);
             const canClose = Boolean(onClose) && canManuallyCloseGardiennage(entry);
-            const showCloseDisabled = Boolean(onClose) && entry.status !== "CLOTURE" && entry.status !== "ANNULE" && !canClose;
+            const showClose = Boolean(onClose) && !terminal;
+            const hoursCell = renderHoursCell(entry, hoursForDate);
             return (
               <tr key={entry.id} className="mc-table-row">
                 <td className="gardiennage-created-cell">
-                  <GardiennageKindBadge entry={entry} />
                   <span title={formatCreatedAtTitle(entry.createdAt) || undefined}>
                     {formatCreatedAtDate(entry.createdAt)}
                   </span>
@@ -209,98 +230,92 @@ export function GardiennageTable({
                   <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
                 </td>
 
-                {showPeriode && (
-                  <td>
-                    <span className="gardiennage-periode">
-                      {formatDateFr(entry.recurrenceStartDate)}
-                      {entry.isPonctuel ? null : entry.recurrenceEndDate ? (
-                        <> → {formatDateFr(entry.recurrenceEndDate)}</>
-                      ) : (
-                        <> → <OpenEndedInfinityMark /></>
-                      )}
-                    </span>
-                  </td>
-                )}
+                <td>{entry.intervenantName || <span className="muted">—</span>}</td>
 
-                {/* Horaires */}
-                <td>
-                  <div className="gardiennage-creneau-cell">
-                    <span className="gardiennage-creneau-label">
-                      {renderHoursLabel(entry, hoursForDate)}
-                    </span>
-                    {!hoursForDate && entry.crossesMidnight && (
-                      <span
-                        className="gardiennage-nocturne-icon"
-                        title="Créneau nocturne (se termine le lendemain)"
-                        aria-label="Créneau nocturne"
-                      >
-                        <Moon size={13} aria-hidden />
+                <td className="gardiennage-planning-cell">
+                  <div className="gardiennage-planning-cell__inner">
+                    <GardiennageKindBadge entry={entry} />
+                    {showPeriode ? (
+                      <span className="gardiennage-periode">
+                        {formatDateFr(entry.recurrenceStartDate)}
+                        {entry.isPonctuel ? null : entry.recurrenceEndDate ? (
+                          <> → {formatDateFr(entry.recurrenceEndDate)}</>
+                        ) : (
+                          <> → <OpenEndedInfinityMark /></>
+                        )}
                       </span>
-                    )}
+                    ) : null}
+                    <div className="gardiennage-creneau-cell">
+                      <span className="gardiennage-creneau-label">{hoursCell.label}</span>
+                      {hoursCell.overnight ? (
+                        <span
+                          className="gardiennage-nocturne-icon"
+                          title={hoursCell.overnightTitle}
+                          aria-label="Créneau nocturne"
+                        >
+                          <Moon size={13} aria-hidden />
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </td>
 
-                <td>{entry.intervenantName || <span className="muted">—</span>}</td>
-
-                {/* Statut */}
-                <td>
-                  <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
-                    <span className="mc-status-badge__dot" aria-hidden />
-                    <span className="mc-status-badge__label">{statusLabel(entry.status)}</span>
-                  </span>
-                </td>
-
-                {/* Actions */}
-                <td>
-                  <div className="row-actions table-row-actions">
-                    {(canClose || showCloseDisabled) && (
-                      <span
-                        className="table-action-btn-wrap"
-                        title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
-                      >
+                <td className="gard-col-status-actions">
+                  <div className="mc-status-actions-stack">
+                    <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>
+                      <span className="mc-status-badge__dot" aria-hidden />
+                      <span className="mc-status-badge__label">{statusLabelFr(entry.status)}</span>
+                    </span>
+                    <div className="row-actions table-row-actions table-row-actions--text">
+                      {showClose ? (
                         <button
                           type="button"
-                          className="table-action-btn table-action-btn--validate"
+                          className="table-action-btn table-action-btn--text table-action-btn--validate"
                           title={canClose ? "Clôturer ce gardiennage" : closeBlocked}
                           aria-label={canClose ? "Clôturer" : closeBlocked}
-                          disabled={showCloseDisabled}
+                          disabled={!canClose}
                           onClick={() => {
                             if (!canClose) return;
                             onClose?.(entry);
                           }}
                         >
-                          <Check size={15} />
+                          Clôturer
                         </button>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="table-action-btn"
-                      title={
-                        entry.status === "CLOTURE" || entry.status === "ANNULE"
-                          ? "Consultation uniquement (créneau clôturé ou annulé)"
-                          : entry.planningBatchId
-                            ? "Modifier toute la planification (lot)"
-                            : "Modifier la planification"
-                      }
-                      aria-label={
-                        entry.status === "CLOTURE" || entry.status === "ANNULE"
-                          ? "Consulter ce gardiennage"
-                          : "Modifier la planification"
-                      }
-                      onClick={() => onEdit(entry)}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      className="table-action-btn table-action-btn--danger"
-                      title="Supprimer"
-                      aria-label="Supprimer ce gardiennage"
-                      onClick={() => onDelete(entry)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                      ) : null}
+                      {!terminal ? (
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn--text"
+                          title={
+                            entry.planningBatchId
+                              ? "Modifier toute la planification (lot)"
+                              : "Modifier la planification"
+                          }
+                          onClick={() => onEdit(entry)}
+                        >
+                          Modifier
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn--text"
+                          title="Consultation uniquement (créneau clôturé ou annulé)"
+                          onClick={() => onEdit(entry)}
+                        >
+                          Voir le détail
+                        </button>
+                      )}
+                      {!terminal ? (
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn--text table-action-btn--danger"
+                          title="Supprimer"
+                          onClick={() => onDelete(entry)}
+                        >
+                          Supprimer
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </td>
               </tr>

@@ -27,7 +27,7 @@ const BOOTSTRAP_ACTOR = "system:pg-bootstrap";
  * @param {(username: string) => boolean} deps.canManageDatabase
  * @returns {{
  *   getPublicConfig: () => object,
- *   getBootstrapStatus: () => { needsSetup: boolean, config: object },
+ *   getBootstrapStatus: () => Promise<{ needsSetup: boolean, reachable: boolean, config: object }>,
  *   saveConfig: (payload: object) => Promise<object>,
  *   saveBootstrapConfig: (payload: object) => Promise<object>,
  *   testConfig: (payload?: object) => Promise<object>,
@@ -79,13 +79,18 @@ function createPostgresAdminService(deps) {
   }
 
   /**
-   * @returns {void}
+   * Autorise le bootstrap pre-login si aucune config n'existe encore,
+   * ou si la config actuelle est injoignable (récupération IP / serveur).
+   *
+   * @returns {Promise<void>}
    * @throws {Error}
    */
-  function assertBootstrapAllowed() {
+  async function assertBootstrapOrRecoveryAllowed() {
     if (needsBootstrapSetup()) return;
+    const probe = await probePostgresLab();
+    if (!probe.reachable) return;
     const err = new Error(
-      "Une connexion PostgreSQL est déjà configurée sur ce poste. Connectez-vous pour la gérer dans Paramètres."
+      "PostgreSQL est accessible avec la configuration actuelle. Connectez-vous pour la modifier dans Paramètres."
     );
     err.code = "BOOTSTRAP_NOT_ALLOWED";
     throw err;
@@ -101,34 +106,56 @@ function createPostgresAdminService(deps) {
   }
 
   /**
-   * Statut bootstrap (appelable sans session).
+   * Statut bootstrap (appelable sans session) + sonde d'accessibilité.
    *
-   * @returns {{ needsSetup: boolean, config: object }}
+   * @returns {Promise<{ needsSetup: boolean, reachable: boolean, config: object }>}
    */
-  function getBootstrapStatus() {
+  async function getBootstrapStatus() {
     const needsSetup = needsBootstrapSetup();
     const config = getPublicConfig();
     const encrypted = readEncryptedPostgresConfig();
+
+    let reachable = false;
+    if (!needsSetup) {
+      try {
+        const probe = await probePostgresLab();
+        reachable = Boolean(probe.reachable);
+      } catch {
+        reachable = false;
+      }
+    }
+
+    // Sonde OK ≠ pool app ouvert (ex. Docker stop/start) : réattacher pour le login.
+    if (reachable) {
+      const store = getUserStore();
+      if (store && typeof store.ensurePostgresAttached === "function") {
+        const attached = await store.ensurePostgresAttached();
+        reachable = Boolean(attached);
+      }
+    }
+
     if (needsSetup && !encrypted?.password) {
       return {
         needsSetup: true,
+        reachable: false,
         config: { ...config, hasPassword: false }
       };
     }
     return {
       needsSetup,
+      reachable,
       config
     };
   }
 
   /**
-   * Enregistrement 1er lancement sans session.
+   * Enregistrement 1er lancement / récupération sans session (PG injoignable).
    *
    * @param {object} payload
    * @returns {Promise<{ success: boolean, config: object, reconnect: object }>}
    */
   async function saveBootstrapConfig(payload) {
-    assertBootstrapAllowed();
+    await assertBootstrapOrRecoveryAllowed();
     const result = await saveConfig({
       ...payload,
       requesterUsername: BOOTSTRAP_ACTOR
@@ -283,13 +310,13 @@ function createPostgresAdminService(deps) {
   }
 
   /**
-   * Teste la connexion sans session (écran de premier paramétrage uniquement).
+   * Teste la connexion sans session (1er paramétrage ou récupération si PG injoignable).
    *
    * @param {object} [payload]
    * @returns {Promise<object>}
    */
   async function testBootstrapConfig(payload = {}) {
-    assertBootstrapAllowed();
+    await assertBootstrapOrRecoveryAllowed();
     return testConfig(payload);
   }
 

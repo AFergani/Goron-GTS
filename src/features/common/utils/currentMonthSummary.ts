@@ -2,7 +2,7 @@
  * Helpers pour la synthèse mensuelle (cartes compteurs pages métier).
  *
  * Périmètre V1 : mois civil en cours, heure locale du poste.
- * Utilisé par : main courante, interventions.
+ * Utilisé par : main courante, interventions, gardiennage.
  */
 
 /**

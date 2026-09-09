@@ -3,6 +3,7 @@
  */
 
 import { TimeInput } from "../../common/components/TimeInput";
+import { DateInput } from "../../common/components/DateInput";
 import { INTERVENTION_NO_WORK_ORDER_LABEL } from "../model/intervention.types";
 
 type InterventionPassageSectionProps = {
@@ -44,8 +45,7 @@ export function InterventionPassageSection({
         <div className="intervention-passage-group">
           <span className="intervention-passage-group__label">Arrivée</span>
           <div className="intervention-passage-group__inputs">
-            <input
-              type="date"
+            <DateInput
               value={arrivalDate}
               disabled={formLockedClosed}
               aria-label="Date d'arrivée"
@@ -62,8 +62,7 @@ export function InterventionPassageSection({
         <div className="intervention-passage-group">
           <span className="intervention-passage-group__label">Départ</span>
           <div className="intervention-passage-group__inputs">
-            <input
-              type="date"
+            <DateInput
               value={departureDate}
               disabled={formLockedClosed}
               aria-label="Date de départ"

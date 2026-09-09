@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
  * filtrent en général sur la date du jour `dateFrom` uniquement (`effectiveDateTo =
  * dateTo || dateFrom`).
  *
- * Couplé à `TableFiltersBar` et `TablePaginationBar` dans les vues métier.
+ * Couplé à `TableFiltersBar`, `ServiceListFiltersBar` et `TablePaginationBar` dans les vues métier.
  *
  * Utilisé par : MainCourantePage, InterventionPage, RondePage, GardiennagePage
  * (onglet planification), listes de profils planifiés.

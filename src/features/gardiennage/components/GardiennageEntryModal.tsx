@@ -3,13 +3,16 @@
  *
  * Modes ponctuel, récurrent (lignes type ronde), H24. Site / prestataire, liens intervention
  * et ronde, annulation avec motif, garde fermeture en création (`useCreateModalCloseGuard`).
+ * Lignes récurrentes : ajout en tête, numérotation chronologique, scroll/highlight, veilles JF,
+ * verrou jours sur plage ≤ 7 j, pending refs via `createPendingRefsIfNeededForSubmit`.
+ * Récapitulatif type rondes (`GardiennagePlanningLinesRecap`) : résumé par ligne + compteurs.
  * Hydratation formulaire : `[isOpen, mode, entry?.id]` — pas de reset sur refresh listes.
  *
  * Fichier volumineux (~1000 lignes) : candidat à un découpage (sections planning / statut).
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import {
   isGardiennageAutoClosureReport,
@@ -22,7 +25,6 @@ import {
 import { buildGardiennageSlotsFromSnapshot } from "../model/gardiennagePlannerEngine";
 import {
   buildEffectivePlanningSnapshot,
-  GARDIENNAGE_OPEN_ENDED_EXTEND_WHEN_DAYS_LEFT,
   GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
   inferPlanningModeFromSnapshot,
   isPlanningFormValid,
@@ -38,12 +40,21 @@ import {
   GARDIENNAGE_WEEKDAYS_ALL_MASK,
   isIsoDate as isPlanningIsoDate
 } from "../model/gardiennagePlanningCalendar";
+import {
+  gardiennagePlanningLineDisplayNumber,
+  normalizeGardiennagePlanningLinesNewestFirst,
+  syncGardiennagePlanningLineLabels
+} from "../utils/gardiennagePlanningLineOrder";
+import { resolveGardiennageValidityWeekdayLock } from "../utils/resolveGardiennageValidityWeekdayLock";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { TimeInput } from "../../common/components/TimeInput";
+import { DateInput } from "../../common/components/DateInput";
+import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
+import { GardiennagePlanningLinesRecap } from "./GardiennagePlanningLinesRecap";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { isGardiennagePreviewSlotClosed } from "../model/gardiennageClosure";
 export type GardiennageModalMode = "create" | "edit";
@@ -76,6 +87,8 @@ type GardiennageEntryModalProps = {
   onReopenEntry?: (id: string, expectedUpdatedAt: string) => Promise<boolean>;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
+  onCreatePendingSite?: (code: string, name: string) => Promise<boolean>;
+  onCreatePendingIntervenant?: (name: string) => Promise<boolean>;
   onNotify?: NotifyToast;
 };
 
@@ -132,19 +145,6 @@ function formatDurationMinutes(totalMin: number): string {
   return `${h}h${String(m).padStart(2, "0")}`;
 }
 
-function formatIsoFrDateTime(isoDateTime: string): string {
-  const date = new Date(isoDateTime);
-  if (Number.isNaN(date.getTime())) return isoDateTime;
-  return date.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
-}
-
 function parseTimeToMin(hhmm: string): number {
   if (!isValidPlanningTime(hhmm)) return -1;
   const [h, m] = hhmm.split(":").map(Number);
@@ -168,6 +168,8 @@ export function GardiennageEntryModal({
   onReopenEntry,
   onNavigateToLinkedIntervention,
   onNavigateToLinkedRonde,
+  onCreatePendingSite,
+  onCreatePendingIntervenant,
   onNotify
 }: GardiennageEntryModalProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -180,6 +182,9 @@ export function GardiennageEntryModal({
   const [pendingCode, setPendingCode] = useState("");
   const [pendingName, setPendingName] = useState("");
   const [pendingIntervenantName, setPendingIntervenantName] = useState("");
+  const newestLineRef = useRef<HTMLFieldSetElement | null>(null);
+  const prevNewestLineIdRef = useRef<string | null>(null);
+  const [highlightNewestLineId, setHighlightNewestLineId] = useState<string | null>(null);
 
   const createDefaultLine = (label = "Ligne 1", anchorDate?: string): GardiennagePlanningLineV1 => ({
     id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -189,7 +194,7 @@ export function GardiennageEntryModal({
     startTime: "",
     endTime: "",
     weekdaysMask: GARDIENNAGE_WEEKDAYS_ALL_MASK,
-    includeHolidays: true,
+    includeHolidays: false,
     includeHolidayEves: false
   });
 
@@ -206,7 +211,7 @@ export function GardiennageEntryModal({
       ...EMPTY_FORM,
       recurrenceStartDate: formatNowDate(),
       validFromDate: formatNowDate(),
-      validToDate: formatNowDate(),
+      validToDate: "",
       planningLines: [createDefaultLine()],
       ...(createPreset ? {
         siteId: createPreset.siteId,
@@ -275,7 +280,7 @@ export function GardiennageEntryModal({
       planningLines: isContinuous || isPonctuel
         ? []
         : (snap?.lines?.length
-          ? snap.lines
+          ? normalizeGardiennagePlanningLinesNewestFirst(snap.lines)
           : [{
             id: "legacy-line",
             label: "Ligne 1",
@@ -283,7 +288,7 @@ export function GardiennageEntryModal({
             startTime: entry.startTime || "",
             endTime: entry.endTime || "",
             weekdaysMask: GARDIENNAGE_WEEKDAYS_ALL_MASK,
-            includeHolidays: true,
+            includeHolidays: false,
             includeHolidayEves: false
           }])
     };
@@ -302,6 +307,56 @@ export function GardiennageEntryModal({
     form.intervenantId ? (intervenants.find((i) => i.id === form.intervenantId) ?? null) : null;
 
   const planningMode = resolvePlanningFormMode(form.isPonctuel, form.isContinuous);
+
+  const validityRangeWeekdayLock = useMemo(() => {
+    if (planningMode !== "recurring") return null;
+    return resolveGardiennageValidityWeekdayLock({
+      validFrom: form.validFromDate,
+      validTo: form.validToDate
+    });
+  }, [planningMode, form.validFromDate, form.validToDate]);
+  const lockWeekdaysFromValidityRange = validityRangeWeekdayLock != null;
+
+  useEffect(() => {
+    if (validityRangeWeekdayLock == null) return;
+    setForm((prev) => {
+      let changed = false;
+      const nextLines = prev.planningLines.map((line) => {
+        if (isPlanningIsoDate(line.anchorDate)) return line;
+        let draft = line;
+        if (draft.weekdaysMask !== validityRangeWeekdayLock) {
+          draft = { ...draft, weekdaysMask: validityRangeWeekdayLock };
+          changed = true;
+        }
+        if (draft.includeHolidays || draft.includeHolidayEves) {
+          draft = { ...draft, includeHolidays: false, includeHolidayEves: false };
+          changed = true;
+        }
+        return draft;
+      });
+      return changed ? { ...prev, planningLines: nextLines } : prev;
+    });
+  }, [validityRangeWeekdayLock]);
+
+  useEffect(() => {
+    if (!isOpen || planningMode !== "recurring") {
+      prevNewestLineIdRef.current = null;
+      setHighlightNewestLineId(null);
+      return;
+    }
+    const newestId = form.planningLines[0]?.id ?? null;
+    if (!newestId || newestId === prevNewestLineIdRef.current) {
+      prevNewestLineIdRef.current = newestId;
+      return;
+    }
+    const isAddition = prevNewestLineIdRef.current != null && form.planningLines.length > 1;
+    prevNewestLineIdRef.current = newestId;
+    if (!isAddition) return;
+    setHighlightNewestLineId(newestId);
+    newestLineRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const timer = window.setTimeout(() => setHighlightNewestLineId(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, planningMode, form.planningLines]);
 
   const applyPlanningMode = (mode: GardiennagePlanningFormMode) => {
     setForm((f) => {
@@ -331,7 +386,6 @@ export function GardiennageEntryModal({
         ...f,
         isPonctuel: false,
         isContinuous: false,
-        validToDate: f.validToDate.trim() || f.validFromDate || formatNowDate(),
         planningLines: f.planningLines.length ? f.planningLines : [createDefaultLine()]
       };
     });
@@ -367,6 +421,14 @@ export function GardiennageEntryModal({
       return acc + Math.round((end - start) / 60000);
     }, 0),
     [previewSlots]
+  );
+  const previewPerLineCounts = useMemo(
+    () => form.planningLines.map((line) => previewSlots.filter((slot) => slot.lineId === line.id).length),
+    [form.planningLines, previewSlots]
+  );
+  const previewClosedSlotsCount = useMemo(
+    () => previewSlots.filter((slot) => isGardiennagePreviewSlotClosed(slot, batchEntries)).length,
+    [previewSlots, batchEntries]
   );
   const linesOverlapError = useMemo(() => {
     if (planningMode !== "recurring" || form.planningLines.length <= 1) return "";
@@ -487,7 +549,26 @@ export function GardiennageEntryModal({
       let ok = false;
       if (isCreateMode) {
         let pendingSiteDisplay: string | null = null;
-        if (!selectedSite && (pendingCode.trim() || pendingName.trim())) {
+        let pendingIntervenantDisplay: string | null = null;
+        if (canCreatePendingRefs && onCreatePendingSite && onCreatePendingIntervenant) {
+          const pendingResult = await createPendingRefsIfNeededForSubmit({
+            selectedFromCatalogSite: Boolean(selectedSite),
+            selectedFromCatalogIntervenant: Boolean(selectedIntervenant),
+            pendingCode,
+            pendingName,
+            pendingIntervenantInput: pendingIntervenantName,
+            onCreatePendingSite,
+            onCreatePendingIntervenant
+          });
+          if (!pendingResult.ok) {
+            if (pendingResult.errorMessage) {
+              onNotify?.(pendingResult.errorMessage, "warning");
+            }
+            return;
+          }
+          pendingSiteDisplay = pendingResult.createdSiteDisplay;
+          pendingIntervenantDisplay = pendingResult.createdIntervenantName;
+        } else if (!selectedSite && (pendingCode.trim() || pendingName.trim())) {
           if (!pendingCode.trim() || !pendingName.trim()) {
             onNotify?.("Pour \"Site introuvable\", renseignez le code et le nom.", "warning");
             return;
@@ -499,7 +580,9 @@ export function GardiennageEntryModal({
           ? `${selectedSite.name} (${selectedSite.code})`
           : pendingSiteDisplay || "";
         const finalIntervenantId = selectedIntervenant?.id ?? null;
-        const finalIntervenantName = selectedIntervenant?.name || pendingIntervenantName.trim();
+        const finalIntervenantName = selectedIntervenant?.name
+          || pendingIntervenantDisplay
+          || pendingIntervenantName.trim();
         if (!finalSiteId && !finalSiteDisplay) {
           onNotify?.("Sélectionnez un site ou utilisez le bloc \"Site introuvable\".", "warning");
           return;
@@ -688,8 +771,7 @@ export function GardiennageEntryModal({
                         <span className="gardiennage-validity-lead">Validité</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date</span>
-                          <input
-                            type="date"
+                          <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
                             onChange={(e) => setForm((f) => ({ ...f, validFromDate: e.target.value }))}
@@ -721,8 +803,7 @@ export function GardiennageEntryModal({
                         <span className="gardiennage-validity-lead">Validité du</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date</span>
-                          <input
-                            type="date"
+                          <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
                             onChange={(e) => setForm((f) => ({
@@ -744,8 +825,7 @@ export function GardiennageEntryModal({
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date fin</span>
                           <span className="gardiennage-date-input-wrap">
-                            <input
-                              type="date"
+                            <DateInput
                               className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
                               value={form.validToDate}
                               disabled={isSaving || isAnnule || isReadOnlyByRole}
@@ -781,8 +861,7 @@ export function GardiennageEntryModal({
                         <span className="gardiennage-validity-lead">Validité du</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date</span>
-                          <input
-                            type="date"
+                          <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
                             onChange={(e) => setForm((f) => ({
@@ -795,13 +874,21 @@ export function GardiennageEntryModal({
                         <span className="gardiennage-date-sep">au</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date</span>
-                          <input
-                            type="date"
-                            value={form.validToDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            min={form.validFromDate || undefined}
-                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                          />
+                          <span className="gardiennage-date-input-wrap">
+                            <DateInput
+                              className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
+                              value={form.validToDate}
+                              disabled={isSaving || isAnnule || isReadOnlyByRole}
+                              min={form.validFromDate || undefined}
+                              required
+                              aria-required="true"
+                              aria-label="Date de fin de validité (obligatoire)"
+                              onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                            />
+                            {!form.validToDate.trim() ? (
+                              <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
+                            ) : null}
+                          </span>
                         </label>
                       </div>
                     )}
@@ -829,10 +916,13 @@ export function GardiennageEntryModal({
                       title="Ajouter une ligne"
                       aria-label="Ajouter une ligne"
                       onClick={() => setForm((f) => {
-                        const nextIndex = f.planningLines.length + 1;
+                        const nextLabel = `Ligne ${f.planningLines.length + 1}`;
                         return {
                           ...f,
-                          planningLines: [...f.planningLines, createDefaultLine(`Ligne ${nextIndex}`)]
+                          planningLines: syncGardiennagePlanningLineLabels([
+                            createDefaultLine(nextLabel),
+                            ...f.planningLines
+                          ])
                         };
                       })}
                     >
@@ -841,19 +931,36 @@ export function GardiennageEntryModal({
                   )}
                 >
                   <div className="gardiennage-planning-lines">
-                    {form.planningLines.map((line, index) => (
-                      <fieldset key={line.id} className="gardiennage-planning-line">
+                    {form.planningLines.map((line, index) => {
+                      const displayNumber = gardiennagePlanningLineDisplayNumber(index, form.planningLines.length);
+                      const isNewest = index === 0;
+                      return (
+                      <fieldset
+                        key={line.id}
+                        ref={isNewest ? newestLineRef : undefined}
+                        className={[
+                          "gardiennage-planning-line",
+                          highlightNewestLineId === line.id ? "gardiennage-planning-line--just-added" : ""
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
                         <legend className="gardiennage-planning-line__legend">
-                          <span className="gardiennage-planning-line__legend-label">Ligne {index + 1}</span>
+                          <span className="gardiennage-planning-line__legend-label">Ligne {displayNumber}</span>
                           <button
                             type="button"
                             className="btn-danger action-icon-btn gardiennage-planning-line__remove"
                             disabled={isSaving || isAnnule || isReadOnlyByRole || form.planningLines.length === 1}
                             title={form.planningLines.length === 1 ? "Au moins une ligne de planification est requise" : "Supprimer cette ligne"}
-                            aria-label={form.planningLines.length === 1 ? "Suppression impossible : une seule ligne" : "Supprimer cette ligne"}
+                            aria-label={form.planningLines.length === 1 ? "Suppression impossible : une seule ligne" : `Supprimer la ligne ${displayNumber}`}
                             onClick={() => {
                               if (form.planningLines.length <= 1) return;
-                              setForm((f) => ({ ...f, planningLines: f.planningLines.filter((it) => it.id !== line.id) }));
+                              setForm((f) => ({
+                                ...f,
+                                planningLines: syncGardiennagePlanningLineLabels(
+                                  f.planningLines.filter((it) => it.id !== line.id)
+                                )
+                              }));
                             }}
                           >
                             <Trash2 size={14} aria-hidden />
@@ -900,8 +1007,7 @@ export function GardiennageEntryModal({
                         </label>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date (optionnelle)</span>
-                          <input
-                            type="date"
+                          <DateInput
                             value={line.anchorDate || ""}
                             min={form.validFromDate || undefined}
                             max={form.validToDate || undefined}
@@ -916,16 +1022,15 @@ export function GardiennageEntryModal({
                       <GardiennagePlanningLineWeekdays
                         line={line}
                         disabled={isSaving || isAnnule || isReadOnlyByRole}
+                        lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
                         onChange={(patch) => setForm((f) => ({
                           ...f,
                           planningLines: f.planningLines.map((it) => (it.id === line.id ? { ...it, ...patch } : it))
                         }))}
                       />
                       </fieldset>
-                    ))}
-                    <p className="muted mc-ref-hint gardiennage-planning-lines-hint">
-                      Sans date, la ligne s&apos;applique selon les jours cochés (L à D, JF). Ex. nuit lun–ven : 20:00 → 08:00, décocher Sam et Dim. Avec date, seul ce jour est ciblé.
-                    </p>
+                      );
+                    })}
                   </div>
                   {linesOverlapError && (
                     <p className="mc-ref-hint text-error">
@@ -935,42 +1040,28 @@ export function GardiennageEntryModal({
                 </CreateFormSection>
               )}
 
-              <CreateFormSection title="Prévisualisation">
-                <p className="muted mc-ref-hint">
-                  {previewSlots.length} créneau(x) généré(s) sur la validité configurée · Total effectif: {formatDurationMinutes(previewTotalMinutes)}.
-                  {planningMode === "h24" && !form.validToDate.trim() ? (
-                    <> · Horizon glissant : au moins {GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS} jours à l&apos;avance (prolongation automatique).</>
-                  ) : null}
-                </p>
-                <div className="app-scroll-panel gardiennage-planning-preview-panel">
-                  {previewSlots.slice(0, 40).map((slot) => {
-                    const slotClosed = isGardiennagePreviewSlotClosed(slot, batchEntries);
-                    return (
-                      <p
-                        key={`${slot.lineId}-${slot.startIso}`}
-                        className="muted mc-ref-hint gardiennage-planning-preview-row"
-                      >
-                        {slotClosed ? (
-                          <Check
-                            size={14}
-                            className="gardiennage-planning-preview-row__check"
-                            aria-label="Créneau clôturé"
-                          />
-                        ) : (
-                          <span className="gardiennage-planning-preview-row__check-spacer" aria-hidden />
-                        )}
-                        <span>
-                          {slot.lineLabel} · {formatIsoFrDateTime(slot.startIso)} → {formatIsoFrDateTime(slot.endIso)}
-                          {slot.crossesMidnight ? " (passage minuit)" : ""}
-                          {slotClosed ? " · Clôturé" : ""}
-                        </span>
-                      </p>
-                    );
-                  })}
-                  {previewSlots.length === 0 && <p className="muted mc-ref-hint" style={{ margin: 0 }}>Aucun créneau généré.</p>}
-                  {previewSlots.length > 40 && <p className="muted mc-ref-hint" style={{ margin: "4px 0 0 0" }}>… aperçu limité à 40 lignes.</p>}
-                </div>
-              </CreateFormSection>
+              <GardiennagePlanningLinesRecap
+                mode={planningMode}
+                isEdit={!isCreateMode}
+                lines={form.planningLines}
+                lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
+                validFromDate={form.validFromDate}
+                validFromTime={form.validFromTime}
+                validToDate={
+                  planningMode === "ponctuel"
+                    ? form.validFromDate
+                    : planningMode === "h24" && !form.validToDate.trim()
+                      ? ""
+                      : form.validToDate
+                }
+                validToTime={form.validToTime}
+                perLineCounts={previewPerLineCounts}
+                totalSlots={previewSlots.length}
+                totalMinutesLabel={formatDurationMinutes(previewTotalMinutes)}
+                closedSlotsCount={previewClosedSlotsCount}
+                openEnded={planningMode === "h24" && !form.validToDate.trim()}
+                openEndedHorizonDays={GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS}
+              />
 
               {/* CONSIGNE */}
               <CreateFormSection title="Consigne">

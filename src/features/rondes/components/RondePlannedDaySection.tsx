@@ -16,6 +16,7 @@ import {
 } from "../model/plannedSlots";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { DateInput } from "../../common/components/DateInput";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { enumerateInclusiveDateIsos, findPlannedEntryForSlot, hhmmToMinutes } from "../utils/rondeDateTime";
 import { extractRondeRequestedTimeHm } from "../utils/rondePassageRules";
@@ -198,8 +199,7 @@ export function RondePlannedDaySection({
           >
             <ChevronLeft size={18} />
           </button>
-          <input
-            type="date"
+          <DateInput
             className="gard-date-nav-input"
             value={dayIso}
             onChange={(e) => e.target.value && setDayIso(e.target.value)}

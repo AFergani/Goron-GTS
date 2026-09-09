@@ -7,6 +7,7 @@ import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyBu
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import { TimeInput } from "../../common/components/TimeInput";
+import { DateInput } from "../../common/components/DateInput";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { NotifyToast } from "../../common/model/toast.types";
 
@@ -84,8 +85,7 @@ export function InterventionRequestMetaSection(props: InterventionRequestMetaSec
       <div className="mc-form-grid intervention-request-meta-grid">
         <label className="mc-field">
           <span>Date de la demande</span>
-          <input
-            type="date"
+          <DateInput
             value={requestDate}
             disabled={formLockedClosed}
             onChange={(e) => onRequestDateChange(e.target.value)}

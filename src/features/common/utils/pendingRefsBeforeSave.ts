@@ -10,7 +10,8 @@
  * `PENDING_*_CREATE_HINT` : textes d’aide affichés dans `PendingSiteIntervenantRefActions`.
  *
  * Utilisé par : InterventionEntryModal, RondeEntryModal, RondeRequestModal,
- * MainCouranteEntryModal (`createPendingSiteIfNeededForSubmit` uniquement).
+ * MainCouranteEntryModal (`createPendingSiteIfNeededForSubmit` uniquement),
+ * GardiennageEntryModal.
  */
 
 /** Résultat site + prestataire avant soumission */

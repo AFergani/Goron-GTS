@@ -23,6 +23,10 @@ type LoginViewProps = {
   onChange: (next: LoginFormState) => void;
   /** Ouvre la réinitialisation validée par un collègue présent. */
   onOpenPeerReset: () => void;
+  /** Affiche le lien de récupération si PostgreSQL est injoignable. */
+  showDbRecoveryLink?: boolean;
+  /** Ouvre l'écran de reconfiguration de la connexion DB. */
+  onOpenDbRecovery?: () => void;
 };
 
 export function LoginView({
@@ -33,7 +37,9 @@ export function LoginView({
   onCloseLockedDialog,
   onLogin,
   onChange,
-  onOpenPeerReset
+  onOpenPeerReset,
+  showDbRecoveryLink = false,
+  onOpenDbRecovery
 }: LoginViewProps) {
   return (
     <main className="auth-page">
@@ -95,9 +101,16 @@ export function LoginView({
             )}
           </button>
         </form>
-        <button type="button" className="link-btn" onClick={onOpenPeerReset} disabled={isLoggingIn}>
-          Mot de passe oublié ?
-        </button>
+        <div className="login-links">
+          <button type="button" className="link-btn" onClick={onOpenPeerReset} disabled={isLoggingIn}>
+            Mot de passe oublié ?
+          </button>
+          {showDbRecoveryLink && onOpenDbRecovery ? (
+            <button type="button" className="link-btn" onClick={onOpenDbRecovery} disabled={isLoggingIn}>
+              Base de données inaccessible ?
+            </button>
+          ) : null}
+        </div>
         {isLoggingIn ? (
           <p className="muted login-status" role="status">
             Vérification de l&apos;identité et accès à la base…

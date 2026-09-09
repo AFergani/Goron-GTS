@@ -283,8 +283,8 @@
   margin: 0;
 }
 
-.pending-ref-inline-form-column .mc-field input,
-.pending-ref-inline-grid .mc-field input {
+.pending-ref-inline-form-column .mc-field input:not([type="date"]):not([type="time"]),
+.pending-ref-inline-grid .mc-field input:not([type="date"]):not([type="time"]) {
   width: 100%;
 }
 
@@ -1015,6 +1015,18 @@ th {
 .link-btn:hover {
   background: transparent;
   text-decoration: underline;
+}
+
+.login-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.login-links .link-btn {
+  margin-top: 0;
 }
 
 /* Bloc d'identification du collègue validateur (modale « mot de passe oublié ») */
@@ -2276,12 +2288,13 @@ th {
 }
 
 /* -------------------------------------------------------------------------
-   Listes métier (Main courante, Interventions, Rondes) — même comportement :
+   Listes métier (Main courante, Interventions, Rondes, Gardiennage) — même comportement :
    largeur maîtrisée par colgroup %, texte long qui s’étend vers le bas (wrap).
    ------------------------------------------------------------------------- */
 .main-courante-table.ronde-table,
 .main-courante-table.intervention-table,
-.main-courante-table.mc-entries-table {
+.main-courante-table.mc-entries-table,
+.main-courante-table.gardiennage-table {
   table-layout: fixed;
   width: 100%;
   min-width: 0;
@@ -2289,7 +2302,8 @@ th {
 
 .main-courante-table.ronde-table tbody td,
 .main-courante-table.intervention-table tbody td,
-.main-courante-table.mc-entries-table tbody td {
+.main-courante-table.mc-entries-table tbody td,
+.main-courante-table.gardiennage-table tbody td {
   box-sizing: border-box;
   min-width: 0;
   white-space: normal;
@@ -2304,7 +2318,8 @@ th {
 }
 
 .main-courante-table.intervention-table tbody td,
-.main-courante-table.ronde-table tbody td {
+.main-courante-table.ronde-table tbody td,
+.main-courante-table.gardiennage-table tbody td {
   vertical-align: middle;
 }
 
@@ -3830,7 +3845,8 @@ th {
   flex-wrap: wrap;
 }
 
-.ronde-request-recap__line + .ronde-request-recap__line {
+.ronde-request-recap__line + .ronde-request-recap__line,
+.gardiennage-planning-recap__line + .gardiennage-planning-recap__line {
   margin-top: 4px;
 }
 
@@ -4131,11 +4147,12 @@ fieldset.ronde-planned-weekdays {
   min-width: 0;
 }
 
-.ronde-planned-profile-line--just-added {
-  animation: ronde-line-just-added 1.2s ease;
+.ronde-planned-profile-line--just-added,
+.gardiennage-planning-line--just-added {
+  animation: planning-line-just-added 1.2s ease;
 }
 
-@keyframes ronde-line-just-added {
+@keyframes planning-line-just-added {
   0% {
     border-color: var(--accent, #2563eb);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #2563eb) 25%, transparent);
@@ -5050,15 +5067,34 @@ fieldset.ronde-planned-weekdays {
    ========================================== */
 
 /* Table gardiennage */
-.main-courante-table.gardiennage-table col.gard-col-created { width: 170px; }
+.main-courante-table.gardiennage-table col.gard-col-created { width: 110px; }
 .main-courante-table.gardiennage-table col.gard-col-site { width: 200px; }
-.main-courante-table.gardiennage-table col.gard-col-periode { width: 160px; }
-.main-courante-table.gardiennage-table col.gard-col-creneau { width: 130px; }
 .main-courante-table.gardiennage-table col.gard-col-presta { width: 140px; }
-.main-courante-table.gardiennage-table col.gard-col-statut { width: 100px; }
-.main-courante-table.gardiennage-table col.gard-col-actions { width: 70px; }
+.main-courante-table.gardiennage-table col.gard-col-planning { width: 220px; }
+.main-courante-table.gardiennage-table col.gard-col-status-actions { width: 200px; }
+
+.main-courante-table.gardiennage-table thead th.gard-col-status-actions,
+.main-courante-table.gardiennage-table tbody td.gard-col-status-actions {
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.main-courante-table.gardiennage-table tbody td.gard-col-status-actions .table-row-actions {
+  justify-content: center;
+  margin-left: 0;
+}
 
 .gardiennage-created-cell {
+  /* Pas de display:flex sur le <td> : ça casse la hauteur de ligne / bordure (cf. ronde-request-date-cell). */
+  vertical-align: middle;
+}
+
+.gardiennage-planning-cell {
+  vertical-align: middle;
+}
+
+.gardiennage-planning-cell__inner {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -5354,9 +5390,23 @@ fieldset.ronde-planned-weekdays {
   gap: 4px;
 }
 
-.gardiennage-planning-validity .gardiennage-date-field input,
-.gardiennage-planning-validity .gardiennage-time-field input {
-  width: auto;
+/* Date / heure : mêmes largeurs que le référentiel global (ex. Heure de la demande). */
+.gardiennage-date-field input[type="date"],
+.gardiennage-date-input-wrap input[type="date"],
+.gardiennage-planning-validity .gardiennage-date-field input[type="date"],
+.gardiennage-horaires-row .gardiennage-date-field input[type="date"] {
+  width: var(--gts-input-date-width);
+  min-width: var(--gts-input-date-width);
+  max-width: var(--gts-input-date-width);
+}
+
+.gardiennage-time-field input[type="time"],
+.gardiennage-date-input-wrap input[type="time"],
+.gardiennage-planning-validity .gardiennage-time-field input[type="time"],
+.gardiennage-horaires-row .gardiennage-time-field input[type="time"] {
+  width: var(--gts-input-time-width);
+  min-width: var(--gts-input-time-width);
+  max-width: var(--gts-input-time-width);
 }
 
 /* Lignes planification gardiennage — encadré comme ronde ponctuelle */
@@ -5636,12 +5686,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .gard-date-nav-input {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surf);
-  color: inherit;
-  font-size: 0.88em;
+  /* Aligné sur les DatePicker globaux (--gts-input-date-width / hauteur contrôle). */
   cursor: pointer;
 }
 

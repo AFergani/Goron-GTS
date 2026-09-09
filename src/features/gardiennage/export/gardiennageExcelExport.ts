@@ -8,6 +8,7 @@
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import type { GardiennageEntry } from "../model/gardiennage.types";
+import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 
 const HEADERS = [
@@ -38,13 +39,6 @@ function formatPeriod(entry: GardiennageEntry): string {
   return `${start} -> ${formatDateFr(entry.recurrenceEndDate)}`;
 }
 
-function formatStatus(status: GardiennageEntry["status"]): string {
-  if (status === "ACTIF") return "Actif";
-  if (status === "CLOTURE") return "Clôturé";
-  if (status === "ANNULE") return "Annulé";
-  return "En cours";
-}
-
 function formatSchedule(entry: GardiennageEntry): string {
   if (!entry.startTime || !entry.endTime) return "";
   return entry.crossesMidnight ? `${entry.startTime} -> ${entry.endTime} (nuit)` : `${entry.startTime} -> ${entry.endTime}`;
@@ -58,7 +52,7 @@ export function exportGardiennageToExcel(entries: GardiennageEntry[]): void {
       formatPeriod(entry),
       formatSchedule(entry),
       entry.intervenantName || "",
-      formatStatus(entry.status),
+      statusLabelFr(entry.status),
       entry.notes || "",
       entry.closureReport || "",
       entry.workOrderNumber || "",

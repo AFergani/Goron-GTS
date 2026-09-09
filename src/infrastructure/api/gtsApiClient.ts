@@ -131,7 +131,11 @@ export const gtsApiClient = {
     return sessionOnlyCall(window.gtsApi.getPostgresLabHealth);
   },
   /** Premier paramétrage PG (sans session) — avant login si aucune config connue. */
-  getPostgresBootstrapStatus(): Promise<{ needsSetup: boolean; config: PublicPostgresConfig }> {
+  getPostgresBootstrapStatus(): Promise<{
+    needsSetup: boolean;
+    reachable: boolean;
+    config: PublicPostgresConfig;
+  }> {
     return window.gtsApi.getPostgresBootstrapStatus();
   },
   savePostgresBootstrapConfig(payload: {

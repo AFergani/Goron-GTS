@@ -1,7 +1,7 @@
 /**
  * Format date court français (calendaire ISO → JJ/MM/AAAA).
  *
- * Utilisé par exports Word et libellés UI (intervention, rondes, récaps).
+ * Utilisé par exports Word et libellés UI (intervention, rondes, gardiennage, récaps).
  * Les champs `<input type="date">` restent en ISO AAAA-MM-JJ en valeur interne.
  */
 

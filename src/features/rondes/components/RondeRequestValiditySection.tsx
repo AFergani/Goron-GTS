@@ -3,6 +3,7 @@
  */
 
 import { TimeInput } from "../../common/components/TimeInput";
+import { DateInput } from "../../common/components/DateInput";
 
 type RondeRequestValiditySectionProps = {
   validFrom: string;
@@ -32,8 +33,7 @@ export function RondeRequestValiditySection({
   return (
     <div className="ronde-planned-profile-modal__validity-inline">
       <span className="ronde-planned-profile-modal__validity-label">Validité - Du</span>
-      <input
-        type="date"
+      <DateInput
         value={validFrom}
         disabled={readOnly}
         onChange={(e) => onValidFromChange(e.target.value)}
@@ -49,8 +49,7 @@ export function RondeRequestValiditySection({
       {!isSingleDay ? (
         <>
           <span className="ronde-planned-profile-modal__validity-label">Au</span>
-          <input
-            type="date"
+          <DateInput
             value={validTo}
             disabled={readOnly}
             onChange={(e) => onValidToChange(e.target.value)}

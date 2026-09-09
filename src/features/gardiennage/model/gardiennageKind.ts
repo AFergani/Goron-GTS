@@ -1,7 +1,7 @@
 /**
  * Classification visuelle d'un gardiennage (badge liste / journée).
  *
- * Distingue H24, ponctuel et récurrent, puis jour vs nuit (passage minuit).
+ * Distingue présence continue (H24), série jour/nuit, et unique (aujourd'hui / cette nuit).
  * Utilisé par : `GardiennageTable`.
  */
 
@@ -24,32 +24,32 @@ export type GardiennageKindBadge = {
 
 const KIND_H24: GardiennageKindBadge = {
   id: "h24",
-  label: "H24",
-  title: "Présence continue H24"
+  label: "Présence continue",
+  title: "Présence continue H24 (sans interruption)"
 };
 
 const KIND_RECURRING_NIGHT: GardiennageKindBadge = {
   id: "recurring-night",
-  label: "Récurrente nuit",
-  title: "Planification récurrente de nuit"
+  label: "Présence nuit",
+  title: "Présence de nuit sur une période (créneau récurrent)"
 };
 
 const KIND_RECURRING_DAY: GardiennageKindBadge = {
   id: "recurring-day",
-  label: "Récurrente jour",
-  title: "Planification récurrente de jour"
+  label: "Présence jour",
+  title: "Présence de jour sur une période (créneau récurrent)"
 };
 
 const KIND_PONCTUEL_NIGHT: GardiennageKindBadge = {
   id: "ponctuel-night",
-  label: "Ponctuel nuit",
-  title: "Journée unique de nuit"
+  label: "Cette nuit",
+  title: "Présence unique de nuit (une seule occurrence)"
 };
 
 const KIND_PONCTUEL_DAY: GardiennageKindBadge = {
   id: "ponctuel-day",
-  label: "Ponctuel jour",
-  title: "Journée unique de jour"
+  label: "Aujourd'hui",
+  title: "Présence unique de jour (une seule occurrence)"
 };
 
 /**

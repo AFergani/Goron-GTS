@@ -106,6 +106,8 @@ class UserStore {
 
     /** Promesse de branchement PG labo (démarrage / bascule). */
     this._pgAttachPromise = null;
+    /** Dedup des appels concurrents à `ensurePostgresAttached`. */
+    this._pgEnsureInFlight = null;
 
     /** Chemin local du journal d'événements PG (perte / retour connexion). */
     this._postgresEventLogPath = resolvePostgresEventLogPathHelper(options.userDataPath);
@@ -172,6 +174,44 @@ class UserStore {
       "Base PostgreSQL inaccessible. La gestion des comptes et la connexion sont indisponibles tant que le serveur n'est pas disponible.",
       "PG_UNAVAILABLE"
     );
+  }
+
+  /**
+   * Réouvre le pool PostgreSQL si besoin (ex. Docker relancé après panne).
+   * La sonde `SELECT 1` peut réussir alors que `referentialsPersistence` est encore null.
+   *
+   * @returns {Promise<boolean>} `true` si le pool utilisateurs est ouvert
+   */
+  async ensurePostgresAttached() {
+    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+      return true;
+    }
+    if (this._pgEnsureInFlight) {
+      return this._pgEnsureInFlight;
+    }
+    this._pgEnsureInFlight = (async () => {
+      try {
+        if (this._pgAttachPromise) {
+          try {
+            await this._pgAttachPromise;
+          } catch {
+            // Nouvelle tentative ci-dessous.
+          }
+          if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+            return true;
+          }
+        }
+        this._pgAttachPromise = this.attachPostgresAuditLab({ forceReconnect: true });
+        const result = await this._pgAttachPromise;
+        return Boolean(result?.attached) && Boolean(this.referentialsPersistence?.isOpen());
+      } catch {
+        this._pgAttachPromise = null;
+        return false;
+      } finally {
+        this._pgEnsureInFlight = null;
+      }
+    })();
+    return this._pgEnsureInFlight;
   }
 
   /**
@@ -438,16 +478,19 @@ class UserStore {
 
   async login({ username, password }) {
     await this.whenPostgresReady();
+    await this.ensurePostgresAttached();
     return authUsersDomain.login(this, { username, password, role: ROLE });
   }
 
   async completeFirstLogin({ username, temporaryPassword, newPassword }) {
     await this.whenPostgresReady();
+    await this.ensurePostgresAttached();
     return authUsersDomain.completeFirstLogin(this, { username, temporaryPassword, newPassword });
   }
 
   async resetPasswordWithPeerValidation({ fullName, validatorFullName, validatorPassword, reason }) {
     await this.whenPostgresReady();
+    await this.ensurePostgresAttached();
     return authUsersDomain.resetPasswordWithPeerValidation(this, {
       fullName,
       validatorFullName,

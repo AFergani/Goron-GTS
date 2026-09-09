@@ -8,6 +8,7 @@
 
 import type { ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
+import { DateInput } from "./DateInput";
 
 type TableFiltersBarProps = {
   search: string;
@@ -50,12 +51,11 @@ export function TableFiltersBar({
           <div className="main-log-filters-date-range" role="group" aria-label="Période">
             <label className="main-log-filter-field--date">
               Du
-              <input type="date" value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} />
+              <DateInput value={dateFrom} onChange={(e) => onDateFromChange(e.target.value)} />
             </label>
             <label className="main-log-filter-field--date">
               Au
-              <input
-                type="date"
+              <DateInput
                 value={dateTo}
                 min={dateFrom || undefined}
                 onChange={(e) => onDateToChange(e.target.value)}

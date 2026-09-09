@@ -19,8 +19,8 @@ import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { exportMainCouranteToExcel } from "../export/mainCouranteExcelExport";
 import { exportMainCouranteEntryToWord } from "../export/mainCouranteWordExport";
+import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { getCurrentMonthSummaryTitle } from "../../common/utils/currentMonthSummary";
 
 const MAIN_COURANTE_FILTERS_STORAGE_KEY = "mainCourante.filters.v1";
 
@@ -251,27 +251,14 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
 
   return (
     <>
-      <section className="panel main-log-stats-block">
-        <h2 className="main-log-stats-title">{getCurrentMonthSummaryTitle()}</h2>
-        <div className="main-log-stats">
-          <div className="stat-card">
-            <span>Total</span>
-            <strong>{stats.total}</strong>
-          </div>
-          <div className="stat-card">
-            <span>En attente</span>
-            <strong>{stats.waiting}</strong>
-          </div>
-          <div className="stat-card">
-            <span>En cours</span>
-            <strong>{stats.inProgress}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Clôturés</span>
-            <strong>{stats.closed}</strong>
-          </div>
-        </div>
-      </section>
+      <MonthSummaryStatsBlock
+        cards={[
+          { label: "Total", value: stats.total },
+          { label: "En attente", value: stats.waiting },
+          { label: "En cours", value: stats.inProgress },
+          { label: "Clôturés", value: stats.closed }
+        ]}
+      />
 
       <section className="panel main-courante-table-panel">
         {referencesError ? <p className="error main-log-ref-error">{referencesError}</p> : null}

@@ -1,8 +1,19 @@
 /**
- * Barre de filtres liste rondes (recherche, dates, famille, prestataire, statut).
+ * Barre de filtres liste rondes (délègue au module partagé `ServiceListFiltersBar`).
  */
 
-import { TableFiltersBar } from "../../common/components/TableFiltersBar";
+import {
+  ServiceListFiltersBar,
+  type ServiceListIntervenantOption,
+  type ServiceListStatusOption
+} from "../../common/components/ServiceListFiltersBar";
+
+const RONDE_STATUS_OPTIONS: ServiceListStatusOption[] = [
+  { value: "EN_COURS", label: "En cours" },
+  { value: "", label: "Tous" },
+  { value: "CLOTURE", label: "Clôturé" },
+  { value: "ANNULE", label: "Annulé / Non effectuée" }
+];
 
 type RondeListFiltersBarProps = {
   search: string;
@@ -17,72 +28,17 @@ type RondeListFiltersBarProps = {
   familyOptions: string[];
   intervenantFilter: string;
   onIntervenantFilterChange: (value: string) => void;
-  intervenantOptions: Array<{ id: string; name: string }>;
+  intervenantOptions: ServiceListIntervenantOption[];
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
 };
 
-export function RondeListFiltersBar({
-  search,
-  onSearchChange,
-  dateFrom,
-  onDateFromChange,
-  dateTo,
-  onDateToChange,
-  onReset,
-  familyFilter,
-  onFamilyFilterChange,
-  familyOptions,
-  intervenantFilter,
-  onIntervenantFilterChange,
-  intervenantOptions,
-  statusFilter,
-  onStatusFilterChange
-}: RondeListFiltersBarProps) {
+export function RondeListFiltersBar(props: RondeListFiltersBarProps) {
   return (
-    <div className="list-panel-filters">
-      <TableFiltersBar
-        search={search}
-        onSearchChange={onSearchChange}
-        dateFrom={dateFrom}
-        onDateFromChange={onDateFromChange}
-        dateTo={dateTo}
-        onDateToChange={onDateToChange}
-        searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
-        onReset={onReset}
-      >
-        <label>
-          Famille
-          <select value={familyFilter} onChange={(e) => onFamilyFilterChange(e.target.value)}>
-            <option value="">Toutes</option>
-            {familyOptions.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Prestataire
-          <select value={intervenantFilter} onChange={(e) => onIntervenantFilterChange(e.target.value)}>
-            <option value="">Tous</option>
-            {intervenantOptions.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Statut
-          <select value={statusFilter} onChange={(e) => onStatusFilterChange(e.target.value)}>
-            <option value="EN_COURS">En cours</option>
-            <option value="">Tous</option>
-            <option value="CLOTURE">Clôturé</option>
-            <option value="ANNULE">Annulé / Non effectuée</option>
-          </select>
-        </label>
-      </TableFiltersBar>
-    </div>
+    <ServiceListFiltersBar
+      {...props}
+      searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
+      statusOptions={RONDE_STATUS_OPTIONS}
+    />
   );
 }

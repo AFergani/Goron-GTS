@@ -13,7 +13,7 @@ import { Plus } from "lucide-react";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
-import { TableFiltersBar } from "../../common/components/TableFiltersBar";
+import { ServiceListFiltersBar } from "../../common/components/ServiceListFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { InterventionEntry } from "../model/intervention.types";
 import { useInterventionPresenter } from "../presenter/useInterventionPresenter";
@@ -26,8 +26,8 @@ import { RondeRequestModal } from "../../rondes/components/RondeRequestModal";
 import type { RondeMotifTypeRef, RondeSavePayload } from "../../rondes/model/ronde.types";
 import { GardiennageEntryModal } from "../../gardiennage/components/GardiennageEntryModal";
 import type { GardiennageSavePayload } from "../../gardiennage/model/gardiennage.types";
+import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { getCurrentMonthSummaryTitle } from "../../common/utils/currentMonthSummary";
 type InterventionPageProps = {
   requesterRole: Role;
   requesterUsername: string;
@@ -251,27 +251,14 @@ export function InterventionPage({
 
   return (
     <>
-      <section className="panel main-log-stats-block">
-        <h2 className="main-log-stats-title">{getCurrentMonthSummaryTitle()}</h2>
-        <div className="main-log-stats">
-          <div className="stat-card">
-            <span>Total</span>
-            <strong>{intervention.stats.total}</strong>
-          </div>
-          <div className="stat-card">
-            <span>En cours</span>
-            <strong>{intervention.stats.inProgress}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Clôturées</span>
-            <strong>{intervention.stats.closed}</strong>
-          </div>
-          <div className="stat-card">
-            <span>Annulées</span>
-            <strong>{intervention.stats.canceled}</strong>
-          </div>
-        </div>
-      </section>
+      <MonthSummaryStatsBlock
+        cards={[
+          { label: "Total", value: intervention.stats.total },
+          { label: "En cours", value: intervention.stats.inProgress },
+          { label: "Clôturées", value: intervention.stats.closed },
+          { label: "Annulées", value: intervention.stats.canceled }
+        ]}
+      />
 
       <section className="panel main-courante-table-panel">
         {references.error ? <p className="error">{references.error}</p> : null}
@@ -289,55 +276,29 @@ export function InterventionPage({
             Nouvelle intervention
           </button>
         </div>
-        <div className="list-panel-filters">
-          <TableFiltersBar
-            search={filters.search}
-            onSearchChange={filters.setSearch}
-            dateFrom={filters.dateFrom}
-            onDateFromChange={filters.setDateFrom}
-            dateTo={filters.dateTo}
-            onDateToChange={filters.setDateTo}
-            searchPlaceholder="Site, motif, prestataire, bon inter…"
-            onReset={() => {
-              filters.reset();
-              setStatusFilter("EN_COURS");
-              setFamilyFilter("");
-              setIntervenantFilter("");
-            }}
-          >
-            <label>
-              Famille
-              <select value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
-                <option value="">Toutes</option>
-                {familyOptions.map((family) => (
-                  <option key={family} value={family}>
-                    {family}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Prestataire
-              <select value={intervenantFilter} onChange={(e) => setIntervenantFilter(e.target.value)}>
-                <option value="">Tous</option>
-                {references.intervenants.map((intervenant) => (
-                  <option key={intervenant.id} value={intervenant.id}>
-                    {intervenant.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Statut
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="EN_COURS">En cours</option>
-                <option value="">Tous</option>
-                <option value="CLOTURE">Clôturé</option>
-                <option value="ANNULE">Annulé</option>
-              </select>
-            </label>
-          </TableFiltersBar>
-        </div>
+        <ServiceListFiltersBar
+          search={filters.search}
+          onSearchChange={filters.setSearch}
+          dateFrom={filters.dateFrom}
+          onDateFromChange={filters.setDateFrom}
+          dateTo={filters.dateTo}
+          onDateToChange={filters.setDateTo}
+          searchPlaceholder="Site, motif, prestataire, bon inter…"
+          onReset={() => {
+            filters.reset();
+            setStatusFilter("EN_COURS");
+            setFamilyFilter("");
+            setIntervenantFilter("");
+          }}
+          familyFilter={familyFilter}
+          onFamilyFilterChange={setFamilyFilter}
+          familyOptions={familyOptions}
+          intervenantFilter={intervenantFilter}
+          onIntervenantFilterChange={setIntervenantFilter}
+          intervenantOptions={references.intervenants}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+        />
         {intervention.loading ? <p className="muted">Chargement des interventions…</p> : null}
         <InterventionTable
           entries={pagedEntries}
@@ -444,6 +405,8 @@ export function InterventionPage({
         }}
         onCreate={createLinkedGardiennage}
         onUpdate={async () => null}
+        onCreatePendingSite={references.createPendingSite}
+        onCreatePendingIntervenant={references.createPendingIntervenant}
         onNotify={onToast}
       />
 

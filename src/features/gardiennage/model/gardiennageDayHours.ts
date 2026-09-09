@@ -2,8 +2,9 @@
  * Découpage des horaires gardiennage sur un jour calendaire (affichage « journée »).
  *
  * Une prestation multi-jours est stockée comme un intervalle continu (ex. 15/08 15:30 → 17/08 06:30).
- * La vue jour affiche la portion de cet intervalle qui tombe sur la date sélectionnée :
- * 15/08 15:30–23:59, 16/08 00:00–23:59, 17/08 00:00–06:30.
+ * La vue jour affiche la portion de cet intervalle qui tombe sur la date sélectionnée.
+ * Créneau de nuit (ex. 20:00 → 08:00) : on conserve la fin réelle + indicateur nocturne,
+ * plutôt qu’une coupure brutale à 23:59.
  *
  * Utilisé par : `GardiennagePage` (filtre du jour), `GardiennageTable` (colonne Horaires).
  */
@@ -17,6 +18,11 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 export type GardiennageDayHours = {
   startTime: string;
   endTime: string;
+  /**
+   * Créneau qui traverse minuit sur ce jour (soir → suite, ou matin en continuation).
+   * Sert à afficher l’icône lune comme en vue liste.
+   */
+  overnight: boolean;
 };
 
 /**
@@ -91,9 +97,10 @@ function resolveSlotRange(entry: GardiennageEntry): { startIso: string; endIso: 
 }
 
 /**
- * Calcule les horaires à afficher pour `dateIso` (clip 00:00–23:59 sur ce jour).
+ * Calcule les horaires à afficher pour `dateIso`.
  *
- * Une fin pile à minuit du lendemain s'affiche `23:59` (pas d'heure 24:00).
+ * Nuit J→J+1 (ex. 20:00 → 08:00) : sur le soir, on affiche la fin réelle `08:00`
+ * (pas `23:59`) et `overnight: true`. Sur le matin, portion `00:00 → 08:00` + overnight.
  *
  * @param entry - Ligne gardiennage
  * @param dateIso - Jour calendaire `YYYY-MM-DD`
@@ -112,12 +119,27 @@ export function clipGardiennageHoursToDay(
   const dayEndExclusive = `${nextDate}T00:00:00`;
   if (range.startIso >= dayEndExclusive) return null;
   if (range.endIso && range.endIso <= dayStart) return null;
+
   const clipStart = range.startIso > dayStart ? range.startIso : dayStart;
+  const continuesPastMidnight = Boolean(!range.endIso || range.endIso > dayEndExclusive);
+  const continuedFromPreviousDay = range.startIso < dayStart;
+  const overnight = continuesPastMidnight || continuedFromPreviousDay || Boolean(entry.crossesMidnight);
+
+  // Soir d’une nuit qui se termine le lendemain matin : afficher la vraie fin (08:00).
+  if (continuesPastMidnight && range.endIso && range.endIso.startsWith(`${nextDate}T`)) {
+    return {
+      startTime: clipStart.slice(11, 16),
+      endTime: range.endIso.slice(11, 16),
+      overnight: true
+    };
+  }
+
   const clipEnd = range.endIso && range.endIso < dayEndExclusive ? range.endIso : dayEndExclusive;
   if (clipStart >= clipEnd) return null;
   return {
     startTime: clipStart.slice(11, 16),
-    endTime: clipEnd === dayEndExclusive ? "23:59" : clipEnd.slice(11, 16)
+    endTime: clipEnd === dayEndExclusive ? "23:59" : clipEnd.slice(11, 16),
+    overnight
   };
 }
 

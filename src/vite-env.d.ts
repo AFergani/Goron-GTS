@@ -149,6 +149,7 @@ declare global {
       }>;
       getPostgresBootstrapStatus: (payload?: Record<string, never>) => Promise<{
         needsSetup: boolean;
+        reachable: boolean;
         config: {
           host: string;
           port: number;

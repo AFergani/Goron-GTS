@@ -111,7 +111,7 @@ function registerSystemIpcHandlers(deps) {
     return result;
   });
 
-  handleIpc("system:getPostgresBootstrapStatus", () => postgresAdmin.getBootstrapStatus());
+  handleIpc("system:getPostgresBootstrapStatus", async () => postgresAdmin.getBootstrapStatus());
   handleIpc("system:savePostgresBootstrapConfig", async (payload = {}) => postgresAdmin.saveBootstrapConfig(payload || {}));
   handleIpc("system:testPostgresBootstrapConfig", async (payload = {}) => postgresAdmin.testBootstrapConfig(payload || {}));
 

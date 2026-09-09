@@ -2,13 +2,15 @@
  * Presenter gardiennage : liste, CRUD, statuts, clôture.
  *
  * Polling silencieux ~20 s pour resynchroniser les entrées. Persistance PostgreSQL.
+ * Compteurs mois en cours (`recurrenceStartDate`) pour les cartes de synthèse.
  * Messages utilisateur via `onToast`. Utilisé par : `GardiennagePage`.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { getLocalMonthKey, isIsoDateInLocalMonth } from "../../common/utils/currentMonthSummary";
 import type { GardiennageClosePayload, GardiennageEntry, GardiennageSavePayload, GardiennageStatus } from "../model/gardiennage.types";
 
 function makeGardiennageId() {
@@ -57,6 +59,19 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
     }, 20000);
     return () => window.clearInterval(timer);
   }, [loadEntries]);
+
+  const stats = useMemo(() => {
+    const monthKey = getLocalMonthKey();
+    const monthEntries = entries.filter((entry) =>
+      isIsoDateInLocalMonth(entry.recurrenceStartDate, monthKey)
+    );
+    const total = monthEntries.length;
+    const planned = monthEntries.filter((entry) => entry.status === "PLANIFIE").length;
+    const active = monthEntries.filter((entry) => entry.status === "ACTIF").length;
+    const closed = monthEntries.filter((entry) => entry.status === "CLOTURE").length;
+    const canceled = monthEntries.filter((entry) => entry.status === "ANNULE").length;
+    return { total, planned, active, closed, canceled };
+  }, [entries]);
 
   const createEntry = async (payload: GardiennageSavePayload) => {
     try {
@@ -176,6 +191,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
   return {
     entries,
     loading,
+    stats,
     loadEntries,
     createEntry,
     updateEntry,

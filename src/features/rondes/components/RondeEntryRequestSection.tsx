@@ -7,6 +7,7 @@ import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyBu
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
+import { DateInput } from "../../common/components/DateInput";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
@@ -82,8 +83,7 @@ export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
         <div className="mc-form-grid mc-form-grid-main">
           <label className="mc-field">
             <span>Date de la demande</span>
-            <input
-              type="date"
+            <DateInput
               value={requestDate}
               disabled={lockDemandeFields}
               onChange={(e) => props.onRequestDateChange(e.target.value)}

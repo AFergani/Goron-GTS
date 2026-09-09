@@ -110,6 +110,23 @@ input[type="time"] {
   max-width: var(--gts-input-time-width);
 }
 
+/* Renforce le design system date/heure sous labels / grilles (évite width:100% des champs texte). */
+.mc-field > input[type="date"],
+.mc-field > input[type="time"],
+label > input[type="date"],
+label > input[type="time"] {
+  width: var(--gts-input-date-width);
+  min-width: var(--gts-input-date-width);
+  max-width: var(--gts-input-date-width);
+}
+
+.mc-field > input[type="time"],
+label > input[type="time"] {
+  width: var(--gts-input-time-width);
+  min-width: var(--gts-input-time-width);
+  max-width: var(--gts-input-time-width);
+}
+
 /* Alignement interne WebKit/Chromium (date & heure) */
 input[type="date"]::-webkit-datetime-edit,
 input[type="time"]::-webkit-datetime-edit {

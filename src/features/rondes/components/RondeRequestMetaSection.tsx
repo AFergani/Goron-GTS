@@ -7,6 +7,7 @@ import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { TimeInput } from "../../common/components/TimeInput";
+import { DateInput } from "../../common/components/DateInput";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeMotifTypeRef } from "../model/ronde.types";
 import type { RequestOrigin } from "../model/requestOrigin";
@@ -63,8 +64,7 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
       <div className="ronde-planned-profile-modal__schedule-row">
         <label className="ronde-planned-profile-modal__schedule-field">
           <span>Date de la demande</span>
-          <input
-            type="date"
+          <DateInput
             value={props.requestDate}
             disabled={locked}
             onChange={(e) => props.onRequestDateChange(e.target.value)}

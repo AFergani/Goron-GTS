@@ -356,7 +356,7 @@ export function AppShell() {
       );
     }
 
-    if (pgBootstrap.needsSetup) {
+    if (pgBootstrap.showBootstrap) {
       return (
         <>
           <PostgresBootstrapView
@@ -368,6 +368,10 @@ export function AppShell() {
             testResult={pgBootstrap.postgresTestResult}
             busyPhase={pgBootstrap.busyPhase}
             error={error}
+            isRecoveryMode={pgBootstrap.isRecoveryMode}
+            recoveryRestored={pgBootstrap.recoveryRestored}
+            recoveryRestoredMessage={pgBootstrap.recoveryRestoredMessage}
+            onCancelRecovery={pgBootstrap.closeRecoverySetup}
           />
           {exitChoiceModal}
           <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -386,6 +390,8 @@ export function AppShell() {
           onLogin={auth.onLogin}
           onChange={auth.setLoginForm}
           onOpenPeerReset={auth.onOpenPeerReset}
+          showDbRecoveryLink={pgBootstrap.showDbRecoveryLink}
+          onOpenDbRecovery={pgBootstrap.openRecoverySetup}
         />
         <PeerResetModal
           isOpen={auth.showPeerResetModal}

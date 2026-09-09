@@ -121,7 +121,7 @@ function defaultLine(label: string, anchorDate: string, startTime: string, endTi
     startTime,
     endTime,
     weekdaysMask: GARDIENNAGE_WEEKDAYS_ALL_MASK,
-    includeHolidays: true,
+    includeHolidays: false,
     includeHolidayEves: false
   };
 }
@@ -177,7 +177,20 @@ export function buildEffectivePlanningSnapshot(input: BuildPlanningSnapshotInput
     };
   }
 
-  const toDate = input.validToDate || fromDate;
+  const toDate = input.validToDate?.trim();
+  if (!toDate || toDate < fromDate) {
+    /* Pas de date Au : snapshot vide pour la prévisualisation (soumission bloquée côté formulaire). */
+    return {
+      version: 1,
+      validFromDate: fromDate,
+      validFromTime: "00:00",
+      validToDate: fromDate,
+      validToTime: "00:00",
+      userValidToDate: toDate || "",
+      isContinuous: false,
+      lines: []
+    };
+  }
   const recurringBounds = resolveRecurringRangeBounds(toDate, input.planningLines);
   return {
     version: 1,
