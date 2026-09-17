@@ -15,7 +15,7 @@ const RONDE_ENTRY_SELECT = `id, created_at, updated_at, source, origin_intervent
   intervenant_id, intervenant_name, arrival_time, departure_time, duration_minutes, work_order_number, report,
   status, cancellation_reason, cancellation_kind, closed_at, planned_profile_id, planned_round_kind, planned_slot_key,
   closure_custom_values_json, request_planning_snapshot_json, request_batch_id,
-  batch_suppressed_at, batch_suppressed_by, batch_suppressed_reason`;
+  batch_suppressed_at, batch_suppressed_by, batch_suppressed_reason, daily_code`;
 
 /**
  * Même colonnes avec préfixe `r.` pour les jointures motif.
@@ -151,7 +151,8 @@ function mapRondeRow(row) {
     batchSuppressedReason: row.batch_suppressed_reason || "",
     batchDeleteRequestedAt: pendingApplies ? row.batch_delete_requested_at || null : null,
     batchDeleteRequestedBy: pendingApplies ? row.batch_delete_requested_by || null : null,
-    batchDeleteReason: pendingApplies ? row.batch_delete_reason || "" : ""
+    batchDeleteReason: pendingApplies ? row.batch_delete_reason || "" : "",
+    dailyCode: row.daily_code || ""
   };
 }
 
@@ -170,7 +171,8 @@ function toRondeAuditSnapshot(row) {
     intervenantName: row.intervenant_name || row.intervenantName || "",
     arrivalTime: row.arrival_time || row.arrivalTime || "",
     departureTime: row.departure_time || row.departureTime || "",
-    status: row.status || ""
+    status: row.status || "",
+    dailyCode: row.daily_code || row.dailyCode || ""
   };
 }
 

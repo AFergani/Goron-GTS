@@ -1,17 +1,5 @@
 /* Styles des modales d'aide Fransor et gabarits partagés */
 
-.fransor-help-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.fransor-help-row h3 {
-  margin: 0;
-}
-
 .fransor-help-modal {
   width: 100%;
   max-width: min(1180px, 96vw);

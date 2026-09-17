@@ -4,6 +4,7 @@
 
 import type { SiteRef } from "../../../types";
 import type { RondeEntry } from "../model/ronde.types";
+import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 
 export type RondeListFilterOpts = {
   dateFrom?: string;
@@ -34,6 +35,7 @@ export function filterAndSortRondeListEntries(
       }
       if (!query) return true;
       return (
+        matchesDailyCodeSearch(entry.dailyCode, query) ||
         entry.siteDisplay.toLowerCase().includes(query) ||
         entry.intervenantName.toLowerCase().includes(query) ||
         entry.horairesDemandeObs.toLowerCase().includes(query) ||

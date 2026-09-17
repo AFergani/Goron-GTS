@@ -266,32 +266,29 @@ export function VariablesManagementPanel({
         <div className="row-actions">
           <button
             type="button"
-            className="btn-light action-icon-btn"
+            className="btn-light"
             title="Actualiser"
             aria-label="Actualiser"
             disabled={loading}
             onClick={() => void loadData()}
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={16} aria-hidden />
+            Actualiser
           </button>
           {canEdit ? (
             <button
               type="button"
-              className="btn-light action-icon-btn"
+              className="mc-btn-primary"
               title="Ajouter une variable"
-              aria-label="Ajouter une variable"
               disabled={saving}
               onClick={openCreateModal}
             >
-              <Plus size={14} />
+              <Plus size={16} aria-hidden />
+              Nouvelle variable
             </button>
           ) : null}
         </div>
       </div>
-      <p className="muted">
-        Centralise les champs personnalisés des formulaires et leur attribution par profil. À chaque enregistrement (bouton de sauvegarde), une ligne est
-        ajoutée au journal d&apos;actions avec l&apos;acteur et l&apos;horodatage ([Paramètres] variables de formulaires).
-      </p>
       <div className="table-scroll-x">
         <table className="data-table-fixed">
           <thead>

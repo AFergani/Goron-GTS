@@ -19,6 +19,7 @@ import type {
   RondePlannedProfileRef
 } from "../../rondes/model/rondePlanned.types";
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
+import { exportTechErrorLogsToExcel } from "../export/techErrorLogsExcelExport";
 import { DEFAULT_POSTGRES_CONFIG_DRAFT, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import { canSessionAccessOperatorsTab, canSessionManageUser, isSessionStationAdmin } from "../model/userHierarchy";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
@@ -362,10 +363,15 @@ export function useSettingsPresenter({
     }
   }, [onError, session]);
 
-  const onExportAuditLogs = useCallback((logs?: AuditLog[]) => {
+  const onExportAuditLogs = useCallback(async (logs?: AuditLog[]) => {
     const exportRows = Array.isArray(logs) ? logs : auditLogs;
-    exportAuditLogsToExcel(exportRows);
+    return exportAuditLogsToExcel(exportRows);
   }, [auditLogs]);
+
+  const onExportTechErrorLogs = useCallback(async (logs?: TechErrorLog[]) => {
+    const exportRows = Array.isArray(logs) ? logs : techErrorLogs;
+    return exportTechErrorLogsToExcel(exportRows);
+  }, [techErrorLogs]);
 
   const loadSites = useCallback(async () => {
     if (!session) return;
@@ -1530,6 +1536,7 @@ export function useSettingsPresenter({
     loadAuditLogs,
     loadTechErrorLogs,
     onExportAuditLogs,
+    onExportTechErrorLogs,
     loadDataSection,
     canManageUsers,
     canAccessOperatorsTab,

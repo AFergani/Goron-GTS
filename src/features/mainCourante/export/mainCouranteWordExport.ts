@@ -14,7 +14,7 @@ import {
 } from "docx";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import logoGts from "../../../assets/logo-gts.jpg";
-import { downloadBlob } from "../../common/utils/downloadBlob";
+import { saveExportBlob, type SaveExportFileResult } from "../../common/utils/saveExportBlob";
 import {
   loadDocumentTemplateBuffer,
   renderDocxtemplaterBlob,
@@ -49,6 +49,7 @@ async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null
       site: safeDocxText(entry.siteDisplay),
       type_anomalie: safeDocxText(entry.anomalyTypeLabel),
       etat: safeDocxText(statusLabelFr(entry.status)),
+      numeroFiche: safeDocxText(entry.dailyCode),
       prise_en_compte: safeDocxText(entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
       date_cloture: safeDocxText(entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
       information_operateur: safeDocxText(entry.information),
@@ -160,12 +161,15 @@ async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
 }
 
 /**
- * Génère un fichier .docx pour une entrée et déclenche le téléchargement.
+ * Génère un fichier .docx pour une entrée et ouvre le dialogue d’enregistrement.
+ *
+ * @param entry - Ligne de main courante.
+ * @returns Chemin enregistré, ou annulation utilisateur.
  */
-export async function exportMainCouranteEntryToWord(entry: MainCouranteEntry): Promise<void> {
+export async function exportMainCouranteEntryToWord(entry: MainCouranteEntry): Promise<SaveExportFileResult> {
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildEntryDocument(entry)));
   const part = safeExportFilenamePart(entry.siteDisplay || entry.anomalyTypeLabel || "main-courante");
   const name = `main-courante_${part}_${exportTimestampForFilename()}.docx`;
-  downloadBlob(blob, name);
+  return saveExportBlob(blob, name);
 }

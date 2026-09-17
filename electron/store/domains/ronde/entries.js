@@ -14,6 +14,7 @@ const { mapRondeRow, parseJsonObject, parseBatchDeleteEntryIds, toRondeAuditSnap
 const { requireRondePersistence } = require("./persistence");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { generateEntityId } = require("../../core/ids");
+const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const {
   isPassagePast,
   hasKnownTerrainData,
@@ -33,8 +34,8 @@ const INSERT_SQL = `INSERT INTO ronde_entries (
   origin_kind, origin_detail, intervenant_id, intervenant_name, arrival_time,
   departure_time, duration_minutes, work_order_number, report,
   closure_custom_values_json, planned_profile_id, planned_round_kind, planned_slot_key,
-  request_planning_snapshot_json, request_batch_id, status, cancellation_reason, closed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  request_planning_snapshot_json, request_batch_id, status, cancellation_reason, closed_at, daily_code
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /** @param {unknown} value @returns {string} */
 function toIsoDate(value) {
@@ -328,6 +329,7 @@ async function createRonde(store, payload) {
     insertParams[1] = now;
     insertParams[2] = now;
     insertParams[insertParams.length - 1] = status === "EN_COURS" ? null : now;
+    insertParams.push(await allocateNextDailyCode(tx, "ronde", normalized.requestDate));
     await tx.run(INSERT_SQL, insertParams);
     return { kind: "created", batchBefore, now };
   });
@@ -644,7 +646,8 @@ async function updateRondeBatchSharedFields(store, payload) {
               normalized.motifCategorySnapshot, normalized.motifOther || null, observation,
               normalized.originKind, normalized.originDetail || null, normalized.intervenantId,
               normalized.intervenantName, null, null, null, null, null, "{}", null, null, null,
-              snapshotJson, template.request_batch_id || null, "EN_COURS", null, null
+              snapshotJson, template.request_batch_id || null, "EN_COURS", null, null,
+              await allocateNextDailyCode(tx, "ronde", requestDate)
             ]);
             createdIds.push(id);
           }

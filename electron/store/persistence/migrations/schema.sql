@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS entity_change_history (
 CREATE INDEX IF NOT EXISTS idx_entity_change_history_lookup
   ON entity_change_history (entity_type, entity_id, changed_at DESC);
 
+-- Compteurs de numéro métier JJMMAAAA-XX (séquence par domaine et par jour).
+CREATE TABLE IF NOT EXISTS daily_entry_counters (
+  domain TEXT NOT NULL,
+  day_iso TEXT NOT NULL,
+  last_seq INTEGER NOT NULL,
+  PRIMARY KEY (domain, day_iso)
+);
+
 
 -- ---------------------------------------------------------------------------
 -- Section : referentials
@@ -295,7 +303,8 @@ CREATE TABLE IF NOT EXISTS main_courante_entries (
   consulted_by_manager_name TEXT,
   prise_en_compte_at TEXT,
   closed_at TEXT,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  daily_code TEXT
 );
 
 ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS consulted_by_operator_at TEXT;
@@ -310,6 +319,25 @@ CREATE INDEX IF NOT EXISTS idx_main_courante_status
   ON main_courante_entries (status);
 
 DROP INDEX IF EXISTS idx_main_courante_status_archived;
+
+ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+UPDATE main_courante_entries e
+SET daily_code = sub.code
+FROM (
+  SELECT id,
+    to_char((created_at::timestamptz AT TIME ZONE 'Europe/Paris')::date, 'DDMMYYYY')
+    || '-' || lpad(
+      ROW_NUMBER() OVER (
+        PARTITION BY (created_at::timestamptz AT TIME ZONE 'Europe/Paris')::date
+        ORDER BY created_at, id
+      )::text, 2, '0'
+    ) AS code
+  FROM main_courante_entries
+  WHERE daily_code IS NULL AND created_at IS NOT NULL AND TRIM(created_at) <> ''
+) sub
+WHERE e.id = sub.id;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_main_courante_daily_code
+  ON main_courante_entries (daily_code);
 
 
 -- ---------------------------------------------------------------------------
@@ -334,12 +362,11 @@ CREATE TABLE IF NOT EXISTS intervention_entries (
   intervenant_id TEXT,
   intervenant_name TEXT NOT NULL,
   status TEXT NOT NULL,
-  billing_status TEXT NOT NULL DEFAULT 'FACTURABLE',
-  billing_reason TEXT,
   export_extra_json TEXT DEFAULT '{}',
   cancellation_reason TEXT,
   closed_at TEXT,
-  archived_at TEXT
+  archived_at TEXT,
+  daily_code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS data_intervention_word_extra_fields (
@@ -364,6 +391,24 @@ CREATE INDEX IF NOT EXISTS idx_intervention_intervenant_id
   ON intervention_entries (intervenant_id);
 CREATE INDEX IF NOT EXISTS idx_intervention_word_extra_sort
   ON data_intervention_word_extra_fields (sort_order, label);
+
+-- Colonnes de facturation retirées (idempotent si absentes).
+ALTER TABLE intervention_entries DROP COLUMN IF EXISTS billing_status;
+ALTER TABLE intervention_entries DROP COLUMN IF EXISTS billing_reason;
+
+ALTER TABLE intervention_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+UPDATE intervention_entries e
+SET daily_code = sub.code
+FROM (
+  SELECT id,
+    to_char(to_date(request_date, 'YYYY-MM-DD'), 'DDMMYYYY')
+    || '-' || lpad(ROW_NUMBER() OVER (PARTITION BY request_date ORDER BY created_at, id)::text, 2, '0') AS code
+  FROM intervention_entries
+  WHERE daily_code IS NULL AND request_date ~ '^\d{4}-\d{2}-\d{2}$'
+) sub
+WHERE e.id = sub.id;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_intervention_daily_code
+  ON intervention_entries (daily_code);
 
 
 -- ---------------------------------------------------------------------------
@@ -396,7 +441,8 @@ CREATE TABLE IF NOT EXISTS gardiennage_entries (
   planning_slot_end TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'PLANIFIE',
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  daily_code TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_gardiennage_site
@@ -409,6 +455,22 @@ CREATE INDEX IF NOT EXISTS idx_gardiennage_batch
   ON gardiennage_entries (planning_batch_id);
 CREATE INDEX IF NOT EXISTS idx_gardiennage_intervention
   ON gardiennage_entries (intervention_id);
+
+ALTER TABLE gardiennage_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+UPDATE gardiennage_entries e
+SET daily_code = sub.code
+FROM (
+  SELECT id,
+    to_char(to_date(recurrence_start_date, 'YYYY-MM-DD'), 'DDMMYYYY')
+    || '-' || lpad(
+      ROW_NUMBER() OVER (PARTITION BY recurrence_start_date ORDER BY created_at, id)::text, 2, '0'
+    ) AS code
+  FROM gardiennage_entries
+  WHERE daily_code IS NULL AND recurrence_start_date ~ '^\d{4}-\d{2}-\d{2}$'
+) sub
+WHERE e.id = sub.id;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_gardiennage_daily_code
+  ON gardiennage_entries (daily_code);
 
 
 -- ---------------------------------------------------------------------------
@@ -492,7 +554,8 @@ CREATE TABLE IF NOT EXISTS ronde_entries (
   closure_custom_values_json TEXT,
   status TEXT NOT NULL DEFAULT 'EN_COURS',
   cancellation_reason TEXT,
-  closed_at TEXT
+  closed_at TEXT,
+  daily_code TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_ronde_request_date ON ronde_entries (request_date DESC);
@@ -503,6 +566,19 @@ CREATE INDEX IF NOT EXISTS idx_ronde_origin_intervention ON ronde_entries (origi
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profile ON ronde_entries (planned_profile_id);
 
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS cancellation_kind TEXT;
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+UPDATE ronde_entries e
+SET daily_code = sub.code
+FROM (
+  SELECT id,
+    to_char(to_date(request_date, 'YYYY-MM-DD'), 'DDMMYYYY')
+    || '-' || lpad(ROW_NUMBER() OVER (PARTITION BY request_date ORDER BY created_at, id)::text, 2, '0') AS code
+  FROM ronde_entries
+  WHERE daily_code IS NULL AND request_date ~ '^\d{4}-\d{2}-\d{2}$'
+) sub
+WHERE e.id = sub.id;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ronde_daily_code
+  ON ronde_entries (daily_code);
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_at TEXT;
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_by TEXT;
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_reason TEXT;
@@ -525,4 +601,39 @@ CREATE INDEX IF NOT EXISTS idx_ronde_planned_profiles_active
   ON data_ronde_planned_profiles (is_active, label);
 CREATE INDEX IF NOT EXISTS idx_ronde_planned_profile_lines_profile
   ON data_ronde_planned_profile_lines (profile_id, sort_order);
+
+-- Aligne les compteurs sur les numéros déjà présents (idempotent).
+INSERT INTO daily_entry_counters (domain, day_iso, last_seq)
+SELECT 'intervention', request_date, COUNT(*)::int
+FROM intervention_entries
+WHERE daily_code IS NOT NULL AND request_date ~ '^\d{4}-\d{2}-\d{2}$'
+GROUP BY request_date
+ON CONFLICT (domain, day_iso) DO UPDATE
+SET last_seq = GREATEST(daily_entry_counters.last_seq, EXCLUDED.last_seq);
+
+INSERT INTO daily_entry_counters (domain, day_iso, last_seq)
+SELECT 'ronde', request_date, COUNT(*)::int
+FROM ronde_entries
+WHERE daily_code IS NOT NULL AND request_date ~ '^\d{4}-\d{2}-\d{2}$'
+GROUP BY request_date
+ON CONFLICT (domain, day_iso) DO UPDATE
+SET last_seq = GREATEST(daily_entry_counters.last_seq, EXCLUDED.last_seq);
+
+INSERT INTO daily_entry_counters (domain, day_iso, last_seq)
+SELECT 'gardiennage', recurrence_start_date, COUNT(*)::int
+FROM gardiennage_entries
+WHERE daily_code IS NOT NULL AND recurrence_start_date ~ '^\d{4}-\d{2}-\d{2}$'
+GROUP BY recurrence_start_date
+ON CONFLICT (domain, day_iso) DO UPDATE
+SET last_seq = GREATEST(daily_entry_counters.last_seq, EXCLUDED.last_seq);
+
+INSERT INTO daily_entry_counters (domain, day_iso, last_seq)
+SELECT 'main_courante',
+  to_char((created_at::timestamptz AT TIME ZONE 'Europe/Paris')::date, 'YYYY-MM-DD'),
+  COUNT(*)::int
+FROM main_courante_entries
+WHERE daily_code IS NOT NULL AND created_at IS NOT NULL AND TRIM(created_at) <> ''
+GROUP BY (created_at::timestamptz AT TIME ZONE 'Europe/Paris')::date
+ON CONFLICT (domain, day_iso) DO UPDATE
+SET last_seq = GREATEST(daily_entry_counters.last_seq, EXCLUDED.last_seq);
 

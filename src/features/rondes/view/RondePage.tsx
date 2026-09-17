@@ -31,6 +31,8 @@ import { useRondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfile
 import { getExceptionalDemandGroup } from "../utils/exceptionalDemandGroup";
 import { exportRondeToExcel } from "../export/rondeExcelExport";
 import { exportRondeEntryToWord } from "../export/rondeWordExport";
+import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
+import { WORKSTATION_EXPORT_KEYS, wordExportKey } from "../../common/utils/workstationExportPaths";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { countTodayInProgressRondes, isContractualRondeEntry } from "../utils/rondeEntryClassification";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
@@ -123,6 +125,7 @@ export function RondePage({
 
   const ronde = useRondePresenter({ requesterRole, requesterUsername, onToast });
   const references = useRondeReferenceData(requesterRole, requesterUsername, onToast);
+  const workstationExports = useWorkstationExports();
 
   const closeProfileModal = () => {
     setProfileModalOpen(false);
@@ -351,27 +354,35 @@ export function RondePage({
     />
   );
 
-  const handleExportContractual = () => {
+  const handleExportContractual = async () => {
     if (!filteredContractualListEntries.length) {
       onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
-      exportRondeToExcel(filteredContractualListEntries, "Ronde contractuelle");
-      onToast?.(`${filteredContractualListEntries.length} ligne(s) exportée(s) en Excel.`);
+      await workstationExports.saveAndRemember(
+        WORKSTATION_EXPORT_KEYS.excelRondeContractual,
+        () => exportRondeToExcel(filteredContractualListEntries, "Ronde contractuelle"),
+        onToast,
+        `${filteredContractualListEntries.length} ligne(s) exportée(s) en Excel.`
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
   };
 
-  const handleExportExceptional = () => {
+  const handleExportExceptional = async () => {
     if (!filteredEntries.length) {
       onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
-      exportRondeToExcel(filteredEntries, "Ronde exceptionnelle");
-      onToast?.(`${filteredEntries.length} ligne(s) exportée(s) en Excel.`);
+      await workstationExports.saveAndRemember(
+        WORKSTATION_EXPORT_KEYS.excelRondeExceptional,
+        () => exportRondeToExcel(filteredEntries, "Ronde exceptionnelle"),
+        onToast,
+        `${filteredEntries.length} ligne(s) exportée(s) en Excel.`
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
@@ -379,12 +390,21 @@ export function RondePage({
 
   const handleExportRondeWord = async (entry: RondeEntry) => {
     try {
-      await exportRondeEntryToWord(entry, { profiles: references.plannedProfiles });
-      onToast?.("Document Word exporté.");
+      await workstationExports.saveAndRemember(
+        wordExportKey("ronde", entry.id),
+        () => exportRondeEntryToWord(entry, { profiles: references.plannedProfiles }),
+        onToast,
+        "Document Word enregistré."
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
     }
   };
+
+  const rondeExcelKey =
+    listView === "planifie"
+      ? WORKSTATION_EXPORT_KEYS.excelRondeContractual
+      : WORKSTATION_EXPORT_KEYS.excelRondeExceptional;
 
   const totalPages = filters.pageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredEntries.length / filters.pageSize));
   const pagedEntries = filters.pageSize === 0
@@ -533,7 +553,12 @@ export function RondePage({
       canManageBatchDelete={canManageRondes}
       pendingBatchDeleteCount={pendingBatchDeleteCount}
       onOpenProfilesList={() => setProfilesListOpen(true)}
-      onExport={listView === "planifie" ? handleExportContractual : handleExportExceptional}
+      onExport={() =>
+        void (listView === "planifie" ? handleExportContractual() : handleExportExceptional())
+      }
+      onOpenLastExport={() => void workstationExports.openLastExport(rondeExcelKey, onToast)}
+      canOpenLastExport={workstationExports.canOpenExcelTemporarily(rondeExcelKey)}
+      lastExportPath={workstationExports.getLastPath(rondeExcelKey)}
       onDisplayModeChange={(mode) =>
         setDisplayModeByService((prev) => ({
           ...prev,
@@ -597,7 +622,6 @@ export function RondePage({
             <RondeTable
               entries={filteredContractualListEntries}
               onNotify={onToast}
-              onExportWord={handleExportRondeWord}
               onOpen={openContractualRow}
               onFollowUp={openContractualRow}
               onOpenProfile={openProfileById}
@@ -617,7 +641,6 @@ export function RondePage({
               <RondeTable
                 entries={pagedEntries}
                 onNotify={onToast}
-                onExportWord={handleExportRondeWord}
                 onOpen={(entry) => {
                   setCreatePreset(null);
                   setActiveEntry(entry);
@@ -684,6 +707,22 @@ export function RondePage({
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
         onOpenLinkedRequest={openLinkedDemand}
         requesterRole={requesterRole}
+        onSaveWord={
+          liveActiveEntry ? () => void handleExportRondeWord(liveActiveEntry) : undefined
+        }
+        onOpenWord={
+          liveActiveEntry
+            ? () => void workstationExports.openLastExport(wordExportKey("ronde", liveActiveEntry.id), onToast)
+            : undefined
+        }
+        canOpenWord={
+          liveActiveEntry
+            ? Boolean(workstationExports.getLastPath(wordExportKey("ronde", liveActiveEntry.id)))
+            : false
+        }
+        lastWordFilePath={
+          liveActiveEntry ? workstationExports.getLastPath(wordExportKey("ronde", liveActiveEntry.id)) : null
+        }
       />
       <RondeRequestModal
         isOpen={requestModalOpen}

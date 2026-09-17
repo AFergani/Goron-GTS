@@ -10,6 +10,7 @@
  */
 
 const { requireMainCourantePersistence } = require("./persistence");
+const { allocateNextDailyCode, localDayIsoFromTimestamp } = require("../../core/dailyEntryCode");
 const {
   MAIN_COURANTE_ENTRY_SELECT,
   requireEntryId,
@@ -72,11 +73,12 @@ async function createMainCouranteEntry(
       [entryId]
     );
     if (existing) return { existing };
+    const dailyCode = await allocateNextDailyCode(tx, "main_courante", localDayIsoFromTimestamp(now));
     await tx.run(
       `INSERT INTO main_courante_entries (
         id, created_at, operator_name, site_id, site_display,
-        anomaly_type_id, anomaly_type_label, information, status, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        anomaly_type_id, anomaly_type_label, information, status, updated_at, daily_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         entryId,
         now,
@@ -87,7 +89,8 @@ async function createMainCouranteEntry(
         cleanTypeLabel,
         cleanInfo,
         "EN_ATTENTE",
-        now
+        now,
+        dailyCode
       ]
     );
     return { existing: null };

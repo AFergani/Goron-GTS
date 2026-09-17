@@ -31,6 +31,8 @@ export type MainCouranteEntry = {
   /** Horodatage de la prise en compte (validation responsable) */
   priseEnCompteAt?: string;
   closedAt?: string;
+  /** Numéro métier `JJMMAAAA-XX` (recherche / titre). */
+  dailyCode: string;
 };
 
 export type MainCouranteSavePayload = {

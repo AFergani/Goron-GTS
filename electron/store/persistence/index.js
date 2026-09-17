@@ -31,6 +31,7 @@ async function openPostgresPersistence(config) {
 
 /**
  * Tente d'ouvrir PostgreSQL ; retourne `null` si injoignable (pas d'exception).
+ * Journalise la cause en console pour le diagnostic (schéma introuvable, auth, etc.).
  *
  * @param {object} [config] - Surcharge optionnelle (ex. `onIdleClientError`).
  * @returns {Promise<import('./persistenceContract').PersistenceAdapter|null>}
@@ -38,7 +39,9 @@ async function openPostgresPersistence(config) {
 async function tryOpenPostgresLabPersistence(config) {
   try {
     return await openPostgresPersistence(config);
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    console.warn("[postgres] Ouverture du pool impossible:", message);
     return null;
   }
 }

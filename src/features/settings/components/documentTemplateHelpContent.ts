@@ -28,6 +28,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{site}", description: "Libellé site affiché." },
       { token: "{type_anomalie}", description: "Type d’anomalie." },
       { token: "{etat}", description: "État métier de la fiche." },
+      { token: "{numeroFiche}", description: "Numéro métier de la fiche (JJMMAAAA-XX)." },
       { token: "{prise_en_compte}", description: "Date ou « — » si non prise en compte." },
       { token: "{date_cloture}", description: "Date de clôture ou « — »." },
       { token: "{information_operateur}", description: "Texte saisi par l’opérateur." },
@@ -52,7 +53,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{numeroBonIntervention}", description: "Numéro de bon, ou « Pas de bon » s’il n’a pas été saisi." },
       { token: "{compteRendu}", description: "Compte rendu / observation." },
       { token: "{statut}", description: "Statut (En cours / Clôturée / Annulée)." },
-      { token: "{facturation}", description: "Facturable / Non facturable." }
+      { token: "{numeroFiche}", description: "Numéro métier de la fiche (JJMMAAAA-XX)." }
     ],
     footerNote:
       "Les variables définies dans « Champs complémentaires export » utilisent exactement le nom de variable indiqué (ex. {ma_reference})."
@@ -79,6 +80,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{origine}", description: "Résumé origine." },
       { token: "{duree_minutes}", description: "Durée ou « — »." },
       { token: "{statut}", description: "État de la fiche." },
+      { token: "{numeroFiche}", description: "Numéro métier de la fiche (JJMMAAAA-XX)." },
       { token: "{site_code}", description: "Code site (compatibilité)." },
       { token: "{site_name}", description: "Nom site (compatibilité)." },
       { token: "{profil_label}", description: "Libellé profil / site (compatibilité)." },

@@ -2,7 +2,7 @@
  * Export Excel de la liste gardiennage (onglet Planification ou filtré).
  *
  * Colonnes métier uniquement (site, période, horaires, statut…) — pas d’UUID en export.
- * Fichier `gardiennage_export_<horodatage>.xlsx` téléchargé localement.
+ * Fichier `gardiennage_export_<horodatage>.xlsx` enregistré via le dialogue natif.
  */
 
 import * as XLSX from "xlsx";
@@ -12,6 +12,7 @@ import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 
 const HEADERS = [
+  "N°",
   "Site",
   "Période",
   "Horaires",
@@ -44,10 +45,17 @@ function formatSchedule(entry: GardiennageEntry): string {
   return entry.crossesMidnight ? `${entry.startTime} -> ${entry.endTime} (nuit)` : `${entry.startTime} -> ${entry.endTime}`;
 }
 
-export function exportGardiennageToExcel(entries: GardiennageEntry[]): void {
+/**
+ * Exporte la liste gardiennage filtrée en Excel.
+ *
+ * @param entries - Lignes à exporter.
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
+export async function exportGardiennageToExcel(entries: GardiennageEntry[]) {
   const rows: string[][] = [
     [...HEADERS],
     ...entries.map((entry) => [
+      entry.dailyCode || "",
       entry.siteDisplay || "",
       formatPeriod(entry),
       formatSchedule(entry),
@@ -70,6 +78,7 @@ export function exportGardiennageToExcel(entries: GardiennageEntry[]): void {
   ws["!freeze"] = { xSplit: 0, ySplit: 1 };
   ws["!rows"] = [{ hpt: 22 }];
   ws["!cols"] = [
+    { wch: 14 },
     { wch: 34 },
     { wch: 30 },
     { wch: 20 },
@@ -84,5 +93,5 @@ export function exportGardiennageToExcel(entries: GardiennageEntry[]): void {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Gardiennage");
-  downloadSheetJsWorkbook(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
+  return downloadSheetJsWorkbook(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
 }

@@ -1,13 +1,14 @@
 /**
  * Presenter gardiennage : liste, CRUD, statuts, clôture.
  *
- * Polling silencieux ~20 s pour resynchroniser les entrées. Persistance PostgreSQL.
+ * Polling silencieux aligné sur les badges sidebar (`DATA_REFRESH_POLL_MS`). Persistance PostgreSQL.
  * Compteurs mois en cours (`recurrenceStartDate`) pour les cartes de synthèse.
  * Messages utilisateur via `onToast`. Utilisé par : `GardiennagePage`.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { DATA_REFRESH_POLL_MS } from "../../common/constants/dataRefreshPoll";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { getLocalMonthKey, isIsoDateInLocalMonth } from "../../common/utils/currentMonthSummary";
@@ -56,7 +57,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadEntries(true);
-    }, 20000);
+    }, DATA_REFRESH_POLL_MS);
     return () => window.clearInterval(timer);
   }, [loadEntries]);
 

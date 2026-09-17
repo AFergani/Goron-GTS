@@ -1,5 +1,5 @@
 /**
- * Types métier interventions : fiche unique, statuts, facturation, référentiels en attente.
+ * Types métier interventions : fiche unique, statuts, référentiels en attente.
  *
  * Cycle EN_COURS → CLOTURE / ANNULE. Champs passage (arrivée/départ) avec dates civiles.
  * `exportExtraValues` : variables Word configurées.
@@ -9,7 +9,6 @@
 export const INTERVENTION_NO_WORK_ORDER_LABEL = "Pas de bon";
 
 export type InterventionStatus = "EN_COURS" | "CLOTURE" | "ANNULE";
-export type InterventionBillingStatus = "FACTURABLE" | "NON_FACTURABLE";
 
 export type InterventionEntry = {
   id: string;
@@ -31,11 +30,11 @@ export type InterventionEntry = {
   intervenantId: string | null;
   intervenantName: string;
   status: InterventionStatus;
-  billingStatus: InterventionBillingStatus;
-  billingReason: string;
   cancellationReason: string;
   closedAt: string | null;
   archivedAt: string | null;
+  /** Numéro métier `JJMMAAAA-XX` (recherche / titre) ; l’UUID `id` reste interne. */
+  dailyCode: string;
   /** Valeurs des champs complémentaires configurés pour l'export Word (clé → texte). */
   exportExtraValues: Record<string, string>;
   /** ID de la ronde liée (lookup inversé depuis `ronde_entries.origin_intervention_id`). */

@@ -2,6 +2,7 @@
  * Créneaux planifiés applicables pour une date (agrégation par site, libellés passage).
  *
  * S’appuie sur `rondePlannedSlotEngine` pour la génération aléatoire et les récurrences.
+ * Les aléatoires d’un profil honorent les lignes d’ouverture / fermeture / accompagnement de la même nuit.
  */
 
 import type { RondePlannedProfileRef, RondePlannedRoundKind } from "./rondePlanned.types";
@@ -10,9 +11,61 @@ import {
   generateRandomSlotSpecs,
   lineAndProfileApplyOnDate,
   profilePlanningAppliesOnDate,
-  randomAnchorDatesForTargetDay
+  randomAnchorDatesForTargetDay,
+  windowCrossesMidnight
 } from "./rondePlannedSlotEngine";
 import { formatRondePlannedRoundKind } from "./rondePlannedSummary";
+import { parseDateTimeSafeMs } from "../utils/parseDateTimeSafeMs";
+import { isRondeTimeHm } from "../utils/rondeTime";
+import type { DedicatedRondeAnchor, DedicatedRondeKind } from "../utils/intervalSeriesHonoringDedicated";
+
+function isDedicatedRoundKind(kind: RondePlannedRoundKind): kind is DedicatedRondeKind {
+  return kind === "OPENING" || kind === "CLOSING" || kind === "ACCOMPAGNEMENT";
+}
+
+/**
+ * Ancres dédiées du même profil dont l’horaire tombe dans la fenêtre de la ligne aléatoire.
+ *
+ * @param profile - Profil contractuel.
+ * @param randomLine - Ligne RANDOM (fenêtre).
+ * @param anchorDateIso - Jour d’ancre de la nuit.
+ */
+function collectDedicatedForRandomNight(
+  profile: RondePlannedProfileRef,
+  randomLine: RondePlannedProfileRef["lines"][number],
+  anchorDateIso: string,
+  holidayFns: { isHoliday: (iso: string) => boolean; isHolidayEve: (iso: string) => boolean }
+): DedicatedRondeAnchor[] {
+  const ws = randomLine.randomWindowStart?.trim() || "";
+  const we = randomLine.randomWindowEnd?.trim() || "";
+  if (!isRondeTimeHm(ws) || !isRondeTimeHm(we)) return [];
+  const crosses = windowCrossesMidnight(ws, we);
+  const startMs = parseDateTimeSafeMs(anchorDateIso, ws);
+  const endIso = crosses ? addDaysIso(anchorDateIso, 1) : anchorDateIso;
+  const endMs = parseDateTimeSafeMs(endIso, we);
+  if (startMs == null || endMs == null) return [];
+  const dates = crosses ? [anchorDateIso, endIso] : [anchorDateIso];
+  const out: DedicatedRondeAnchor[] = [];
+  for (const other of profile.lines) {
+    if (!isDedicatedRoundKind(other.roundKind)) continue;
+    const time = other.requestedTime?.trim() || "";
+    if (!isRondeTimeHm(time)) continue;
+    for (const dayIso of dates) {
+      if (
+        !lineAndProfileApplyOnDate(profile, other, dayIso, {
+          isHoliday: holidayFns.isHoliday(dayIso),
+          isHolidayEve: holidayFns.isHolidayEve(dayIso)
+        })
+      ) {
+        continue;
+      }
+      const ms = parseDateTimeSafeMs(dayIso, time);
+      if (ms == null || ms < startMs || ms > endMs) continue;
+      out.push({ kind: other.roundKind, ms });
+    }
+  }
+  return out;
+}
 
 /** Créneau applicable pour une journée et une ligne de profil. */
 export type ApplicablePlannedSlot = {
@@ -82,7 +135,8 @@ export function buildApplicablePlannedSlots(
       if (line.roundKind === "RANDOM") {
         const anchors = randomAnchorDatesForTargetDay(p, line, dateIso, { isHoliday, isHolidayEve });
         for (const anchor of anchors) {
-          const specs = generateRandomSlotSpecs(line, anchor);
+          const dedicated = collectDedicatedForRandomNight(p, line, anchor, { isHoliday, isHolidayEve });
+          const specs = generateRandomSlotSpecs(line, anchor, dedicated);
           for (const spec of specs) {
             if (spec.calendarDateIso !== dateIso) continue;
             const parts = [`Planifiée — ${formatPlannedRoundKindLabel(spec.roundKind)}`, p.label];

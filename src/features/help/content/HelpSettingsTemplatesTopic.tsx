@@ -87,8 +87,8 @@ export function HelpSettingsTemplatesTopic() {
             répertoire. Vous pouvez y glisser-déposer vos <code>.docx</code> manuellement.
           </li>
           <li>
-            <strong>Bouton « Actualiser » :</strong> à utiliser après toute modification manuelle dans le dossier pour mettre à jour la colonne{" "}
-            <strong>État</strong> (<strong>Présent</strong> / <strong>Absent</strong>) et l&apos;emplacement affiché dans <strong>Chemin résolu</strong>.
+            <strong>Bouton « Actualiser » :</strong> à utiliser après toute modification manuelle dans le dossier pour mettre à jour le{" "}
+            <strong>chemin résolu</strong> (vert si le fichier est trouvé, rouge s&apos;il est absent).
           </li>
         </ul>
       </div>
@@ -143,11 +143,11 @@ export function HelpSettingsTemplatesTopic() {
         <ol className="muted help-center-list help-center-list--ordered">
           <li>Préparez votre fichier Word sur votre poste avec les bonnes balises entre accolades.</li>
           <li>
-            Sur la ligne du flux concerné, cliquez sur l&apos;icône <strong>Remplacer</strong> (icône d&apos;import).
+            Sur la ligne du flux concerné, cliquez sur <strong>Remplacer</strong>.
           </li>
           <li>
             Sélectionnez votre fichier : l&apos;application le copie automatiquement dans <code>data/templates</code> et écrase l&apos;ancienne
-            version. Vérifiez que le statut passe à <strong>Présent</strong>.
+            version. Vérifiez que le <strong>chemin résolu</strong> s&apos;affiche en vert.
           </li>
         </ol>
       </div>

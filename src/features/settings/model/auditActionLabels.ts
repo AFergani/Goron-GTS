@@ -93,7 +93,6 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   INTERVENTION_CLOSE: "[Intervention] Intervention clôturée",
   INTERVENTION_REOPEN: "[Intervention] Intervention rouverte",
   INTERVENTION_CANCEL: "[Intervention] Intervention annulée",
-  INTERVENTION_BILLING_UPDATE: "[Intervention] Mise à jour facturation",
   RONDE_CREATE: "[Rondes] Création d'une ronde",
   RONDE_CREATE_IDEMPOTENT: "[Rondes] Création d'une ronde (idempotente)",
   RONDE_UPDATE: "[Rondes] Modification d'une ronde",

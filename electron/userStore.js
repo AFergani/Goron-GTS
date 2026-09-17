@@ -108,6 +108,11 @@ class UserStore {
     this._pgAttachPromise = null;
     /** Dedup des appels concurrents à `ensurePostgresAttached`. */
     this._pgEnsureInFlight = null;
+    /**
+     * Génération du pool courant : ignore les erreurs idle d'un pool déjà remplacé
+     * (sinon `referentialsPersistence` est remis à null alors que PostgreSQL répond).
+     */
+    this._pgPoolGeneration = 0;
 
     /** Chemin local du journal d'événements PG (perte / retour connexion). */
     this._postgresEventLogPath = resolvePostgresEventLogPathHelper(options.userDataPath);
@@ -132,7 +137,7 @@ class UserStore {
    * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
    */
   getReferentialsPersistence() {
-    return this.referentialsPersistence;
+    return this._syncLivePostgresPersistence();
   }
 
   /**
@@ -141,7 +146,24 @@ class UserStore {
    * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
    */
   getUsersPersistence() {
-    return this.referentialsPersistence;
+    return this._syncLivePostgresPersistence();
+  }
+
+  /**
+   * Réassocie le pool si une panne idle a mis `referentialsPersistence` à null
+   * alors que `postgresPersistence` est encore ouvert (sonde TCP OK, login refusé).
+   *
+   * @returns {import('./store/persistence/persistenceContract').PersistenceAdapter|null}
+   */
+  _syncLivePostgresPersistence() {
+    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+      return this.referentialsPersistence;
+    }
+    if (this.postgresPersistence && this.postgresPersistence.isOpen()) {
+      this.referentialsPersistence = this.postgresPersistence;
+      return this.postgresPersistence;
+    }
+    return null;
   }
 
   /**
@@ -150,7 +172,7 @@ class UserStore {
    * @returns {void}
    */
   assertPostgresAvailableForReferentials() {
-    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+    if (this._syncLivePostgresPersistence()) {
       return;
     }
     this.fail(
@@ -166,7 +188,7 @@ class UserStore {
    * @returns {void}
    */
   assertPostgresAvailableForUsers() {
-    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+    if (this._syncLivePostgresPersistence()) {
       return;
     }
     this.fail(
@@ -183,7 +205,7 @@ class UserStore {
    * @returns {Promise<boolean>} `true` si le pool utilisateurs est ouvert
    */
   async ensurePostgresAttached() {
-    if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+    if (this._syncLivePostgresPersistence()) {
       return true;
     }
     if (this._pgEnsureInFlight) {
@@ -197,13 +219,13 @@ class UserStore {
           } catch {
             // Nouvelle tentative ci-dessous.
           }
-          if (this.referentialsPersistence && this.referentialsPersistence.isOpen()) {
+          if (this._syncLivePostgresPersistence()) {
             return true;
           }
         }
         this._pgAttachPromise = this.attachPostgresAuditLab({ forceReconnect: true });
         const result = await this._pgAttachPromise;
-        return Boolean(result?.attached) && Boolean(this.referentialsPersistence?.isOpen());
+        return Boolean(result?.attached) && Boolean(this._syncLivePostgresPersistence());
       } catch {
         this._pgAttachPromise = null;
         return false;
@@ -224,6 +246,7 @@ class UserStore {
   async attachPostgresAuditLab(options = {}) {
     const forceReconnect = Boolean(options.forceReconnect);
     if (forceReconnect && this.postgresPersistence) {
+      this._pgPoolGeneration += 1;
       try {
         await this.postgresPersistence.close();
       } catch {
@@ -233,9 +256,12 @@ class UserStore {
       this.referentialsPersistence = null;
     }
 
+    const poolGeneration = this._pgPoolGeneration + 1;
+    this._pgPoolGeneration = poolGeneration;
     const pg = await tryOpenPostgresLabPersistence({
       onIdleClientError: () => {
-        // Panne idle (docker stop, etc.) : bascule badge / référentiels sans boîte Windows.
+        // Ignorer les erreurs d'un pool déjà fermé / remplacé (sinon login bloqué alors que la sonde est verte).
+        if (poolGeneration !== this._pgPoolGeneration) return;
         this.setAuditPostgresReachable(false);
       }
     });
@@ -288,6 +314,12 @@ class UserStore {
         this.auditRouter.setPostgresReachable(false);
       }
       this.referentialsPersistence = null;
+      const deadPool = this.postgresPersistence;
+      this.postgresPersistence = null;
+      this._pgPoolGeneration += 1;
+      if (deadPool && typeof deadPool.close === "function") {
+        void deadPool.close().catch(() => {});
+      }
       return;
     }
 
@@ -328,6 +360,7 @@ class UserStore {
    * @returns {Promise<void>}
    */
   async close() {
+    this._pgPoolGeneration += 1;
     if (this.postgresPersistence && typeof this.postgresPersistence.close === "function") {
       try {
         await this.postgresPersistence.close();
@@ -1032,11 +1065,6 @@ class UserStore {
   async setInterventionStatus(payload) {
     await this.whenPostgresReady();
     return interventionDomain.setInterventionStatus(this, payload);
-  }
-
-  async setInterventionBillingStatus(payload) {
-    await this.whenPostgresReady();
-    return interventionDomain.setInterventionBillingStatus(this, payload);
   }
 
   // --- Rondes (PostgreSQL only, dossier domains/ronde) ---

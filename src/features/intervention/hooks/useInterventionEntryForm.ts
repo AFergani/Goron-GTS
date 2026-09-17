@@ -22,7 +22,7 @@ import {
   resolvePassageDatesForSave
 } from "../utils/interventionPassageDates";
 
-export type InterventionEntryMode = "create" | "edit" | "facturation";
+export type InterventionEntryMode = "create" | "edit";
 
 type UseInterventionEntryFormParams = {
   isOpen: boolean;
@@ -64,8 +64,6 @@ export function useInterventionEntryForm({
   const [showPendingIntervenantForm, setShowPendingIntervenantForm] = useState(false);
   const [showCancelReasonDialog, setShowCancelReasonDialog] = useState(false);
   const [cancelReasonInput, setCancelReasonInput] = useState("");
-  const [showBillingReasonDialog, setShowBillingReasonDialog] = useState(false);
-  const [billingReasonInput, setBillingReasonInput] = useState("");
   const [wordExtraDefs, setWordExtraDefs] = useState<InterventionFormFieldDef[]>([]);
   const [exportExtraValues, setExportExtraValues] = useState<Record<string, string>>({});
   const [logicalDateOverride, setLogicalDateOverride] = useState("");
@@ -76,11 +74,8 @@ export function useInterventionEntryForm({
     () => intervenants.find((intervenant) => intervenant.id === intervenantId) || null,
     [intervenantId, intervenants]
   );
-  const isBillable = entry?.billingStatus !== "NON_FACTURABLE";
   const isCreateMode = mode === "create";
-  const isFacturationMode = mode === "facturation";
   const showRequiredFieldsOnly = isCreateMode;
-  const allowFacturationToggle = Boolean(entry && isResponsable && isFacturationMode);
   const canFixKnownReferences = !isCreateMode && isResponsable;
   const lockCoreFields = !isCreateMode && !canFixKnownReferences;
   const formLockedClosed = entry?.status === "CLOTURE";
@@ -93,8 +88,6 @@ export function useInterventionEntryForm({
     setShowPendingIntervenantForm(false);
     setShowCancelReasonDialog(false);
     setCancelReasonInput("");
-    setShowBillingReasonDialog(false);
-    setBillingReasonInput("");
     setPendingCode("");
     setPendingName("");
     setPendingIntervenantName("");
@@ -120,8 +113,6 @@ export function useInterventionEntryForm({
     setShowPendingIntervenantForm(false);
     setShowCancelReasonDialog(false);
     setCancelReasonInput("");
-    setShowBillingReasonDialog(false);
-    setBillingReasonInput("");
     setPendingCode("");
     setPendingName("");
     setPendingIntervenantName("");
@@ -243,7 +234,7 @@ export function useInterventionEntryForm({
   ]);
 
   const createCloseGuard = useCreateModalCloseGuard({
-    enabled: isCreateMode && !showCancelReasonDialog && !showBillingReasonDialog,
+    enabled: isCreateMode && !showCancelReasonDialog,
     isDirty: isInterventionCreateDirty,
     onClose
   });
@@ -287,10 +278,6 @@ export function useInterventionEntryForm({
     setShowCancelReasonDialog,
     cancelReasonInput,
     setCancelReasonInput,
-    showBillingReasonDialog,
-    setShowBillingReasonDialog,
-    billingReasonInput,
-    setBillingReasonInput,
     wordExtraDefs,
     exportExtraValues,
     setExportExtraValues,
@@ -298,11 +285,8 @@ export function useInterventionEntryForm({
     setIsActionSubmitting,
     selectedSite,
     selectedIntervenant,
-    isBillable,
     isCreateMode,
-    isFacturationMode,
     showRequiredFieldsOnly,
-    allowFacturationToggle,
     canFixKnownReferences,
     lockCoreFields,
     formLockedClosed,

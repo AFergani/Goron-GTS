@@ -1,7 +1,7 @@
 /**
  * Mappage SQL / contrat public et snapshots d'audit du domaine Intervention.
  *
- * Appelé par `entries.js` (CRUD, statut, facturation).
+ * Appelé par `entries.js` (CRUD, statut).
  *
  * `INTERVENTION_ENTRY_SELECT` : colonnes de `intervention_entries` uniquement.
  * `linked_ronde_id` / `linked_gardiennage_id` viennent de `getCrossDomainLinks`
@@ -21,8 +21,8 @@ const { resolveWorkOrderNumber } = require("./helpers");
 const INTERVENTION_ENTRY_SELECT = `id, created_at, updated_at, site_id, site_display,
   request_reason, request_date, request_time, arrival_date, arrival_time,
   departure_time, departure_date, delay_minutes, work_order_number, report,
-  intervenant_id, intervenant_name, status, billing_status, billing_reason,
-  export_extra_json, cancellation_reason, closed_at, archived_at`;
+  intervenant_id, intervenant_name, status, export_extra_json, cancellation_reason,
+  closed_at, archived_at, daily_code`;
 
 /**
  * Identifiant de fiche (trim). Obligatoire aussi à la création (id client).
@@ -95,11 +95,10 @@ function mapInterventionRow(row) {
     intervenantId: row.intervenant_id || null,
     intervenantName: row.intervenant_name || "",
     status: row.status,
-    billingStatus: row.billing_status || "FACTURABLE",
-    billingReason: row.billing_reason || "",
     cancellationReason: row.cancellation_reason || "",
     closedAt: row.closed_at || null,
     archivedAt: row.archived_at || null,
+    dailyCode: row.daily_code || "",
     exportExtraValues: parseExportExtraJson(row.export_extra_json),
     linkedRondeId: row.linked_ronde_id || null,
     linkedGardiennageId: row.linked_gardiennage_id || null
@@ -126,7 +125,8 @@ function toInterventionAuditSnapshot(row) {
     workOrderNumber: resolveWorkOrderNumber(row.workOrderNumber || row.work_order_number),
     report: textField(row, "report", "report"),
     intervenantName: textField(row, "intervenantName", "intervenant_name"),
-    status: textField(row, "status", "status")
+    status: textField(row, "status", "status"),
+    dailyCode: textField(row, "dailyCode", "daily_code")
   };
 }
 

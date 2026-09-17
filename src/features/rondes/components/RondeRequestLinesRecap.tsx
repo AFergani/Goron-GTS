@@ -1,5 +1,5 @@
 /**
- * Récapitulatif des lignes + compteurs preview (demande exceptionnelle).
+ * Récapitulatif des lignes + compteurs preview (demande exceptionnelle ou profil contractuel).
  */
 
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
@@ -22,6 +22,8 @@ type RondeRequestLinesRecapProps = {
   validToTime: string;
   exceptionalPerLine: number[];
   exceptionalTotal: number;
+  /** Texte si ouverture/fermeture ancrent la série d’intervalle. */
+  intervalHonorNote?: string;
 };
 
 export function RondeRequestLinesRecap({
@@ -35,7 +37,8 @@ export function RondeRequestLinesRecap({
   validTo,
   validToTime,
   exceptionalPerLine,
-  exceptionalTotal
+  exceptionalTotal,
+  intervalHonorNote = ""
 }: RondeRequestLinesRecapProps) {
   return (
     <section className="panel ronde-request-recap" style={{ marginTop: 8, padding: 12 }}>
@@ -51,7 +54,7 @@ export function RondeRequestLinesRecap({
             {formatLineDraftSummary(line, {
               omitWeekdayRecurrence: isSingleDay || lockWeekdaysFromValidityRange
             })}
-            {!isContract && !isEdit ? (
+            {!isEdit ? (
               <>
                 {" "}
                 → {exceptionalPerLine[index] ?? 0} ronde
@@ -71,10 +74,22 @@ export function RondeRequestLinesRecap({
           {isSingleDay ? " · Jour unique" : ""}
         </div>
       ) : null}
-      {!isContract && !isEdit ? (
-        <div style={{ marginTop: 6, fontWeight: 600 }}>
-          Total : {exceptionalTotal} ronde{exceptionalTotal > 1 ? "s" : ""}
+      {intervalHonorNote ? (
+        <div className="muted" style={{ marginTop: 8 }}>
+          {intervalHonorNote}
         </div>
+      ) : null}
+      {!isEdit ? (
+        <>
+          {isContract ? (
+            <div className="muted" style={{ marginTop: 6 }}>
+              Aperçu pour la nuit du début de validité (puis récurrence du profil).
+            </div>
+          ) : null}
+          <div style={{ marginTop: 6, fontWeight: 600 }}>
+            Total : {exceptionalTotal} ronde{exceptionalTotal > 1 ? "s" : ""}
+          </div>
+        </>
       ) : null}
     </section>
   );

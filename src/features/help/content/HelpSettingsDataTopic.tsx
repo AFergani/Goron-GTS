@@ -168,7 +168,7 @@ export function HelpSettingsDataTopic() {
           <li>
             <strong>Déploiement d&apos;un nouveau marché (150 sites d&apos;un coup) :</strong>
             <br />
-            <strong>→</strong> allez sur l&apos;onglet <strong>Sites</strong>, cliquez sur <strong>Importer en masse</strong>, chargez votre
+            <strong>→</strong> allez sur l&apos;onglet <strong>Sites</strong>, cliquez sur <strong>Importer</strong>, chargez votre
             fichier Excel standardisé. Utilisez ensuite les filtres par famille si vous devez faire des ajustements à la volée.
           </li>
           <li>

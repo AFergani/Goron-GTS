@@ -14,10 +14,12 @@ const { probePostgresLabMonitored } = require("../store/persistence");
  * @param {object} deps
  * @param {Function} deps.handleIpc
  * @param {Function} deps.handleIpcAuth
+ * @param {Function} deps.handleIpcAuthLarge
  * @param {(payload?: object) => object|null} deps.getOptionalAuthContext
  * @param {() => { configured: boolean, isDev: boolean }} deps.getDbConfig
  * @param {() => import('../userStore')|null} deps.getUserStore
  * @param {object} deps.documentTemplates
+ * @param {{ saveExportFile: Function, openExportFile: Function }} deps.exportFileService
  * @param {import('electron').Shell} deps.shell
  * @param {import('electron').App} deps.app
  * @param {(value: boolean) => void} deps.setIsAppQuitting
@@ -31,10 +33,12 @@ function registerSystemIpcHandlers(deps) {
   const {
     handleIpc,
     handleIpcAuth,
+    handleIpcAuthLarge,
     getOptionalAuthContext,
     getDbConfig,
     getUserStore,
     documentTemplates,
+    exportFileService,
     shell,
     app,
     setIsAppQuitting,
@@ -79,6 +83,9 @@ function registerSystemIpcHandlers(deps) {
       });
     }
   });
+
+  handleIpcAuthLarge("system:saveExportFile", (payload) => exportFileService.saveExportFile(payload));
+  handleIpcAuth("system:openExportFile", (payload) => exportFileService.openExportFile(payload));
 
   handleIpc("system:getDbHealth", (payload) => {
     const store = getUserStore();

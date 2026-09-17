@@ -17,9 +17,13 @@ import { useMainCourantePresenter } from "../presenter/useMainCourantePresenter"
 import { useMainCouranteReferenceData } from "../presenter/useMainCouranteReferenceData";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 import { exportMainCouranteToExcel } from "../export/mainCouranteExcelExport";
 import { exportMainCouranteEntryToWord } from "../export/mainCouranteWordExport";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
+import { ListExportButtons } from "../../common/components/ExportFileButtons";
+import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
+import { WORKSTATION_EXPORT_KEYS, wordExportKey } from "../../common/utils/workstationExportPaths";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 
 const MAIN_COURANTE_FILTERS_STORAGE_KEY = "mainCourante.filters.v1";
@@ -71,6 +75,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
   );
 
   const isManager = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
+  const workstationExports = useWorkstationExports();
 
   const operatorOptions = useMemo(() => {
     return Array.from(new Set(entries.map((e) => e.operatorName))).sort((a, b) => a.localeCompare(b));
@@ -109,6 +114,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
       .filter((entry) => {
         const textOk =
           !q ||
+          matchesDailyCodeSearch(entry.dailyCode, q) ||
           entry.operatorName.toLowerCase().includes(q) ||
           (entry.siteDisplay || "").toLowerCase().includes(q) ||
           entry.anomalyTypeLabel.toLowerCase().includes(q) ||
@@ -178,8 +184,12 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
   const handleExportExcel = async () => {
     if (filteredEntries.length === 0) return;
     try {
-      await exportMainCouranteToExcel(filteredEntries);
-      onToast?.("Export Excel téléchargé.");
+      await workstationExports.saveAndRemember(
+        WORKSTATION_EXPORT_KEYS.excelMainCourante,
+        () => exportMainCouranteToExcel(filteredEntries),
+        onToast,
+        "Export Excel enregistré."
+      );
     } catch (e) {
       onToast?.(e instanceof Error ? e.message : "Export Excel impossible.", "error");
     }
@@ -187,8 +197,12 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
 
   const handleExportWord = async (entry: MainCouranteEntry) => {
     try {
-      await exportMainCouranteEntryToWord(entry);
-      onToast?.("Document Word téléchargé.");
+      await workstationExports.saveAndRemember(
+        wordExportKey("mainCourante", entry.id),
+        () => exportMainCouranteEntryToWord(entry),
+        onToast,
+        "Document Word enregistré."
+      );
     } catch (e) {
       onToast?.(e instanceof Error ? e.message : "Export Word impossible.", "error");
     }
@@ -263,14 +277,13 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
       <section className="panel main-courante-table-panel">
         {referencesError ? <p className="error main-log-ref-error">{referencesError}</p> : null}
         <div className="main-courante-table-toolbar">
-          <button
-            type="button"
-            className="btn-light"
-            disabled={loading || filteredEntries.length === 0}
-            onClick={() => void handleExportExcel()}
-          >
-            Exporter données
-          </button>
+          <ListExportButtons
+            exportDisabled={loading || filteredEntries.length === 0}
+            canOpenLast={workstationExports.canOpenExcelTemporarily(WORKSTATION_EXPORT_KEYS.excelMainCourante)}
+            lastFilePath={workstationExports.getLastPath(WORKSTATION_EXPORT_KEYS.excelMainCourante)}
+            onExport={() => void handleExportExcel()}
+            onOpenLast={() => void workstationExports.openLastExport(WORKSTATION_EXPORT_KEYS.excelMainCourante, onToast)}
+          />
           <button type="button" className="mc-btn-primary" onClick={openCreate}>
             <Plus size={16} aria-hidden />
             Nouvelle entrée
@@ -284,7 +297,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
             onDateFromChange={filters.setDateFrom}
             dateTo={filters.dateTo}
             onDateToChange={filters.setDateTo}
-            searchPlaceholder="Opérateur, site, type, information…"
+            searchPlaceholder="N°, opérateur, site, type, information…"
             onReset={() => {
               filters.reset();
               setOperatorFilter("all");
@@ -349,7 +362,6 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
           onNotify={onToast}
           onEditEntry={openEdit}
           onManagerTreat={openManager}
-          onExportWord={handleExportWord}
           onViewEntry={openView}
         />
         <TablePaginationBar
@@ -391,6 +403,11 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
             expectedUpdatedAt: entry.updatedAt
           })
         }
+        onSaveWord={(entry) => void handleExportWord(entry)}
+        onOpenWord={(entry) =>
+          void workstationExports.openLastExport(wordExportKey("mainCourante", entry.id), onToast)
+        }
+        getWordFilePath={(entryId) => workstationExports.getLastPath(wordExportKey("mainCourante", entryId))}
       />
     </>
   );

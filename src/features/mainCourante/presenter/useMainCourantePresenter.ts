@@ -1,13 +1,14 @@
 /**
  * Presenter main courante : liste, stats, création opérateur, édition, actions responsable.
  *
- * Polling ~20 s. Persistance PostgreSQL (passthrough IPC).
+ * Polling aligné sur les badges sidebar (`DATA_REFRESH_POLL_MS`). Persistance PostgreSQL (passthrough IPC).
  * Compteurs cartes : mois civil en cours (`createdAt`).
  * Utilisé par : `MainCourantePage` (badge sidebar alimenté par AppShell via API séparée).
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { DATA_REFRESH_POLL_MS } from "../../common/constants/dataRefreshPoll";
 import { getLocalMonthKey, isTimestampInLocalMonth } from "../../common/utils/currentMonthSummary";
 import type {
   MainCouranteCreatePayload,
@@ -59,7 +60,7 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
   }, [loadEntries]);
 
   useEffect(() => {
-    const id = window.setInterval(() => void loadEntries(true), 20000);
+    const id = window.setInterval(() => void loadEntries(true), DATA_REFRESH_POLL_MS);
     return () => window.clearInterval(id);
   }, [loadEntries]);
 

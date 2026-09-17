@@ -1,5 +1,5 @@
 /**
- * CRUD, statut et facturation des interventions dans PostgreSQL.
+ * CRUD et statut des interventions dans PostgreSQL.
  *
  * Liens vers Ronde et Gardiennage : lecture dans la même base (première fiche liée).
  *
@@ -7,6 +7,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const { ensureInterventionPayload, getMissingClosureFieldsFromRow } = require("./helpers");
 const {
   INTERVENTION_ENTRY_SELECT,
@@ -184,18 +185,19 @@ async function createIntervention(store, payload) {
       [entryId]
     );
     if (existing) return { existing };
+    const dailyCode = await allocateNextDailyCode(tx, "intervention", normalized.requestDate);
     await tx.run(
       `INSERT INTO intervention_entries (
         id, created_at, updated_at, site_id, site_display, request_reason, request_date, request_time,
         arrival_date, arrival_time, departure_time, departure_date, delay_minutes, work_order_number,
-        report, intervenant_id, intervenant_name, status, billing_status, billing_reason, export_extra_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        report, intervenant_id, intervenant_name, status, export_extra_json, daily_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         entryId, now, now, normalized.siteId, normalized.siteDisplay, normalized.requestReason,
         normalized.requestDate, normalized.requestTime, normalized.arrivalDate, normalized.arrivalTime || null,
         normalized.departureTime || null, normalized.departureDate, normalized.delayMinutes,
         normalized.workOrderNumber || null, normalized.report || null, normalized.intervenantId,
-        normalized.intervenantName, "EN_COURS", "FACTURABLE", null, extraJson
+        normalized.intervenantName, "EN_COURS", extraJson, dailyCode
       ]
     );
     return { existing: null };
@@ -388,86 +390,11 @@ async function setInterventionStatus(store, payload) {
   return updated;
 }
 
-/**
- * Met à jour le statut de facturation (responsable / DEV).
- *
- * @param {import('../../../userStore')} store
- * @param {object} payload
- * @returns {Promise<object>}
- */
-async function setInterventionBillingStatus(store, payload) {
-  store.ensureDataManagerRole(payload.requesterRole);
-  const actor = actorName(payload.requesterUsername);
-  const entryId = requireEntryId(store, payload, "intervention:billing");
-  const db = requireInterventionPersistence(store, "intervention:billing");
-  const next = payload.billingStatus === "NON_FACTURABLE" ? "NON_FACTURABLE" : "FACTURABLE";
-  const reason = String(payload.reason || "").trim();
-  if (next === "NON_FACTURABLE" && !reason) {
-    store.fail(
-      "intervention:billing",
-      "Une justification est obligatoire pour passer en non facturable.",
-      "INTERVENTION_BILLING_REASON_REQUIRED"
-    );
-  }
-  const existing = await db.transaction(async (tx) => {
-    const row = await tx.get(
-      `SELECT ${INTERVENTION_ENTRY_SELECT} FROM intervention_entries WHERE id = ? FOR UPDATE`,
-      [entryId]
-    );
-    if (!row) store.fail("intervention:billing", "Intervention introuvable.", "INTERVENTION_NOT_FOUND");
-    if (row.archived_at) {
-      store.fail("intervention:billing", "Intervention archivée non modifiable.", "INTERVENTION_ARCHIVED_READONLY");
-    }
-    if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("intervention:billing", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
-    }
-    const now = new Date().toISOString();
-    const result = await tx.run(
-      `UPDATE intervention_entries
-       SET billing_status = ?, billing_reason = ?, updated_at = ?
-       WHERE id = ? AND updated_at = ?`,
-      [next, next === "NON_FACTURABLE" ? reason : null, now, entryId, payload.expectedUpdatedAt]
-    );
-    if (!result.changes) {
-      store.fail("intervention:billing", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
-    }
-    return row;
-  });
-  const updated = mapInterventionRow(
-    await db.get(`SELECT ${INTERVENTION_ENTRY_SELECT} FROM intervention_entries WHERE id = ?`, [entryId])
-  );
-  const historyBefore = await store.getEntityChangeHistory("intervention_entries", entryId, 3);
-  await store.recordEntityChange({
-    entityType: "intervention_entries",
-    entityId: entryId,
-    changedBy: actor,
-    snapshot: toInterventionAuditSnapshot(updated)
-  });
-  store.logAudit({
-    actorUsername: actor,
-    action: "INTERVENTION_BILLING_UPDATE",
-    details: {
-      id: entryId,
-      before: {
-        billingStatus: existing.billing_status || "FACTURABLE",
-        billingReason: existing.billing_reason || ""
-      },
-      after: {
-        billingStatus: next,
-        billingReason: next === "NON_FACTURABLE" ? reason : ""
-      },
-      historyBefore
-    }
-  });
-  return updated;
-}
-
 module.exports = {
   createIntervention,
   getInterventionOpenCount,
   hasInterventionEntry,
   listInterventions,
-  setInterventionBillingStatus,
   setInterventionStatus,
   updateIntervention
 };

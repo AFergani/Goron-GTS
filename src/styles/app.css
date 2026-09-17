@@ -41,6 +41,8 @@
   overflow-x: hidden;
   /* Réserve la gouttière scrollbar (évite le décalage horizontal jour ↔ liste) */
   scrollbar-gutter: stable;
+  /* Empêche le navigateur de recaler le scroll sur le pied de pagination */
+  overflow-anchor: none;
 }
 
 .panel {
@@ -668,7 +670,8 @@
 
 .tabs-bar__toolbar .mc-btn-primary,
 .gard-panel-head__toolbar .mc-btn-primary,
-.main-courante-table-toolbar .mc-btn-primary {
+.main-courante-table-toolbar .mc-btn-primary,
+.row-actions .mc-btn-primary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1196,10 +1199,17 @@ th {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: space-between;
+  margin: 10px 0 12px;
 }
 
 .settings-tab-toolbar--end {
   justify-content: flex-end;
+}
+
+.settings-tab-toolbar .row-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .user-filter-bar {
@@ -1494,6 +1504,9 @@ th {
 
 .data-actions-bar > button {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .hidden-file-input {
@@ -1507,6 +1520,20 @@ th {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+  overflow-anchor: none;
+}
+
+.pagination-year-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination-year-input {
+  width: 5.5rem;
+  min-height: 32px;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .table-actions {
@@ -2328,6 +2355,15 @@ th {
   white-space: pre-line;
 }
 
+.main-courante-table col.col-daily-code {
+  width: 7.2rem;
+}
+.main-courante-table th.col-daily-code,
+.main-courante-table td.col-daily-code {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .main-courante-table.ronde-table col.ronde-col-date {
   width: 11%;
 }
@@ -2658,6 +2694,13 @@ th {
   margin-bottom: 12px;
 }
 
+.export-file-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Bandeaux outils : le toggle ne doit pas s'étirer comme dans les grilles de formulaire */
 .main-courante-table-toolbar .toggle-switch,
 .gard-panel-head__toolbar .toggle-switch,
@@ -2742,6 +2785,11 @@ th {
 }
 
 .table-action-btn--word:hover:not(:disabled) {
+  border-color: rgba(74, 136, 242, 0.55);
+  color: var(--accent-hi);
+}
+
+.table-action-btn--open:hover:not(:disabled) {
   border-color: rgba(74, 136, 242, 0.55);
   color: var(--accent-hi);
 }
@@ -3393,6 +3441,10 @@ th {
 }
 
 .mc-modal-footer-split .mc-modal-footer-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -4683,7 +4735,7 @@ fieldset.ronde-planned-weekdays {
 }
 
 .templates-management-panel {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .modal-grid-two {
@@ -4751,6 +4803,7 @@ fieldset.ronde-planned-weekdays {
 
 .templates-management-panel__table {
   margin-top: 12px;
+  min-width: 980px;
 }
 
 .templates-management-panel__path-cell {
@@ -4759,19 +4812,40 @@ fieldset.ronde-planned-weekdays {
   max-width: 420px;
 }
 
-.templates-management-panel__ok {
+.templates-management-panel__path--ok {
   color: var(--ok);
 }
 
+.templates-management-panel__path--missing {
+  color: var(--err);
+}
+
 .templates-management-panel__col-actions {
-  width: 100px;
-  text-align: center;
+  width: 16.5rem;
+  min-width: 16.5rem;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .templates-management-panel__row-actions {
   display: inline-flex;
+  flex-wrap: nowrap;
   gap: 6px;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.templates-management-panel__row-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .templates-management-panel__extra-toolbar {

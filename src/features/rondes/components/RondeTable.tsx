@@ -40,6 +40,7 @@ function normalizeOriginDetail(entry: RondeEntry): string {
 }
 
 type RondeSortKey =
+  | "dailyCode"
   | "requestDate"
   | "siteDisplay"
   | "origin"
@@ -50,7 +51,6 @@ type RondeTableProps = {
   entries: RondeEntry[];
   onOpen: (entry: RondeEntry) => void;
   onFollowUp: (entry: RondeEntry) => void;
-  onExportWord?: (entry: RondeEntry) => void;
   /** Ouvre la programmation liée (rondes contractuelles). */
   onOpenProfile?: (profileId: string) => void;
   /** Ouvre la demande liée (rondes exceptionnelles). */
@@ -64,13 +64,13 @@ export function RondeTable({
   entries,
   onOpen,
   onFollowUp,
-  onExportWord,
   onOpenProfile,
   onOpenLinkedDemand,
   showOrigin = true,
   onNotify
 }: RondeTableProps) {
   const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
+    dailyCode: (a: RondeEntry, b: RondeEntry) => (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
     requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     origin: (a: RondeEntry, b: RondeEntry) =>
@@ -95,6 +95,7 @@ export function RondeTable({
     <div className="main-courante-table-wrap">
       <table className={`main-courante-table ronde-table${showOrigin ? "" : " ronde-table--no-origin"}`}>
         <colgroup>
+          <col className="col-daily-code" />
           <col className="ronde-col-date" />
           <col className="ronde-col-site" />
           {showOrigin ? <col className="ronde-col-origin" /> : null}
@@ -107,6 +108,7 @@ export function RondeTable({
         </colgroup>
         <thead>
           <tr>
+            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("dailyCode")}>N° {sortLabel("dailyCode")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("requestDate")}>Date demande {sortLabel("requestDate")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("siteDisplay")}>Site {sortLabel("siteDisplay")}</button></th>
             {showOrigin ? (
@@ -127,6 +129,7 @@ export function RondeTable({
         <tbody>
           {sortedEntries.map((entry) => (
             <tr key={entry.id}>
+              <td className="col-daily-code">{entry.dailyCode || "—"}</td>
               <td className="ronde-request-date-cell">
                 <div className="ronde-request-date-cell__inner">
                   {entry.plannedRoundKind ? (
@@ -188,7 +191,7 @@ export function RondeTable({
                         className="table-action-btn table-action-btn--text"
                         onClick={() => onOpen(entry)}
                       >
-                        Voir le détail
+                        Ouvrir la fiche
                       </button>
                     ) : null}
                     {onOpenProfile && entry.plannedProfileId ? (
@@ -208,15 +211,6 @@ export function RondeTable({
                         onClick={() => onOpenLinkedDemand(entry)}
                       >
                         Demande liée
-                      </button>
-                    ) : null}
-                    {onExportWord && (entry.status === "CLOTURE" || entry.status === "ANNULE") ? (
-                      <button
-                        type="button"
-                        className="table-action-btn table-action-btn--text table-action-btn--word"
-                        onClick={() => onExportWord(entry)}
-                      >
-                        Export Word
                       </button>
                     ) : null}
                   </div>

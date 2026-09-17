@@ -8,6 +8,11 @@ import type { RondePlannedProfileLineRef, RondePlannedProfileRef, RondePlannedRo
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT } from "./rondePlanned.types";
 import { formatLocalDateIso } from "./rondeCalendarLocal";
 import { hhmmToMinutes, isRondeTimeHm } from "../utils/rondeTime";
+import {
+  generateRandomWindowSlots,
+  MAX_HONORED_RANDOM_SLOTS,
+  type DedicatedRondeAnchor
+} from "../utils/intervalSeriesHonoringDedicated";
 
 /** Bits semaine : lun=1 … dim=64 */
 export function dateIsoToWeekdayMask(dateIso: string): number {
@@ -51,7 +56,7 @@ export function inclusiveCalendarDayCount(fromIso: string, toIso: string): numbe
   return count;
 }
 
-const MAX_RANDOM_SLOTS = 48;
+const MAX_RANDOM_SLOTS = MAX_HONORED_RANDOM_SLOTS;
 
 export type GeneratedPlannedSlot = {
   profileLineId: string;
@@ -59,7 +64,10 @@ export type GeneratedPlannedSlot = {
   slotKey: string;
   roundKind: RondePlannedRoundKind;
   requestedTime: string | null;
+  /** Jour d’affichage (ancre si la fenêtre traverse minuit). */
   calendarDateIso: string;
+  /** Jour calendaire réel de l’horaire (peut être le lendemain si la fenêtre traverse minuit). */
+  occurrenceDateIso: string;
 };
 
 export function windowCrossesMidnight(startHHMM: string, endHHMM: string): boolean {
@@ -138,10 +146,46 @@ function parseLocalDateTime(dateIso: string, hhmm: string): Date {
   return new Date(`${dateIso}T${hhmm}:00`);
 }
 
+function mapHonoredSlotsToSpecs(
+  line: RondePlannedProfileLineRef,
+  slots: Array<{ requestDate: string; requestedTime: string }>,
+  crosses: boolean,
+  anchorDateIso: string
+): GeneratedPlannedSlot[] {
+  const out: GeneratedPlannedSlot[] = [];
+  let slotIndex = 0;
+  for (const slot of slots) {
+    const t = parseLocalDateTime(slot.requestDate, slot.requestedTime);
+    if (Number.isNaN(t.getTime())) continue;
+    const minutesFromMidnight = t.getHours() * 60 + t.getMinutes();
+    const occurrenceDateIso = formatLocalDateIso(t);
+    const calendarDateIso = crosses ? anchorDateIso : occurrenceDateIso;
+    out.push({
+      profileLineId: line.id,
+      slotIndex,
+      slotKey: `${line.id}:${slotIndex}`,
+      roundKind: pickEmittedRandomKind(line, minutesFromMidnight),
+      requestedTime: slot.requestedTime,
+      calendarDateIso,
+      occurrenceDateIso
+    });
+    slotIndex += 1;
+  }
+  return out;
+}
+
 /**
  * Crée des horaires répartis dans la fenêtre [début ; fin] (fin ≤ début ⇒ lendemain).
+ * Ouverture / fermeture / accompagnement du même profil (nuit) ne sont pas rejoués.
+ * `calendarDateIso` = jour d’affichage (ancre si nuit) ; `occurrenceDateIso` = jour réel de l’heure.
+ *
+ * @param dedicated - Ancres dédiées de la nuit (même profil), optionnel.
  */
-export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchorDateIso: string): GeneratedPlannedSlot[] {
+export function generateRandomSlotSpecs(
+  line: RondePlannedProfileLineRef,
+  anchorDateIso: string,
+  dedicated: DedicatedRondeAnchor[] = []
+): GeneratedPlannedSlot[] {
   const ws = line.randomWindowStart?.trim() || "";
   const we = line.randomWindowEnd?.trim() || "";
   if (!isRondeTimeHm(ws) || !isRondeTimeHm(we)) {
@@ -158,7 +202,8 @@ export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchor
         slotKey: `${line.id}:${idx}`,
         roundKind: "RANDOM_DAY",
         requestedTime: null,
-        calendarDateIso: anchorDateIso
+        calendarDateIso: anchorDateIso,
+        occurrenceDateIso: anchorDateIso
       });
       idx += 1;
     }
@@ -169,31 +214,19 @@ export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchor
         slotKey: `${line.id}:${idx}`,
         roundKind: "RANDOM_NIGHT",
         requestedTime: null,
-        calendarDateIso: anchorDateIso
+        calendarDateIso: anchorDateIso,
+        occurrenceDateIso: anchorDateIso
       });
     }
     return out;
   }
 
   const crosses = windowCrossesMidnight(ws, we);
-  const startM = hhmmToMinutes(ws);
-  const endM = hhmmToMinutes(we);
-  const span = crosses ? 24 * 60 - startM + endM : Math.max(0, endM - startM);
-  if (span <= 0) {
-    const t0 = new Date(`${anchorDateIso}T${ws}:00`);
-    const calendarDateIso = anchorDateIso;
-    const time = `${String(t0.getHours()).padStart(2, "0")}:${String(t0.getMinutes()).padStart(2, "0")}`;
-    const roundKind = pickEmittedRandomKind(line, t0.getHours() * 60 + t0.getMinutes());
-    return [
-      {
-        profileLineId: line.id,
-        slotIndex: 0,
-        slotKey: `${line.id}:0`,
-        roundKind,
-        requestedTime: time,
-        calendarDateIso
-      }
-    ];
+  const startMs = parseLocalDateTime(anchorDateIso, ws).getTime();
+  const endIso = crosses ? addDaysIso(anchorDateIso, 1) : anchorDateIso;
+  const endMs = parseLocalDateTime(endIso, we).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
+    return [];
   }
 
   const intervalMin =
@@ -205,57 +238,19 @@ export function generateRandomSlotSpecs(line: RondePlannedProfileLineRef, anchor
       ? Math.min(MAX_RANDOM_SLOTS, Math.round(Number(line.randomRoundsCount)))
       : null;
 
-  let count = 1;
-  if (intervalMin != null && intervalMin >= 1 && span > 0) {
-    count = Math.floor(span / intervalMin) + 1;
-    count = Math.min(MAX_RANDOM_SLOTS, Math.max(1, count));
-  } else if (rounds != null) {
-    count = rounds;
-  }
-
-  const offsets: number[] = [];
-  if (count === 1) {
-    offsets.push(0);
-  } else {
-    for (let i = 0; i < count; i += 1) {
-      offsets.push(Math.round((i * span) / (count - 1)));
-    }
-  }
-
-  const out: GeneratedPlannedSlot[] = [];
-  let slotIndex = 0;
-  for (const off of offsets) {
-    const startMs = parseLocalDateTime(anchorDateIso, ws).getTime();
-    const t = new Date(startMs + off * 60 * 1000);
-    if (Number.isNaN(t.getTime())) continue;
-    const hh = String(t.getHours()).padStart(2, "0");
-    const mm = String(t.getMinutes()).padStart(2, "0");
-    const time = `${hh}:${mm}`;
-    /*
-     * Pour une fenêtre qui franchit minuit, tous les créneaux (y compris ceux
-     * physiquement le lendemain matin) restent rattachés à la date ancre.
-     * Cela garantit que "Nombre de rondes: 2" sur 20:00→08:00 produit bien
-     * 2 badges sur la journée de l'ancre, pas un badge par jour calendaire.
-     */
-    const calendarDateIso = crosses ? anchorDateIso : (() => {
-      const y = t.getFullYear();
-      const mo = String(t.getMonth() + 1).padStart(2, "0");
-      const da = String(t.getDate()).padStart(2, "0");
-      return `${y}-${mo}-${da}`;
-    })();
-    const minutesFromMidnight = t.getHours() * 60 + t.getMinutes();
-    const roundKind = pickEmittedRandomKind(line, minutesFromMidnight);
-    out.push({
-      profileLineId: line.id,
-      slotIndex,
-      slotKey: `${line.id}:${slotIndex}`,
-      roundKind,
-      requestedTime: time,
-      calendarDateIso
-    });
-    slotIndex += 1;
-  }
-  return out;
+  return mapHonoredSlotsToSpecs(
+    line,
+    generateRandomWindowSlots({
+      anchorDateIso,
+      windowStart: ws,
+      windowEnd: we,
+      intervalMinutes: intervalMin,
+      roundsCount: rounds,
+      dedicated
+    }),
+    crosses,
+    anchorDateIso
+  );
 }
 
 /** Ancres (jours calendaires) pour lesquelles une ligne aléatoire peut produire un créneau affiché sur `targetDateIso`. */

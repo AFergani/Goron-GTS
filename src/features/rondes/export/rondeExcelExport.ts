@@ -10,6 +10,7 @@ import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { rondeOriginLabelFr, rondeStatusLabelFr } from "./rondeExportFormat";
 
 const HEADERS = [
+  "N°",
   "Date demande",
   "Site",
   "Origine",
@@ -23,10 +24,21 @@ const HEADERS = [
   "Compte-rendu"
 ] as const;
 
-export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde contractuelle" | "Ronde exceptionnelle"): void {
+/**
+ * Exporte une liste ronde en Excel.
+ *
+ * @param entries - Lignes à exporter.
+ * @param sheetName - Feuille contractuelle ou exceptionnelle.
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
+export async function exportRondeToExcel(
+  entries: RondeEntry[],
+  sheetName: "Ronde contractuelle" | "Ronde exceptionnelle"
+) {
   const rows: Array<Array<string | number>> = [
     [...HEADERS],
     ...entries.map((entry) => [
+      entry.dailyCode || "",
       formatDateShortFr(entry.requestDate) || "",
       entry.siteDisplay || "",
       rondeOriginLabelFr(entry),
@@ -51,6 +63,7 @@ export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde cont
   ws["!rows"] = [{ hpt: 22 }];
   ws["!cols"] = [
     { wch: 14 },
+    { wch: 14 },
     { wch: 34 },
     { wch: 18 },
     { wch: 24 },
@@ -66,5 +79,5 @@ export function exportRondeToExcel(entries: RondeEntry[], sheetName: "Ronde cont
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   const scope = sheetName === "Ronde contractuelle" ? "contractuelle" : "exceptionnelle";
-  downloadSheetJsWorkbook(wb, `ronde_${scope}_export_${exportTimestampFrForFilename()}.xlsx`);
+  return downloadSheetJsWorkbook(wb, `ronde_${scope}_export_${exportTimestampFrForFilename()}.xlsx`);
 }

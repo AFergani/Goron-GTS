@@ -8,6 +8,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const { generateEntityId } = require("../../core/ids");
 const { normalizeDateIso } = require("../../core/isoDate");
 const holidaysDomain = require("../data/holidays");
@@ -36,8 +37,8 @@ const INSERT_SQL = `INSERT INTO gardiennage_entries (
   intervenant_id, intervenant_name, notes, status, intervention_id, linked_ronde_id,
   closure_report, actual_start_time, actual_end_time, work_order_number, cancellation_reason,
   planning_batch_id, planning_snapshot_json, planning_slot_start, planning_slot_end,
-  created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  created_at, updated_at, daily_code
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /**
  * Vérifie les liens vers Intervention et Ronde PostgreSQL.
@@ -75,9 +76,34 @@ async function insertGardiennageRow(db, row) {
     row.linkedRondeId || null, row.closureReport || "", row.actualStartTime || "",
     row.actualEndTime || "", row.workOrderNumber || "", row.cancellationReason || "",
     row.planningBatchId || null, row.planningSnapshotJson || null,
-    row.planningSlotStart || "", row.planningSlotEnd || "", row.createdAt, row.updatedAt
+    row.planningSlotStart || "", row.planningSlotEnd || "", row.createdAt, row.updatedAt,
+    row.dailyCode || null
   ]);
   return result.changes;
+}
+
+/**
+ * Réutilise le numéro d'un créneau régénéré, sinon alloue le suivant du jour.
+ *
+ * @param {import('../../persistence/persistenceContract').PersistenceTransaction} tx
+ * @param {Array<{ dailyCode: string, startDate: string, slotStart: string }>} pool
+ * @param {string} startDate
+ * @param {string} slotStartIso
+ * @returns {Promise<string>}
+ */
+async function takeReusableGardiennageDailyCode(tx, pool, startDate, slotStartIso) {
+  const slotKey = String(slotStartIso || "").trim();
+  const dayKey = String(startDate || "").trim();
+  let index = slotKey ? pool.findIndex((row) => row.slotStart === slotKey) : -1;
+  if (index < 0 && dayKey) {
+    index = pool.findIndex((row) => row.startDate === dayKey);
+  }
+  if (index >= 0) {
+    const reused = pool[index].dailyCode;
+    pool.splice(index, 1);
+    if (reused) return reused;
+  }
+  return allocateNextDailyCode(tx, "gardiennage", startDate);
 }
 
 /**
@@ -215,11 +241,13 @@ async function createGardiennage(store, payload) {
       store.fail("gardiennage:create", "Ce gardiennage existe déjà.", "GARDIENNAGE_ALREADY_EXISTS");
     }
     if (!snapshot) {
-      await insertGardiennageRow(tx, makeBaseRow(payload, normalized, entryId, now));
+      const dailyCode = await allocateNextDailyCode(tx, "gardiennage", normalized.recurrenceStartDate);
+      await insertGardiennageRow(tx, { ...makeBaseRow(payload, normalized, entryId, now), dailyCode });
       return;
     }
     for (let index = 0; index < slots.length; index += 1) {
       const slot = slots[index];
+      const dailyCode = await allocateNextDailyCode(tx, "gardiennage", slot.startDate);
       await insertGardiennageRow(tx, {
         ...makeBaseRow(payload, normalized, index === 0 ? entryId : generateEntityId(), now),
         startTime: slot.startTime,
@@ -231,7 +259,8 @@ async function createGardiennage(store, payload) {
         planningBatchId: batchId,
         planningSnapshotJson: snapshotJson,
         planningSlotStart: slot.startIso,
-        planningSlotEnd: slot.endIso
+        planningSlotEnd: slot.endIso,
+        dailyCode
       });
     }
   });
@@ -342,6 +371,12 @@ async function updateGardiennage(store, payload) {
     if (!slots.length && !closedRows.length) {
       store.fail("gardiennage:update", "Aucun créneau généré avec cette validité/lignes.", "GARDIENNAGE_PLANNER_EMPTY");
     }
+    const previousOpen = await tx.all(
+      `SELECT daily_code, recurrence_start_date, planning_slot_start
+       FROM gardiennage_entries
+       WHERE (planning_batch_id = ? OR id = ?) AND status <> 'CLOTURE'`,
+      [batchId, entryId]
+    );
     await tx.run(
       `DELETE FROM gardiennage_entries
        WHERE (planning_batch_id = ? OR id = ?) AND status <> 'CLOTURE'`,
@@ -351,6 +386,11 @@ async function updateGardiennage(store, payload) {
     let returnId = closedIds.has(entryId) ? closedRows[0]?.id : entryId;
     const snapshotJson = JSON.stringify(snapshot);
     const createdAt = existing.created_at || now;
+    const reusableCodes = previousOpen.map((row) => ({
+      dailyCode: String(row.daily_code || "").trim(),
+      startDate: String(row.recurrence_start_date || "").trim(),
+      slotStart: String(row.planning_slot_start || "").trim()
+    }));
     for (let index = 0; index < slots.length; index += 1) {
       const slot = slots[index];
       const id = index === 0 && !closedIds.has(entryId) ? entryId : generateEntityId();
@@ -367,7 +407,8 @@ async function updateGardiennage(store, payload) {
         planningBatchId: batchId,
         planningSnapshotJson: snapshotJson,
         planningSlotStart: slot.startIso,
-        planningSlotEnd: slot.endIso
+        planningSlotEnd: slot.endIso,
+        dailyCode: await takeReusableGardiennageDailyCode(tx, reusableCodes, slot.startDate, slot.startIso)
       });
     }
     await tx.run(

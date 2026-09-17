@@ -49,37 +49,214 @@ function incrementSemver(version, type) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
+/**
+ * Indique si l’erreur vient d’un fichier / dossier encore ouvert sous Windows.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isFsLockError(error) {
+  const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+  return code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY" || code === "EACCES";
+}
+
+/**
+ * Pause synchrone (retries Windows).
+ *
+ * @param {number} ms
+ */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Supprime un chemin avec plusieurs tentatives (exe lancé, Explorateur, fichier ouvert).
+ *
+ * @param {string} target - Dossier ou fichier.
+ * @returns {boolean} `true` si le chemin n’existe plus.
+ */
+function removePathWithRetries(target) {
+  if (!fs.existsSync(target)) return true;
+  const attempts = [0, 300, 800, 2000];
+  let lastError = null;
+  for (const delay of attempts) {
+    if (delay) sleepSync(delay);
+    try {
+      fs.rmSync(target, { recursive: true, force: true, maxRetries: 8, retryDelay: 200 });
+      return true;
+    } catch (error) {
+      lastError = error;
+      if (!isFsLockError(error)) throw error;
+    }
+  }
+  if (lastError) throw lastError;
+  return false;
+}
+
+/**
+ * Vide un dossier de release : suppression complète, sinon contenu enfant par enfant.
+ *
+ * @param {string} target - Dossier à recréer vide.
+ * @param {string} label - Nom affiché dans les logs / erreurs.
+ */
+function ensureEmptyDirectory(target, label) {
+  const displayName = label || path.basename(target);
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(target, { recursive: true });
+    return;
+  }
+  try {
+    removePathWithRetries(target);
+    fs.mkdirSync(target, { recursive: true });
+    return;
+  } catch (error) {
+    if (!isFsLockError(error)) throw error;
+  }
+
+  const leftover = [];
+  for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+    const child = path.join(target, entry.name);
+    try {
+      removePathWithRetries(child);
+    } catch (error) {
+      if (isFsLockError(error)) leftover.push(entry.name);
+      else throw error;
+    }
+  }
+  if (leftover.length) {
+    throw new Error(
+      [
+        `Impossible de vider "${displayName}" (permission refusée).`,
+        `Éléments encore verrouillés : ${leftover.join(", ")}`,
+        "Fermez Goron GTS s'il tourne depuis ce dossier, fermez l'Explorateur Windows dessus,",
+        "fermez les fichiers ouverts dans Cursor, puis relancez la commande."
+      ].join("\n")
+    );
+  }
+  fs.mkdirSync(target, { recursive: true });
+}
+
+/**
+ * Crée un dossier vide. Si le chemin préféré est verrouillé, suffixe un horodatage.
+ *
+ * @param {string} preferredPath
+ * @returns {string} Chemin réellement créé.
+ */
+function createFreshDirectory(preferredPath) {
+  if (fs.existsSync(preferredPath)) {
+    try {
+      removePathWithRetries(preferredPath);
+    } catch (error) {
+      if (!isFsLockError(error)) throw error;
+      const fallback = `${preferredPath}-${Date.now()}`;
+      fs.mkdirSync(fallback, { recursive: true });
+      return fallback;
+    }
+  }
+  fs.mkdirSync(preferredPath, { recursive: true });
+  return preferredPath;
+}
+
+/**
+ * Arrête Goron GTS qui a encore des DLL chargées depuis le pack
+ * (l’Explorateur peut être fermé : l’appli suffit à verrouiller `folder`).
+ * Ne touche pas à `electron.exe` du `npm run dev`.
+ *
+ * @param {string} releaseDir - Ancien dossier de release.
+ */
+function stopAppsLockingReleaseDir(releaseDir) {
+  if (process.platform !== "win32") return;
+  if (!fs.existsSync(releaseDir)) return;
+  const ps = [
+    "$root = $env:GTS_RELEASE_LOCK_DIR",
+    "if (-not $root) { return }",
+    "Get-Process | ForEach-Object {",
+    "  $p = $_",
+    "  if ($p.ProcessName -notlike '*Goron*') { return }",
+    "  try {",
+    "    $hit = $p.Modules | Where-Object { $_.FileName -and $_.FileName.StartsWith($root, $true, $null) } | Select-Object -First 1",
+    "    if ($hit) {",
+    "      Write-Output ('STOP ' + $p.Id + ' ' + $p.ProcessName)",
+    "      Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue",
+    "    }",
+    "  } catch {}",
+    "}"
+  ].join(" ");
+  try {
+    const out = execSync("powershell.exe -NoProfile -ExecutionPolicy Bypass -Command " + JSON.stringify(ps), {
+      encoding: "utf8",
+      env: { ...process.env, GTS_RELEASE_LOCK_DIR: releaseDir },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const text = String(out || "").trim();
+    if (text) {
+      console.log("🔓 Goron GTS était encore chargé depuis l'ancien pack (DLL verrouillées). Arrêt :");
+      console.log(text);
+      sleepSync(1500);
+    }
+  } catch {
+    /* pas de droits sur les modules : on tentera quand même le rename */
+  }
+}
+
+/**
+ * Essaie de remplacer le pack canonique par le staging. Si l’ancien est verrouillé,
+ * le staging reste le dossier livrable.
+ *
+ * @param {string} stagingDir
+ * @param {string} canonicalDir
+ * @returns {string} Dossier à communiquer à l’utilisateur.
+ */
+function promoteStagedRelease(stagingDir, canonicalDir) {
+  if (path.resolve(stagingDir) === path.resolve(canonicalDir)) return canonicalDir;
+
+  stopAppsLockingReleaseDir(canonicalDir);
+
+  if (fs.existsSync(canonicalDir)) {
+    let parked = `${canonicalDir}.ancien`;
+    if (fs.existsSync(parked)) parked = `${parked}-${Date.now()}`;
+    try {
+      removePathWithRetries(canonicalDir);
+    } catch (error) {
+      if (!isFsLockError(error)) throw error;
+      try {
+        fs.renameSync(canonicalDir, parked);
+        console.log(`📦 Ancien pack déplacé: ${path.basename(parked)}`);
+      } catch (renameError) {
+        if (!isFsLockError(renameError)) throw renameError;
+        console.log(`⚠️ Pack précédent verrouillé conservé: ${path.basename(canonicalDir)}`);
+        console.log("   Cause fréquente : Goron GTS encore ouvert (même sans Explorateur).");
+        console.log(`   Nouveau pack (à utiliser): ${path.basename(stagingDir)}`);
+        return stagingDir;
+      }
+    }
+  }
+
+  try {
+    fs.renameSync(stagingDir, canonicalDir);
+    return canonicalDir;
+  } catch (error) {
+    if (!isFsLockError(error)) throw error;
+    console.log(`⚠️ Impossible de renommer le staging. Pack à utiliser: ${path.basename(stagingDir)}`);
+    return stagingDir;
+  }
+}
+
 function cleanArtifacts() {
   const folders = ["dist", "release-build"];
   for (const folder of folders) {
     const target = path.join(rootDir, folder);
     if (fs.existsSync(target)) {
       try {
-        fs.rmSync(target, { recursive: true, force: true });
+        removePathWithRetries(target);
         console.log(`🧹 Dossier supprimé: ${folder}`);
       } catch (error) {
-        if (error && (error.code === "EPERM" || error.code === "EBUSY")) {
+        if (isFsLockError(error)) {
           console.log(`⚠️ Dossier verrouillé, nettoyage ignoré: ${folder}`);
           continue;
         }
         throw error;
       }
-    }
-  }
-  const dynamicReleaseRoots = fs
-    .readdirSync(rootDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^release_Goron-GTS-\d+\.\d+\.\d+$/i.test(entry.name))
-    .map((entry) => path.join(rootDir, entry.name));
-  for (const target of dynamicReleaseRoots) {
-    try {
-      fs.rmSync(target, { recursive: true, force: true });
-      console.log(`🧹 Dossier supprimé: ${path.basename(target)}`);
-    } catch (error) {
-      if (error && (error.code === "EPERM" || error.code === "EBUSY")) {
-        console.log(`⚠️ Dossier verrouillé, nettoyage ignoré: ${path.basename(target)}`);
-        continue;
-      }
-      throw error;
     }
   }
 }
@@ -180,10 +357,7 @@ function preparePortableReleaseBundle(version, sourceExePath, releaseRootDir) {
     throw new Error(`Executable portable introuvable: ${sourceExePath}`);
   }
   fs.mkdirSync(path.dirname(targetDir), { recursive: true });
-  if (fs.existsSync(targetDir)) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(targetDir, { recursive: true });
+  ensureEmptyDirectory(targetDir, "portable");
   fs.copyFileSync(sourceExePath, targetExe);
 
   fs.mkdirSync(dataDir, { recursive: true });
@@ -251,10 +425,7 @@ function prepareInstallerReleaseBundle(version, sourceInstallerPath, releaseRoot
     throw new Error(`Installateur introuvable: ${sourceInstallerPath}`);
   }
   fs.mkdirSync(path.dirname(targetDir), { recursive: true });
-  if (fs.existsSync(targetDir)) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(targetDir, { recursive: true });
+  ensureEmptyDirectory(targetDir, "installer");
   const targetInstaller = path.join(targetDir, path.basename(sourceInstallerPath));
   fs.copyFileSync(sourceInstallerPath, targetInstaller);
   console.log(`📦 Bundle installateur prêt: ${targetDir}`);
@@ -265,10 +436,7 @@ function prepareFolderReleaseBundle(version, sourceUnpackedExePath, releaseRootD
   const sourceDir = path.dirname(sourceUnpackedExePath);
   const targetDir = path.join(releaseRootDir, "folder");
   fs.mkdirSync(path.dirname(targetDir), { recursive: true });
-  if (fs.existsSync(targetDir)) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(targetDir, { recursive: true });
+  ensureEmptyDirectory(targetDir, "folder");
   copyDirectoryRecursive(sourceDir, targetDir);
 
   const readmePath = path.join(targetDir, "LISEZ-MOI-MODE-DOSSIER.txt");
@@ -304,6 +472,45 @@ function prepareFolderReleaseBundle(version, sourceUnpackedExePath, releaseRootD
   console.log(`📦 Bundle dossier (exe + resources) prêt: ${targetDir}`);
 }
 
+/**
+ * Copie les scripts labo et le schéma SQL dans la release (reset PG sans le dépôt source).
+ *
+ * @param {string} releaseRootDir - `Release_Goron-GTS-x.y.z`
+ */
+function prepareLaboToolsBundle(releaseRootDir) {
+  const sourceDir = path.join(rootDir, "outils_labo");
+  const schemaSrc = path.join(rootDir, "electron", "store", "persistence", "migrations", "schema.sql");
+  if (!fs.existsSync(sourceDir)) {
+    throw new Error(`Dossier outils labo introuvable: ${sourceDir}`);
+  }
+  if (!fs.existsSync(schemaSrc)) {
+    throw new Error(`schema.sql introuvable: ${schemaSrc}`);
+  }
+  const targetDir = path.join(releaseRootDir, "outils_labo");
+  ensureEmptyDirectory(targetDir, "outils_labo");
+  copyDirectoryRecursive(sourceDir, targetDir);
+  fs.copyFileSync(schemaSrc, path.join(targetDir, "schema.sql"));
+  console.log(`📦 Outils labo prêts: ${targetDir}`);
+  console.log("   - Scripts PowerShell + schema.sql (reset base sans le dépôt)");
+}
+
+/**
+ * Guide unique de création d’environnement labo (sans recopier Demo_Travail).
+ *
+ * @param {string} version - Version semver de la release.
+ * @param {string} releaseRootDir - `Release_Goron-GTS-x.y.z`
+ */
+function prepareLaboEnvironmentGuide(version, releaseRootDir) {
+  const templatePath = path.join(rootDir, "scripts", "release-00-LIRE-EN-PREMIER.txt");
+  if (!fs.existsSync(templatePath)) {
+    throw new Error(`Guide labo introuvable: ${templatePath}`);
+  }
+  const body = fs.readFileSync(templatePath, "utf8").split("{{VERSION}}").join(version);
+  const targetPath = path.join(releaseRootDir, "00-LIRE-EN-PREMIER.txt");
+  fs.writeFileSync(targetPath, body, "utf8");
+  console.log(`📦 Guide environnement labo: ${path.basename(targetPath)}`);
+}
+
 function main() {
   console.log("🚀 Release Windows multi-format (portable + installateur + dossier)");
   console.log(`📁 Projet: ${rootDir}`);
@@ -319,27 +526,27 @@ function main() {
   run("npm run dist:win:all", "Build Electron Windows (portable + nsis + dossier)");
   assertMainCouranteTemplateExists("dist/templates/main-courante-template.docx", "vite-dist");
   const buildOutputDir = path.join(rootDir, "release-build");
-  const releaseRootDir = path.join(rootDir, `Release_Goron-GTS-${releaseVersion}`);
-  if (fs.existsSync(releaseRootDir)) {
-    fs.rmSync(releaseRootDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(releaseRootDir, { recursive: true });
+  const canonicalReleaseDir = path.join(rootDir, `Release_Goron-GTS-${releaseVersion}`);
+  const stagingReleaseDir = createFreshDirectory(`${canonicalReleaseDir}.__staging`);
   const portableExePath = pickPortableExe(buildOutputDir);
   const installerExePath = pickInstallerExe(buildOutputDir);
   const unpackedExePath = pickUnpackedExe(buildOutputDir);
-  preparePortableReleaseBundle(releaseVersion, portableExePath, releaseRootDir);
-  prepareInstallerReleaseBundle(releaseVersion, installerExePath, releaseRootDir);
-  prepareFolderReleaseBundle(releaseVersion, unpackedExePath, releaseRootDir);
+  preparePortableReleaseBundle(releaseVersion, portableExePath, stagingReleaseDir);
+  prepareInstallerReleaseBundle(releaseVersion, installerExePath, stagingReleaseDir);
+  prepareFolderReleaseBundle(releaseVersion, unpackedExePath, stagingReleaseDir);
+  prepareLaboToolsBundle(stagingReleaseDir);
+  prepareLaboEnvironmentGuide(releaseVersion, stagingReleaseDir);
+  const releaseRootDir = promoteStagedRelease(stagingReleaseDir, canonicalReleaseDir);
 
   // Nettoyage final des artefacts temporaires de build.
   for (const folder of ["release-build", "dist"]) {
     const target = path.join(rootDir, folder);
     if (!fs.existsSync(target)) continue;
     try {
-      fs.rmSync(target, { recursive: true, force: true });
+      removePathWithRetries(target);
       console.log(`🧹 Nettoyage final: ${folder}`);
     } catch (error) {
-      if (error && (error.code === "EPERM" || error.code === "EBUSY")) {
+      if (isFsLockError(error)) {
         console.log(`⚠️ Nettoyage final ignoré (dossier verrouillé): ${folder}`);
         continue;
       }
@@ -352,6 +559,8 @@ function main() {
   console.log("   - Portable: portable/");
   console.log("   - Installateur: installer/");
   console.log("   - Dossier exe+resources: folder/");
+  console.log("   - Outils labo + schema.sql: outils_labo/");
+  console.log("   - Guide labo: 00-LIRE-EN-PREMIER.txt");
 }
 
 main();

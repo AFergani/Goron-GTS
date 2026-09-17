@@ -160,9 +160,10 @@ export function GardiennageTable({
   onClose,
   onNotify
 }: GardiennageTableProps) {
-  type GardiennageSortKey = "createdAt" | "site" | "planning" | "prestataire" | "statut";
+  type GardiennageSortKey = "dailyCode" | "createdAt" | "site" | "planning" | "prestataire" | "statut";
 
   const comparators: Record<GardiennageSortKey, (a: GardiennageEntry, b: GardiennageEntry) => number> = {
+    dailyCode: (a: GardiennageEntry, b: GardiennageEntry) => (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
     createdAt: (a: GardiennageEntry, b: GardiennageEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     site: (a: GardiennageEntry, b: GardiennageEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     planning: (a: GardiennageEntry, b: GardiennageEntry) => {
@@ -189,6 +190,7 @@ export function GardiennageTable({
     <div className="main-courante-table-wrap">
       <table className="main-courante-table gardiennage-table">
         <colgroup>
+          <col className="col-daily-code" />
           <col className="gard-col-created" />
           <col className="gard-col-site" />
           <col className="gard-col-presta" />
@@ -197,6 +199,7 @@ export function GardiennageTable({
         </colgroup>
         <thead>
           <tr>
+            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("dailyCode")}>N° {sortLabel("dailyCode")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("createdAt")}>Créé le {sortLabel("createdAt")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("prestataire")}>Prestataire {sortLabel("prestataire")}</button></th>
@@ -221,6 +224,7 @@ export function GardiennageTable({
             const hoursCell = renderHoursCell(entry, hoursForDate);
             return (
               <tr key={entry.id} className="mc-table-row">
+                <td className="col-daily-code">{entry.dailyCode || "—"}</td>
                 <td className="gardiennage-created-cell">
                   <span title={formatCreatedAtTitle(entry.createdAt) || undefined}>
                     {formatCreatedAtDate(entry.createdAt)}

@@ -24,8 +24,10 @@ export function HelpInterventionsTopic() {
             <strong>Site introuvable</strong> ou <strong>Prestataire introuvable</strong> pour créer une référence temporaire.
           </li>
           <li>
-            <strong>Enregistrement :</strong> lors de la création, vous ne saisissez que les données de la demande. Les informations de passage
-            (horaires réels, compte rendu) seront complétées une fois la mission effectuée.
+            <strong>Enregistrement :</strong> lors de la création, vous ne saisissez que les données de la demande. Un{" "}
+            <strong>numéro de fiche</strong> au format <strong>JJMMAAAA-XX</strong> (ex. 16092026-01) est attribué
+            automatiquement : il s&apos;affiche dans le titre et la liste, et permet de retrouver la fiche par la recherche.
+            Les informations de passage (horaires réels, compte rendu) seront complétées une fois la mission effectuée.
           </li>
           <li>
             <strong>Accès rapide :</strong> dans la liste, l&apos;icône de validation (coche) permet d&apos;ouvrir directement la fiche pour saisir
@@ -117,15 +119,11 @@ export function HelpInterventionsTopic() {
       </div>
 
       <div className="help-center-card">
-        <h3 className="help-center-card-title">💶 Facturation et exports (profils autorisés)</h3>
+        <h3 className="help-center-card-title">📄 Exports Word (profils autorisés)</h3>
         <ul className="muted help-center-list">
           <li>
-            <strong>Facturation :</strong> les responsables peuvent ouvrir une fiche clôturée pour définir si elle est <strong>facturable</strong> ou{" "}
-            <strong>non facturable</strong> (une justification est requise dans ce dernier cas).
-          </li>
-          <li>
-            <strong>Export Word :</strong> sur une fiche clôturée, générez un rapport d&apos;intervention professionnel basé sur vos modèles
-            personnalisés.
+            <strong>Enregistrer Word</strong> et <strong>Ouvrir le Word :</strong> dans le rapport (pied de fenêtre, côté
+            Rouvrir), générez un fichier Word basé sur vos modèles, puis relancez-le s&apos;il est encore présent sur le poste.
           </li>
         </ul>
       </div>

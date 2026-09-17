@@ -2,21 +2,19 @@
  * Onglet jours fériés (calendrier, fériés fixes France fusionnés).
  */
 
-import { ChevronLeft, ChevronRight, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { HolidayRef } from "../../../../types";
 import { useTableSort } from "../../../common/hooks/useTableSort";
 import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
 
 type HolidaysDataTabProps = {
   canDeleteData: boolean;
-  holidayYear: string;
   editingHolidayId: string | null;
   editingHolidayDateIso: string;
   editingHolidayLabel: string;
   filteredHolidays: HolidayRef[];
   pageStart: number;
   pageEnd: number;
-  setHolidayYear: (value: string) => void;
   setEditingHolidayId: (value: string | null) => void;
   setEditingHolidayDateIso: (value: string) => void;
   setEditingHolidayLabel: (value: string) => void;
@@ -51,49 +49,6 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
 
   return (
     <div className="table-scroll-x">
-      <div className="main-courante-table-toolbar" style={{ marginBottom: 10 }}>
-        <p className="muted">
-          Les jours fériés fixes français sont gérés automatiquement. Utilisez « Ajouter une entrée » pour les jours non fixes ou spécifiques.
-        </p>
-        <div className="row-actions" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <button
-            type="button"
-            className="btn-light action-icon-btn"
-            title="Année précédente"
-            aria-label="Année précédente"
-            onClick={() => {
-              const y = Number(props.holidayYear);
-              if (!Number.isFinite(y)) return;
-              props.setHolidayYear(String(y - 1));
-            }}
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <input
-            type="number"
-            min={1900}
-            max={2200}
-            step={1}
-            value={props.holidayYear}
-            onChange={(e) => props.setHolidayYear(e.target.value)}
-            aria-label="Année affichée"
-            style={{ width: 92 }}
-          />
-          <button
-            type="button"
-            className="btn-light action-icon-btn"
-            title="Année suivante"
-            aria-label="Année suivante"
-            onClick={() => {
-              const y = Number(props.holidayYear);
-              if (!Number.isFinite(y)) return;
-              props.setHolidayYear(String(y + 1));
-            }}
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
       <table className="data-table-fixed data-table-intervenants">
         <colgroup>
           <col />

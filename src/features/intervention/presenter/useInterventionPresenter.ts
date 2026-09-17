@@ -1,12 +1,13 @@
 /**
- * Presenter Interventions : liste, statistiques, CRUD, statuts et facturation.
+ * Presenter Interventions : liste, statistiques, CRUD et statuts.
  *
- * Polling ~20 s, compteurs mois en cours (`requestDate`) pour les cartes de synthèse.
+ * Polling aligné sur les badges sidebar (`DATA_REFRESH_POLL_MS`).
  * Utilisé par : `InterventionPage`.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { DATA_REFRESH_POLL_MS } from "../../common/constants/dataRefreshPoll";
 import { getLocalMonthKey, isIsoDateInLocalMonth } from "../../common/utils/currentMonthSummary";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -57,7 +58,7 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadEntries(true);
-    }, 20000);
+    }, DATA_REFRESH_POLL_MS);
     return () => window.clearInterval(timer);
   }, [loadEntries]);
 
@@ -127,29 +128,6 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
     }
   };
 
-  const setBillingStatus = async (
-    id: string,
-    expectedUpdatedAt: string,
-    billingStatus: "FACTURABLE" | "NON_FACTURABLE",
-    reason?: string
-  ) => {
-    try {
-      await gtsApiClient.setInterventionBillingStatus({
-        requesterRole,
-        requesterUsername,
-        id,
-        expectedUpdatedAt,
-        billingStatus,
-        reason
-      });
-      await loadEntries(true);
-      return true;
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Statut de facturation non modifié.", "error");
-      return false;
-    }
-  };
-
   return {
     entries,
     stats,
@@ -157,7 +135,6 @@ export function useInterventionPresenter({ requesterRole, requesterUsername, onT
     loadEntries,
     createEntry,
     updateEntry,
-    setStatus,
-    setBillingStatus
+    setStatus
   };
 }

@@ -18,8 +18,8 @@ export function HelpMainCouranteTopic() {
         <h3 className="help-center-card-title">➕ Créer une entrée : par où commencer ?</h3>
         <ol className="muted help-center-list help-center-list--ordered">
           <li>
-            <strong>Initialisation :</strong> cliquez sur <strong>Nouvelle entrée</strong>. Votre identifiant et l&apos;horodatage de création sont
-            générés automatiquement.
+            <strong>Initialisation :</strong> cliquez sur <strong>Nouvelle entrée</strong>. Votre nom affiché, l&apos;horodatage de
+            création et un <strong>numéro de fiche</strong> <strong>JJMMAAAA-XX</strong> sont générés automatiquement.
           </li>
           <li>
             <strong>Saisie obligatoire :</strong> un <strong>type d&apos;anomalie</strong> est toujours proposé (défaut{" "}
@@ -153,11 +153,19 @@ export function HelpMainCouranteTopic() {
             <strong>Filtres :</strong> affinez votre liste par période, type d&apos;anomalie, auteur (opérateur) ou responsable de traitement.
           </li>
           <li>
-            <strong>Exporter données :</strong> télécharge en Excel le résultat actuellement filtré de la liste.
+            <strong>Exporter données :</strong> enregistre en Excel le résultat actuellement filtré de la liste (dialogue
+            « Enregistrer sous », le dernier dossier est mémorisé sur ce poste).
           </li>
           <li>
-            <strong>Export Word :</strong> sur chaque ligne, une icône permet de générer un rapport formel de l&apos;entrée (idéal pour transmission
-            ou archivage client).
+            <strong>Ouvrir la fiche :</strong> affiche l&apos;entrée dans Goron-GTS (consultation ou traitement).
+          </li>
+          <li>
+            <strong>Enregistrer Word</strong> et <strong>Ouvrir le Word :</strong> disponibles dans la fiche ouverte (pied de
+            fenêtre). Le premier génère le fichier Word, le second relance Word sur le dernier fichier enregistré sur ce
+            poste pour cette entrée.
+          </li>
+          <li>
+            <strong>Ouvrir l&apos;Excel :</strong> relance le dernier classeur Excel de la liste, enregistré sur ce poste.
           </li>
         </ul>
       </div>

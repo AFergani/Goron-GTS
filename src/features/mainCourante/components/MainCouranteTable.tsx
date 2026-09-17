@@ -178,7 +178,6 @@ type MainCouranteTableProps = {
   onNotify?: NotifyToast;
   onEditEntry: (entry: MainCouranteEntry) => void;
   onManagerTreat: (entry: MainCouranteEntry) => void;
-  onExportWord: (entry: MainCouranteEntry) => void | Promise<void>;
   onViewEntry: (entry: MainCouranteEntry) => void;
 };
 
@@ -190,12 +189,12 @@ export function MainCouranteTable({
   onNotify,
   onEditEntry,
   onManagerTreat,
-  onExportWord,
   onViewEntry
 }: MainCouranteTableProps) {
-  type MainCouranteSortKey = "date" | "operator" | "site" | "type" | "info" | "status";
+  type MainCouranteSortKey = "dailyCode" | "date" | "operator" | "site" | "type" | "info" | "status";
 
   const comparators: Record<MainCouranteSortKey, (a: MainCouranteEntry, b: MainCouranteEntry) => number> = {
+    dailyCode: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
     date: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.createdAt || "").localeCompare(b.createdAt || ""),
     operator: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.operatorName || "").localeCompare(b.operatorName || "", "fr"),
     site: (a: MainCouranteEntry, b: MainCouranteEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
@@ -228,6 +227,7 @@ export function MainCouranteTable({
     <div className="main-courante-table-wrap">
       <table className="main-courante-table mc-entries-table">
       <colgroup>
+        <col className="col-daily-code" />
         <col className="mc-col-date" />
         <col className="mc-col-site" />
         <col className="mc-col-operator" />
@@ -238,6 +238,7 @@ export function MainCouranteTable({
       </colgroup>
       <thead>
         <tr>
+          <th className="col-daily-code"><button type="button" className="table-sort-btn" onClick={() => toggleSort("dailyCode")}>N° {sortLabel("dailyCode")}</button></th>
           <th className="mc-col-date"><button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>Date {sortLabel("date")}</button></th>
           <th className="mc-col-site"><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Site {sortLabel("site")}</button></th>
           <th className="mc-col-operator"><button type="button" className="table-sort-btn" onClick={() => toggleSort("operator")}>Opérateur {sortLabel("operator")}</button></th>
@@ -250,6 +251,7 @@ export function MainCouranteTable({
       <tbody>
         {sortedEntries.map((entry) => (
           <tr key={entry.id}>
+            <td className="col-daily-code">{entry.dailyCode || "—"}</td>
             <td className="mc-col-date">{formatMainCouranteDate(entry.createdAt)}</td>
             <td className="mc-col-site mc-site-wrap">
               <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
@@ -302,16 +304,9 @@ export function MainCouranteTable({
                       className="table-action-btn table-action-btn--text"
                       onClick={() => onViewEntry(entry)}
                     >
-                      Voir le détail
+                      Ouvrir la fiche
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="table-action-btn table-action-btn--text table-action-btn--word"
-                    onClick={() => void onExportWord(entry)}
-                  >
-                    Export Word
-                  </button>
                 </div>
               </div>
             </td>

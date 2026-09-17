@@ -84,7 +84,6 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["intervention:create", "createIntervention"],
   ["intervention:update", "updateIntervention"],
   ["intervention:setStatus", "setInterventionStatus"],
-  ["intervention:setBillingStatus", "setInterventionBillingStatus"],
   ["ronde:list", "listRondes"],
   ["ronde:getTodayInProgressCounts", "getRondeTodayInProgressCounts"],
   ["ronde:create", "createRondeEntry"],

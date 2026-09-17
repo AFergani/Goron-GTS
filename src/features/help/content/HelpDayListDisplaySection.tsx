@@ -14,14 +14,16 @@ export function HelpDayListDisplaySection() {
           hors clôturés et annulés lorsque la page le prévoit).
         </li>
         <li>
-          <strong>Affichage liste</strong> : vue sur une période avec filtres (<strong>Recherche</strong>, dates{" "}
-          <strong>Du / Au</strong>, <strong>famille</strong>, <strong>prestataire</strong>, <strong>statut</strong>),
-          pagination et colonnes de synthèse (période, statut, etc.).
+          <strong>Affichage liste</strong> : vue sur une période avec filtres (<strong>Recherche</strong> y compris le{" "}
+          <strong>numéro de fiche</strong> JJMMAAAA-XX, dates <strong>Du / Au</strong>, <strong>famille</strong>,{" "}
+          <strong>prestataire</strong>, <strong>statut</strong>), pagination et colonnes de synthèse (période, statut, etc.).
         </li>
         <li>Le mode choisi est <strong>mémorisé entre les sessions</strong>.</li>
         <li>
           <strong>Exporter données</strong> (Excel) n&apos;est disponible qu&apos;en <strong>liste</strong>, sur le
-          résultat filtré. En mode journée, utilisez la vue liste si vous avez besoin d&apos;un export.
+          résultat filtré. Le bouton <strong>Ouvrir l&apos;Excel</strong> reste actif 20 secondes après l&apos;export
+          (pour ouvrir le dernier classeur sans laisser croire qu&apos;un rapport unique existe déjà).
+          En mode journée, utilisez la vue liste si vous avez besoin d&apos;un export.
         </li>
         <li>Le bouton de réinitialisation des filtres remet les critères de liste à zéro.</li>
       </ul>

@@ -20,12 +20,14 @@ import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.typ
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
+import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
 import { RondeEntryRequestSection } from "./RondeEntryRequestSection";
 import { RondeEntryExecutionSection } from "./RondeEntryExecutionSection";
@@ -90,6 +92,10 @@ type RondeEntryModalProps = {
     anchorRondeId?: string | null;
   }) => void;
   createPreset?: RondeEntryCreatePreset | null;
+  onSaveWord?: () => void;
+  onOpenWord?: () => void;
+  canOpenWord?: boolean;
+  lastWordFilePath?: string | null;
 };
 
 export function RondeEntryModal({
@@ -111,7 +117,11 @@ export function RondeEntryModal({
   onNavigateToLinkedIntervention,
   onOpenLinkedRequest,
   createPreset,
-  requesterRole
+  requesterRole,
+  onSaveWord,
+  onOpenWord,
+  canOpenWord = false,
+  lastWordFilePath = null
 }: RondeEntryModalProps) {
   const form = useRondeEntryForm({
     isOpen,
@@ -513,6 +523,18 @@ export function RondeEntryModal({
             </button>
           </div>
           <div className="mc-modal-footer-end">
+            {onSaveWord &&
+            onOpenWord &&
+            (entry?.status === "CLOTURE" || entry?.status === "ANNULE") ? (
+              <WordExportRowButtons
+                variant="modal"
+                disabled={lockActions}
+                onExportWord={onSaveWord}
+                onOpenReport={onOpenWord}
+                canOpenReport={canOpenWord}
+                lastFilePath={lastWordFilePath}
+              />
+            ) : null}
             {canShowCancelAction ? (
               <button
                 type="button"
@@ -610,7 +632,7 @@ export function RondeEntryModal({
           <CreateEntryModalHeader kind="ronde" onCloseRequest={createCloseGuard.requestClose} />
         ) : (
           <header className="mc-modal-head mc-modal-head-compact">
-            <h3 className="mc-modal-title">Rapport de ronde</h3>
+            <h3 className="mc-modal-title">{reportTitleWithDailyCode("Rapport de ronde", entry?.dailyCode)}</h3>
             <div className="row-actions">
               <button
                 type="button"

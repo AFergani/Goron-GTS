@@ -4,6 +4,7 @@
 
 import { Plus } from "lucide-react";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
+import { ListExportButtons } from "../../common/components/ExportFileButtons";
 import type { RondeListView } from "./RondePageTabsBar";
 
 type RondeServiceTabActionsProps = {
@@ -16,6 +17,9 @@ type RondeServiceTabActionsProps = {
   pendingBatchDeleteCount: number;
   onOpenProfilesList: () => void;
   onExport: () => void;
+  onOpenLastExport: () => void;
+  canOpenLastExport: boolean;
+  lastExportPath: string | null;
   onDisplayModeChange: (mode: "day" | "list") => void;
   onOpenCancellationQueue: () => void;
   onOpenBatchDeleteQueue: () => void;
@@ -32,6 +36,9 @@ export function RondeServiceTabActions({
   pendingBatchDeleteCount,
   onOpenProfilesList,
   onExport,
+  onOpenLastExport,
+  canOpenLastExport,
+  lastExportPath,
   onDisplayModeChange,
   onOpenCancellationQueue,
   onOpenBatchDeleteQueue,
@@ -50,15 +57,16 @@ export function RondeServiceTabActions({
         </button>
       ) : null}
       {activeDisplayMode === "list" ? (
-        <button
-          type="button"
-          className="btn-light"
-          title="Exporter Excel (filtres actifs)"
-          aria-label="Exporter données (filtres actifs)"
-          onClick={onExport}
-        >
-          Export données
-        </button>
+        <ListExportButtons
+          exportDisabled={false}
+          canOpenLast={canOpenLastExport}
+          lastFilePath={lastExportPath}
+          onExport={onExport}
+          onOpenLast={onOpenLastExport}
+          exportLabel="Export données"
+          exportTitle="Exporter Excel (filtres actifs)"
+          exportAriaLabel="Exporter données (filtres actifs)"
+        />
       ) : null}
       <div className="row-actions">
         <ToggleSwitch

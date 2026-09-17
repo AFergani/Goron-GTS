@@ -453,14 +453,6 @@ function formatOldValuesTooltip(log: AuditLog) {
         `Statut après: ${String(after.status || "-")}`
       ].join("\n");
     }
-    if (log.action === "INTERVENTION_BILLING_UPDATE") {
-      return [
-        "Détails facturation intervention",
-        `Avant: ${String(before.billingStatus || "-")}`,
-        `Après: ${String(after.billingStatus || "-")}`,
-        `Justification: ${String(after.billingReason || "-")}`
-      ].join("\n");
-    }
     if (log.action === "INTERVENTION_UPDATE") {
       return [
         "Détails mise à jour intervention",

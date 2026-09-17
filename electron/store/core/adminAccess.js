@@ -2,7 +2,8 @@
  * Accès administrateur local (profil DEV) : lecture / écriture du code maître.
  *
  * Priorité : fichier chiffré `{userData}/gts-admin.enc` (DPAPI / `safeStorage`),
- * puis repli legacy `data/acces_admin.env`.
+ * puis le fichier fourni `{userData}/data/acces_admin.env` (dev comme packagé),
+ * puis repli `data/acces_admin.env` du répertoire de travail.
  *
  * Consommé par `UserStore` (`resolveAdminAccess` au constructeur) et `ipcAuthHandlers`
  * (`auth:setAdminCode` → `writeEncryptedAdminCode`).
@@ -52,27 +53,35 @@ function parseDotEnvFile(content) {
 }
 
 /**
- * Chemins candidats de `acces_admin.env` (dev : CWD ; packagé : userData, CWD + voisin de l'exe).
+ * Chemins candidats de `acces_admin.env`.
+ * Toujours le fichier fourni dans `userData` d’abord (évite un code différent en `npm run dev`).
  *
  * @param {object} options
- * @param {boolean} options.isPackaged - `true` si application Electron packagée.
+ * @param {boolean} [options.isPackaged=false] - Ajoute les replis voisin de l’exe si packagé.
+ * @param {string} [options.userDataPath] - Dossier `userData` déjà connu.
  * @returns {string[]} Chemins absolus, sans doublon, dans l'ordre de test.
  */
-function resolveAdminEnvCandidates({ isPackaged }) {
+function resolveAdminEnvCandidates({ isPackaged = false, userDataPath } = {}) {
   const candidates = new Set();
   const push = (value) => {
     if (value) candidates.add(path.resolve(value));
   };
 
-  push(path.join(process.cwd(), "data", ADMIN_ENV_FILE_NAME));
-  if (!isPackaged) return [...candidates];
-
-  try {
-    const { app } = require("electron");
-    push(path.join(app.getPath("userData"), "data", ADMIN_ENV_FILE_NAME));
-  } catch {
-    /* tests hors Electron */
+  const explicitUserData = String(userDataPath || "").trim();
+  if (explicitUserData) {
+    push(path.join(explicitUserData, "data", ADMIN_ENV_FILE_NAME));
+  } else {
+    try {
+      const { app } = require("electron");
+      push(path.join(app.getPath("userData"), "data", ADMIN_ENV_FILE_NAME));
+    } catch {
+      /* tests hors Electron */
+    }
   }
+
+  push(path.join(process.cwd(), "data", ADMIN_ENV_FILE_NAME));
+
+  if (!isPackaged) return [...candidates];
 
   const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR || "";
   if (portableExeDir) {
@@ -109,10 +118,11 @@ function resolveAdminEncFilePath(userDataPath) {
  *
  * @param {object} [options]
  * @param {boolean} [options.isPackaged=false] - Élargit la recherche au voisin de l'exe si packagé.
+ * @param {string} [options.userDataPath] - Dossier `userData` Electron déjà connu.
  * @returns {string|null} Code maître, ou `null` si aucun fichier / aucune clé reconnue.
  */
-function readAdminMasterCode({ isPackaged = false } = {}) {
-  for (const candidate of resolveAdminEnvCandidates({ isPackaged })) {
+function readAdminMasterCode({ isPackaged = false, userDataPath } = {}) {
+  for (const candidate of resolveAdminEnvCandidates({ isPackaged, userDataPath })) {
     try {
       if (!fs.existsSync(candidate)) continue;
       const parsed = parseDotEnvFile(fs.readFileSync(candidate, "utf-8"));
@@ -151,7 +161,7 @@ function writeEncryptedAdminCode(encFilePath, code) {
 /**
  * Détermine si l'accès administrateur local est actif et fournit le code maître.
  *
- * Ordre : fichier chiffré, puis `.env` legacy.
+ * Ordre : fichier chiffré, puis `{userData}/data/acces_admin.env`, puis `.env` du CWD.
  *
  * @param {object} [options]
  * @param {boolean} [options.isPackaged=false] - Élargit la recherche `.env` au voisin de l'exe.
@@ -171,7 +181,8 @@ function resolveAdminAccess(options = {}) {
     };
   }
   const code = readAdminMasterCode({
-    isPackaged: Boolean(options.isPackaged)
+    isPackaged: Boolean(options.isPackaged),
+    userDataPath: options.userDataPath
   });
   return {
     devMasterCode: code,

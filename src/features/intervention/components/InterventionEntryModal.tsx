@@ -1,5 +1,5 @@
 /**
- * Modale création / édition / facturation d’une intervention — orchestration.
+ * Modale création / édition d’une intervention — orchestration.
  *
  * Sections UI et état formulaire extraits (meta, passage, extras Word, footer, dialogs).
  * Hydratation : `[isOpen, mode, entry?.id]`.
@@ -18,6 +18,7 @@ import { validatePassageDateTimes } from "../utils/interventionPassageDates";
 import { getMissingInterventionClosureFields } from "../utils/getMissingInterventionClosureFields";
 import { buildInterventionExportExtraPayload } from "../utils/buildInterventionExportExtraPayload";
 import { useInterventionEntryForm, type InterventionEntryMode } from "../hooks/useInterventionEntryForm";
+import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 import { InterventionEntryEditHeader } from "./InterventionEntryEditHeader";
 import { InterventionRequestMetaSection } from "./InterventionRequestMetaSection";
 import { InterventionPassageSection } from "./InterventionPassageSection";
@@ -42,12 +43,6 @@ type InterventionEntryModalProps = {
     status: "EN_COURS" | "CLOTURE" | "ANNULE",
     cancellationReason?: string
   ) => Promise<boolean>;
-  onSetBillingStatus: (
-    id: string,
-    expectedUpdatedAt: string,
-    status: "FACTURABLE" | "NON_FACTURABLE",
-    reason?: string
-  ) => Promise<boolean>;
   onCreatePendingSite: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant: (name: string) => Promise<boolean>;
   onNotify?: NotifyToast;
@@ -58,6 +53,10 @@ type InterventionEntryModalProps = {
   onOpenLinkedGardiennage?: () => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
   onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
+  onSaveWord?: () => void;
+  onOpenWord?: () => void;
+  canOpenWord?: boolean;
+  lastWordFilePath?: string | null;
 };
 
 export function InterventionEntryModal({
@@ -72,7 +71,6 @@ export function InterventionEntryModal({
   onCreate,
   onUpdate,
   onSetStatus,
-  onSetBillingStatus,
   onCreatePendingSite,
   onCreatePendingIntervenant,
   onNotify,
@@ -82,7 +80,11 @@ export function InterventionEntryModal({
   canOpenLinkedGardiennage,
   onOpenLinkedGardiennage,
   onNavigateToLinkedRonde,
-  onNavigateToLinkedGardiennage
+  onNavigateToLinkedGardiennage,
+  onSaveWord,
+  onOpenWord,
+  canOpenWord,
+  lastWordFilePath
 }: InterventionEntryModalProps) {
   const form = useInterventionEntryForm({
     isOpen,
@@ -300,7 +302,12 @@ export function InterventionEntryModal({
             <CreateEntryModalHeader kind="intervention" onCloseRequest={form.createCloseGuard.requestClose} />
           ) : (
             <InterventionEntryEditHeader
-              title={form.isFacturationMode ? "Facturation intervention" : "Édition intervention"}
+              title={reportTitleWithDailyCode(
+                entry?.status === "CLOTURE" || entry?.status === "ANNULE"
+                  ? "Rapport d'intervention"
+                  : "Édition intervention",
+                entry?.dailyCode
+              )}
               linkedRondeId={entry?.linkedRondeId}
               linkedGardiennageId={entry?.linkedGardiennageId}
               onNavigateToLinkedRonde={onNavigateToLinkedRonde}
@@ -386,21 +393,10 @@ export function InterventionEntryModal({
               ) : entry ? (
                 <InterventionEntryEditFooter
                   entry={entry}
-                  mode={form.isFacturationMode ? "facturation" : "edit"}
-                  isBillable={form.isBillable}
-                  allowFacturationToggle={form.allowFacturationToggle}
                   isActionSubmitting={form.isActionSubmitting}
                   canOpenLinkedRonde={canOpenLinkedRonde}
                   canOpenLinkedGardiennage={canOpenLinkedGardiennage}
                   onClose={onClose}
-                  onRequestNonBillable={() => {
-                    form.setFieldError("");
-                    form.setBillingReasonInput("");
-                    form.setShowBillingReasonDialog(true);
-                  }}
-                  onSetFacturable={() => {
-                    void onSetBillingStatus(entry.id, entry.updatedAt, "FACTURABLE");
-                  }}
                   onOpenLinkedRonde={onOpenLinkedRonde}
                   onOpenLinkedGardiennage={onOpenLinkedGardiennage}
                   onRequestCancel={() => {
@@ -410,6 +406,10 @@ export function InterventionEntryModal({
                   }}
                   onCloseIntervention={() => void closeIntervention()}
                   onReopen={() => void reopenIntervention()}
+                  onSaveWord={onSaveWord}
+                  onOpenWord={onOpenWord}
+                  canOpenWord={canOpenWord}
+                  lastWordFilePath={lastWordFilePath}
                 />
               ) : null}
             </form>
@@ -429,29 +429,9 @@ export function InterventionEntryModal({
       <InterventionEntryReasonDialogs
         showCancelReasonDialog={form.showCancelReasonDialog}
         cancelReasonInput={form.cancelReasonInput}
-        showBillingReasonDialog={form.showBillingReasonDialog}
-        billingReasonInput={form.billingReasonInput}
         onCancelReasonChange={form.setCancelReasonInput}
-        onBillingReasonChange={form.setBillingReasonInput}
         onCloseCancelDialog={() => form.setShowCancelReasonDialog(false)}
-        onCloseBillingDialog={() => form.setShowBillingReasonDialog(false)}
         onConfirmCancel={() => void submitCancellation()}
-        onConfirmNonBillable={() => {
-          void (async () => {
-            if (!entry) return;
-            const cleanReason = form.billingReasonInput.trim();
-            if (!cleanReason) {
-              form.setFieldError("Une justification est obligatoire pour passer en non facturable.");
-              return;
-            }
-            form.setFieldError("");
-            const ok = await onSetBillingStatus(entry.id, entry.updatedAt, "NON_FACTURABLE", cleanReason);
-            if (ok) {
-              form.setShowBillingReasonDialog(false);
-              form.setBillingReasonInput("");
-            }
-          })();
-        }}
       />
     </>
   );

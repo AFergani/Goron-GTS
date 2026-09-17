@@ -1,6 +1,6 @@
 /**
  * Page Paramètres : onglets opérateurs, données, modèles et variables, BDD, journal
- * (actions métier + logs techniques).
+ * (logs applicatifs + logs techniques).
  *
  * Filtres audit paginés, droits station (directeur / responsable de station / Admin).
  * Pas d’affichage d’identifiants techniques en liste.
@@ -8,9 +8,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
-import { CircleHelp, Download, RotateCcw } from "lucide-react";
+import { CircleHelp, Plus } from "lucide-react";
 import { AuditTable } from "../components/AuditTable";
 import { TechErrorLogsTable } from "../components/TechErrorLogsTable";
+import { JournalFiltersBar, matchesJournalDateRange } from "../components/JournalFiltersBar";
 import { CreateUserModal } from "../components/CreateUserModal";
 import { DataManagementPanel } from "../components/DataManagementPanel";
 import { TemplatesManagementPanel } from "../components/TemplatesManagementPanel";
@@ -19,6 +20,10 @@ import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDra
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
+import { ListExportButtons } from "../../common/components/ExportFileButtons";
+import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
+import { WORKSTATION_EXPORT_KEYS } from "../../common/utils/workstationExportPaths";
+import type { SaveExportFileResult } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";
 import type { CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -40,6 +45,11 @@ import {
   formatAuditStatus,
   resolveAuditFamily
 } from "../model/auditActionLabels";
+import {
+  formatTechStatusLabel,
+  getTechStatusTone,
+  resolveTechFamily
+} from "../model/techErrorLogsDisplay";
 
 type SettingsPageProps = {
   session: Session | null;
@@ -75,7 +85,8 @@ type SettingsPageProps = {
   activeDocumentsTab: DocumentsTab;
   onDocumentsTabChange: (next: DocumentsTab) => void;
   onOpenCreate: () => void;
-  onExportAuditLogs: (logs?: AuditLog[]) => void;
+  onExportAuditLogs: (logs?: AuditLog[]) => Promise<SaveExportFileResult>;
+  onExportTechErrorLogs: (logs?: TechErrorLog[]) => Promise<SaveExportFileResult>;
   onDeactivateUser: (user: User) => void;
   onReactivateUser: (user: User) => void;
   onUnlockUser: (user: User) => void;
@@ -141,6 +152,13 @@ export function SettingsPage(props: SettingsPageProps) {
   const [auditPage, setAuditPage] = useState(1);
   const [auditPageSize, setAuditPageSize] = useState(50);
   const [auditJournalSubTab, setAuditJournalSubTab] = useState<"actions" | "tech">("actions");
+  const [techDateFrom, setTechDateFrom] = useState("");
+  const [techDateTo, setTechDateTo] = useState("");
+  const [techFamilyFilter, setTechFamilyFilter] = useState("all");
+  const [techStatusFilter, setTechStatusFilter] = useState("all");
+  const [techPage, setTechPage] = useState(1);
+  const [techPageSize, setTechPageSize] = useState(50);
+  const workstationExports = useWorkstationExports();
 
   const filteredUsers = useMemo(() => {
     if (userFilter === "all") return props.users;
@@ -156,10 +174,7 @@ export function SettingsPage(props: SettingsPageProps) {
       const statusOk = auditStatusFilter === "all" || log.status === auditStatusFilter;
       const targetValue = log.targetUsername || "-";
       const targetOk = auditTargetFilter === "all" || targetValue === auditTargetFilter;
-      const logDate = new Date(log.occurredAt);
-      const fromOk = !auditDateFrom || logDate >= new Date(`${auditDateFrom}T00:00:00`);
-      const toOk = !auditDateTo || logDate <= new Date(`${auditDateTo}T23:59:59`);
-      return actorOk && familyOk && statusOk && targetOk && fromOk && toOk;
+      return actorOk && familyOk && statusOk && targetOk && matchesJournalDateRange(log.occurredAt, auditDateFrom, auditDateTo);
     });
   }, [props.auditLogs, auditActorFilter, auditFamilyFilter, auditStatusFilter, auditTargetFilter, auditDateFrom, auditDateTo]);
 
@@ -183,6 +198,29 @@ export function SettingsPage(props: SettingsPageProps) {
     [props.auditLogs]
   );
 
+  const filteredTechLogs = useMemo(() => {
+    return props.techErrorLogs.filter((log) => {
+      const family = resolveTechFamily(log.code, log.source);
+      const status = getTechStatusTone(log.code);
+      const familyOk = techFamilyFilter === "all" || family === techFamilyFilter;
+      const statusOk = techStatusFilter === "all" || status === techStatusFilter;
+      return familyOk && statusOk && matchesJournalDateRange(log.occurredAt, techDateFrom, techDateTo);
+    });
+  }, [props.techErrorLogs, techFamilyFilter, techStatusFilter, techDateFrom, techDateTo]);
+
+  const techFamilies = useMemo(
+    () =>
+      Array.from(new Set(props.techErrorLogs.map((log) => resolveTechFamily(log.code, log.source)))).sort((a, b) => a.localeCompare(b)),
+    [props.techErrorLogs]
+  );
+  const techStatuses = useMemo(
+    () =>
+      Array.from(new Set(props.techErrorLogs.map((log) => getTechStatusTone(log.code)))).sort((a, b) =>
+        formatTechStatusLabel(a).localeCompare(formatTechStatusLabel(b), "fr")
+      ),
+    [props.techErrorLogs]
+  );
+
   const activeTab = (() => {
     const t = props.activeTab;
     if (props.canManageUsers) return t;
@@ -198,6 +236,14 @@ export function SettingsPage(props: SettingsPageProps) {
     return filteredAuditLogs.slice(start, start + auditPageSize);
   }, [filteredAuditLogs, auditPageSafe, auditPageSize]);
 
+  const techTotalPages = techPageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredTechLogs.length / techPageSize));
+  const techPageSafe = Math.min(techPage, techTotalPages);
+  const pagedTechLogs = useMemo(() => {
+    if (techPageSize === 0) return filteredTechLogs;
+    const start = (techPageSafe - 1) * techPageSize;
+    return filteredTechLogs.slice(start, start + techPageSize);
+  }, [filteredTechLogs, techPageSafe, techPageSize]);
+
   useEffect(() => {
     setAuditPage(1);
   }, [auditActorFilter, auditFamilyFilter, auditStatusFilter, auditTargetFilter, auditDateFrom, auditDateTo, auditPageSize]);
@@ -207,6 +253,16 @@ export function SettingsPage(props: SettingsPageProps) {
       setAuditPage(auditTotalPages);
     }
   }, [auditPage, auditTotalPages]);
+
+  useEffect(() => {
+    setTechPage(1);
+  }, [techFamilyFilter, techStatusFilter, techDateFrom, techDateTo, techPageSize]);
+
+  useEffect(() => {
+    if (techPage > techTotalPages) {
+      setTechPage(techTotalPages);
+    }
+  }, [techPage, techTotalPages]);
 
   return (
     <>
@@ -285,14 +341,14 @@ export function SettingsPage(props: SettingsPageProps) {
               >
                 <CircleHelp size={14} />
               </button>
-              {props.canManageUsers && <button type="button" onClick={props.onOpenCreate}>Créer</button>}
+              {props.canManageUsers && (
+                <button type="button" className="mc-btn-primary" onClick={props.onOpenCreate}>
+                  <Plus size={16} aria-hidden />
+                  Nouvel utilisateur
+                </button>
+              )}
             </div>
           </div>
-          <p className="muted">
-            Vous pouvez gérer les comptes de niveau hiérarchique inférieur ou égal au vôtre. Chaque modification,
-            réinitialisation, déverrouillage, désactivation ou réactivation exige un motif tracé dans le journal des
-            actions.
-          </p>
           <UsersTable
             session={props.session}
             users={filteredUsers}
@@ -317,7 +373,7 @@ export function SettingsPage(props: SettingsPageProps) {
                 aria-selected={auditJournalSubTab === "actions"}
                 onClick={() => setAuditJournalSubTab("actions")}
               >
-                Actions métier
+                Logs applicatifs
               </button>
               <button
                 type="button"
@@ -336,92 +392,58 @@ export function SettingsPage(props: SettingsPageProps) {
           <p className="muted">
               Historique visibilité des actions jusqu&apos;à{" "}
               <strong>{props.auditMetadata.firstOccurredAt ? new Date(props.auditMetadata.firstOccurredAt).toLocaleString("fr-FR") : "Aucune donnée"}</strong>
-              {" "}({props.auditMetadata.total} entrée(s))
           </p>
-          <div className="audit-filters">
-            <div className="main-log-filters-date-range" role="group" aria-label="Période du journal">
-              <label className="main-log-filter-field--date">
-                Date du
-                <input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} />
-              </label>
-              <label className="main-log-filter-field--date">
-                Date au
-                <input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} />
-              </label>
-            </div>
-            <label>
-              Acteur
-              <select value={auditActorFilter} onChange={(e) => setAuditActorFilter(e.target.value)}>
-                <option value="all">Tous</option>
-                {auditActors.map((actor) => (
-                  <option key={actor} value={actor}>
-                    {actor}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Famille
-              <select value={auditFamilyFilter} onChange={(e) => setAuditFamilyFilter(e.target.value)}>
-                <option value="all">Toutes</option>
-                {auditFamilies.map((family) => (
-                  <option key={family} value={family}>
-                    {family}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Cible
-              <select value={auditTargetFilter} onChange={(e) => setAuditTargetFilter(e.target.value)}>
-                <option value="all">Toutes</option>
-                {auditTargets.map((target) => (
-                  <option key={target} value={target}>
-                    {target === "-" ? "Aucune cible" : target}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Statut
-              <select value={auditStatusFilter} onChange={(e) => setAuditStatusFilter(e.target.value)}>
-                <option value="all">Tous</option>
-                {auditStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {formatAuditStatus(status)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="audit-filter-actions">
-              <button
-                type="button"
-                className="btn-light action-icon-btn audit-reset-icon-btn"
-                title="Exporter le journal en Excel"
-                aria-label="Exporter le journal en Excel"
-                onClick={() => props.onExportAuditLogs(filteredAuditLogs)}
-              >
-                <Download size={14} />
-              </button>
-              <button
-                type="button"
-                className="btn-light action-icon-btn audit-reset-icon-btn"
-                title="Réinitialiser les filtres"
-                aria-label="Réinitialiser les filtres"
-                onClick={() => {
-                  setAuditActorFilter("all");
-                  setAuditFamilyFilter("all");
-                  setAuditStatusFilter("all");
-                  setAuditTargetFilter("all");
-                  setAuditDateFrom("");
-                  setAuditDateTo("");
-                  setAuditPage(1);
+          <JournalFiltersBar
+            dateFrom={auditDateFrom}
+            dateTo={auditDateTo}
+            onDateFromChange={setAuditDateFrom}
+            onDateToChange={setAuditDateTo}
+            actorFilter={auditActorFilter}
+            actors={auditActors}
+            onActorChange={setAuditActorFilter}
+            familyFilter={auditFamilyFilter}
+            families={auditFamilies}
+            onFamilyChange={setAuditFamilyFilter}
+            targetFilter={auditTargetFilter}
+            targets={auditTargets}
+            onTargetChange={setAuditTargetFilter}
+            statusFilter={auditStatusFilter}
+            statuses={auditStatuses}
+            onStatusChange={setAuditStatusFilter}
+            formatStatus={formatAuditStatus}
+            onReset={() => {
+              setAuditActorFilter("all");
+              setAuditFamilyFilter("all");
+              setAuditStatusFilter("all");
+              setAuditTargetFilter("all");
+              setAuditDateFrom("");
+              setAuditDateTo("");
+              setAuditPage(1);
+            }}
+            actions={
+              <ListExportButtons
+                exportDisabled={filteredAuditLogs.length === 0}
+                canOpenLast={workstationExports.canOpenExcelTemporarily(WORKSTATION_EXPORT_KEYS.excelAudit)}
+                lastFilePath={workstationExports.getLastPath(WORKSTATION_EXPORT_KEYS.excelAudit)}
+                exportTitle="Exporter le journal en Excel"
+                exportAriaLabel="Exporter le journal en Excel"
+                onExport={() => {
+                  void workstationExports.saveAndRemember(
+                    WORKSTATION_EXPORT_KEYS.excelAudit,
+                    () => props.onExportAuditLogs(filteredAuditLogs),
+                    props.onNotify,
+                    "Journal Excel enregistré."
+                  ).catch((error: unknown) => {
+                    props.onNotify(
+                      error instanceof Error ? error.message : "Export Excel impossible.",
+                      "error"
+                    );
+                  });
                 }}
-              >
-                <RotateCcw size={14} />
-              </button>
-            </div>
-          </div>
+                onOpenLast={() => void workstationExports.openLastExport(WORKSTATION_EXPORT_KEYS.excelAudit, props.onNotify)}
+              />
+            }
+          />
           <AuditTable logs={pagedAuditLogs} />
           <TablePaginationBar
             currentPage={auditPageSafe}
@@ -430,16 +452,69 @@ export function SettingsPage(props: SettingsPageProps) {
             pageSize={auditPageSize}
             onPageChange={setAuditPage}
             onPageSizeChange={setAuditPageSize}
+            showCount={false}
           />
             </>
           ) : (
             <>
               <p className="muted">
-                Événements techniques (ex. perte / reconnexion PostgreSQL labo). Hors actions métier.
-                {" "}
-                ({props.techErrorLogs.length} entrée(s) chargée(s))
+                Événements techniques (ex. perte / reconnexion PostgreSQL labo). Hors logs applicatifs.
               </p>
-              <TechErrorLogsTable logs={props.techErrorLogs} />
+              <JournalFiltersBar
+                dateFrom={techDateFrom}
+                dateTo={techDateTo}
+                onDateFromChange={setTechDateFrom}
+                onDateToChange={setTechDateTo}
+                familyFilter={techFamilyFilter}
+                families={techFamilies}
+                onFamilyChange={setTechFamilyFilter}
+                statusFilter={techStatusFilter}
+                statuses={techStatuses}
+                onStatusChange={setTechStatusFilter}
+                formatStatus={(status) =>
+                  status === "ok" || status === "error" || status === "warn" ? formatTechStatusLabel(status) : status
+                }
+                onReset={() => {
+                  setTechFamilyFilter("all");
+                  setTechStatusFilter("all");
+                  setTechDateFrom("");
+                  setTechDateTo("");
+                  setTechPage(1);
+                }}
+                actions={
+                  <ListExportButtons
+                    exportDisabled={filteredTechLogs.length === 0}
+                    canOpenLast={workstationExports.canOpenExcelTemporarily(WORKSTATION_EXPORT_KEYS.excelTechLogs)}
+                    lastFilePath={workstationExports.getLastPath(WORKSTATION_EXPORT_KEYS.excelTechLogs)}
+                    exportTitle="Exporter les logs techniques en Excel"
+                    exportAriaLabel="Exporter les logs techniques en Excel"
+                    onExport={() => {
+                      void workstationExports.saveAndRemember(
+                        WORKSTATION_EXPORT_KEYS.excelTechLogs,
+                        () => props.onExportTechErrorLogs(filteredTechLogs),
+                        props.onNotify,
+                        "Logs techniques Excel enregistrés."
+                      ).catch((error: unknown) => {
+                        props.onNotify(
+                          error instanceof Error ? error.message : "Export Excel impossible.",
+                          "error"
+                        );
+                      });
+                    }}
+                    onOpenLast={() => void workstationExports.openLastExport(WORKSTATION_EXPORT_KEYS.excelTechLogs, props.onNotify)}
+                  />
+                }
+              />
+              <TechErrorLogsTable logs={pagedTechLogs} />
+              <TablePaginationBar
+                currentPage={techPageSafe}
+                totalPages={techTotalPages}
+                totalItems={filteredTechLogs.length}
+                pageSize={techPageSize}
+                onPageChange={setTechPage}
+                onPageSizeChange={setTechPageSize}
+                showCount={false}
+              />
             </>
           )}
         </section>

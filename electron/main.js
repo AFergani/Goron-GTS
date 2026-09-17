@@ -8,6 +8,7 @@ app.setPath("userData", path.join(app.getPath("appData"), "goron-gts"));
 const { UserStore, AppError } = require("./userStore");
 const sessionMain = require("./store/core/session");
 const { createDocumentTemplatesService } = require("./main/documentTemplates");
+const { createExportFileService } = require("./main/exportFileService");
 const { createPostgresAdminService } = require("./main/postgresAdminService");
 const { createAppConfigService } = require("./main/appConfigService");
 const { createWindowService } = require("./main/windowService");
@@ -142,6 +143,15 @@ const documentTemplates = createDocumentTemplatesService({
   getDataRootCandidates,
   ensureStore,
   getUserStore: () => userStore
+});
+
+const exportFileService = createExportFileService({
+  fs,
+  path,
+  dialog,
+  shell,
+  app,
+  getMainWindow: () => mainWindow
 });
 
 const postgresAdmin = createPostgresAdminService({
@@ -323,6 +333,28 @@ function handleIpcAuth(channel, fn) {
   });
 }
 
+/**
+ * Handler authentifié sans limite JSON 512 Ko (payload binaire : bytes d’un export).
+ * La taille est bornée dans `exportFileService` (40 Mo).
+ *
+ * @param {string} channel
+ * @param {(payload: object) => Promise<unknown>} fn
+ */
+function handleIpcAuthLarge(channel, fn) {
+  ipcMain.handle(channel, async (_, payload) => {
+    try {
+      ensureStore();
+      const merged = attachAuthContext(payload);
+      return await fn(merged);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw new Error(error.userMessage);
+      }
+      throw new Error(mapTechnicalErrorToFrenchMessage(error));
+    }
+  });
+}
+
 function getOptionalAuthContext(payload) {
   const token = payload && typeof payload === "object" ? payload.sessionToken : null;
   if (!token || !userStore) return null;
@@ -334,10 +366,12 @@ function getOptionalAuthContext(payload) {
 registerSystemIpcHandlers({
   handleIpc,
   handleIpcAuth,
+  handleIpcAuthLarge,
   getOptionalAuthContext,
   getDbConfig,
   getUserStore: () => userStore,
   documentTemplates,
+  exportFileService,
   shell,
   app,
   setIsAppQuitting: (value) => {

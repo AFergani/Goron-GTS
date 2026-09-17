@@ -22,7 +22,7 @@ Goron-GTS centralise la saisie, le suivi et la traçabilité des actions opérat
 | Module | Rôle (résumé) |
 |--------|----------------|
 | **Main courante** | Journal d’exploitation : signalements, suivi responsable, clôture, exports |
-| **Intervention** | Création et suivi des interventions, statuts, facturation, lien rondes |
+| **Intervention** | Création et suivi des interventions, statuts, lien rondes |
 | **Rondes** | Passages planifiés (profils contractuels), demandes d’urgence, fiches de clôture |
 | **Gardiennage** | Planification et suivi des demandes de gardiennage |
 | **Fransor** | Ouvertures / fermetures et récapitulatifs par jour et par mois |

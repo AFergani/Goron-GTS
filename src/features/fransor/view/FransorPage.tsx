@@ -14,8 +14,10 @@ import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
-import type { FransorClosure, Role, SiteRef } from "../../../types";
+import type { FransorClosure, Role } from "../../../types";
+
+/** Libellé fixe du bouton de copie site (code métier entre parenthèses, hors référentiel). */
+const FRANSOR_SITE_COPY_LABEL = "FRANSOR INDUSTRIE (FRANSOR)";
 
 
 /** Jours ISO du mois `YYYY-MM` */
@@ -151,18 +153,7 @@ export function FransorPage({
   const [closureYearLoading, setClosureYearLoading] = useState(false);
 
   const [compactDayLabels, setCompactDayLabels] = useState(false);
-  const [fransorSiteLabel, setFransorSiteLabel] = useState("");
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
-
-  useEffect(() => {
-    let cancelled = false;
-    void gtsApiClient.listSites({ requesterRole }).then((sites: SiteRef[]) => {
-      if (cancelled) return;
-      const match = sites.find((s) => s.code.toUpperCase() === "FRANSOR" || s.name.toUpperCase().includes("FRANSOR"));
-      if (match) setFransorSiteLabel(formatSiteSelectedLabel(match));
-    });
-    return () => { cancelled = true; };
-  }, [requesterRole]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -548,12 +539,6 @@ export function FransorPage({
   return (
     <>
       <section className="panel">
-        <div className="row fransor-help-row">
-          <h3>Suivi quotidien</h3>
-          {fransorSiteLabel ? (
-            <SiteDisplayCopyButton siteLabel={fransorSiteLabel} onNotify={onToast} className="btn-light fransor-site-copy-btn" />
-          ) : null}
-        </div>
         <div className="row fransor-main-row">
           <label className="fransor-month-filter">
             <span>Mois :</span>
@@ -588,7 +573,14 @@ export function FransorPage({
               </button>
             </div>
           </label>
-          {presenter.loading ? <span className="muted">Chargement…</span> : null}
+          <div className="fransor-main-row-actions">
+            {presenter.loading ? <span className="muted">Chargement…</span> : null}
+            <SiteDisplayCopyButton
+              siteLabel={FRANSOR_SITE_COPY_LABEL}
+              onNotify={onToast}
+              className="btn-light fransor-site-copy-btn"
+            />
+          </div>
         </div>
         <div className="fransor-today-row">
           <div className="fransor-today-entry-row">
@@ -617,28 +609,30 @@ export function FransorPage({
               <span className="muted">Non prévue ({todayNonPlannedReason})</span>
             )}
           </div>
-          <button
-            type="button"
-            className="btn-light fransor-closures-btn"
-            onClick={openClosureModal}
-            title={
-              monthClosuresCount > 0
-                ? `${monthClosuresAriaSummary} (${formatMonthFr(presenter.month)})`
-                : `Gérer les périodes exceptionnelles (${formatMonthFr(presenter.month)})`
-            }
-            aria-label={
-              monthClosuresCount > 0
-                ? `Périodes exceptionnelles, ${monthClosuresAriaSummary}`
-                : "Périodes exceptionnelles"
-            }
-          >
-            <span className="fransor-closures-btn-label">Périodes exceptionnelles</span>
-            {monthClosuresCount > 0 ? (
-              <span className="fransor-closures-count-badge" aria-hidden="true">
-                {monthClosuresCount}
-              </span>
-            ) : null}
-          </button>
+          <div className="fransor-today-actions">
+            <button
+              type="button"
+              className="btn-light fransor-closures-btn"
+              onClick={openClosureModal}
+              title={
+                monthClosuresCount > 0
+                  ? `${monthClosuresAriaSummary} (${formatMonthFr(presenter.month)})`
+                  : `Gérer les périodes exceptionnelles (${formatMonthFr(presenter.month)})`
+              }
+              aria-label={
+                monthClosuresCount > 0
+                  ? `Périodes exceptionnelles, ${monthClosuresAriaSummary}`
+                  : "Périodes exceptionnelles"
+              }
+            >
+              <span className="fransor-closures-btn-label">Périodes exceptionnelles</span>
+              {monthClosuresCount > 0 ? (
+                <span className="fransor-closures-count-badge" aria-hidden="true">
+                  {monthClosuresCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
         </div>
         <div className="fransor-missing-days-list">
           <div className="fransor-calendar-grid" aria-label="Journées du mois">

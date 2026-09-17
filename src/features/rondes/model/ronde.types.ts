@@ -89,6 +89,8 @@ export type RondeEntry = {
   batchDeleteRequestedAt: string | null;
   batchDeleteRequestedBy: string | null;
   batchDeleteReason: string;
+  /** Numéro métier `JJMMAAAA-XX` ; vide pour un créneau planifié virtuel. */
+  dailyCode: string;
 };
 
 export type RondeSavePayload = {

@@ -69,6 +69,12 @@ export type TemplateAssignmentRow = {
   updatedAt: string;
 };
 
+/** Résultat d’enregistrement d’un export Word/Excel sur le poste. */
+export type SaveExportFileResult = { canceled: boolean; filePath: string | null };
+
+/** Résultat d’ouverture d’un fichier d’export par l’application système. */
+export type OpenExportFileResult = { success: boolean; error: string | null };
+
 /** Réponse d'annulation gardiennage (lot éventuel), plus riche que le type Window. */
 export type GardiennageStatusResult = GardiennageEntry & {
   batchOperation?: {

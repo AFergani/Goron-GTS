@@ -7,7 +7,13 @@ import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkb
 import { exportTimestampForFilename } from "../../common/utils/exportFilename";
 import type { AuditLog } from "../../../types";
 
-export function exportAuditLogsToExcel(logs: AuditLog[]) {
+/**
+ * Exporte le journal d’actions filtré en Excel.
+ *
+ * @param logs - Lignes à exporter.
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
+export async function exportAuditLogsToExcel(logs: AuditLog[]) {
   const headers = ["Date", "Acteur", "Action", "Cible", "Statut", "Détails JSON"];
   const rows: string[][] = [
     headers,
@@ -24,5 +30,5 @@ export function exportAuditLogsToExcel(logs: AuditLog[]) {
   ws["!cols"] = [{ wch: 21 }, { wch: 20 }, { wch: 34 }, { wch: 20 }, { wch: 12 }, { wch: 80 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Journal des actions");
-  downloadSheetJsWorkbook(wb, `journal-actions_${exportTimestampForFilename()}.xlsx`);
+  return downloadSheetJsWorkbook(wb, `journal-actions_${exportTimestampForFilename()}.xlsx`);
 }

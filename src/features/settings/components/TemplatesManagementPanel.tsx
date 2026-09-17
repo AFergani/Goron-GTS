@@ -175,41 +175,37 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
           <div className="row-actions">
             <button
               type="button"
-              className="btn-light action-icon-btn"
-              title="Ajouter un modèle personnalisé"
-              aria-label="Ajouter un modèle personnalisé"
-              onClick={() => setAssignModalOpen(true)}
-            >
-              <Plus size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="btn-light action-icon-btn"
+              className="btn-light"
               title="Ouvrir le dossier data/templates"
               aria-label="Ouvrir le dossier des modèles Word"
               disabled={!writableDir}
               onClick={() => void openTemplatesDirectory()}
             >
               <FolderOpen size={16} aria-hidden />
+              Ouvrir le dossier
             </button>
             <button
               type="button"
-              className="btn-light action-icon-btn"
+              className="btn-light"
               title="Actualiser la liste"
               aria-label="Actualiser la liste"
               disabled={loadingList}
               onClick={() => void refreshTemplates()}
             >
               <RotateCcw size={16} aria-hidden />
+              Actualiser
+            </button>
+            <button
+              type="button"
+              className="mc-btn-primary"
+              title="Ajouter un modèle personnalisé"
+              onClick={() => setAssignModalOpen(true)}
+            >
+              <Plus size={16} aria-hidden />
+              Nouvelle attribution
             </button>
           </div>
         </div>
-        <p className="muted">
-          Les fichiers effectifs sont cherchés dans le dossier <code>templates</code> de l’application, puis dans les modèles embarqués. Le{" "}
-          <strong>chemin résolu</strong> indique quel fichier est utilisé pour l’export. Pour modifier un modèle par défaut (Main
-          courante, Intervention, Ronde contractuelle), utilisez <strong>Remplacer</strong> sur la ligne concernée — le fichier copié doit garder le même nom (
-          ex. <code>ronde-template.docx</code>).
-        </p>
         {writableDir ? (
           <p className="muted templates-management-panel__writable">
             Dossier d’écriture des remplacements : <code>{writableDir}</code>
@@ -220,19 +216,24 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
 
         <div className="table-scroll-x">
           <table className="data-table-fixed templates-management-panel__table">
+            <colgroup>
+              <col />
+              <col />
+              <col />
+              <col className="templates-management-panel__col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Modèle</th>
                 <th>Fichier</th>
                 <th>Chemin résolu</th>
-                <th>État</th>
                 <th className="templates-management-panel__col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loadingList ? (
                 <tr>
-                  <td colSpan={5} className="muted">
+                  <td colSpan={4} className="muted">
                     Chargement…
                   </td>
                 </tr>
@@ -244,33 +245,43 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                       <code>{row.fileName}</code>
                     </td>
                     <td className="templates-management-panel__path-cell">
-                      {row.resolvedPath ? (
-                        <span title={row.resolvedPath}>{row.resolvedPath}</span>
-                      ) : (
-                        <span className="muted">— (défaut embarqué ou fichier absent)</span>
-                      )}
+                      <span
+                        className={
+                          row.exists
+                            ? "templates-management-panel__path--ok"
+                            : "templates-management-panel__path--missing"
+                        }
+                        title={
+                          row.exists
+                            ? `Présent — ${row.resolvedPath}`
+                            : "Absent — défaut embarqué ou fichier absent"
+                        }
+                      >
+                        {row.resolvedPath || "— (défaut embarqué ou fichier absent)"}
+                      </span>
                     </td>
-                    <td>{row.exists ? <span className="templates-management-panel__ok">Présent</span> : <span className="muted">Absent</span>}</td>
-                    <td>
+                    <td className="templates-management-panel__col-actions">
                       <div className="templates-management-panel__row-actions">
                         <button
                           type="button"
-                          className="action-icon-btn btn-light"
+                          className="btn-light"
                           title="Aide variables"
                           aria-label={`Aide variables ${row.title}`}
                           onClick={() => setHelpId(row.helpId)}
                         >
                           <CircleHelp size={16} aria-hidden />
+                          Aide
                         </button>
                         <button
                           type="button"
-                          className="action-icon-btn btn-light"
+                          className="btn-light"
                           title="Remplacer par un fichier .docx (copie dans data/templates)"
                           aria-label={`Remplacer le modèle ${row.fileName}`}
                           disabled={replacingFileName === row.fileName || !writableDir}
                           onClick={() => void replaceTemplate(row.fileName)}
                         >
                           <FileUp size={16} aria-hidden />
+                          Remplacer
                         </button>
                       </div>
                     </td>
@@ -283,13 +294,20 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
         <h4 className="templates-management-panel__subsection-title">Attributions personnalisées</h4>
         <div className="table-scroll-x">
           <table className="data-table-fixed templates-management-panel__table">
+            <colgroup>
+              <col />
+              <col />
+              <col />
+              <col />
+              <col className="templates-management-panel__col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Flux</th>
                 <th>Portée</th>
                 <th>Valeur</th>
                 <th>Modèle</th>
-                <th>Actions</th>
+                <th className="templates-management-panel__col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -302,25 +320,27 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                     <td>
                       <code>{row.templateFileName}</code>
                     </td>
-                    <td>
+                    <td className="templates-management-panel__col-actions">
                       <div className="templates-management-panel__row-actions">
                         <button
                           type="button"
-                          className="action-icon-btn btn-light"
+                          className="btn-light"
                           title="Aide variables (mêmes champs que le modèle par défaut de ce flux)"
                           aria-label={`Aide variables ${flowKindLabel(row.flowKind)}`}
                           onClick={() => setHelpId(helpIdFromFlowKind(row.flowKind))}
                         >
                           <CircleHelp size={16} aria-hidden />
+                          Aide
                         </button>
                         <button
                           type="button"
-                          className="btn-danger action-icon-btn"
+                          className="btn-danger"
                           title="Supprimer l'attribution"
                           aria-label="Supprimer l'attribution"
                           onClick={() => setDeleteAssignmentId(row.id)}
                         >
                           <Trash2 size={16} aria-hidden />
+                          Supprimer
                         </button>
                       </div>
                     </td>

@@ -75,7 +75,7 @@ export function HelpSettingsOperatorsTopic() {
         <h3 className="help-center-card-title">➕ Créer un nouvel utilisateur</h3>
         <ol className="muted help-center-list help-center-list--ordered">
           <li>
-            Allez dans <strong>Paramètres → Gestion opérateur</strong> et cliquez sur <strong>Créer</strong>.
+            Allez dans <strong>Paramètres → Gestion opérateur</strong> et cliquez sur <strong>Nouvel utilisateur</strong>.
           </li>
           <li>
             <strong>Nom affiché :</strong> saisissez le nom et le prénom de l&apos;agent. Ce nom sera visible partout dans l&apos;application
@@ -93,7 +93,7 @@ export function HelpSettingsOperatorsTopic() {
                 <strong>Opérateur :</strong> pour les agents de saisie et de consultation terrain.
               </li>
               <li>
-                <strong>Responsable :</strong> pour les profils ayant des fonctions de pilotage (validation, facturation). Si sélectionné, définissez
+                <strong>Responsable :</strong> pour les profils ayant des fonctions de pilotage (validation, supervision). Si sélectionné, définissez
                 son profil métier (<strong>Superviseur</strong>, <strong>Responsable de station</strong> ou <strong>Directeur de station</strong>).
               </li>
             </ul>

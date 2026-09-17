@@ -46,10 +46,12 @@ import type {
   DbConfig,
   DbHealth,
   GardiennageStatusResult,
+  OpenExportFileResult,
   PostgresLabHealth,
   PostgresReconnectResult,
   PostgresTestResult,
   PublicPostgresConfig,
+  SaveExportFileResult,
   TechErrorLog,
   TemplateAssignmentRow
 } from "./gtsApi.types";
@@ -65,10 +67,12 @@ export type {
   DbConfig,
   DbHealth,
   GardiennageStatusResult,
+  OpenExportFileResult,
   PostgresLabHealth,
   PostgresReconnectResult,
   PostgresTestResult,
   PublicPostgresConfig,
+  SaveExportFileResult,
   TechErrorLog,
   TemplateAssignmentRow
 } from "./gtsApi.types";
@@ -121,6 +125,28 @@ export const gtsApiClient = {
   },
   openTemplatesFolder() {
     return sessionOnlyCall(window.gtsApi.openTemplatesFolder);
+  },
+  /**
+   * Enregistre un export Word/Excel via le dialogue natif (mémorise le dernier dossier).
+   *
+   * @param payload.defaultFileName - Nom proposé (sans chemin).
+   * @param payload.kind - Extension attendue.
+   * @param payload.bytes - Contenu binaire du fichier.
+   */
+  saveExportFile(payload: {
+    defaultFileName: string;
+    kind: "docx" | "xlsx";
+    bytes: ArrayBuffer | Uint8Array;
+  }): Promise<SaveExportFileResult> {
+    return sessionCall(window.gtsApi.saveExportFile, payload);
+  },
+  /**
+   * Ouvre un fichier d’export déjà enregistré sur ce poste (Word / Excel).
+   *
+   * @param filePath - Chemin absolu mémorisé après un enregistrement.
+   */
+  openExportFile(filePath: string): Promise<OpenExportFileResult> {
+    return sessionCall(window.gtsApi.openExportFile, { filePath });
   },
   getDbHealth(): Promise<DbHealth> {
     const token = getGtsApiSessionToken();
@@ -554,16 +580,6 @@ export const gtsApiClient = {
     cancellationReason?: string;
   }) {
     return sessionCall(window.gtsApi.setInterventionStatus, payload);
-  },
-  setInterventionBillingStatus(payload: {
-    requesterRole: Role;
-    requesterUsername: string;
-    id: string;
-    expectedUpdatedAt: string;
-    billingStatus: "FACTURABLE" | "NON_FACTURABLE";
-    reason?: string;
-  }) {
-    return sessionCall(window.gtsApi.setInterventionBillingStatus, payload);
   },
   listRondes(payload: { requesterRole: Role }): Promise<RondeEntry[]> {
     return sessionCall(window.gtsApi.listRondes, payload);

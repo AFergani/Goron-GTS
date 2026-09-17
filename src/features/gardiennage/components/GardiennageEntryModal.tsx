@@ -56,6 +56,7 @@ import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRe
 import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
 import { GardiennagePlanningLinesRecap } from "./GardiennagePlanningLinesRecap";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 import { isGardiennagePreviewSlotClosed } from "../model/gardiennageClosure";
 export type GardiennageModalMode = "create" | "edit";
 
@@ -636,11 +637,10 @@ export function GardiennageEntryModal({
 
   const headerTitle = isCreateMode
     ? "Nouveau Gardiennage"
-    : isCloture
-      ? "Gardiennage clôturé"
-      : isAnnule
-        ? "Gardiennage annulé"
-        : "Édition Gardiennage";
+    : reportTitleWithDailyCode(
+        isCloture ? "Gardiennage clôturé" : isAnnule ? "Gardiennage annulé" : "Édition Gardiennage",
+        entry?.dailyCode
+      );
 
   return (
     <>

@@ -31,7 +31,3 @@ export function statusTone(status: InterventionEntry["status"]): "cloture" | "en
   if (status === "ANNULE") return "en-attente";
   return "en-cours";
 }
-
-export function billingLabelFr(status: InterventionEntry["billingStatus"]): string {
-  return status === "NON_FACTURABLE" ? "Non facturable" : "Facturable";
-}

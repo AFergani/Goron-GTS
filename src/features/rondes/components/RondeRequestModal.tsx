@@ -505,6 +505,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               validToTime={validToTime}
               exceptionalPerLine={exceptionalPreview.perLine}
               exceptionalTotal={exceptionalPreview.items.length}
+              intervalHonorNote={exceptionalPreview.intervalHonorNote}
             />
           ) : null}
           {isLinkedExistingBatch &&

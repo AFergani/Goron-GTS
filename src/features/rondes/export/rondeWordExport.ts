@@ -1,12 +1,12 @@
-import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 /**
  * Export Word fiche ronde (modèle par défaut ou par profil planifié).
  *
  * Jetons Docxtemplater, champs clôture, repli docx ; partagé avec Paramètres (modèles).
  */
 
+import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { downloadBlob } from "../../common/utils/downloadBlob";
+import { saveExportBlob, type SaveExportFileResult } from "../../common/utils/saveExportBlob";
 import {
   loadDocumentTemplateBuffer,
   renderDocxtemplaterBlob,
@@ -89,6 +89,7 @@ function buildTemplateData(
     numero_bon: safeDocxText(entry.workOrderNumber),
     compte_rendu: safeDocxText(entry.report),
     statut: safeDocxText(rondeStatusLabelFr(entry, { feminine: true })),
+    numeroFiche: safeDocxText(entry.dailyCode),
     type_passage: safeDocxText(roundKindLabel(entry)),
     date_logique_passage: safeDocxText(logicalDateFr),
     date_logique: safeDocxText(logicalDateFr),
@@ -269,10 +270,17 @@ async function buildFallbackDocument(
   });
 }
 
+/**
+ * Enregistre la fiche Word d’une ronde.
+ *
+ * @param entry - Fiche ronde.
+ * @param options - Libellé de profil et liste des programmations (modèle Word).
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
 export async function exportRondeEntryToWord(
   entry: RondeEntry,
   options?: { profileLabel?: string; profiles?: RondePlannedProfileRef[] | null }
-): Promise<void> {
+): Promise<SaveExportFileResult> {
   const profiles = options?.profiles;
   const label = resolveProfileLabel(entry, profiles, options?.profileLabel);
   const isPlannedFlow = isPlannedFlowEntry(entry);
@@ -287,5 +295,5 @@ export async function exportRondeEntryToWord(
   const part = safeExportFilenamePart(entry.siteDisplay || entry.workOrderNumber || "ronde");
   const datePart = safeExportFilenamePart(formatDateShortFr(entry.requestDate));
   const name = `Ronde_${part}_${datePart}.docx`;
-  downloadBlob(blob, name);
+  return saveExportBlob(blob, name);
 }

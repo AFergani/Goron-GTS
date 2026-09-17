@@ -2,7 +2,7 @@
  * Barre recherche + import Excel + reset filtres (onglets données).
  */
 
-import { RotateCcw } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import type { DataTab } from "../model/settings.types";
 
 type DataSearchImportBarProps = {
@@ -94,17 +94,26 @@ export function DataSearchImportBar(props: DataSearchImportBarProps) {
       ) : null}
       {props.showImport ? (
         <button
+          type="button"
           className="btn-light"
-          title={`Importer en masse (XLS ou XLSX) — plusieurs fichiers possibles, traitement l’un après l’autre. ${props.importColumnsHint}`}
+          title={`Importer (XLS ou XLSX). ${props.importColumnsHint}`}
+          aria-label="Importer"
           onClick={props.onOpenImport}
           disabled={props.isImporting}
         >
-          Importer en masse
+          <Plus size={16} aria-hidden />
+          Importer
         </button>
       ) : null}
       {props.showCreate ? (
-        <button title={`Créer une entrée manuellement. ${props.importColumnsHint}`} onClick={props.onOpenCreate}>
-          Ajouter une entrée
+        <button
+          type="button"
+          className="mc-btn-primary"
+          title={`Créer une entrée manuellement. ${props.importColumnsHint}`}
+          onClick={props.onOpenCreate}
+        >
+          <Plus size={16} aria-hidden />
+          Nouvelle entrée
         </button>
       ) : null}
     </div>

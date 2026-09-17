@@ -45,13 +45,13 @@ import {
 } from "../infrastructure/api/gtsApiClient";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
+import { DATA_REFRESH_POLL_MS } from "../features/common/constants/dataRefreshPoll";
 import "../styles/app.css";
 import "../styles/fransor.css";
 import "../styles/helpfransor.css";
 
 type ThemeMode = "dark" | "light";
 
-const PG_HEALTH_POLL_MS = 5000;
 const PRESENCE_HEARTBEAT_MS = 20000;
 
 /**
@@ -60,8 +60,10 @@ const PRESENCE_HEARTBEAT_MS = 20000;
 export function AppShell() {
   useGlobalDraggableModals();
   const { session, setSession, clearSession } = useSession();
-  /** Erreurs formulaires auth / bootstrap uniquement (pas de bandeau haut de page métier). */
+  /** Erreur formulaire de connexion uniquement (ne pas la réafficher sur l'écran bootstrap PG). */
   const [error, setError] = useState("");
+  /** Erreur du panneau premier paramétrage / récupération PostgreSQL. */
+  const [bootstrapError, setBootstrapError] = useState("");
   const { toasts, notify: notifyToastRaw, dismiss: dismissToast } = useToastStack();
   /** Filtre les messages de session : une seule alerte via `setOnSessionExpired`. */
   const notifyToast: NotifyToast = useCallback(
@@ -144,8 +146,9 @@ export function AppShell() {
   });
 
   const pgBootstrap = usePostgresBootstrapPresenter({
-    onError: setError,
-    onToast: notifyToast
+    onError: setBootstrapError,
+    onToast: notifyToast,
+    onClearLoginError: () => setError("")
   });
 
   const settings = useSettingsPresenter({
@@ -270,7 +273,7 @@ export function AppShell() {
 
   useEnabledInterval(
     Boolean(session),
-    PG_HEALTH_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       try {
         const pgHealth = await gtsApiClient.getPostgresLabHealth();
@@ -319,6 +322,7 @@ export function AppShell() {
     clearSession();
     settings.resetSettingsState();
     setError("");
+    setBootstrapError("");
     setCredentialsToShare(null);
   };
 
@@ -367,7 +371,7 @@ export function AppShell() {
             onTest={pgBootstrap.onTestPostgresBootstrap}
             testResult={pgBootstrap.postgresTestResult}
             busyPhase={pgBootstrap.busyPhase}
-            error={error}
+            error={bootstrapError}
             isRecoveryMode={pgBootstrap.isRecoveryMode}
             recoveryRestored={pgBootstrap.recoveryRestored}
             recoveryRestoredMessage={pgBootstrap.recoveryRestoredMessage}
@@ -477,6 +481,7 @@ export function AppShell() {
             onDocumentsTabChange={settings.setActiveDocumentsTab}
             onOpenCreate={settings.onOpenCreateUserModal}
             onExportAuditLogs={settings.onExportAuditLogs}
+            onExportTechErrorLogs={settings.onExportTechErrorLogs}
             onDeactivateUser={settings.onDeactivateUser}
             onReactivateUser={settings.onReactivateUser}
             onUnlockUser={(username) => void settings.onUnlockUser(username)}

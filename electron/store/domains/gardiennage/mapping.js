@@ -17,7 +17,7 @@ const GARDIENNAGE_ENTRY_SELECT = `id, site_id, site_display, start_time, end_tim
   intervenant_id, intervenant_name, intervention_id, notes, closure_report,
   actual_start_time, actual_end_time, work_order_number, cancellation_reason,
   linked_ronde_id, planning_batch_id, planning_snapshot_json, planning_slot_start,
-  planning_slot_end, status, created_at, updated_at`;
+  planning_slot_end, status, created_at, updated_at, daily_code`;
 
 /**
  * Identifiant de fiche gardiennage (trim) ; refuse une valeur vide.
@@ -67,7 +67,8 @@ function mapGardiennageRow(row) {
     planningBatchId: row.planning_batch_id || null,
     planningSlotStart: row.planning_slot_start || "",
     planningSlotEnd: row.planning_slot_end || "",
-    planningSnapshot: parsePlanningSnapshotJson(row?.planning_snapshot_json)
+    planningSnapshot: parsePlanningSnapshotJson(row?.planning_snapshot_json),
+    dailyCode: row.daily_code || ""
   };
 }
 
@@ -89,7 +90,8 @@ function toGardiennageAuditSnapshot(row) {
     intervenantName: String(row.intervenantName || "").trim(),
     status: String(row.status || "").trim(),
     linkedInterventionId: row.linkedInterventionId || null,
-    linkedRondeId: row.linkedRondeId || null
+    linkedRondeId: row.linkedRondeId || null,
+    dailyCode: String(row.dailyCode || row.daily_code || "").trim()
   };
 }
 

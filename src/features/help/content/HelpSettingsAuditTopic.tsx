@@ -69,7 +69,7 @@ export function HelpSettingsAuditTopic() {
         </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Les actions métiers :</strong> saisies et modifications sur la main courante, les interventions, les rondes, le gardiennage, le
+            <strong>Les logs applicatifs :</strong> saisies et modifications sur la main courante, les interventions, les rondes, le gardiennage, le
             module Fransor, les trames Word, les variables et les référentiels de sites ou d&apos;intervenants.
           </li>
           <li>
@@ -84,9 +84,8 @@ export function HelpSettingsAuditTopic() {
         <h4 className="help-center-subsection-title">Capacité d&apos;affichage de l&apos;écran</h4>
         <p className="muted">
           L&apos;interface charge en continu les <strong>1 000 entrées les plus récentes</strong> et s&apos;actualise automatiquement tant que
-          l&apos;onglet reste ouvert. Un bandeau informatif vous indique le nombre total de lignes contenues dans la base de données ainsi que la date de
-          l&apos;enregistrement le plus ancien. L&apos;historique total en base peut donc être beaucoup plus profond que les 1 000 lignes affichées à
-          l&apos;écran.
+          l&apos;onglet reste ouvert. Un bandeau indique la date de l&apos;enregistrement le plus ancien encore visible. L&apos;historique total en
+          base peut donc être beaucoup plus profond que les 1 000 lignes chargées à l&apos;écran.
         </p>
       </div>
 
@@ -172,9 +171,9 @@ export function HelpSettingsAuditTopic() {
         <h4 className="help-center-subsection-title">Boutons d&apos;action (à droite des filtres)</h4>
         <ul className="muted help-center-list">
           <li>
-            <strong>Exporter le journal en Excel</strong> : génère un fichier <code>.xlsx</code> de l&apos;intégralité des lignes correspondant à vos
+            <strong>Exporter le journal en Excel</strong> : enregistre un fichier <code>.xlsx</code> de l&apos;intégralité des lignes correspondant à vos
             filtres actifs (et pas seulement de la page visible). L&apos;export intègre les colonnes de base ainsi qu&apos;un champ de détails structurés
-            pour vos analyses approfondies.
+            pour vos analyses approfondies. Le bouton voisin <strong>Ouvrir l&apos;Excel</strong> relance ce fichier s&apos;il est toujours présent sur le poste.
           </li>
           <li>
             <strong>Réinitialiser les filtres</strong> : vide tous les critères de recherche et vous repositionne sur la première page du journal
@@ -186,29 +185,30 @@ export function HelpSettingsAuditTopic() {
       <div className="help-center-card">
         <h3 className="help-center-card-title">📄 Pagination des résultats</h3>
         <p className="muted">
-          Les lignes filtrées s&apos;affichent par blocs de <strong>100 entrées maximum par page</strong>. Les boutons <strong>Précédent</strong> et{" "}
-          <strong>Suivant</strong> vous permettent de feuilleter les résultats. Un compteur placé sous le tableau vous indique en permanence la page
-          courante et le volume total de lignes isolées par vos filtres.
+          Les lignes filtrées s&apos;affichent par blocs (25, 50, 100 ou illimité). Les boutons de pagination vous permettent de feuilleter les
+          résultats et de revenir en haut de page.
         </p>
       </div>
 
       <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">🛠️ Distinction : journal métier vs logs techniques</h3>
+        <h3 className="help-center-card-title">🛠️ Distinction : logs applicatifs vs logs techniques</h3>
         <p className="muted">
           Il est important de ne pas confondre ces deux sources de traçabilité lors d&apos;un diagnostic :
         </p>
         <ul className="muted help-center-list">
           <li>
-            <strong>Le journal des actions (cet écran) :</strong> trace le comportement métier des utilisateurs (qui a cliqué, modifié ou supprimé quoi).
+            <strong>Les logs applicatifs :</strong> tracent le comportement des utilisateurs (qui a cliqué, modifié ou supprimé quoi).
           </li>
           <li>
             <strong>Les logs techniques :</strong> documentent les erreurs applicatives (connexion PostgreSQL, exceptions métier, diagnostics
-            support) dans l&apos;onglet dédié.
+            support) dans l&apos;onglet dédié. La barre de filtres y reprend la période, la famille et le statut, ainsi que les boutons{" "}
+            <strong>Exporter données</strong> / <strong>Ouvrir l&apos;Excel</strong>. Acteur et Cible n&apos;y figurent pas, ces notions n&apos;existant
+            pas sur les événements techniques.
           </li>
         </ul>
         <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>En cas d&apos;indisponibilité de la base</strong> (badge DB rouge), croisez le journal métier et les logs techniques pour confirmer
-          la coupure et le moment du retour de service.
+          <strong>En cas d&apos;indisponibilité de la base</strong> (badge DB rouge), croisez les logs applicatifs et les logs techniques pour
+          confirmer la coupure et le moment du retour de service.
         </div>
       </div>
 

@@ -10,12 +10,12 @@ import {
   type InterventionEntry
 } from "../model/intervention.types";
 import {
-  billingLabelFr,
   formatInterventionDateTime,
   statusLabelFr
 } from "./interventionExportFormat";
 
 const HEADERS = [
+  "N°",
   "Date / Demande",
   "Clients (Code site)",
   "Motif de la demande d'inter",
@@ -25,14 +25,20 @@ const HEADERS = [
   "Delai d'inter (min)",
   "N deg bon inter",
   "Compte-rendu",
-  "Etat",
-  "Facturation"
+  "Etat"
 ] as const;
 
-export function exportInterventionToExcel(entries: InterventionEntry[]): void {
+/**
+ * Exporte la liste filtrée en Excel.
+ *
+ * @param entries - Lignes à exporter.
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
+export async function exportInterventionToExcel(entries: InterventionEntry[]) {
   const rows: Array<Array<string | number>> = [
     [...HEADERS],
     ...entries.map((entry) => [
+      entry.dailyCode || "",
       formatInterventionDateTime(entry.requestDate, entry.requestTime),
       entry.siteDisplay || "",
       entry.requestReason || "",
@@ -42,8 +48,7 @@ export function exportInterventionToExcel(entries: InterventionEntry[]): void {
       entry.delayMinutes ?? "",
       entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL,
       entry.report || "",
-      statusLabelFr(entry.status),
-      billingLabelFr(entry.billingStatus)
+      statusLabelFr(entry.status)
     ])
   ];
 
@@ -59,6 +64,7 @@ export function exportInterventionToExcel(entries: InterventionEntry[]): void {
   ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
   ws["!cols"] = [
+    { wch: 14 },
     { wch: 20 },
     { wch: 36 },
     { wch: 45 },
@@ -68,13 +74,12 @@ export function exportInterventionToExcel(entries: InterventionEntry[]): void {
     { wch: 18 },
     { wch: 18 },
     { wch: 50 },
-    { wch: 14 },
-    { wch: 16 }
+    { wch: 14 }
   ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Intervention");
   wb.Workbook = wb.Workbook || {};
   wb.Workbook.Views = [{ RTL: false }];
-  downloadSheetJsWorkbook(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
+  return downloadSheetJsWorkbook(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
 }

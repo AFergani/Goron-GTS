@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { ServiceListFiltersBar } from "../../common/components/ServiceListFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
@@ -27,6 +28,9 @@ import type { RondeMotifTypeRef, RondeSavePayload } from "../../rondes/model/ron
 import { GardiennageEntryModal } from "../../gardiennage/components/GardiennageEntryModal";
 import type { GardiennageSavePayload } from "../../gardiennage/model/gardiennage.types";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
+import { ListExportButtons } from "../../common/components/ExportFileButtons";
+import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
+import { WORKSTATION_EXPORT_KEYS, wordExportKey } from "../../common/utils/workstationExportPaths";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 type InterventionPageProps = {
   requesterRole: Role;
@@ -79,7 +83,7 @@ export function InterventionPage({
   const setStatusFilter = (v: string) => { setStatusFilterRaw(v); filters.setCurrentPage(1); };
   const setFamilyFilter = (v: string) => { setFamilyFilterRaw(v); filters.setCurrentPage(1); };
   const setIntervenantFilter = (v: string) => { setIntervenantFilterRaw(v); filters.setCurrentPage(1); };
-  const [modalMode, setModalMode] = useState<"create" | "edit" | "facturation">("create");
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [activeEntry, setActiveEntry] = useState<InterventionEntry | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [linkedRondeOpen, setLinkedRondeOpen] = useState(false);
@@ -90,6 +94,7 @@ export function InterventionPage({
 
   const intervention = useInterventionPresenter({ requesterRole, requesterUsername, onToast });
   const references = useInterventionReferenceData(requesterRole, requesterUsername, onToast);
+  const workstationExports = useWorkstationExports();
   const isResponsable = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
   useEffect(() => {
@@ -120,7 +125,7 @@ export function InterventionPage({
       const found = rows.find((e) => e.id === focusInterventionId);
       if (found) {
         setActiveEntry(found);
-        setModalMode(isResponsable && found.status === "CLOTURE" ? "facturation" : "edit");
+        setModalMode("edit");
         setModalOpen(true);
       } else {
         onToast?.("Intervention liée introuvable dans la liste.", "error");
@@ -149,6 +154,7 @@ export function InterventionPage({
         if (intervenantFilter && entry.intervenantId !== intervenantFilter) return false;
         if (!query) return true;
         return (
+          matchesDailyCodeSearch(entry.dailyCode, query) ||
           entry.siteDisplay.toLowerCase().includes(query) ||
           entry.requestReason.toLowerCase().includes(query) ||
           entry.intervenantName.toLowerCase().includes(query) ||
@@ -193,11 +199,15 @@ export function InterventionPage({
     setModalOpen(true);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredEntries.length === 0) return;
     try {
-      exportInterventionToExcel(filteredEntries);
-      onToast?.("Export Excel téléchargé.");
+      await workstationExports.saveAndRemember(
+        WORKSTATION_EXPORT_KEYS.excelIntervention,
+        () => exportInterventionToExcel(filteredEntries),
+        onToast,
+        "Export Excel enregistré."
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
@@ -205,8 +215,12 @@ export function InterventionPage({
 
   const handleExportWord = async (entry: InterventionEntry) => {
     try {
-      await exportInterventionEntryToWord(entry);
-      onToast?.("Document Word téléchargé.");
+      await workstationExports.saveAndRemember(
+        wordExportKey("intervention", entry.id),
+        () => exportInterventionEntryToWord(entry),
+        onToast,
+        "Document Word enregistré."
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Word impossible.", "error");
     }
@@ -263,14 +277,13 @@ export function InterventionPage({
       <section className="panel main-courante-table-panel">
         {references.error ? <p className="error">{references.error}</p> : null}
         <div className="main-courante-table-toolbar">
-          <button
-            type="button"
-            className="btn-light"
-            disabled={intervention.loading || filteredEntries.length === 0}
-            onClick={handleExportExcel}
-          >
-            Exporter données
-          </button>
+          <ListExportButtons
+            exportDisabled={intervention.loading || filteredEntries.length === 0}
+              canOpenLast={workstationExports.canOpenExcelTemporarily(WORKSTATION_EXPORT_KEYS.excelIntervention)}
+            lastFilePath={workstationExports.getLastPath(WORKSTATION_EXPORT_KEYS.excelIntervention)}
+            onExport={() => void handleExportExcel()}
+            onOpenLast={() => void workstationExports.openLastExport(WORKSTATION_EXPORT_KEYS.excelIntervention, onToast)}
+          />
           <button type="button" className="mc-btn-primary" onClick={openCreate}>
             <Plus size={16} aria-hidden />
             Nouvelle intervention
@@ -283,7 +296,7 @@ export function InterventionPage({
           onDateFromChange={filters.setDateFrom}
           dateTo={filters.dateTo}
           onDateToChange={filters.setDateTo}
-          searchPlaceholder="Site, motif, prestataire, bon inter…"
+          searchPlaceholder="N°, site, motif, prestataire, bon inter…"
           onReset={() => {
             filters.reset();
             setStatusFilter("EN_COURS");
@@ -305,7 +318,7 @@ export function InterventionPage({
           onNotify={onToast}
           onOpen={(entry) => {
             setActiveEntry(entry);
-            setModalMode(isResponsable ? "facturation" : "edit");
+            setModalMode("edit");
             setModalOpen(true);
           }}
           onFollowUp={(entry) => {
@@ -313,7 +326,6 @@ export function InterventionPage({
             setModalMode("edit");
             setModalOpen(true);
           }}
-          onPrint={(entry) => void handleExportWord(entry)}
         />
         <TablePaginationBar
           currentPage={filters.currentPage}
@@ -337,7 +349,6 @@ export function InterventionPage({
         onCreate={intervention.createEntry}
         onUpdate={intervention.updateEntry}
         onSetStatus={intervention.setStatus}
-        onSetBillingStatus={intervention.setBillingStatus}
         onCreatePendingSite={references.createPendingSite}
         onCreatePendingIntervenant={references.createPendingIntervenant}
         onNotify={onToast}
@@ -356,6 +367,24 @@ export function InterventionPage({
         }}
         onNavigateToLinkedRonde={onNavigateToLinkedRonde}
         onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
+        onSaveWord={
+          liveActiveEntry ? () => void handleExportWord(liveActiveEntry) : undefined
+        }
+        onOpenWord={
+          liveActiveEntry
+            ? () => void workstationExports.openLastExport(wordExportKey("intervention", liveActiveEntry.id), onToast)
+            : undefined
+        }
+        canOpenWord={
+          liveActiveEntry
+            ? Boolean(workstationExports.getLastPath(wordExportKey("intervention", liveActiveEntry.id)))
+            : false
+        }
+        lastWordFilePath={
+          liveActiveEntry
+            ? workstationExports.getLastPath(wordExportKey("intervention", liveActiveEntry.id))
+            : null
+        }
       />
 
       <RondeRequestModal

@@ -17,12 +17,12 @@ import { isRondeTimeHm, normalizeRondeHmOr } from "../utils/rondeDateTime";
 import { requestOriginLabelFr, type RequestOrigin } from "../model/requestOrigin";
 import {
   createDefaultLineDraft,
-  holidayMatchers,
   lineRefToDraft,
   planningSnapshotLineToDraft,
   type LineDraft
 } from "../model/rondeRequestLineDraft";
 import { buildExceptionalGeneratedItems } from "../utils/buildExceptionalGeneratedItems";
+import { buildContractualGeneratedPreview } from "../utils/buildContractualGeneratedPreview";
 import { resolveValidityWeekdayLock } from "../utils/resolveValidityWeekdayLock";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
 
@@ -224,7 +224,6 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
   const isOriginFixed = Boolean(props.fixedOrigin || props.initialInterventionId);
   const originLabel = useMemo(() => requestOriginLabelFr(origin), [origin]);
   const canCreatePendingRefs = Boolean(props.onCreatePendingSite && props.onCreatePendingIntervenant);
-  const holidayMatch = holidayMatchers(props.holidays);
 
   const validityRangeWeekdayLock = useMemo(
     () =>
@@ -268,36 +267,45 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     ]);
   };
 
-  const exceptionalPreview = useMemo(
-    () =>
-      !isContract && !isEdit && !isLinkedExistingBatch
-        ? buildExceptionalGeneratedItems({
-            lines,
-            validFrom,
-            validTo,
-            validFromTime,
-            validToTime,
-            requestDate,
-            requestTime,
-            motifTypeId,
-            holidayMatch
-          })
-        : { items: [], perLine: [] as number[] },
-    [
-      isContract,
-      isEdit,
-      isLinkedExistingBatch,
+  const generationPreview = useMemo(() => {
+    const empty = { items: [], perLine: [] as number[], intervalHonorNote: "" };
+    if (isEdit || isLinkedExistingBatch) return empty;
+    if (isContract) {
+      return buildContractualGeneratedPreview({
+        lines,
+        validFrom,
+        validTo,
+        siteId,
+        motifTypeId,
+        holidayDateIsos: (props.holidays || []).map((h) => h.dateIso)
+      });
+    }
+    return buildExceptionalGeneratedItems({
       lines,
       validFrom,
-      validFromTime,
       validTo,
+      validFromTime,
       validToTime,
-      motifTypeId,
-      props.holidays,
       requestDate,
-      requestTime
-    ]
-  );
+      requestTime,
+      motifTypeId,
+      holidayDateIsos: (props.holidays || []).map((h) => h.dateIso)
+    });
+  }, [
+    isContract,
+    isEdit,
+    isLinkedExistingBatch,
+    lines,
+    validFrom,
+    validFromTime,
+    validTo,
+    validToTime,
+    motifTypeId,
+    siteId,
+    props.holidays,
+    requestDate,
+    requestTime
+  ]);
 
   const lockWeekdaysFromValidityRange = validityRangeWeekdayLock != null;
 
@@ -441,7 +449,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     canCreatePendingRefs,
     updateLine,
     addLine,
-    exceptionalPreview,
+    exceptionalPreview: generationPreview,
     lockWeekdaysFromValidityRange
   };
 }

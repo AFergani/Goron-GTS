@@ -14,11 +14,13 @@ import type { AnomalyTypeRef, SiteRef } from "../../../types";
 import { createPendingSiteIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
+import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { formatMainCouranteDateOrDash } from "../export/mainCouranteExportFormat";
+import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 
 export type EntryModalMode = "create" | "edit" | "manager" | "view";
 
@@ -44,6 +46,9 @@ type MainCouranteEntryModalProps = {
     payload: { managerObservation: string; decision: "suivre" | "cloture" }
   ) => Promise<boolean>;
   onReopenEntry?: (entry: MainCouranteEntry) => Promise<boolean>;
+  onSaveWord?: (entry: MainCouranteEntry) => void;
+  onOpenWord?: (entry: MainCouranteEntry) => void;
+  getWordFilePath?: (entryId: string) => string | null;
 };
 
 function buildPayload(
@@ -90,7 +95,10 @@ export function MainCouranteEntryModal({
   onCreate,
   onUpdate,
   onManagerAction,
-  onReopenEntry
+  onReopenEntry,
+  onSaveWord,
+  onOpenWord,
+  getWordFilePath
 }: MainCouranteEntryModalProps) {
   const [selectedSite, setSelectedSite] = useState<SiteRef | null>(null);
   const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatMainCouranteDateOrDash(new Date().toISOString()));
@@ -104,6 +112,17 @@ export function MainCouranteEntryModal({
   const [pendingName, setPendingName] = useState("");
   const [showPendingSiteForm, setShowPendingSiteForm] = useState(false);
   const isViewMode = mode === "view";
+  const wordFileButtons =
+    entry && onSaveWord && onOpenWord ? (
+      <WordExportRowButtons
+        variant="modal"
+        disabled={isActionSubmitting}
+        onExportWord={() => onSaveWord(entry)}
+        onOpenReport={() => onOpenWord(entry)}
+        canOpenReport={Boolean(getWordFilePath?.(entry.id))}
+        lastFilePath={getWordFilePath?.(entry.id) ?? null}
+      />
+    ) : null;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -157,14 +176,16 @@ export function MainCouranteEntryModal({
   }, [isOpen, mode, entry?.id]);
 
   /** Titres hors création (la création utilise CreateEntryModalHeader). */
-  const title =
+  const title = reportTitleWithDailyCode(
     mode === "edit"
       ? "Modifier l'entrée"
       : mode === "view"
         ? "Consulter l'entrée"
         : entry?.status === "EN_ATTENTE"
           ? "Validation"
-          : "Suivi / clôture";
+          : "Suivi / clôture",
+    entry?.dailyCode
+  );
   const secondColumnLabel = "Date de création";
   const secondColumnValue = mode === "edit" && entry ? formatMainCouranteDateOrDash(entry.createdAt) : dateCouranteAffichee;
 
@@ -380,6 +401,7 @@ export function MainCouranteEntryModal({
                     </button>
                   </div>
                   <div className="mc-modal-footer-end">
+                    {wordFileButtons}
                     {isViewMode && canReopenEntry && entry.status === "CLOTURE" ? (
                       <button
                         type="button"
@@ -547,6 +569,7 @@ export function MainCouranteEntryModal({
                   </button>
                 </div>
                 <div className="mc-modal-footer-end">
+                  {wordFileButtons}
                   <button type="submit" className="mc-btn-primary" disabled={missingTypes || Boolean(referencesError) || isActionSubmitting}>
                     {isActionSubmitting ? "Enregistrement…" : submitLabel}
                   </button>

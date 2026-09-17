@@ -10,7 +10,7 @@ import {
   type InterventionEntry
 } from "../model/intervention.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
-import { downloadBlob } from "../../common/utils/downloadBlob";
+import { saveExportBlob, type SaveExportFileResult } from "../../common/utils/saveExportBlob";
 import {
   loadDocumentTemplateBuffer,
   renderDocxtemplaterBlob,
@@ -18,7 +18,7 @@ import {
 } from "../../common/utils/docxTemplateHelpers";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { safeExportFilenamePart } from "../../common/utils/exportFilename";
-import { billingLabelFr, statusLabelFr } from "./interventionExportFormat";
+import { statusLabelFr } from "./interventionExportFormat";
 
 const INTERVENTION_TEMPLATE_NAME = "intervention-template.docx";
 const INTERVENTION_TEMPLATE_URL = "/templates/intervention-template.docx";
@@ -57,7 +57,7 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       numeroBonIntervention: safeDocxText(entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL),
       compteRendu: safeDocxText(entry.report),
       statut: safeDocxText(statusLabelFr(entry.status)),
-      facturation: safeDocxText(billingLabelFr(entry.billingStatus)),
+      numeroFiche: safeDocxText(entry.dailyCode),
       ...extras
     });
   } catch {
@@ -100,12 +100,17 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
   });
 }
 
-/** Télécharge la fiche Word pour une intervention. */
-export async function exportInterventionEntryToWord(entry: InterventionEntry): Promise<void> {
+/**
+ * Enregistre la fiche Word pour une intervention.
+ *
+ * @param entry - Fiche intervention.
+ * @returns Chemin enregistré, ou annulation utilisateur.
+ */
+export async function exportInterventionEntryToWord(entry: InterventionEntry): Promise<SaveExportFileResult> {
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry)));
   const part = safeExportFilenamePart(entry.siteDisplay || entry.workOrderNumber || "intervention");
   const datePart = safeExportFilenamePart(formatDateShortFr(entry.requestDate) || "date");
   const name = `Intervention_${part}_${datePart}.docx`;
-  downloadBlob(blob, name);
+  return saveExportBlob(blob, name);
 }

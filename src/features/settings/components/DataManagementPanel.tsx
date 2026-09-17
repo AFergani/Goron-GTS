@@ -230,7 +230,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [editingFransorResponsableId, setEditingFransorResponsableId] = useState<string | null>(null);
   const [editingFransorResponsableName, setEditingFransorResponsableName] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [searchQueryByTab, setSearchQueryByTab] = useState<Record<DataTab, string>>(EMPTY_SEARCH_BY_TAB);
   const [siteParcFilter, setSiteParcFilter] = useState("");
   const [siteFamilleFilter, setSiteFamilleFilter] = useState("");
@@ -574,8 +573,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           Fransor
         </button>
       </div>
-      <div ref={toolbarRef}>
-        <DataSearchImportBar
+      <DataSearchImportBar
           activeDataTab={props.activeDataTab}
           searchQuery={searchQuery}
           searchPlaceholder={searchPlaceholder}
@@ -612,7 +610,6 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           }
           showCreate
         />
-      </div>
       <input
         ref={importInputRef}
         type="file"
@@ -705,14 +702,12 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "holidays" && (
         <HolidaysDataTab
           canDeleteData={props.canDeleteData}
-          holidayYear={holidayYear}
           editingHolidayId={editingHolidayId}
           editingHolidayDateIso={editingHolidayDateIso}
           editingHolidayLabel={editingHolidayLabel}
           filteredHolidays={filteredHolidays}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          setHolidayYear={setHolidayYear}
           setEditingHolidayId={setEditingHolidayId}
           setEditingHolidayDateIso={setEditingHolidayDateIso}
           setEditingHolidayLabel={setEditingHolidayLabel}
@@ -747,7 +742,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
         onPageSizeChange={setPageSize}
-        scrollTargetRef={toolbarRef}
+        yearNav={
+          props.activeDataTab === "holidays"
+            ? { year: holidayYear, onYearChange: setHolidayYear }
+            : undefined
+        }
       />
 
       {showPendingSubmissionsModal &&

@@ -16,6 +16,7 @@ import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 import type { GardiennageEntry } from "../model/gardiennage.types";
 import { clipGardiennageHoursToDay } from "../model/gardiennageDayHours";
 import { useGardiennagePresenter } from "../presenter/useGardiennagePresenter";
@@ -27,6 +28,9 @@ import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { DateInput } from "../../common/components/DateInput";
 import { exportGardiennageToExcel } from "../export/gardiennageExcelExport";
+import { ListExportButtons } from "../../common/components/ExportFileButtons";
+import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
+import { WORKSTATION_EXPORT_KEYS } from "../../common/utils/workstationExportPaths";
 
 const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v1";
 
@@ -75,6 +79,7 @@ export function GardiennagePage({
 
   const presenter = useGardiennagePresenter({ requesterRole, requesterUsername, onToast });
   const references = useGardiennageReferenceData(requesterRole, requesterUsername, onToast);
+  const workstationExports = useWorkstationExports();
 
   const [displayMode, setDisplayMode] = useState<"day" | "list">(() => {
     if (typeof window === "undefined") return "day";
@@ -153,7 +158,7 @@ export function GardiennagePage({
     const effectiveDateTo = planifFilters.dateTo || planifFilters.dateFrom;
     const siteById = new Map(references.sites.map((s) => [s.id, s]));
     return presenter.entries.filter((e) => {
-      if (q && !e.siteDisplay.toLowerCase().includes(q) && !e.intervenantName.toLowerCase().includes(q)) return false;
+      if (q && !matchesDailyCodeSearch(e.dailyCode, q) && !e.siteDisplay.toLowerCase().includes(q) && !e.intervenantName.toLowerCase().includes(q)) return false;
       if (statusFilter === "EN_COURS" && e.status !== "PLANIFIE" && e.status !== "ACTIF") return false;
       if (statusFilter === "CLOTURE" && e.status !== "CLOTURE") return false;
       if (statusFilter === "ANNULE" && e.status !== "ANNULE") return false;
@@ -223,14 +228,18 @@ export function GardiennagePage({
     setIntervenantFilter("");
   };
 
-  const handleExportFilteredList = () => {
+  const handleExportFilteredList = async () => {
     if (!planificationFiltered.length) {
       onToast?.("Aucune donnée à exporter avec les filtres actifs.", "warning");
       return;
     }
     try {
-      exportGardiennageToExcel(planificationFiltered);
-      onToast?.(`${planificationFiltered.length} ligne(s) exportée(s) dans le tableur Excel.`);
+      await workstationExports.saveAndRemember(
+        WORKSTATION_EXPORT_KEYS.excelGardiennage,
+        () => exportGardiennageToExcel(planificationFiltered),
+        onToast,
+        `${planificationFiltered.length} ligne(s) exportée(s) dans le tableur Excel.`
+      );
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Export Excel impossible.", "error");
     }
@@ -312,16 +321,17 @@ export function GardiennagePage({
           </div>
         ) : (
           <div className="main-courante-table-toolbar">
-            <button
-              type="button"
-              className="btn-light"
-              title="Exporter Excel (filtres actifs)"
-              aria-label="Exporter données (filtres actifs)"
-              disabled={presenter.loading || planificationFiltered.length === 0}
-              onClick={handleExportFilteredList}
-            >
-              Exporter données
-            </button>
+            <ListExportButtons
+              exportDisabled={presenter.loading || planificationFiltered.length === 0}
+              canOpenLast={workstationExports.canOpenExcelTemporarily(WORKSTATION_EXPORT_KEYS.excelGardiennage)}
+              lastFilePath={workstationExports.getLastPath(WORKSTATION_EXPORT_KEYS.excelGardiennage)}
+              onExport={() => void handleExportFilteredList()}
+              onOpenLast={() =>
+                void workstationExports.openLastExport(WORKSTATION_EXPORT_KEYS.excelGardiennage, onToast)
+              }
+              exportTitle="Exporter Excel (filtres actifs)"
+              exportAriaLabel="Exporter données (filtres actifs)"
+            />
             <div className="row-actions">
               <ToggleSwitch
                 checked={false}
@@ -347,7 +357,7 @@ export function GardiennagePage({
               onDateFromChange={planifFilters.setDateFrom}
               dateTo={planifFilters.dateTo}
               onDateToChange={planifFilters.setDateTo}
-              searchPlaceholder="Site, prestataire…"
+              searchPlaceholder="N°, site, prestataire…"
               onReset={resetPlanificationFilters}
               familyFilter={familyFilter}
               onFamilyFilterChange={setFamilyFilter}

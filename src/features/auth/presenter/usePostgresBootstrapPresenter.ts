@@ -3,7 +3,7 @@
  *
  * Affiché si aucune config connue, ou si l'utilisateur ouvre la récupération
  * alors que le serveur actuel est injoignable (changement d'IP, Docker arrêté…).
- * Si Docker / le serveur revient pendant la récupération : message vert + retour login.
+ * Si Docker / le serveur revient pendant la récupération : toast + retour automatique au login.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -55,6 +55,8 @@ function isBootstrapBlockedBecauseReachable(error: unknown): boolean {
 type UsePostgresBootstrapPresenterOptions = {
   onError: (message: string) => void;
   onToast: (message: string) => void;
+  /** Efface l'erreur de l'écran login (ne pas la réafficher sur la récupération PG). */
+  onClearLoginError?: () => void;
 };
 
 /**
@@ -62,8 +64,13 @@ type UsePostgresBootstrapPresenterOptions = {
  *
  * @param options.onError - Message sous le panneau (échec IPC / base injoignable).
  * @param options.onToast - Succès enregistrement ou test.
+ * @param options.onClearLoginError - Reset de l'erreur de connexion (écran login).
  */
-export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresBootstrapPresenterOptions) {
+export function usePostgresBootstrapPresenter({
+  onError,
+  onToast,
+  onClearLoginError
+}: UsePostgresBootstrapPresenterOptions) {
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   /** Config connue mais serveur injoignable → bouton secours sur l'écran login. */
@@ -79,10 +86,13 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
 
   const markRecoveryRestored = useCallback(() => {
     setPgReachable(true);
-    setRecoveryRestored(true);
+    setRecoveryRestored(false);
     setPostgresTestResult(null);
+    setRecoveryOpen(false);
     onError("");
-  }, [onError]);
+    onClearLoginError?.();
+    onToast("PostgreSQL est de nouveau accessible. Vous pouvez vous connecter.");
+  }, [onClearLoginError, onError, onToast]);
 
   const applyStatus = useCallback((status: { needsSetup: boolean; reachable: boolean; config: PublicPostgresConfig }) => {
     setNeedsSetup(Boolean(status.needsSetup));
@@ -180,10 +190,11 @@ export function usePostgresBootstrapPresenter({ onError, onToast }: UsePostgresB
 
   const openRecoverySetup = useCallback(() => {
     onError("");
+    onClearLoginError?.();
     setPostgresTestResult(null);
     setRecoveryRestored(false);
     setRecoveryOpen(true);
-  }, [onError]);
+  }, [onClearLoginError, onError]);
 
   const closeRecoverySetup = useCallback(() => {
     onError("");

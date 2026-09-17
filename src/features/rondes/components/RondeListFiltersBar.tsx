@@ -37,7 +37,7 @@ export function RondeListFiltersBar(props: RondeListFiltersBarProps) {
   return (
     <ServiceListFiltersBar
       {...props}
-      searchPlaceholder="Site, prestataire, horaires demandés, compte rendu…"
+      searchPlaceholder="N°, site, prestataire, horaires demandés, compte rendu…"
       statusOptions={RONDE_STATUS_OPTIONS}
     />
   );

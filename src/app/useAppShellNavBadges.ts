@@ -6,12 +6,11 @@
  */
 
 import { useState } from "react";
+import { DATA_REFRESH_POLL_MS } from "../features/common/constants/dataRefreshPoll";
 import { useEnabledInterval } from "../features/common/hooks/useEnabledInterval";
 import { getLocalDateIso } from "../features/common/utils/localDateIso";
 import { gtsApiClient } from "../infrastructure/api/gtsApiClient";
 import type { Session } from "./session/SessionProvider";
-
-const NAV_BADGE_POLL_MS = 5000;
 
 /**
  * Interprète un compteur API (repli 0 si valeur invalide).
@@ -23,7 +22,7 @@ function asCount(value: unknown): number {
 }
 
 /**
- * Poll les badges sidebar tant que la session (et le droit page) le permettent.
+ * Poll les badges sidebar (même intervalle que les listes métier).
  *
  * @param session - Session courante, ou `null` hors connexion.
  * @param isManager - RESPONSABLE ou DEV (badge main courante « non consultées »).
@@ -47,7 +46,7 @@ export function useAppShellNavBadges(
 
   useEnabledInterval(
     hasSession,
-    NAV_BADGE_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       if (!role) return;
       try {
@@ -63,7 +62,7 @@ export function useAppShellNavBadges(
 
   useEnabledInterval(
     hasSession && isManager,
-    NAV_BADGE_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       if (!role) return;
       try {
@@ -79,7 +78,7 @@ export function useAppShellNavBadges(
 
   useEnabledInterval(
     hasSession && !isManager,
-    NAV_BADGE_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       if (!role) return;
       try {
@@ -95,7 +94,7 @@ export function useAppShellNavBadges(
 
   useEnabledInterval(
     hasSession && canAccessRondes,
-    NAV_BADGE_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       if (!role) return;
       try {
@@ -114,7 +113,7 @@ export function useAppShellNavBadges(
 
   useEnabledInterval(
     hasSession && canAccessGardiennage,
-    NAV_BADGE_POLL_MS,
+    DATA_REFRESH_POLL_MS,
     async () => {
       if (!role) return;
       try {

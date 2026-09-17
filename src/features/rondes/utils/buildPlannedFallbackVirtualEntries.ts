@@ -73,7 +73,8 @@ export function buildPlannedFallbackVirtualEntries(params: {
           batchSuppressedReason: "",
           batchDeleteRequestedAt: null,
           batchDeleteRequestedBy: null,
-          batchDeleteReason: ""
+          batchDeleteReason: "",
+          dailyCode: ""
         });
       });
   }

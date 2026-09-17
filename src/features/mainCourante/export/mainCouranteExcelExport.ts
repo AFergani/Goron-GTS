@@ -6,7 +6,7 @@
  */
 
 import ExcelJS from "exceljs";
-import { downloadBlob } from "../../common/utils/downloadBlob";
+import { saveExportBlob, type SaveExportFileResult } from "../../common/utils/saveExportBlob";
 import { normalizeNewlines } from "../../common/utils/docxTemplateHelpers";
 import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
 import { exportTimestampForFilename } from "../../common/utils/exportFilename";
@@ -15,6 +15,7 @@ import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportForma
 
 /** Colonnes avec largeur et activation éventuelle du retour à la ligne. */
 const COLUMNS: Array<{ header: string; key: string; width: number; wrap?: boolean }> = [
+  { header: "N°", key: "dailyCode", width: 14 },
   { header: "Date création", key: "createdAt", width: 20 },
   { header: "Opérateur", key: "operator", width: 18 },
   { header: "Responsable", key: "manager", width: 18 },
@@ -33,8 +34,11 @@ const WRAP_KEYS = new Set(COLUMNS.filter((c) => c.wrap).map((c) => c.key));
 /**
  * Exporte les entrées (souvent filtrées) en classeur Excel avec colonnes
  * dimensionnées et retour à la ligne automatique sur les champs texte long.
+ *
+ * @param entries - Lignes à exporter (filtre page).
+ * @returns Chemin enregistré, ou annulation utilisateur.
  */
-export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): Promise<void> {
+export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): Promise<SaveExportFileResult> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Main courante");
 
@@ -49,6 +53,7 @@ export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): P
   for (const e of entries) {
     const siteParts = splitSiteDisplayParts(e.siteDisplay || "");
     const row = ws.addRow({
+      dailyCode: e.dailyCode || "",
       createdAt: formatMainCouranteDate(e.createdAt),
       operator: e.operatorName,
       manager: e.managerName || "",
@@ -72,5 +77,5 @@ export async function exportMainCouranteToExcel(entries: MainCouranteEntry[]): P
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const name = `main-courante_export_${exportTimestampForFilename()}.xlsx`;
-  downloadBlob(blob, name);
+  return saveExportBlob(blob, name);
 }

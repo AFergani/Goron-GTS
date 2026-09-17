@@ -1,21 +1,20 @@
 /**
- * Génère les passages exceptionnels prévus à partir des lignes brouillon + validité.
+ * Preview / création des passages exceptionnels : délègue à l’orchestrateur partagé
+ * (`electron/store/domains/ronde/exceptionalSlotList.js`).
  */
 
+import * as exceptionalSlotListModule from "../../../../electron/store/domains/ronde/exceptionalSlotList.js";
 import {
-  generateRandomSlotSpecs
-} from "../model/rondePlannedSlotEngine";
-import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT, type RondePlannedProfileLineRef } from "../model/rondePlanned.types";
-import {
-  hasCompleteRandomWindow,
-  isWeekdayEnabled,
   parseDraftIntervalMinutes,
   parseDraftRoundsCount,
-  type LineDraft
+  type LineDraft,
+  type RoundKindDraft
 } from "../model/rondeRequestLineDraft";
-import { buildIntervalTimesAcrossValidity } from "./buildIntervalTimesAcrossValidity";
-import { enumerateInclusiveDateIsos, hhmmToMinutes, minutesToHm, normalizeRondeHmOr } from "./rondeDateTime";
 import { parseDateTimeSafeMs } from "./parseDateTimeSafeMs";
+import { intervalHonorRecapNote, type DedicatedRondeAnchor, type DedicatedRondeKind } from "./intervalSeriesHonoringDedicated";
+
+const exceptionalSlotList =
+  (exceptionalSlotListModule as { default?: typeof exceptionalSlotListModule }).default ?? exceptionalSlotListModule;
 
 export type ExceptionalGeneratedItem = {
   requestDate: string;
@@ -26,19 +25,20 @@ export type ExceptionalGeneratedItem = {
 export type ExceptionalGeneratedResult = {
   items: ExceptionalGeneratedItem[];
   perLine: number[];
+  /** Précision récap quand ouverture/fermeture décalent la série d’intervalle. */
+  intervalHonorNote: string;
 };
 
-function lineAppliesOnDate(
-  line: LineDraft,
-  dateIso: string,
-  holidayMatch: { isHoliday: (iso: string) => boolean; isHolidayEve: (iso: string) => boolean }
-): boolean {
-  if (isWeekdayEnabled(line.weekdaysMask, dateIso)) return true;
-  if (line.includeHolidays && holidayMatch.isHoliday(dateIso)) return true;
-  if (line.includeHolidayEves && holidayMatch.isHolidayEve(dateIso)) return true;
-  return false;
+function isDedicatedKind(kind: RoundKindDraft): kind is DedicatedRondeKind {
+  return kind === "OPENING" || kind === "CLOSING" || kind === "ACCOMPAGNEMENT";
 }
 
+/**
+ * Génère les passages exceptionnels prévus (preview + création alignée sur Electron).
+ *
+ * @param params.lines - Lignes brouillon (ouverture, fermeture, aléatoire…).
+ * @returns Passages, compteurs par ligne, et note d’ancrage.
+ */
 export function buildExceptionalGeneratedItems(params: {
   lines: LineDraft[];
   validFrom: string;
@@ -48,117 +48,62 @@ export function buildExceptionalGeneratedItems(params: {
   requestDate: string;
   requestTime: string;
   motifTypeId: string;
-  holidayMatch: { isHoliday: (iso: string) => boolean; isHolidayEve: (iso: string) => boolean };
+  holidayDateIsos: string[];
 }): ExceptionalGeneratedResult {
-  const rangeEndIso = params.validTo.trim() || params.validFrom.trim();
-  const safeFrom = params.validFrom.trim();
-  if (!safeFrom || !rangeEndIso || rangeEndIso < safeFrom) {
-    return { items: [], perLine: params.lines.map(() => 0) };
-  }
-  const fromTimeNorm = normalizeRondeHmOr(params.validFromTime, "00:00");
-  const toTimeNorm = normalizeRondeHmOr(params.validToTime, "23:59");
-  const validityStartMs = parseDateTimeSafeMs(safeFrom, fromTimeNorm);
-  const validityEndMs = parseDateTimeSafeMs(rangeEndIso, toTimeNorm);
-  if (validityStartMs == null || validityEndMs == null || validityEndMs < validityStartMs) {
-    return { items: [], perLine: params.lines.map(() => 0) };
-  }
-  const dateAnchors = enumerateInclusiveDateIsos(safeFrom, rangeEndIso);
-  const items: ExceptionalGeneratedItem[] = [];
   const perLine = params.lines.map(() => 0);
-  const pushIfInValidity = (requestDateIso: string, requestedTimeHm: string, lineIndex: number) => {
-    const timeNorm = normalizeRondeHmOr(requestedTimeHm, "00:00");
-    const ms = parseDateTimeSafeMs(requestDateIso, timeNorm);
-    if (ms == null || ms < validityStartMs || ms > validityEndMs) return;
-    items.push({ requestDate: requestDateIso, requestedTime: requestedTimeHm, lineIndex });
-    perLine[lineIndex] += 1;
-  };
-
-  for (let lineIndex = 0; lineIndex < params.lines.length; lineIndex += 1) {
-    const ln = params.lines[lineIndex];
-    if (ln.roundKind !== "RANDOM") {
-      for (const dayIso of dateAnchors) {
-        if (!lineAppliesOnDate(ln, dayIso, params.holidayMatch)) continue;
-        pushIfInValidity(dayIso, ln.requestedTime.trim(), lineIndex);
-      }
-      continue;
-    }
-
-    const intervalMinutes = parseDraftIntervalMinutes(ln);
-    const roundsCount = parseDraftRoundsCount(ln);
-    const hasCompleteWindow = hasCompleteRandomWindow(ln);
-
-    if (hasCompleteWindow) {
-      const lineRef: RondePlannedProfileLineRef = {
-        id: ln.id,
-        profileId: "__request__",
-        sortOrder: lineIndex,
-        roundKind: "RANDOM",
-        recurrenceKind: "WEEKLY",
+  const rawItems = exceptionalSlotList.buildDesiredExceptionalSlotList(
+    {
+      version: 1,
+      requestDate: params.requestDate,
+      requestTime: params.requestTime,
+      validFrom: params.validFrom,
+      validFromTime: params.validFromTime,
+      validTo: params.validTo,
+      validToTime: params.validToTime,
+      motifTypeId: params.motifTypeId,
+      lines: params.lines.map((ln) => ({
+        roundKind: ln.roundKind,
+        requestedTime: ln.requestedTime,
+        randomWindowStart: ln.randomWindowStart,
+        randomWindowEnd: ln.randomWindowEnd,
+        randomRoundsCount: ln.randomRoundsCount,
+        intervalHours: ln.intervalHours,
+        intervalEndTime: ln.intervalEndTime || params.validToTime,
         weekdaysMask: ln.weekdaysMask,
-        monthDay: null,
-        requestedTime: null,
-        intervalMinutes,
-        randomPeriodMask: RANDOM_PERIOD_DAY | RANDOM_PERIOD_NIGHT,
-        randomWindowStart: ln.randomWindowStart.trim(),
-        randomWindowEnd: ln.randomWindowEnd.trim(),
-        randomRoundsCount: roundsCount,
-        includeHolidays: Boolean(ln.includeHolidays),
-        includeHolidayEves: Boolean(ln.includeHolidayEves),
-        rangeStartDate: null,
-        rangeEndDate: null,
-        motifTypeId: params.motifTypeId,
-        motifTypeLabel: null,
-        createdAt: "",
-        updatedAt: ""
-      };
-      for (const dayIso of dateAnchors) {
-        if (!lineAppliesOnDate(ln, dayIso, params.holidayMatch)) continue;
-        const specs = generateRandomSlotSpecs(lineRef, dayIso);
-        for (const spec of specs) {
-          pushIfInValidity(spec.calendarDateIso, spec.requestedTime ?? "", lineIndex);
-        }
-      }
-      continue;
-    }
+        includeHolidays: ln.includeHolidays,
+        includeHolidayEves: ln.includeHolidayEves
+      }))
+    },
+    params.holidayDateIsos
+  );
 
-    if (intervalMinutes != null) {
-      const intervalAnchor =
-        params.requestDate.trim() === params.validFrom.trim()
-          ? { demandDateIso: params.requestDate.trim(), demandTimeHm: params.requestTime.trim() || "00:00" }
-          : null;
-      const intervalSlots = buildIntervalTimesAcrossValidity(
-        params.validFrom.trim(),
-        fromTimeNorm,
-        rangeEndIso,
-        toTimeNorm,
-        intervalMinutes,
-        intervalAnchor
-      );
-      for (const slot of intervalSlots) {
-        if (!lineAppliesOnDate(ln, slot.requestDate, params.holidayMatch)) continue;
-        pushIfInValidity(slot.requestDate, slot.requestedTime, lineIndex);
-      }
-      continue;
-    }
-
-    if (roundsCount != null) {
-      for (const dayIso of dateAnchors) {
-        if (!lineAppliesOnDate(ln, dayIso, params.holidayMatch)) continue;
-        const maxMinute = dayIso === rangeEndIso ? hhmmToMinutes(toTimeNorm) : 23 * 60 + 59;
-        const span = Math.max(0, maxMinute);
-        for (let i = 0; i < roundsCount; i += 1) {
-          const minute = roundsCount <= 1 ? 0 : Math.round((i * span) / (roundsCount - 1));
-          pushIfInValidity(dayIso, minutesToHm(minute), lineIndex);
-        }
-      }
-      continue;
-    }
-
-    for (const dayIso of dateAnchors) {
-      if (!lineAppliesOnDate(ln, dayIso, params.holidayMatch)) continue;
-      pushIfInValidity(dayIso, "", lineIndex);
-    }
+  const items: ExceptionalGeneratedItem[] = [];
+  for (const slot of rawItems) {
+    const lineIndex = Number.isFinite(slot.lineIndex) ? slot.lineIndex : 0;
+    if (lineIndex < 0 || lineIndex >= perLine.length) continue;
+    perLine[lineIndex] += 1;
+    items.push({
+      requestDate: slot.requestDate,
+      requestedTime: slot.requestedTime,
+      lineIndex
+    });
   }
 
-  return { items, perLine };
+  const dedicated: DedicatedRondeAnchor[] = [];
+  for (const item of items) {
+    const ln = params.lines[item.lineIndex];
+    if (!ln || !isDedicatedKind(ln.roundKind)) continue;
+    const ms = parseDateTimeSafeMs(item.requestDate, item.requestedTime.trim() || "00:00");
+    if (ms != null) dedicated.push({ kind: ln.roundKind, ms });
+  }
+  const hasSeriesLine = params.lines.some((ln) => {
+    if (ln.roundKind !== "RANDOM") return false;
+    return parseDraftIntervalMinutes(ln) != null || parseDraftRoundsCount(ln) != null;
+  });
+
+  return {
+    items,
+    perLine,
+    intervalHonorNote: intervalHonorRecapNote(dedicated, hasSeriesLine)
+  };
 }

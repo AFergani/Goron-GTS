@@ -2,10 +2,8 @@
  * Brouillon de ligne de planification (modale demande).
  */
 
-import type { HolidayRef } from "../../../types";
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT, type RondePlannedProfileLineRef } from "./rondePlanned.types";
 import type { RondePlanningSnapshotLineV1 } from "./rondePlanningSnapshot.types";
-import { addDaysIso, dateIsoToWeekdayMask } from "./rondePlannedSlotEngine";
 import { formatRondePlannedLineSummary } from "./rondePlannedSummary";
 
 export type RoundKindDraft = "OPENING" | "CLOSING" | "ACCOMPAGNEMENT" | "RANDOM";
@@ -142,17 +140,4 @@ export function formatLineDraftSummary(
     },
     { omitRecurrence: omitWeekdayRecurrence }
   );
-}
-
-export function isWeekdayEnabled(weekdaysMask: number, dateIso: string): boolean {
-  if (!Number.isFinite(Number(weekdaysMask)) || Number(weekdaysMask) <= 0) return true;
-  return (Number(weekdaysMask) & dateIsoToWeekdayMask(dateIso)) !== 0;
-}
-
-export function holidayMatchers(holidays: HolidayRef[] | undefined) {
-  const set = new Set((holidays || []).map((h) => String(h.dateIso || "").trim()).filter(Boolean));
-  return {
-    isHoliday: (iso: string) => set.has(String(iso || "").trim()),
-    isHolidayEve: (iso: string) => set.has(addDaysIso(String(iso || "").trim(), 1))
-  };
 }

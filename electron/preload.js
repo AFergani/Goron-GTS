@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   deleteTemplateAssignment: (payload) => ipcRenderer.invoke("system:deleteTemplateAssignment", payload),
   resolveTemplateFileForContext: (payload) => ipcRenderer.invoke("system:resolveTemplateFileForContext", payload),
   openTemplatesFolder: (payload) => ipcRenderer.invoke("system:openTemplatesFolder", payload),
+  saveExportFile: (payload) => ipcRenderer.invoke("system:saveExportFile", payload),
+  openExportFile: (payload) => ipcRenderer.invoke("system:openExportFile", payload),
   getDbHealth: (payload) => ipcRenderer.invoke("system:getDbHealth", payload),
   getPostgresLabHealth: (payload) => ipcRenderer.invoke("system:getPostgresLabHealth", payload),
   getPostgresBootstrapStatus: (payload) => ipcRenderer.invoke("system:getPostgresBootstrapStatus", payload),
@@ -146,7 +148,6 @@ contextBridge.exposeInMainWorld("gtsApi", {
   createIntervention: (payload) => ipcRenderer.invoke("intervention:create", payload),
   updateIntervention: (payload) => ipcRenderer.invoke("intervention:update", payload),
   setInterventionStatus: (payload) => ipcRenderer.invoke("intervention:setStatus", payload),
-  setInterventionBillingStatus: (payload) => ipcRenderer.invoke("intervention:setBillingStatus", payload),
 
   // --- Rondes ---
   listRondes: (payload) => ipcRenderer.invoke("ronde:list", payload),

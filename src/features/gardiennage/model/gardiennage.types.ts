@@ -74,6 +74,8 @@ export type GardiennageEntry = {
   planningSnapshot?: GardiennagePlanningSnapshotV1 | null;
   planningSlotStart?: string;
   planningSlotEnd?: string;
+  /** Numéro métier `JJMMAAAA-XX` (recherche / titre). */
+  dailyCode: string;
 };
 
 /** Création / mise à jour (planification optionnelle pour lots générés). */

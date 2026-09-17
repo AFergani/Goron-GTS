@@ -21,12 +21,11 @@ type InterventionTableProps = {
   entries: InterventionEntry[];
   onOpen: (entry: InterventionEntry) => void;
   onFollowUp: (entry: InterventionEntry) => void;
-  onPrint: (entry: InterventionEntry) => void;
   onNotify?: NotifyToast;
 };
 
-export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNotify }: InterventionTableProps) {
-  type InterventionSortKey = "date" | "site" | "prestataire" | "etat";
+export function InterventionTable({ entries, onOpen, onFollowUp, onNotify }: InterventionTableProps) {
+  type InterventionSortKey = "dailyCode" | "date" | "site" | "prestataire" | "etat";
 
   const requestDateTimeMs = (entry: InterventionEntry) => {
     const date = String(entry.requestDate || "").trim();
@@ -37,6 +36,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
   };
 
   const comparators: Record<InterventionSortKey, (a: InterventionEntry, b: InterventionEntry) => number> = {
+    dailyCode: (a, b) => (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
     date: (a, b) => requestDateTimeMs(a) - requestDateTimeMs(b),
     site: (a, b) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     prestataire: (a, b) => (a.intervenantName || "").localeCompare(b.intervenantName || "", "fr"),
@@ -56,6 +56,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
     <div className="main-courante-table-wrap">
       <table className="main-courante-table intervention-table">
         <colgroup>
+          <col className="col-daily-code" />
           <col className="intv-col-date" />
           <col className="intv-col-site" />
           <col className="intv-col-presta" />
@@ -68,6 +69,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
         </colgroup>
         <thead>
           <tr>
+            <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("dailyCode")}>N° {sortLabel("dailyCode")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("date")}>Date / Demande {sortLabel("date")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("site")}>Clients (Code site) {sortLabel("site")}</button></th>
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("prestataire")}>Prestataire {sortLabel("prestataire")}</button></th>
@@ -86,6 +88,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
         <tbody>
           {sortedEntries.map((entry) => (
             <tr key={entry.id}>
+              <td className="col-daily-code">{entry.dailyCode || "—"}</td>
               <td>{formatInterventionDateTime(entry.requestDate, entry.requestTime)}</td>
               <td className="mc-site-wrap">
                 <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
@@ -118,16 +121,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onPrint, onNoti
                         className="table-action-btn table-action-btn--text"
                         onClick={() => onOpen(entry)}
                       >
-                        Voir le détail
-                      </button>
-                    ) : null}
-                    {entry.status === "CLOTURE" || entry.status === "ANNULE" ? (
-                      <button
-                        type="button"
-                        className="table-action-btn table-action-btn--text table-action-btn--word"
-                        onClick={() => onPrint(entry)}
-                      >
-                        Export Word
+                        Ouvrir la fiche
                       </button>
                     ) : null}
                   </div>

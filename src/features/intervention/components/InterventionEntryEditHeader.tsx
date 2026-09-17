@@ -1,5 +1,5 @@
 /**
- * En-tête édition / facturation : titre + liens ronde/gardiennage + fermer.
+ * En-tête édition : titre + liens ronde/gardiennage + fermer.
  */
 
 type InterventionEntryEditHeaderProps = {

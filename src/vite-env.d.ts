@@ -136,6 +136,16 @@ declare global {
       openTemplatesFolder: (payload: {
         sessionToken: string;
       }) => Promise<{ success: boolean; path: string | null; error: string | null }>;
+      saveExportFile: (payload: {
+        sessionToken: string;
+        defaultFileName: string;
+        kind: "docx" | "xlsx";
+        bytes: ArrayBuffer | Uint8Array;
+      }) => Promise<{ canceled: boolean; filePath: string | null }>;
+      openExportFile: (payload: {
+        sessionToken: string;
+        filePath: string;
+      }) => Promise<{ success: boolean; error: string | null }>;
       getDbHealth: (payload?: { sessionToken?: string | null }) => Promise<{ configured: boolean; writable: boolean }>;
       getPostgresLabHealth: (payload?: { sessionToken?: string | null }) => Promise<{
         reachable: boolean;
@@ -603,14 +613,6 @@ declare global {
         expectedUpdatedAt: string;
         status: "EN_COURS" | "CLOTURE" | "ANNULE";
         cancellationReason?: string;
-      }) => Promise<InterventionEntry>;
-      setInterventionBillingStatus: (payload: {
-        requesterRole: Role;
-        requesterUsername: string;
-        id: string;
-        expectedUpdatedAt: string;
-        billingStatus: "FACTURABLE" | "NON_FACTURABLE";
-        reason?: string;
       }) => Promise<InterventionEntry>;
       // --- Rondes ---
       listRondes: (payload: { requesterRole: Role }) => Promise<RondeEntry[]>;

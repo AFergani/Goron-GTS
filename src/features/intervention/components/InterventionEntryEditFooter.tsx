@@ -1,46 +1,46 @@
 /**
- * Pied de modale édition : facturation, liens créer, enregistrer / clôturer / rouvrir.
+ * Pied de modale édition : liens créer, enregistrer / clôturer / rouvrir, export Word.
  */
 
 import { Link2 } from "lucide-react";
-import { ToggleSwitch } from "../../common/components/ToggleSwitch";
+import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
 import type { InterventionEntry } from "../model/intervention.types";
 
 type InterventionEntryEditFooterProps = {
   entry: InterventionEntry;
-  mode: "edit" | "facturation";
-  isBillable: boolean;
-  allowFacturationToggle: boolean;
   isActionSubmitting: boolean;
   canOpenLinkedRonde?: boolean;
   canOpenLinkedGardiennage?: boolean;
   onClose: () => void;
-  onRequestNonBillable: () => void;
-  onSetFacturable: () => void;
   onOpenLinkedRonde?: () => void;
   onOpenLinkedGardiennage?: () => void;
   onRequestCancel: () => void;
   onCloseIntervention: () => void;
   onReopen: () => void;
+  onSaveWord?: () => void;
+  onOpenWord?: () => void;
+  canOpenWord?: boolean;
+  lastWordFilePath?: string | null;
 };
 
 export function InterventionEntryEditFooter({
   entry,
-  mode,
-  isBillable,
-  allowFacturationToggle,
   isActionSubmitting,
   canOpenLinkedRonde,
   canOpenLinkedGardiennage,
   onClose,
-  onRequestNonBillable,
-  onSetFacturable,
   onOpenLinkedRonde,
   onOpenLinkedGardiennage,
   onRequestCancel,
   onCloseIntervention,
-  onReopen
+  onReopen,
+  onSaveWord,
+  onOpenWord,
+  canOpenWord = false,
+  lastWordFilePath = null
 }: InterventionEntryEditFooterProps) {
+  const showWordFileActions =
+    Boolean(onSaveWord && onOpenWord) && (entry.status === "CLOTURE" || entry.status === "ANNULE");
   return (
     <div className="mc-modal-footer mc-modal-footer-split">
       <div className="mc-modal-footer-start">
@@ -49,23 +49,17 @@ export function InterventionEntryEditFooter({
         </button>
       </div>
       <div className="mc-modal-footer-end">
-        {allowFacturationToggle ? (
-          <div style={{ width: 170, flexShrink: 0 }}>
-            <ToggleSwitch
-              label="Facturable"
-              labelFirst
-              checked={isBillable}
-              onChange={(next) => {
-                if (next) {
-                  onSetFacturable();
-                  return;
-                }
-                onRequestNonBillable();
-              }}
-            />
-          </div>
+        {showWordFileActions && onSaveWord && onOpenWord ? (
+          <WordExportRowButtons
+            variant="modal"
+            disabled={isActionSubmitting}
+            onExportWord={onSaveWord}
+            onOpenReport={onOpenWord}
+            canOpenReport={canOpenWord}
+            lastFilePath={lastWordFilePath}
+          />
         ) : null}
-        {mode === "edit" && canOpenLinkedRonde && onOpenLinkedRonde ? (
+        {canOpenLinkedRonde && onOpenLinkedRonde ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedRonde}>
             <span className="mc-footer-btn-with-icon">
               <Link2 size={16} aria-hidden />
@@ -73,7 +67,7 @@ export function InterventionEntryEditFooter({
             </span>
           </button>
         ) : null}
-        {mode === "edit" && canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
+        {canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedGardiennage}>
             <span className="mc-footer-btn-with-icon">
               <Link2 size={16} aria-hidden />
