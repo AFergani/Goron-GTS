@@ -10,9 +10,6 @@
 # Dossier personnel — ne pas versionner
 Z_Dossier_Perso/
 
-# Outils labo locaux — dépendants de l'environnement du poste
-outils_labo/
-
 # Releases packagées (ex. Release_Goron-GTS-1.0.63)
 Release_Goron-GTS-*/
 
