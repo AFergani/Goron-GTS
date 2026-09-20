@@ -6,6 +6,7 @@
  * @module electron/store/domains/gardiennage/entriesLifecycle
  */
 
+const { parseExportExtraJson, stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { actorName } = require("../../core/actorName");
 const { normalizeDateIso } = require("../../core/isoDate");
 const {
@@ -254,13 +255,17 @@ async function closeGardiennage(store, payload) {
     const result = await tx.run(
       `UPDATE gardiennage_entries
        SET status = 'CLOTURE', closure_report = ?, actual_start_time = ?,
-           actual_end_time = ?, work_order_number = ?, updated_at = ?
+           actual_end_time = ?, work_order_number = ?, export_extra_json = ?, updated_at = ?
        WHERE id = ? AND updated_at = ?`,
       [
         String(payload.closureReport || "").trim(),
         toIsoTime(payload.actualStartTime),
         toIsoTime(payload.actualEndTime),
         String(payload.workOrderNumber || "").trim(),
+        stringifyExportExtraJson({
+          ...parseExportExtraJson(row.export_extra_json),
+          ...(payload.exportExtraValues && typeof payload.exportExtraValues === "object" ? payload.exportExtraValues : {})
+        }),
         nowIso,
         entryId,
         payload.expectedUpdatedAt

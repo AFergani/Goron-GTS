@@ -114,7 +114,7 @@ export function RondeServiceTabActions({
         onClick={onCreate}
       >
         <Plus size={16} aria-hidden />
-        {listView === "urgence" ? "Nouvelle ronde" : "Planifier une ronde"}
+        {listView === "urgence" ? "Nouvelle ronde" : "Nouvelle planification"}
       </button>
     </div>
   );

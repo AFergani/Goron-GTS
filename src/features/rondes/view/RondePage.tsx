@@ -1,7 +1,7 @@
 /**
  * Page Rondes : onglets urgence / planifié ; orchestration presenter + référentiels.
  *
- * Barre d’onglets + actions (export, jour/liste, création, profils, demandes d’arrêt).
+ * Synthèse du mois, puis panneau liste (onglets + actions, filtres, tableau / journée).
  * Affichage liste (contractuelle et exceptionnelle) : filtre Statut par défaut « En cours ».
  */
 
@@ -41,6 +41,8 @@ import { syntheticPlanningSnapshotForLinkedDemand } from "../utils/syntheticPlan
 import { buildPlannedFallbackVirtualEntries } from "../utils/buildPlannedFallbackVirtualEntries";
 import { useRondeDisplayMode } from "../hooks/useRondeDisplayMode";
 import { filterAndSortRondeListEntries } from "../utils/filterAndSortRondeListEntries";
+import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
+import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 
 type RondePageProps = {
   requesterRole: Role;
@@ -289,7 +291,7 @@ export function RondePage({
     () =>
       ronde.entries
         .filter((entry) => isContractualRondeEntry(entry))
-        .sort((a, b) => b.requestDate.localeCompare(a.requestDate)),
+        .sort((a, b) => a.requestDate.localeCompare(b.requestDate) || (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr")),
     [ronde.entries]
   );
   const todayIso = useMemo(() => getLocalDateIso(), []);
@@ -392,7 +394,11 @@ export function RondePage({
     try {
       await workstationExports.saveAndRemember(
         wordExportKey("ronde", entry.id),
-        () => exportRondeEntryToWord(entry, { profiles: references.plannedProfiles }),
+        () =>
+          exportRondeEntryToWord(entry, {
+            profiles: references.plannedProfiles,
+            holidays: references.holidays
+          }),
         onToast,
         "Document Word enregistré."
       );
@@ -406,10 +412,19 @@ export function RondePage({
       ? WORKSTATION_EXPORT_KEYS.excelRondeContractual
       : WORKSTATION_EXPORT_KEYS.excelRondeExceptional;
 
-  const totalPages = filters.pageSize === 0 ? 1 : Math.max(1, Math.ceil(filteredEntries.length / filters.pageSize));
-  const pagedEntries = filters.pageSize === 0
-    ? filteredEntries
-    : filteredEntries.slice((filters.currentPage - 1) * filters.pageSize, filters.currentPage * filters.pageSize);
+  const activeFilteredCount =
+    listView === "planifie" ? filteredContractualListEntries.length : filteredEntries.length;
+  const totalPages =
+    filters.pageSize === 0 ? 1 : Math.max(1, Math.ceil(activeFilteredCount / filters.pageSize));
+  const pageSliceStart = (filters.currentPage - 1) * filters.pageSize;
+  const pagedEntries =
+    filters.pageSize === 0
+      ? filteredEntries
+      : filteredEntries.slice(pageSliceStart, pageSliceStart + filters.pageSize);
+  const pagedContractualEntries =
+    filters.pageSize === 0
+      ? filteredContractualListEntries
+      : filteredContractualListEntries.slice(pageSliceStart, pageSliceStart + filters.pageSize);
   const liveActiveEntry = useMemo(() => {
     if (!activeEntry) return null;
     return ronde.entries.find((entry) => entry.id === activeEntry.id) || activeEntry;
@@ -574,20 +589,38 @@ export function RondePage({
     />
   );
 
+  const monthSummaryCards =
+    listView === "planifie"
+      ? [
+          { label: "Total", value: ronde.monthStats.contractual.total },
+          { label: "En cours", value: ronde.monthStats.contractual.inProgress },
+          { label: "Effectuées", value: ronde.monthStats.contractual.closed },
+          { label: "Non effectuées", value: ronde.monthStats.contractual.notPerformed }
+        ]
+      : [
+          { label: "Total", value: ronde.monthStats.exceptional.total },
+          { label: "En cours", value: ronde.monthStats.exceptional.inProgress },
+          { label: "Clôturées", value: ronde.monthStats.exceptional.closed },
+          { label: "Annulées", value: ronde.monthStats.exceptional.canceled }
+        ];
+
   return (
     <>
-      <RondePageTabsBar
-        listView={listView}
-        onListViewChange={setListView}
-        todayContractualCount={todayRondeBadgeCounts.contractual}
-        todayExceptionalCount={todayRondeBadgeCounts.exceptional}
-        actions={serviceTabActions}
-      />
+      <MonthSummaryStatsBlock cards={monthSummaryCards} />
 
-      {listView === "planifie" ? (
-        <section className="panel main-courante-table-panel">
-          {displayModeByService.planifie === "list" ? sharedListFiltersBar : null}
-          {displayModeByService.planifie === "day" ? (
+      <section className="panel main-courante-table-panel">
+        <RondePageTabsBar
+          listView={listView}
+          onListViewChange={setListView}
+          todayContractualCount={todayRondeBadgeCounts.contractual}
+          todayExceptionalCount={todayRondeBadgeCounts.exceptional}
+          actions={serviceTabActions}
+        />
+        {references.error ? <p className="error">{references.error}</p> : null}
+        {activeDisplayMode === "list" ? sharedListFiltersBar : null}
+        <ListLoadingOverlay loading={ronde.loading}>
+        {listView === "planifie" ? (
+          displayModeByService.planifie === "day" ? (
             <RondePlannedDaySection
               entries={ronde.entries}
               profiles={references.plannedProfiles}
@@ -619,73 +652,75 @@ export function RondePage({
               }}
             />
           ) : (
-            <RondeTable
-              entries={filteredContractualListEntries}
-              onNotify={onToast}
-              onOpen={openContractualRow}
-              onFollowUp={openContractualRow}
-              onOpenProfile={openProfileById}
-              showOrigin={false}
-            />
-          )}
-        </section>
-      ) : null}
-
-      {listView === "urgence" ? (
-        <section className="panel main-courante-table-panel">
-          {references.error ? <p className="error">{references.error}</p> : null}
-          {displayModeByService.urgence === "list" ? sharedListFiltersBar : null}
-          {ronde.loading ? <p className="muted">Chargement des rondes…</p> : null}
-          {displayModeByService.urgence === "list" ? (
             <>
               <RondeTable
-                entries={pagedEntries}
+                entries={pagedContractualEntries}
                 onNotify={onToast}
-                onOpen={(entry) => {
-                  setCreatePreset(null);
-                  setActiveEntry(entry);
-                  setModalMode("edit");
-                  setModalOpen(true);
-                }}
-                onFollowUp={(entry) => {
-                  setCreatePreset(null);
-                  setActiveEntry(entry);
-                  setModalMode("edit");
-                  setModalOpen(true);
-                }}
-                onOpenLinkedDemand={openLinkedDemandForEntry}
+                onOpen={openContractualRow}
+                onFollowUp={openContractualRow}
+                onOpenProfile={openProfileById}
+                showOrigin={false}
               />
               <TablePaginationBar
                 currentPage={filters.currentPage}
                 totalPages={totalPages}
-                totalItems={filteredEntries.length}
+                totalItems={filteredContractualListEntries.length}
                 pageSize={filters.pageSize}
                 onPageChange={filters.setCurrentPage}
                 onPageSizeChange={filters.setPageSize}
               />
             </>
-          ) : (
-            <RondePlannedDaySection
-              mode="entries"
-              entries={ronde.entries.filter((entry) => !isContractualRondeEntry(entry))}
-              profiles={references.plannedProfiles}
-              intervenants={references.intervenants}
-              rondeMotifs={references.rondeMotifs}
-              holidays={references.holidays}
+          )
+        ) : displayModeByService.urgence === "list" ? (
+          <>
+            <RondeTable
+              entries={pagedEntries}
               onNotify={onToast}
-              onOpenCreatePlanned={() => {
-                // Non utilisé en mode "entries"
-              }}
-              onOpenEntry={(entry) => {
+              onOpen={(entry) => {
                 setCreatePreset(null);
                 setActiveEntry(entry);
                 setModalMode("edit");
                 setModalOpen(true);
               }}
+              onFollowUp={(entry) => {
+                setCreatePreset(null);
+                setActiveEntry(entry);
+                setModalMode("edit");
+                setModalOpen(true);
+              }}
+              onOpenLinkedDemand={openLinkedDemandForEntry}
             />
-          )}
-        </section>
-      ) : null}
+            <TablePaginationBar
+              currentPage={filters.currentPage}
+              totalPages={totalPages}
+              totalItems={filteredEntries.length}
+              pageSize={filters.pageSize}
+              onPageChange={filters.setCurrentPage}
+              onPageSizeChange={filters.setPageSize}
+            />
+          </>
+        ) : (
+          <RondePlannedDaySection
+            mode="entries"
+            entries={ronde.entries.filter((entry) => !isContractualRondeEntry(entry))}
+            profiles={references.plannedProfiles}
+            intervenants={references.intervenants}
+            rondeMotifs={references.rondeMotifs}
+            holidays={references.holidays}
+            onNotify={onToast}
+            onOpenCreatePlanned={() => {
+              // Non utilisé en mode "entries"
+            }}
+            onOpenEntry={(entry) => {
+              setCreatePreset(null);
+              setActiveEntry(entry);
+              setModalMode("edit");
+              setModalOpen(true);
+            }}
+          />
+        )}
+        </ListLoadingOverlay>
+      </section>
 
       <RondeEntryModal
         isOpen={modalOpen}
@@ -737,6 +772,7 @@ export function RondePage({
         initialSiteId={requestInitial?.siteId}
         initialIntervenantId={requestInitial?.intervenantId}
         initialInterventionId={requestInitial?.interventionId}
+        onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
         replayPlanningSnapshot={requestPlanningReplay}
         requesterRole={requesterRole}
         linkedBatchEntries={linkedDemandAnchorId && linkedDemandGroup.length ? linkedDemandGroup : null}

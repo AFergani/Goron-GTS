@@ -335,6 +335,13 @@
   background: var(--card);
 }
 
+/* Colonne « Votre profil » : une ligne par libellé (ex. Responsable de station). */
+.help-center-table--profile th:first-child,
+.help-center-table--profile td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .help-center-main h4 {
   margin: 18px 0 8px;
   font-size: 0.95rem;

@@ -168,6 +168,8 @@ function normalizePlanningSnapshot(payload) {
     validToTime,
     isContinuous,
     isOpenEnded,
+    requestDate: normalizeDateIso(snapshot.requestDate) || "",
+    requestTime: toIsoTime(snapshot.requestTime) || "",
     lines: Array.isArray(snapshot.lines)
       ? snapshot.lines.map((line, index) => ({
         id: String(line.id || `line-${index + 1}`),

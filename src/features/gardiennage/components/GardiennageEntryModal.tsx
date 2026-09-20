@@ -48,11 +48,19 @@ import {
 import { resolveGardiennageValidityWeekdayLock } from "../utils/resolveGardiennageValidityWeekdayLock";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { TimeInput } from "../../common/components/TimeInput";
 import { DateInput } from "../../common/components/DateInput";
+import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
+import {
+  applyRequestDateTimeChange,
+  applyValidFromDateTimeChange,
+  type RequestValidityRange
+} from "../../common/utils/alignRequestAndValidity";
 import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
 import { GardiennagePlanningLinesRecap } from "./GardiennagePlanningLinesRecap";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -112,6 +120,8 @@ type FormState = {
   validToTime: string;
   isContinuous: boolean;
   planningLines: GardiennagePlanningLineV1[];
+  requestDate: string;
+  requestTime: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -132,11 +142,78 @@ const EMPTY_FORM: FormState = {
   validToDate: "",
   validToTime: "",
   isContinuous: false,
-  planningLines: []
+  planningLines: [],
+  requestDate: "",
+  requestTime: ""
 };
+
+function formToValidityRange(form: FormState): RequestValidityRange {
+  return {
+    requestDate: form.requestDate,
+    requestTime: form.requestTime,
+    validFromDate: form.validFromDate,
+    validFromTime: form.validFromTime,
+    validToDate: form.validToDate,
+    validToTime: form.validToTime
+  };
+}
+
+function applyValidityRange(form: FormState, range: RequestValidityRange): FormState {
+  return {
+    ...form,
+    requestDate: range.requestDate,
+    requestTime: range.requestTime,
+    validFromDate: range.validFromDate,
+    validFromTime: range.validFromTime,
+    validToDate: range.validToDate,
+    validToTime: range.validToTime
+  };
+}
+
+function gardiennageAlignOpts(form: FormState) {
+  const mode = resolvePlanningFormMode(form.isPonctuel, form.isContinuous);
+  return {
+    validityHasTime: mode !== "recurring",
+    compareEndTimes: false
+  };
+}
+
+function withRequestDateTime(form: FormState, date: string, time: string): FormState {
+  return applyValidityRange(
+    form,
+    applyRequestDateTimeChange(formToValidityRange(form), { date, time }, gardiennageAlignOpts(form))
+  );
+}
+
+function withValidFromDateTime(form: FormState, date: string, time: string): FormState {
+  return applyValidityRange(
+    form,
+    applyValidFromDateTimeChange(formToValidityRange(form), { date, time }, gardiennageAlignOpts(form))
+  );
+}
 
 function formatNowDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function formatNowTime() {
+  const now = new Date();
+  return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+
+function dateTimeFromIso(iso: string): { date: string; time: string } {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return { date: formatNowDate(), time: formatNowTime() };
+  }
+  return {
+    date: `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`,
+    time: `${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}`
+  };
 }
 
 function formatDurationMinutes(totalMin: number): string {
@@ -214,6 +291,8 @@ export function GardiennageEntryModal({
       validFromDate: formatNowDate(),
       validToDate: "",
       planningLines: [createDefaultLine()],
+      requestDate: formatNowDate(),
+      requestTime: formatNowTime(),
       ...(createPreset ? {
         siteId: createPreset.siteId,
         siteDisplay: createPreset.siteDisplay,
@@ -256,6 +335,7 @@ export function GardiennageEntryModal({
     const isPonctuel = planningModeFromSnap === "ponctuel";
     const firstLine = snap?.lines?.[0];
     const h24OpenEnded = Boolean(snap?.isOpenEnded);
+    const created = dateTimeFromIso(entry.createdAt);
     const hydrated: FormState = {
       siteId: entry.siteId,
       siteDisplay: entry.siteDisplay,
@@ -278,6 +358,8 @@ export function GardiennageEntryModal({
         ? (firstLine?.endTime || entry.endTime || "")
         : (h24OpenEnded ? "" : (snap?.validToTime || entry.endTime || "")),
       isContinuous,
+      requestDate: String(snap?.requestDate || "").trim() || created.date,
+      requestTime: String(snap?.requestTime || "").trim() || created.time,
       planningLines: isContinuous || isPonctuel
         ? []
         : (snap?.lines?.length
@@ -304,6 +386,14 @@ export function GardiennageEntryModal({
   }, [isOpen, mode, entry?.id]);
 
   const selectedSite = form.siteId ? (sites.find((s) => s.id === form.siteId) ?? null) : null;
+  const extras = useFormVariableFields({
+    isOpen,
+    requesterRole,
+    formTarget: "GARDIENNAGE",
+    site: selectedSite,
+    seedValues: isCreateMode ? {} : entry?.exportExtraValues,
+    seedKey: isCreateMode ? "create" : entry?.id
+  });
   const selectedIntervenant =
     form.intervenantId ? (intervenants.find((i) => i.id === form.intervenantId) ?? null) : null;
 
@@ -392,17 +482,21 @@ export function GardiennageEntryModal({
     });
   };
   const planningSnapshot: GardiennagePlanningSnapshotV1 = useMemo(
-    () => buildEffectivePlanningSnapshot({
-      validFromDate: form.validFromDate || form.recurrenceStartDate,
-      validFromTime: form.validFromTime,
-      validToDate: planningMode === "h24"
-        ? form.validToDate
-        : (form.validToDate || form.recurrenceEndDate),
-      validToTime: form.validToTime,
-      isPonctuel: form.isPonctuel,
-      isContinuous: form.isContinuous,
-      planningLines: form.planningLines,
-      fallbackDate: formatNowDate()
+    () => ({
+      ...buildEffectivePlanningSnapshot({
+        validFromDate: form.validFromDate || form.recurrenceStartDate,
+        validFromTime: form.validFromTime,
+        validToDate: planningMode === "h24"
+          ? form.validToDate
+          : (form.validToDate || form.recurrenceEndDate),
+        validToTime: form.validToTime,
+        isPonctuel: form.isPonctuel,
+        isContinuous: form.isContinuous,
+        planningLines: form.planningLines,
+        fallbackDate: formatNowDate()
+      }),
+      requestDate: form.requestDate,
+      requestTime: form.requestTime
     }),
     [form]
   );
@@ -538,7 +632,8 @@ export function GardiennageEntryModal({
     notes: form.notes,
     linkedInterventionId: form.linkedInterventionId,
     linkedRondeId: form.linkedRondeId,
-    planningSnapshot
+    planningSnapshot,
+    exportExtraValues: extras.values
   });
   };
 
@@ -689,9 +784,17 @@ export function GardiennageEntryModal({
           <div className="mc-field-section mc-field-section-tight">
             <form className="mc-entry-form" onSubmit={(e) => void onSubmit(e)}>
 
-              {/* SITE + PRESTATAIRE — même ligne */}
-              <SearchEntry
-                sites={sites}
+              <div className="request-head-row">
+                <RequestDateTimeField
+                  date={form.requestDate}
+                  time={form.requestTime}
+                  disabled={isSaving || isAnnule || isReadOnlyByRole}
+                  onDateChange={(value) => setForm((f) => withRequestDateTime(f, value, f.requestTime))}
+                  onTimeChange={(value) => setForm((f) => withRequestDateTime(f, f.requestDate, value))}
+                />
+                <SearchEntry
+                  className="request-head-row__refs"
+                  sites={sites}
                 intervenants={intervenants}
                 selectedSite={selectedSite}
                 selectedIntervenant={selectedIntervenant}
@@ -746,6 +849,7 @@ export function GardiennageEntryModal({
                 showSiteAction={canCreatePendingRefs ? !form.siteId : false}
                 showIntervenantAction={canCreatePendingRefs ? !form.intervenantId : false}
               />
+              </div>
 
               {/* PLANIFICATION */}
               <CreateFormSection title="Planification">
@@ -774,7 +878,7 @@ export function GardiennageEntryModal({
                           <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({ ...f, validFromDate: e.target.value }))}
+                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
                           />
                         </label>
                         <span className="gardiennage-date-sep">de</span>
@@ -783,7 +887,7 @@ export function GardiennageEntryModal({
                           <TimeInput
                             value={form.validFromTime}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
+                            onChange={(value) => setForm((f) => withValidFromDateTime(f, f.validFromDate, value))}
                           />
                         </label>
                         <span className="gardiennage-date-sep">à</span>
@@ -806,11 +910,7 @@ export function GardiennageEntryModal({
                           <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({
-                              ...f,
-                              validFromDate: e.target.value,
-                              validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
-                            }))}
+                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
                           />
                         </label>
                         <label className="gardiennage-time-field">
@@ -818,40 +918,28 @@ export function GardiennageEntryModal({
                           <TimeInput
                             value={form.validFromTime}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => ({ ...f, validFromTime: value }))}
+                            onChange={(value) => setForm((f) => withValidFromDateTime(f, f.validFromDate, value))}
                           />
                         </label>
                         <span className="gardiennage-date-sep">au</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date fin</span>
-                          <span className="gardiennage-date-input-wrap">
-                            <DateInput
-                              className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
-                              value={form.validToDate}
-                              disabled={isSaving || isAnnule || isReadOnlyByRole}
-                              min={form.validFromDate || undefined}
-                              aria-label="Date de fin (optionnelle)"
-                              onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                            />
-                            {!form.validToDate.trim() ? (
-                              <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
-                            ) : null}
-                          </span>
+                          <DateInput
+                            value={form.validToDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            min={form.validFromDate || undefined}
+                            aria-label="Date de fin (optionnelle)"
+                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                          />
                         </label>
                         <label className="gardiennage-time-field">
                           <span className="gardiennage-date-label">Heure fin</span>
-                          <span className="gardiennage-date-input-wrap">
-                            <TimeInput
-                              className={form.validToTime.trim() ? "" : "gardiennage-date-input--empty"}
-                              value={form.validToTime}
-                              disabled={isSaving || isAnnule || isReadOnlyByRole}
-                              aria-label="Heure de fin (optionnelle)"
-                              onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
-                            />
-                            {!form.validToTime.trim() ? (
-                              <span className="gardiennage-date-placeholder" aria-hidden="true">--:--</span>
-                            ) : null}
-                          </span>
+                          <TimeInput
+                            value={form.validToTime}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            aria-label="Heure de fin (optionnelle)"
+                            onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
+                          />
                         </label>
                       </div>
                     )}
@@ -864,31 +952,21 @@ export function GardiennageEntryModal({
                           <DateInput
                             value={form.validFromDate}
                             disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({
-                              ...f,
-                              validFromDate: e.target.value,
-                              validToDate: f.validToDate && f.validToDate < e.target.value ? e.target.value : f.validToDate
-                            }))}
+                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
                           />
                         </label>
                         <span className="gardiennage-date-sep">au</span>
                         <label className="gardiennage-date-field">
                           <span className="gardiennage-date-label">Date</span>
-                          <span className="gardiennage-date-input-wrap">
-                            <DateInput
-                              className={form.validToDate.trim() ? "" : "gardiennage-date-input--empty"}
-                              value={form.validToDate}
-                              disabled={isSaving || isAnnule || isReadOnlyByRole}
-                              min={form.validFromDate || undefined}
-                              required
-                              aria-required="true"
-                              aria-label="Date de fin de validité (obligatoire)"
-                              onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                            />
-                            {!form.validToDate.trim() ? (
-                              <span className="gardiennage-date-placeholder" aria-hidden="true">jj/mm/aaaa</span>
-                            ) : null}
-                          </span>
+                          <DateInput
+                            value={form.validToDate}
+                            disabled={isSaving || isAnnule || isReadOnlyByRole}
+                            min={form.validFromDate || undefined}
+                            required
+                            aria-required="true"
+                            aria-label="Date de fin de validité (obligatoire)"
+                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
+                          />
                         </label>
                       </div>
                     )}
@@ -1065,17 +1143,43 @@ export function GardiennageEntryModal({
 
               {/* CONSIGNE */}
               <CreateFormSection title="Consigne">
-                <label className="mc-field mc-field-full">
-                  <textarea
-                    rows={3}
-                    value={form.notes}
-                    disabled={isSaving || isAnnule || isReadOnlyByRole}
-                    maxLength={2000}
-                    placeholder="Consignes particulières, observations…"
-                    className="mc-textarea"
-                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                <div
+                  className={
+                    extras.requestDefs.length === 1
+                      ? "request-motif-row request-motif-row--with-extra"
+                      : undefined
+                  }
+                >
+                  <label className={`mc-field ${extras.requestDefs.length === 1 ? "request-motif-row__motif" : "mc-field-full"}`}>
+                    <textarea
+                      rows={3}
+                      value={form.notes}
+                      disabled={isSaving || isAnnule || isReadOnlyByRole}
+                      maxLength={2000}
+                      placeholder="Consignes particulières, observations…"
+                      className="mc-textarea"
+                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                    />
+                  </label>
+                  {extras.requestDefs.length === 1 ? (
+                    <FormVariableFields
+                      defs={extras.requestDefs}
+                      values={extras.values}
+                      onValuesChange={extras.setValues}
+                      disabled={isSaving || isAnnule || isCloture || isReadOnlyByRole}
+                      compact
+                    />
+                  ) : null}
+                </div>
+                {extras.requestDefs.length > 1 ? (
+                  <FormVariableFields
+                    defs={extras.requestDefs}
+                    values={extras.values}
+                    onValuesChange={extras.setValues}
+                    disabled={isSaving || isAnnule || isCloture || isReadOnlyByRole}
+                    title="Champs de la demande"
                   />
-                </label>
+                ) : null}
               </CreateFormSection>
 
               {/* Info clôture (lecture seule, visible en mode CLOTURE) */}

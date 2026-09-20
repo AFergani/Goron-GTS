@@ -12,10 +12,10 @@ import type { NotifyToast } from "../../common/model/toast.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import {
-  rondeOriginKindShortFr,
   rondeOriginSummaryFr,
   rondeStatusLabelFr,
-  rondeStatusTone
+  rondeStatusTone,
+  rondeTableOriginParts
 } from "../export/rondeExportFormat";
 
 function plannedKindTone(kind: RondePlannedRoundKind): "opening" | "closing" | "random" {
@@ -29,14 +29,14 @@ function formatRequestDate(dateIso: string) {
   return formatDateShortFr(dateIso) || "—";
 }
 
-function normalizeOriginDetail(entry: RondeEntry): string {
-  const raw = (entry.originDetail || "").trim();
-  if (!raw) return "—";
-  const normalized = raw.toLowerCase();
-  if (normalized === "planifiée" || normalized === "planifiee") {
-    return "—";
-  }
-  return raw;
+function RondeOriginCell({ entry }: { entry: RondeEntry }) {
+  const { badge, detail } = rondeTableOriginParts(entry);
+  return (
+    <div className="ronde-origin-cell">
+      <span className="ronde-origin-badge">{badge}</span>
+      <span className="ronde-origin-detail">{detail}</span>
+    </div>
+  );
 }
 
 type RondeSortKey =
@@ -55,7 +55,7 @@ type RondeTableProps = {
   onOpenProfile?: (profileId: string) => void;
   /** Ouvre la demande liée (rondes exceptionnelles). */
   onOpenLinkedDemand?: (entry: RondeEntry) => void;
-  /** Colonne Origine (masquée en contractuel : toujours télésurveillance). */
+  /** Colonne Origine (masquée en contractuel). */
   showOrigin?: boolean;
   onNotify?: NotifyToast;
 };
@@ -71,7 +71,8 @@ export function RondeTable({
 }: RondeTableProps) {
   const comparators: Record<RondeSortKey, (a: RondeEntry, b: RondeEntry) => number> = {
     dailyCode: (a: RondeEntry, b: RondeEntry) => (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
-    requestDate: (a: RondeEntry, b: RondeEntry) => a.requestDate.localeCompare(b.requestDate),
+    requestDate: (a: RondeEntry, b: RondeEntry) =>
+      a.requestDate.localeCompare(b.requestDate) || (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr"),
     siteDisplay: (a: RondeEntry, b: RondeEntry) => (a.siteDisplay || "").localeCompare(b.siteDisplay || "", "fr"),
     origin: (a: RondeEntry, b: RondeEntry) =>
       rondeOriginSummaryFr(a).localeCompare(rondeOriginSummaryFr(b), "fr"),
@@ -82,13 +83,13 @@ export function RondeTable({
 
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<RondeEntry, RondeSortKey>(entries, comparators, {
     key: "requestDate",
-    direction: "desc"
+    direction: "asc"
   });
 
   const sortLabel = (key: RondeSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   if (!entries.length) {
-    return <p className="muted">Aucune ronde.</p>;
+    return <p className="muted">Aucune ronde à afficher.</p>;
   }
 
   return (
@@ -148,15 +149,7 @@ export function RondeTable({
               </td>
               {showOrigin ? (
                 <td>
-                  <div className="ronde-origin-cell">
-                    <span className="ronde-origin-badge">{rondeOriginKindShortFr(entry.originKind)}</span>
-                    <span className="ronde-origin-detail">
-                      {entry.originKind === "TELESURVEILLANCE"
-                        ? normalizeOriginDetail(entry)
-                        : entry.originDetail?.trim() || (entry.originKind === "CLIENT" ? "Sans précision" : "Sans précision")}
-                      {entry.source === "LIEE_INTERVENTION" ? " · liée int." : ""}
-                    </span>
-                  </div>
+                  <RondeOriginCell entry={entry} />
                 </td>
               ) : null}
               <td>{entry.intervenantName || "—"}</td>

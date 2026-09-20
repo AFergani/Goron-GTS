@@ -5,6 +5,7 @@
 import { RANDOM_PERIOD_DAY, RANDOM_PERIOD_NIGHT, type RondePlannedProfileLinePayload } from "../model/rondePlanned.types";
 import {
   hasCompleteRandomWindow,
+  isChosenRoundKindDraft,
   parseDraftIntervalMinutes,
   parseDraftRoundsCount,
   type LineDraft
@@ -14,11 +15,12 @@ export function buildRondeProfileLinesFromDrafts(
   lines: LineDraft[],
   motifTypeId: string
 ): RondePlannedProfileLinePayload[] {
-  return lines.map((ln) => {
+  return lines.flatMap((ln) => {
+    if (!isChosenRoundKindDraft(ln.roundKind)) return [];
     const intervalMinutes = parseDraftIntervalMinutes(ln);
     const roundsCount = parseDraftRoundsCount(ln);
     const hasWindow = hasCompleteRandomWindow(ln);
-    return {
+    return [{
       ...(ln.id ? { id: ln.id } : {}),
       roundKind: ln.roundKind,
       recurrenceKind: "WEEKLY",
@@ -35,6 +37,6 @@ export function buildRondeProfileLinesFromDrafts(
       includeHolidayEves: Boolean(ln.includeHolidayEves),
       rangeStartDate: null,
       rangeEndDate: null
-    };
+    }];
   });
 }

@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
+import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 import type { MainCouranteEntry } from "../model/mainCourante.types";
 import { MainCouranteEntryModal, type EntryModalMode } from "../components/MainCouranteEntryModal";
 import { MainCouranteTable } from "../components/MainCouranteTable";
@@ -26,7 +27,10 @@ import { useWorkstationExports } from "../../common/hooks/useWorkstationExports"
 import { WORKSTATION_EXPORT_KEYS, wordExportKey } from "../../common/utils/workstationExportPaths";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 
-const MAIN_COURANTE_FILTERS_STORAGE_KEY = "mainCourante.filters.v1";
+const MAIN_COURANTE_FILTERS_STORAGE_KEY_V1 = "mainCourante.filters.v1";
+const MAIN_COURANTE_FILTERS_STORAGE_KEY = "mainCourante.filters.v2";
+
+const MAIN_COURANTE_STATUS_FILTERS = new Set(["OPEN", "TOUS", "EN_ATTENTE", "EN_COURS", "CLOTURE"]);
 
 type MainCourantePersistedFiltersV1 = {
   search?: string;
@@ -38,6 +42,33 @@ type MainCourantePersistedFiltersV1 = {
   managerFilter?: string;
   pageSize?: number;
 };
+
+/**
+ * v1 persistait l’ancien défaut « Tous » (`""` puis `"TOUS"`) dès l’ouverture de la page.
+ * On le ramène à « Ouverts ». Un « Tous » choisi après migration (v2) est conservé.
+ */
+function resolvePersistedStatusFilter(raw: unknown, fromV1: boolean): string {
+  if (fromV1 && (raw === "" || raw === "TOUS")) return "OPEN";
+  if (typeof raw === "string" && MAIN_COURANTE_STATUS_FILTERS.has(raw)) return raw;
+  return "OPEN";
+}
+
+function readPersistedMainCouranteFilters(): { values: MainCourantePersistedFiltersV1; fromV1: boolean } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v2Raw = window.localStorage.getItem(MAIN_COURANTE_FILTERS_STORAGE_KEY);
+    if (v2Raw) {
+      return { values: JSON.parse(v2Raw) as MainCourantePersistedFiltersV1, fromV1: false };
+    }
+    const v1Raw = window.localStorage.getItem(MAIN_COURANTE_FILTERS_STORAGE_KEY_V1);
+    if (v1Raw) {
+      return { values: JSON.parse(v1Raw) as MainCourantePersistedFiltersV1, fromV1: true };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 type MainCourantePageProps = {
   operatorName: string;
@@ -211,25 +242,24 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(MAIN_COURANTE_FILTERS_STORAGE_KEY);
-      if (!raw) {
+      const stored = readPersistedMainCouranteFilters();
+      if (!stored) {
         setFiltersHydrated(true);
         return;
       }
-      const parsed = JSON.parse(raw) as MainCourantePersistedFiltersV1;
+      const parsed = stored.values;
       filters.setSearch(typeof parsed.search === "string" ? parsed.search : "");
       filters.setDateFrom(typeof parsed.dateFrom === "string" ? parsed.dateFrom : "");
       filters.setDateTo(typeof parsed.dateTo === "string" ? parsed.dateTo : "");
       setTypeFilterRaw(typeof parsed.typeFilter === "string" ? parsed.typeFilter : "");
-      {
-        const savedStatus = typeof parsed.statusFilter === "string" ? parsed.statusFilter : "OPEN";
-        // Ancien défaut « Tous » (`""`) → ouverts (En attente + En cours).
-        setStatusFilterRaw(savedStatus === "" ? "OPEN" : savedStatus);
-      }
+      setStatusFilterRaw(resolvePersistedStatusFilter(parsed.statusFilter, stored.fromV1));
       setOperatorFilterRaw(typeof parsed.operatorFilter === "string" ? parsed.operatorFilter : "all");
       setManagerFilterRaw(typeof parsed.managerFilter === "string" ? parsed.managerFilter : "all");
       if (typeof parsed.pageSize === "number" && Number.isFinite(parsed.pageSize)) {
         filters.setPageSize(parsed.pageSize);
+      }
+      if (stored.fromV1) {
+        window.localStorage.removeItem(MAIN_COURANTE_FILTERS_STORAGE_KEY_V1);
       }
     } catch {
       // Ignorer une éventuelle valeur corrompue.
@@ -353,31 +383,33 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
           </TableFiltersBar>
         </div>
         {referencesLoading && !anomalyTypes.length ? <p className="muted" style={{ marginTop: 8 }}>Chargement des types…</p> : null}
-        {loading ? <p className="muted main-log-loading">Chargement de la main courante…</p> : null}
-        <MainCouranteTable
-          entries={pagedEntries}
-          anomalyTypes={anomalyTypes}
-          currentOperatorName={operatorName}
-          isManager={isManager}
-          onNotify={onToast}
-          onEditEntry={openEdit}
-          onManagerTreat={openManager}
-          onViewEntry={openView}
-        />
-        <TablePaginationBar
-          currentPage={filters.currentPage}
-          totalPages={totalPages}
-          totalItems={filteredEntries.length}
-          pageSize={filters.pageSize}
-          onPageChange={filters.setCurrentPage}
-          onPageSizeChange={filters.setPageSize}
-        />
+        <ListLoadingOverlay loading={loading}>
+          <MainCouranteTable
+            entries={pagedEntries}
+            anomalyTypes={anomalyTypes}
+            currentOperatorName={operatorName}
+            isManager={isManager}
+            onNotify={onToast}
+            onEditEntry={openEdit}
+            onManagerTreat={openManager}
+            onViewEntry={openView}
+          />
+          <TablePaginationBar
+            currentPage={filters.currentPage}
+            totalPages={totalPages}
+            totalItems={filteredEntries.length}
+            pageSize={filters.pageSize}
+            onPageChange={filters.setCurrentPage}
+            onPageSizeChange={filters.setPageSize}
+          />
+        </ListLoadingOverlay>
       </section>
 
       <MainCouranteEntryModal
         isOpen={actionModalOpen}
         mode={actionModalMode}
         operatorName={operatorName}
+        requesterRole={requesterRole}
         entry={activeEntry}
         managerDisplayName={operatorName}
         sites={sites}

@@ -19,6 +19,7 @@ import { prepareRondeRequestLinesForSubmit } from "../utils/prepareRondeRequestL
 import { buildRondePlanningSnapshotFromDrafts } from "../utils/buildRondePlanningSnapshotFromDrafts";
 import { validateRondeRequestLines } from "../utils/validateRondeRequestLines";
 import { normalizeRondeHmOr } from "../utils/rondeDateTime";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { RondeRequestMetaSection } from "./RondeRequestMetaSection";
 import { RondeRequestValiditySection } from "./RondeRequestValiditySection";
 import { RondeRequestLineEditor } from "./RondeRequestLineEditor";
@@ -67,6 +68,7 @@ type RondeRequestModalProps = {
     report: string;
     source: "URGENCE" | "LIEE_INTERVENTION";
     originInterventionId?: string | null;
+    closureCustomValues?: Record<string, string>;
     /** Même valeur pour tout un lot créé depuis la même saisie. */
     requestPlanningSnapshotJson?: string | null;
     requestBatchId?: string | null;
@@ -130,7 +132,24 @@ type RondeRequestModalProps = {
   } | null;
   onCreatePendingSite?: (code: string, name: string) => Promise<boolean>;
   onCreatePendingIntervenant?: (name: string) => Promise<boolean>;
+  /** Ouvre l’intervention d’origine (demande suite à une intervention). */
+  onNavigateToLinkedIntervention?: (interventionId: string) => void;
 };
+
+/** Identifiant d’intervention d’origine (création, snapshot ou fiches du lot). */
+function resolveRequestLinkedInterventionId(
+  props: Pick<RondeRequestModalProps, "initialInterventionId" | "replayPlanningSnapshot" | "linkedBatchEntries">
+): string | null {
+  const fromInitial = String(props.initialInterventionId || "").trim();
+  if (fromInitial) return fromInitial;
+  const fromSnapshot = String(props.replayPlanningSnapshot?.originInterventionId || "").trim();
+  if (fromSnapshot) return fromSnapshot;
+  for (const entry of props.linkedBatchEntries || []) {
+    const id = String(entry.originInterventionId || "").trim();
+    if (id) return id;
+  }
+  return null;
+}
 
 export function RondeRequestModal(props: RondeRequestModalProps) {
   const form = useRondeRequestForm(props);
@@ -193,10 +212,17 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     updateLine,
     addLine,
     exceptionalPreview,
-    lockWeekdaysFromValidityRange
+    lockWeekdaysFromValidityRange,
+    requestExtraDefs,
+    extraValues,
+    setExtraValues
   } = form;
 
   if (!props.isOpen) return null;
+
+  const linkedInterventionId = resolveRequestLinkedInterventionId(props);
+  const canNavigateLinkedIntervention =
+    Boolean(linkedInterventionId) && Boolean(props.onNavigateToLinkedIntervention);
 
   const onSubmit = async () => {
     if (isProgrammingReadOnly) return;
@@ -246,6 +272,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     const validEndMs = parseDateTimeSafeMs(effectiveValidTo || validFrom.trim(), validToTimeNorm);
     if (validStartMs == null || validEndMs == null || validEndMs < validStartMs) {
       return setError("La période de validité est invalide (date/heure de fin < date/heure de début).");
+    }
+    const requestMs = parseDateTimeSafeMs(requestDate.trim(), requestTimeNorm);
+    if (requestMs != null && requestMs > validStartMs) {
+      return setError("La date et l'heure de la demande ne peuvent pas être postérieures au début de validité.");
     }
     const linesError = validateRondeRequestLines(linesForSubmit, {
       requireValidityEndForIntervalWithoutWindow: !isContract && !isEdit,
@@ -340,7 +370,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             workOrderNumber: "",
             report: "",
             requestPlanningSnapshotJson,
-            requestBatchId
+            requestBatchId,
+            closureCustomValues: extraValues
           });
           if (!ok) {
             allOk = false;
@@ -393,7 +424,9 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                 ? "Consulter la programmation"
                 : isEdit
                   ? "Modifier la programmation"
-                  : "Planifier une ronde"}
+                  : isContract
+                    ? "Nouvelle planification"
+                    : "Nouvelle Ronde"}
           </h3>
           <div className="row-actions">
             {props.navigateBack ? (
@@ -405,6 +438,21 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                 onClick={props.navigateBack.onNavigate}
               >
                 {props.navigateBack.label}
+              </button>
+            ) : null}
+            {canNavigateLinkedIntervention && linkedInterventionId ? (
+              <button
+                type="button"
+                className="btn-light"
+                title="Ouvrir l'intervention liée"
+                aria-label="Intervention liée"
+                onClick={() => {
+                  if (!props.onNavigateToLinkedIntervention) return;
+                  props.onNavigateToLinkedIntervention(linkedInterventionId);
+                  props.onClose();
+                }}
+              >
+                Intervention liée
               </button>
             ) : null}
             <button type="button" className="mc-modal-close" onClick={props.onClose} aria-label="Fermer">
@@ -469,7 +517,27 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               setShowPendingIntervenantForm(false);
               setPendingIntervenantName("");
             }}
+            besideConsigne={
+              requestExtraDefs.length === 1 ? (
+                <FormVariableFields
+                  defs={requestExtraDefs}
+                  values={extraValues}
+                  onValuesChange={setExtraValues}
+                  disabled={isProgrammingReadOnly || isEdit}
+                  compact
+                />
+              ) : null
+            }
           />
+          {requestExtraDefs.length > 1 ? (
+            <FormVariableFields
+              defs={requestExtraDefs}
+              values={extraValues}
+              onValuesChange={setExtraValues}
+              disabled={isProgrammingReadOnly || isEdit}
+              title="Champs de la demande"
+            />
+          ) : null}
           <RondeRequestValiditySection
             validFrom={validFrom}
             validFromTime={validFromTime}

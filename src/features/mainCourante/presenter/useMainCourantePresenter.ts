@@ -86,7 +86,8 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         siteDisplay: payload.siteDisplay,
         anomalyTypeId: payload.anomalyTypeId,
         anomalyTypeLabel: payload.anomalyTypeLabel,
-        information: payload.information
+        information: payload.information,
+        exportExtraValues: payload.exportExtraValues
       });
       await loadEntries(true);
       return true;
@@ -112,7 +113,8 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         siteDisplay: payload.siteDisplay,
         anomalyTypeId: payload.anomalyTypeId,
         anomalyTypeLabel: payload.anomalyTypeLabel,
-        information: payload.information
+        information: payload.information,
+        exportExtraValues: payload.exportExtraValues
       });
       await loadEntries(true);
       return true;
@@ -128,12 +130,14 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
       managerName,
       managerObservation,
       decision,
-      expectedUpdatedAt
+      expectedUpdatedAt,
+      exportExtraValues
     }: {
       managerName: string;
       managerObservation: string;
       decision: "suivre" | "cloture";
       expectedUpdatedAt: string;
+      exportExtraValues?: Record<string, string>;
     }
   ): Promise<boolean> => {
     try {
@@ -144,7 +148,8 @@ export function useMainCourantePresenter(currentOperator: string, options: MainC
         expectedUpdatedAt,
         managerName,
         managerObservation,
-        decision
+        decision,
+        exportExtraValues
       });
       await loadEntries(true);
       return true;

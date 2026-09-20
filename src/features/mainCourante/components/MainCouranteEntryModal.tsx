@@ -10,16 +10,18 @@ import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyBu
 import { SearchEntry } from "../../common/components/SearchEntry";
 import type { MainCouranteCreatePayload, MainCouranteEntry, MainCouranteSavePayload } from "../model/mainCourante.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
-import type { AnomalyTypeRef, SiteRef } from "../../../types";
+import type { AnomalyTypeRef, Role, SiteRef } from "../../../types";
 import { createPendingSiteIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
-import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
+import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
-import { formatMainCouranteDateOrDash } from "../export/mainCouranteExportFormat";
+import { splitIsoToLocalDateTime } from "../../common/utils/localDateIso";
 import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 
 export type EntryModalMode = "create" | "edit" | "manager" | "view";
@@ -28,6 +30,7 @@ type MainCouranteEntryModalProps = {
   isOpen: boolean;
   mode: EntryModalMode;
   operatorName: string;
+  requesterRole: Role;
   /** Obligatoire si mode édition/manager */
   entry: MainCouranteEntry | null;
   managerDisplayName: string;
@@ -43,7 +46,11 @@ type MainCouranteEntryModalProps = {
   onUpdate?: (id: string, payload: MainCouranteSavePayload, expectedUpdatedAt: string) => Promise<boolean>;
   onManagerAction?: (
     entry: MainCouranteEntry,
-    payload: { managerObservation: string; decision: "suivre" | "cloture" }
+    payload: {
+      managerObservation: string;
+      decision: "suivre" | "cloture";
+      exportExtraValues?: Record<string, string>;
+    }
   ) => Promise<boolean>;
   onReopenEntry?: (entry: MainCouranteEntry) => Promise<boolean>;
   onSaveWord?: (entry: MainCouranteEntry) => void;
@@ -56,6 +63,7 @@ function buildPayload(
   anomalyTypeId: string,
   anomalyTypes: AnomalyTypeRef[],
   information: string,
+  extraValues: Record<string, string>,
   freshSiteDisplay?: string | null
 ): MainCouranteSavePayload | null {
   const typ = anomalyTypes.find((t) => t.id === anomalyTypeId);
@@ -66,7 +74,8 @@ function buildPayload(
       siteDisplay: formatSiteSelectedLabel(selectedSite),
       anomalyTypeId: typ.id,
       anomalyTypeLabel: typ.label,
-      information: information.trim()
+      information: information.trim(),
+      exportExtraValues: extraValues
     };
   }
   return {
@@ -74,7 +83,8 @@ function buildPayload(
     siteDisplay: (freshSiteDisplay ?? "").trim(),
     anomalyTypeId: typ.id,
     anomalyTypeLabel: typ.label,
-    information: information.trim()
+    information: information.trim(),
+    exportExtraValues: extraValues
   };
 }
 
@@ -82,6 +92,7 @@ export function MainCouranteEntryModal({
   isOpen,
   mode,
   operatorName,
+  requesterRole,
   entry,
   managerDisplayName,
   sites,
@@ -101,16 +112,29 @@ export function MainCouranteEntryModal({
   getWordFilePath
 }: MainCouranteEntryModalProps) {
   const [selectedSite, setSelectedSite] = useState<SiteRef | null>(null);
-  const [dateCouranteAffichee, setDateCouranteAffichee] = useState(() => formatMainCouranteDateOrDash(new Date().toISOString()));
+  const [createdAtIso, setCreatedAtIso] = useState(() => new Date().toISOString());
   const [anomalyTypeId, setAnomalyTypeId] = useState("");
   const [information, setInformation] = useState("");
-  const [priseEnCompteAffichee, setPriseEnCompteAffichee] = useState("");
+  const [priseEnCompteIso, setPriseEnCompteIso] = useState("");
   const [managerObservation, setManagerObservation] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [isActionSubmitting, setIsActionSubmitting] = useState(false);
   const [pendingCode, setPendingCode] = useState("");
   const [pendingName, setPendingName] = useState("");
   const [showPendingSiteForm, setShowPendingSiteForm] = useState(false);
+  const extrasSite = useMemo(() => {
+    if (selectedSite) return selectedSite;
+    if (!entry?.siteId) return null;
+    return sites.find((site) => site.id === entry.siteId) ?? null;
+  }, [selectedSite, entry?.siteId, sites]);
+  const extras = useFormVariableFields({
+    isOpen,
+    requesterRole,
+    formTarget: "MAIN_COURANTE",
+    site: extrasSite,
+    seedValues: mode === "create" ? {} : entry?.exportExtraValues,
+    seedKey: mode === "create" ? "create" : `${mode}:${entry?.id || ""}`
+  });
   const isViewMode = mode === "view";
   const wordFileButtons =
     entry && onSaveWord && onOpenWord ? (
@@ -129,7 +153,7 @@ export function MainCouranteEntryModal({
     setFieldError("");
     if (mode !== "create") return;
     // En création, ne pas réinitialiser le formulaire à chaque auto-refresh des référentiels.
-    setDateCouranteAffichee(formatMainCouranteDateOrDash(new Date().toISOString()));
+    setCreatedAtIso(new Date().toISOString());
     setSelectedSite(null);
     setAnomalyTypeId("");
     setInformation("");
@@ -169,9 +193,9 @@ export function MainCouranteEntryModal({
       setManagerObservation("");
     }
     if (mode === "manager" && entry.status === "EN_ATTENTE") {
-      setPriseEnCompteAffichee(formatMainCouranteDateOrDash(new Date().toISOString()));
+      setPriseEnCompteIso(new Date().toISOString());
     } else {
-      setPriseEnCompteAffichee(formatMainCouranteDateOrDash(entry.priseEnCompteAt));
+      setPriseEnCompteIso(entry.priseEnCompteAt || "");
     }
   }, [isOpen, mode, entry?.id]);
 
@@ -186,9 +210,7 @@ export function MainCouranteEntryModal({
           : "Suivi / clôture",
     entry?.dailyCode
   );
-  const secondColumnLabel = "Date de création";
-  const secondColumnValue = mode === "edit" && entry ? formatMainCouranteDateOrDash(entry.createdAt) : dateCouranteAffichee;
-
+  const createdAtParts = splitIsoToLocalDateTime(mode === "edit" && entry ? entry.createdAt : createdAtIso);
   const missingTypes = !referencesLoading && anomalyTypes.length === 0;
 
   const submit = async (e: FormEvent) => {
@@ -204,7 +226,7 @@ export function MainCouranteEntryModal({
       return;
     }
     if (!information.trim()) {
-      setFieldError("L'observation (opérateur) est obligatoire.");
+      setFieldError("L'observation est obligatoire.");
       return;
     }
     let freshSiteDisplay: string | undefined;
@@ -224,7 +246,14 @@ export function MainCouranteEntryModal({
       }
     }
 
-    const payload = buildPayload(selectedSite, anomalyTypeId, anomalyTypes, information, freshSiteDisplay);
+    const payload = buildPayload(
+      selectedSite,
+      anomalyTypeId,
+      anomalyTypes,
+      information,
+      extras.values,
+      freshSiteDisplay
+    );
     if (!payload) {
       setFieldError("Type d’anomalie invalide.");
       return;
@@ -265,24 +294,43 @@ export function MainCouranteEntryModal({
     setIsActionSubmitting(true);
     let ok = false;
     try {
-      ok = await onManagerAction(entry, { managerObservation: obs, decision });
+      ok = await onManagerAction(entry, {
+        managerObservation: obs,
+        decision,
+        exportExtraValues: extras.values
+      });
     } finally {
       setIsActionSubmitting(false);
     }
     if (ok) onClose();
   };
 
+  const defaultAnomalyTypeId = useMemo(() => getDefaultSystemRefId(anomalyTypes), [anomalyTypes]);
+
   const isMainCouranteCreateDirty = useMemo(() => {
     if (mode !== "create") return false;
+    const typeChangedFromDefault = Boolean(anomalyTypeId && defaultAnomalyTypeId && anomalyTypeId !== defaultAnomalyTypeId);
+    const extrasFilled = Object.values(extras.values).some((value) => String(value || "").trim());
     return Boolean(
       information.trim() ||
-        anomalyTypeId ||
+        typeChangedFromDefault ||
         selectedSite ||
         pendingCode.trim() ||
         pendingName.trim() ||
-        showPendingSiteForm
+        showPendingSiteForm ||
+        extrasFilled
     );
-  }, [mode, information, anomalyTypeId, selectedSite, pendingCode, pendingName, showPendingSiteForm]);
+  }, [
+    mode,
+    information,
+    anomalyTypeId,
+    defaultAnomalyTypeId,
+    selectedSite,
+    pendingCode,
+    pendingName,
+    showPendingSiteForm,
+    extras.values
+  ]);
 
   const createCloseGuard = useCreateModalCloseGuard({
     enabled: mode === "create",
@@ -298,10 +346,12 @@ export function MainCouranteEntryModal({
 
   if (mode === "manager" || mode === "view") {
     if (!entry || (mode === "manager" && entry.status === "CLOTURE")) return null;
-    const dateClotureAffichee = formatMainCouranteDateOrDash(entry.closedAt);
+    const createdParts = splitIsoToLocalDateTime(entry.createdAt);
+    const priseParts = splitIsoToLocalDateTime(priseEnCompteIso);
+    const clotureParts = splitIsoToLocalDateTime(entry.closedAt);
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <section className="modal main-log-modal main-courante-manager-modal" onClick={(ev) => ev.stopPropagation()}>
+        <section className="modal main-log-modal main-courante-entry-modal main-courante-manager-modal" onClick={(ev) => ev.stopPropagation()}>
           <header className="mc-modal-head mc-modal-head-compact">
             <h3 className="mc-modal-title">{title}</h3>
             <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={onClose}>
@@ -312,28 +362,39 @@ export function MainCouranteEntryModal({
           <div className="mc-field-section mc-field-section-tight">
             <div className="mc-op-readonly-block">
               <p className="mc-block-title">Données opérateur (lecture seule)</p>
-              <div className="mc-form-grid mc-form-grid-main">
+              <div className="request-head-row">
+                <RequestDateTimeField
+                  date={createdParts.date}
+                  time={createdParts.time}
+                  label="Date de création"
+                  disabled
+                />
                 <label className="mc-field">
                   <span>Opérateur</span>
                   <input value={entry.operatorName} readOnly className="mc-input-readonly" />
                 </label>
                 <label className="mc-field">
-                  <span>Date de création</span>
-                  <input value={formatMainCouranteDateOrDash(entry.createdAt)} readOnly className="mc-input-readonly" />
-                </label>
-                <label className="mc-field">
                   <span>Site</span>
                   <SiteDisplayCopyButton siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
                 </label>
+              </div>
+              <div className="mc-form-grid mc-form-grid-main">
                 <label className="mc-field">
                   <span>Type d’anomalie</span>
                   <input value={entry.anomalyTypeLabel} readOnly className="mc-input-readonly" />
                 </label>
                 <label className="mc-field mc-field-span-2">
-                  <span>Information</span>
+                  <span>Observation</span>
                   <textarea value={entry.information} readOnly className="mc-textarea mc-textarea-readonly" rows={4} />
                 </label>
               </div>
+              <FormVariableFields
+                defs={extras.requestDefs}
+                values={extras.values}
+                onValuesChange={extras.setValues}
+                disabled
+                title="Champs de la demande"
+              />
             </div>
 
             <div className="mc-manager-block">
@@ -357,20 +418,20 @@ export function MainCouranteEntryModal({
                     </span>
                     <input value={isViewMode ? entry.managerName || "—" : managerDisplayName} readOnly className="mc-input-readonly" />
                   </label>
-                  <label className="mc-field">
-                    <span className="mc-label-row">
-                      <span>Prise en compte</span>
-                      <span className="mc-badge">auto</span>
-                    </span>
-                    <input value={priseEnCompteAffichee} readOnly className="mc-input-readonly" />
-                  </label>
-                  <label className="mc-field">
-                    <span className="mc-label-row">
-                      <span>Date de clôture</span>
-                      <span className="mc-badge">auto</span>
-                    </span>
-                    <input value={dateClotureAffichee} readOnly className="mc-input-readonly" />
-                  </label>
+                  <RequestDateTimeField
+                    date={priseParts.date}
+                    time={priseParts.time}
+                    label="Prise en compte"
+                    disabled
+                    dateLabelExtra={<span className="mc-badge">auto</span>}
+                  />
+                  <RequestDateTimeField
+                    date={clotureParts.date}
+                    time={clotureParts.time}
+                    label="Date de clôture"
+                    disabled
+                    dateLabelExtra={<span className="mc-badge">auto</span>}
+                  />
                 </div>
 
                 <label className="mc-field mc-field-full">
@@ -391,6 +452,12 @@ export function MainCouranteEntryModal({
                     readOnly={isViewMode}
                   />
                 </label>
+                <FormVariableFields
+                  defs={extras.closureDefs}
+                  values={extras.values}
+                  onValuesChange={extras.setValues}
+                  disabled={isViewMode || isActionSubmitting}
+                />
 
                 {fieldError ? <p className="error mc-field-error">{fieldError}</p> : null}
 
@@ -466,81 +533,90 @@ export function MainCouranteEntryModal({
           ) : null}
 
           <form className="mc-entry-form" onSubmit={submit}>
-            <CreateFormSection title="Date de création">
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field">
-                  <span>Opérateur</span>
-                  <input value={operatorName} readOnly className="mc-input-readonly" />
-                </label>
-                <label className="mc-field">
-                  <span>{secondColumnLabel}</span>
-                  <input value={secondColumnValue} readOnly className="mc-input-readonly" />
-                </label>
-              </div>
-            </CreateFormSection>
-
-            {mode === "create" ? (
-              <SearchEntry
-                sites={sites}
-                selectedSite={selectedSite}
-                onSelectedSiteChange={(site) => {
-                  setSelectedSite(site);
-                  if (site) {
-                    setShowPendingSiteForm(false);
-                    setPendingCode("");
-                    setPendingName("");
-                  }
-                }}
-                showPendingSiteForm={showPendingSiteForm}
-                onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
-                pendingSiteForm={(
-                  <div className="mc-form-grid mc-form-grid-main">
-                    <label className="mc-field">
-                      <span>Nouveau code site</span>
-                      <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                    </label>
-                    <label className="mc-field">
-                      <span>Nouveau nom de site</span>
-                      <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                    </label>
-                  </div>
-                )}
-                showIntervenantField={false}
-                onNotify={onNotify}
-                showSiteAction={!selectedSite}
+            <div className="request-head-row">
+              <RequestDateTimeField
+                date={createdAtParts.date}
+                time={createdAtParts.time}
+                label="Date de création"
+                disabled
               />
-            ) : (
-              <div className="mc-form-grid mc-form-grid-main">
-                <SiteDisplayCopyButton
-                  siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+              <label className="mc-field">
+                <span>Opérateur</span>
+                <input value={operatorName} readOnly className="mc-input-readonly" />
+              </label>
+              {mode === "create" ? (
+                <SearchEntry
+                  className="request-head-row__refs"
+                  sites={sites}
+                  selectedSite={selectedSite}
+                  onSelectedSiteChange={(site) => {
+                    setSelectedSite(site);
+                    if (site) {
+                      setShowPendingSiteForm(false);
+                      setPendingCode("");
+                      setPendingName("");
+                    }
+                  }}
+                  showPendingSiteForm={showPendingSiteForm}
+                  onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
+                  pendingSiteForm={(
+                    <div className="mc-form-grid mc-form-grid-main">
+                      <label className="mc-field">
+                        <span>Nouveau code site</span>
+                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
+                      </label>
+                      <label className="mc-field">
+                        <span>Nouveau nom de site</span>
+                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+                      </label>
+                    </div>
+                  )}
+                  showIntervenantField={false}
                   onNotify={onNotify}
+                  showSiteAction={!selectedSite}
                 />
-              </div>
-            )}
+              ) : (
+                <div className="request-head-row__refs">
+                  <label className="mc-field">
+                    <span>Site</span>
+                    <SiteDisplayCopyButton
+                      siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+                      onNotify={onNotify}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
-            <CreateFormSection title="Type et observation (opérateur)">
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field mc-field-full">
-                  <span>Type d’anomalie</span>
-                  <select
-                    value={anomalyTypeId}
-                    onChange={(e) => setAnomalyTypeId(e.target.value)}
-                    disabled={referencesLoading || anomalyTypes.length === 0}
-                    required
-                  >
-                    {referencesLoading && !anomalyTypes.length ? (
-                      <option value="">Chargement…</option>
-                    ) : null}
-                    {anomalyTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+            <div className="mc-form-grid mc-form-grid-main">
               <label className="mc-field mc-field-full">
-                <span>Observation (opérateur)</span>
+                <span>Type d’anomalie</span>
+                <select
+                  value={anomalyTypeId}
+                  onChange={(e) => setAnomalyTypeId(e.target.value)}
+                  disabled={referencesLoading || anomalyTypes.length === 0}
+                  required
+                >
+                  {referencesLoading && !anomalyTypes.length ? (
+                    <option value="">Chargement…</option>
+                  ) : null}
+                  {anomalyTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div
+              className={
+                extras.requestDefs.length === 1
+                  ? "request-motif-row request-motif-row--with-extra"
+                  : undefined
+              }
+            >
+              <label className={`mc-field ${extras.requestDefs.length === 1 ? "request-motif-row__motif" : "mc-field-full"}`}>
+                <span>Observation</span>
                 <textarea
                   className="mc-textarea"
                   value={information}
@@ -549,7 +625,23 @@ export function MainCouranteEntryModal({
                   required
                 />
               </label>
-            </CreateFormSection>
+              {extras.requestDefs.length === 1 ? (
+                <FormVariableFields
+                  defs={extras.requestDefs}
+                  values={extras.values}
+                  onValuesChange={extras.setValues}
+                  compact
+                />
+              ) : null}
+            </div>
+            {extras.requestDefs.length > 1 ? (
+              <FormVariableFields
+                defs={extras.requestDefs}
+                values={extras.values}
+                onValuesChange={extras.setValues}
+                title="Champs de la demande"
+              />
+            ) : null}
 
             {fieldError ? <p className="error mc-field-error">{fieldError}</p> : null}
 

@@ -21,7 +21,7 @@ export function HelpSettingsOperatorsTopic() {
           jamais attribuer un niveau supérieur au vôtre. Le compte Admin n&apos;est administrable par personne.
         </p>
         <div className="help-center-table-wrap">
-          <table className="help-center-table">
+          <table className="help-center-table help-center-table--profile">
             <thead>
               <tr>
                 <th scope="col">Votre profil</th>

@@ -6,6 +6,8 @@
  * @module electron/store/domains/mainCourante/mapping
  */
 
+const { parseExportExtraJson } = require("../../core/exportExtraJson");
+
 /**
  * Colonnes métier de `main_courante_entries` (évite `SELECT *`).
  *
@@ -14,7 +16,7 @@
 const MAIN_COURANTE_ENTRY_SELECT = `id, created_at, updated_at, operator_name, site_id, site_display,
   anomaly_type_id, anomaly_type_label, information, status, manager_observation, manager_name,
   consulted_by_manager_at, consulted_by_manager_name, consulted_by_operator_at,
-  prise_en_compte_at, closed_at, daily_code`;
+  prise_en_compte_at, closed_at, daily_code, export_extra_json`;
 
 /**
  * Identifiant d'entrée (trim). Obligatoire aussi à la création (id client).
@@ -122,7 +124,8 @@ function mapMainCouranteRow(row) {
     consultedByOperatorAt: row.consulted_by_operator_at || undefined,
     priseEnCompteAt: row.prise_en_compte_at || undefined,
     closedAt: row.closed_at || undefined,
-    dailyCode: row.daily_code || ""
+    dailyCode: row.daily_code || "",
+    exportExtraValues: parseExportExtraJson(row.export_extra_json)
   };
 }
 

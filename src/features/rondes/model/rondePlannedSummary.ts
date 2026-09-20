@@ -7,14 +7,42 @@ import { RANDOM_PERIOD_DAY } from "./rondePlanned.types";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 
 export const RONDE_WEEKDAY_BITS = [
-  { bit: 1, label: "Lun" },
-  { bit: 2, label: "Mar" },
-  { bit: 4, label: "Mer" },
-  { bit: 8, label: "Jeu" },
-  { bit: 16, label: "Ven" },
-  { bit: 32, label: "Sam" },
-  { bit: 64, label: "Dim" }
+  { bit: 1, label: "Lun", longLabel: "lundi" },
+  { bit: 2, label: "Mar", longLabel: "mardi" },
+  { bit: 4, label: "Mer", longLabel: "mercredi" },
+  { bit: 8, label: "Jeu", longLabel: "jeudi" },
+  { bit: 16, label: "Ven", longLabel: "vendredi" },
+  { bit: 32, label: "Sam", longLabel: "samedi" },
+  { bit: 64, label: "Dim", longLabel: "dimanche" }
 ] as const;
+
+/** Liste française avec « et » devant le dernier élément. */
+export function joinFrenchEt(items: string[]): string {
+  const list = items.map((item) => item.trim()).filter(Boolean);
+  if (list.length <= 1) return list[0] || "";
+  if (list.length === 2) return `${list[0]} et ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")} et ${list[list.length - 1]}`;
+}
+
+/** Jours de la semaine en phrase (« les samedis et dimanches »). */
+export function formatRondeWeekdaysLes(weekdaysMask: number): string {
+  const days: string[] = [];
+  for (const row of RONDE_WEEKDAY_BITS) {
+    if (weekdaysMask & row.bit) days.push(`${row.longLabel}s`);
+  }
+  if (!days.length) return "";
+  return `les ${joinFrenchEt(days)}`;
+}
+
+/** Intervalle en phrase (« toutes les 3 heures »). */
+export function formatRondeIntervalProse(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 1) return "";
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "toutes les heures" : `toutes les ${hours} heures`;
+  }
+  return minutes === 1 ? "toutes les minutes" : `toutes les ${minutes} minutes`;
+}
 
 export function formatRondePlannedRoundKind(kind: RondePlannedRoundKind, randomPeriodMask?: number | null): string {
   if (kind === "RANDOM") {

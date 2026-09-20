@@ -903,7 +903,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           aria-label="Progression de l’import en masse"
         >
           <section
-            className="modal fransor-help-modal data-import-batch-modal"
+            className="modal data-import-batch-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="data-import-batch-label">Import en masse</h3>

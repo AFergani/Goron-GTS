@@ -28,10 +28,11 @@ import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
-import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { RondeEntryRequestSection } from "./RondeEntryRequestSection";
 import { RondeEntryExecutionSection } from "./RondeEntryExecutionSection";
 import { RondeEntryReasonDialogs } from "./RondeEntryReasonDialogs";
+import { InterventionLinkedReadonlyPanel } from "./InterventionLinkedReadonlyPanel";
 import {
   useRondeEntryForm,
   type RondeEntryCreatePreset,
@@ -133,6 +134,7 @@ export function RondeEntryModal({
     plannedProfiles,
     linkedInterventionEntry,
     createPreset,
+    requesterRole,
     onClose
   });
 
@@ -199,7 +201,11 @@ export function RondeEntryModal({
     effectiveLogicalDate,
     hasLogicalDateTransition,
     logicalDateTransitionLabel,
-    createCloseGuard
+    createCloseGuard,
+    requestExtraDefs,
+    closureExtraDefs,
+    extraValues,
+    setExtraValues
   } = form;
 
   if (!isOpen) return null;
@@ -251,7 +257,8 @@ export function RondeEntryModal({
     const execReport = isPureCreateMode ? "" : report.trim();
     const execLogicalDate = isPureCreateMode ? "" : effectiveLogicalDate;
     const nextClosureCustomValues = {
-      ...closureCustomValues
+      ...closureCustomValues,
+      ...extraValues
     };
     if (execLogicalDate) {
       nextClosureCustomValues.date_logique_passage = execLogicalDate;
@@ -460,12 +467,36 @@ export function RondeEntryModal({
         setPendingIntervenantName("");
       }}
       onIntervenantIdChange={setIntervenantId}
+      besideMotif={
+        requestExtraDefs.length === 1 ? (
+          <FormVariableFields
+            defs={requestExtraDefs}
+            values={extraValues}
+            onValuesChange={setExtraValues}
+            disabled={!isCreateMode || formLockedClosed}
+            compact
+          />
+        ) : null
+      }
     />
   );
 
   const formBody = (
     <form className="mc-entry-form" onSubmit={onSubmit}>
-      {!masquerSectionsDemandePlanifiee ? demandeFormSections : null}
+      {!masquerSectionsDemandePlanifiee ? (
+        <>
+          {demandeFormSections}
+          {requestExtraDefs.length > 1 ? (
+            <FormVariableFields
+              defs={requestExtraDefs}
+              values={extraValues}
+              onValuesChange={setExtraValues}
+              disabled={!isCreateMode || formLockedClosed}
+              title="Champs de la demande"
+            />
+          ) : null}
+        </>
+      ) : null}
 
       {showExecutionBlock ? (
         <RondeEntryExecutionSection
@@ -497,6 +528,11 @@ export function RondeEntryModal({
           onReportChange={setReport}
           onIntervenantIdChange={setIntervenantId}
           onClosureCustomValuesChange={setClosureCustomValues}
+          requestExtraDefs={masquerSectionsDemandePlanifiee ? requestExtraDefs : []}
+          closureExtraDefs={closureExtraDefs}
+          extraValues={extraValues}
+          onExtraValuesChange={setExtraValues}
+          requestExtrasReadOnly={!isCreateMode || formLockedClosed}
         />
       ) : (
         <p className="muted mc-ref-hint" style={{ marginTop: 12 }}>

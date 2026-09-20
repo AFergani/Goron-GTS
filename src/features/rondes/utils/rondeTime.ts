@@ -4,8 +4,8 @@
 
 import { isValidTime } from "../../common/utils/timeInput";
 
-/** Regex HH:MM 24h stricte. */
-export const RONDE_TIME_HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Regex HH:MM 24h stricte (heures et minutes capturées). */
+export const RONDE_TIME_HM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 /** Indique si la valeur est une heure HH:MM valide. */
 export function isRondeTimeHm(value: string): boolean {

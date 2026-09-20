@@ -1,7 +1,7 @@
 /**
  * Bloc « Synthèse du mois » partagé (cartes compteurs pages métier).
  *
- * Utilisé par : main courante, interventions, gardiennage.
+ * Utilisé par : main courante, interventions, gardiennage, rondes.
  */
 
 import { getCurrentMonthSummaryTitle } from "../utils/currentMonthSummary";

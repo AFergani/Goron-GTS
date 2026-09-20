@@ -4,14 +4,14 @@
 
 import { useEffect, useState } from "react";
 
-const RONDE_DISPLAY_MODE_STORAGE_KEY = "rondeDisplayModeByService.v1";
+const RONDE_DISPLAY_MODE_STORAGE_KEY = "rondeDisplayModeByService.v2";
 
 export type RondeDisplayModeByService = {
   planifie: "day" | "list";
   urgence: "day" | "list";
 };
 
-const DEFAULT_DISPLAY_MODE: RondeDisplayModeByService = { planifie: "day", urgence: "list" };
+const DEFAULT_DISPLAY_MODE: RondeDisplayModeByService = { planifie: "list", urgence: "list" };
 
 function readStoredDisplayMode(): RondeDisplayModeByService {
   if (typeof window === "undefined") return DEFAULT_DISPLAY_MODE;
@@ -20,7 +20,7 @@ function readStoredDisplayMode(): RondeDisplayModeByService {
     if (!raw) return DEFAULT_DISPLAY_MODE;
     const parsed = JSON.parse(raw) as Partial<RondeDisplayModeByService>;
     return {
-      planifie: parsed.planifie === "list" ? "list" : "day",
+      planifie: parsed.planifie === "day" ? "day" : "list",
       urgence: parsed.urgence === "day" ? "day" : "list"
     };
   } catch {

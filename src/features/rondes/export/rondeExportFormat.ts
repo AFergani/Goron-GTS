@@ -1,9 +1,15 @@
 /**
- * Formatage statut / origine / badges (tableau + exports Excel / Word).
+ * Formatage statut / origine / badges (tableau + export Excel).
  * Aligné sur le pattern `intervention/export/interventionExportFormat.ts`.
  */
 
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import type { RondeEntry } from "../model/ronde.types";
+import { isSuiteInterventionRonde, suiteInterventionClientName } from "../model/requestOrigin";
+import { isRondeTimeHm } from "../utils/rondeTime";
+import { rondePassageKindLabel } from "../utils/rondePassageKindLabel";
+import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";
+import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 
 /** Libellé statut pour tableau et exports. */
 export function rondeStatusLabelFr(entry: RondeEntry, options?: { feminine?: boolean }): string {
@@ -22,26 +28,73 @@ export function rondeStatusTone(status: RondeEntry["status"]): "cloture" | "en-a
   return "en-cours";
 }
 
+/** Badge + détail pour la colonne Origine (tableau exceptionnel). */
+export function rondeTableOriginParts(entry: RondeEntry): { badge: string; detail: string } {
+  if (isSuiteInterventionRonde(entry)) {
+    const clientName = suiteInterventionClientName(entry);
+    return { badge: "Suite intervention", detail: clientName || "Télésurveillance" };
+  }
+  if (entry.originKind === "CLIENT") {
+    const name = String(entry.originDetail || "").trim();
+    return { badge: "Client", detail: name || "Sans précision" };
+  }
+  const extra = String(entry.originDetail || "").trim();
+  return { badge: "Autre", detail: extra || "Sans précision" };
+}
+
 /** Origine courte (exports Excel). */
 export function rondeOriginLabelFr(entry: RondeEntry): string {
   if (entry.source === "PLANIFIE") return "Planifiée";
-  if (entry.originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (entry.originKind === "CLIENT") return "Client";
-  return "Autre";
+  if (entry.originKind === "TELESURVEILLANCE" && !isSuiteInterventionRonde(entry)) return "Planifiée";
+  const { badge, detail } = rondeTableOriginParts(entry);
+  return `${badge} — ${detail}`;
 }
 
-/** Origine courte selon `originKind` (badge tableau, sans cas « Planifiée »). */
-export function rondeOriginKindShortFr(originKind: RondeEntry["originKind"]): string {
-  if (originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (originKind === "CLIENT") return "Client";
-  return "Autre";
-}
-
-/** Origine détaillée (tableau / Word). */
+/** Origine détaillée (tri tableau). */
 export function rondeOriginSummaryFr(entry: RondeEntry): string {
-  if (entry.originKind === "TELESURVEILLANCE") return "Télésurveillance";
-  if (entry.originKind === "CLIENT") {
-    return entry.originDetail.trim() ? `Client — ${entry.originDetail.trim()}` : "Client";
+  const { badge, detail } = rondeTableOriginParts(entry);
+  return `${badge} — ${detail}`;
+}
+
+function isDedicatedRondePassage(entry: RondeEntry): boolean {
+  const kind = String(entry.plannedRoundKind || "").trim().toUpperCase();
+  if (kind === "RANDOM") return false;
+  if (kind === "OPENING" || kind === "CLOSING" || kind === "ACCOMPAGNEMENT") return true;
+  const label = rondePassageKindLabel(entry).toLowerCase();
+  if (/aléatoire|aleatoire/.test(label)) return false;
+  return /ouverture|fermeture|accompagnement/.test(label);
+}
+
+function dedicatedRequestedTimeHm(
+  entry: RondeEntry,
+  profiles?: RondePlannedProfileRef[] | null
+): string {
+  if (!isDedicatedRondePassage(entry)) return "";
+  const fromObs = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i.exec(String(entry.horairesDemandeObs || ""));
+  if (fromObs) return `${fromObs[1]}:${fromObs[2]}`;
+  const snapLines = entry.requestPlanningSnapshot?.lines ?? [];
+  for (const line of snapLines) {
+    const rk = String(line.roundKind || "").trim().toUpperCase();
+    if (rk !== "OPENING" && rk !== "CLOSING" && rk !== "ACCOMPAGNEMENT") continue;
+    const time = String(line.requestedTime || "").trim();
+    if (isRondeTimeHm(time)) return time;
   }
-  return entry.originDetail.trim() ? `Autre — ${entry.originDetail.trim()}` : "Autre";
+  const planned = resolvePlannedHeureDemandeeFromProfiles(entry, profiles);
+  return planned && isRondeTimeHm(planned) ? planned : "";
+}
+
+/**
+ * Date de clôture pour l’export Word `{date_cloture}` : JJ/MM/AAAA,
+ * plus l’heure seulement si une heure a été transmise (ouverture, fermeture, accompagnement).
+ */
+export function formatRondeClosureDateFr(
+  entry: RondeEntry,
+  profiles?: RondePlannedProfileRef[] | null
+): string {
+  const closedAt = String(entry.closedAt || "").trim();
+  if (!closedAt) return "";
+  const dateFr = formatDateShortFr(closedAt);
+  if (!dateFr) return "";
+  const time = dedicatedRequestedTimeHm(entry, profiles);
+  return time ? `${dateFr} ${time}` : dateFr;
 }

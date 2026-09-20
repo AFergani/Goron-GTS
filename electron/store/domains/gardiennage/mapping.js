@@ -7,6 +7,7 @@
  */
 
 const { parsePlanningSnapshotJson } = require("./helpers");
+const { parseExportExtraJson } = require("../../core/exportExtraJson");
 
 /**
  * Colonnes métier de `gardiennage_entries` (évite `SELECT *`).
@@ -17,7 +18,7 @@ const GARDIENNAGE_ENTRY_SELECT = `id, site_id, site_display, start_time, end_tim
   intervenant_id, intervenant_name, intervention_id, notes, closure_report,
   actual_start_time, actual_end_time, work_order_number, cancellation_reason,
   linked_ronde_id, planning_batch_id, planning_snapshot_json, planning_slot_start,
-  planning_slot_end, status, created_at, updated_at, daily_code`;
+  planning_slot_end, status, created_at, updated_at, daily_code, export_extra_json`;
 
 /**
  * Identifiant de fiche gardiennage (trim) ; refuse une valeur vide.
@@ -68,7 +69,8 @@ function mapGardiennageRow(row) {
     planningSlotStart: row.planning_slot_start || "",
     planningSlotEnd: row.planning_slot_end || "",
     planningSnapshot: parsePlanningSnapshotJson(row?.planning_snapshot_json),
-    dailyCode: row.daily_code || ""
+    dailyCode: row.daily_code || "",
+    exportExtraValues: parseExportExtraJson(row.export_extra_json)
   };
 }
 

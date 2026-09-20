@@ -8,6 +8,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const { generateEntityId } = require("../../core/ids");
 const { normalizeDateIso } = require("../../core/isoDate");
@@ -37,8 +38,8 @@ const INSERT_SQL = `INSERT INTO gardiennage_entries (
   intervenant_id, intervenant_name, notes, status, intervention_id, linked_ronde_id,
   closure_report, actual_start_time, actual_end_time, work_order_number, cancellation_reason,
   planning_batch_id, planning_snapshot_json, planning_slot_start, planning_slot_end,
-  created_at, updated_at, daily_code
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  created_at, updated_at, daily_code, export_extra_json
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /**
  * Vérifie les liens vers Intervention et Ronde PostgreSQL.
@@ -77,7 +78,7 @@ async function insertGardiennageRow(db, row) {
     row.actualEndTime || "", row.workOrderNumber || "", row.cancellationReason || "",
     row.planningBatchId || null, row.planningSnapshotJson || null,
     row.planningSlotStart || "", row.planningSlotEnd || "", row.createdAt, row.updatedAt,
-    row.dailyCode || null
+    row.dailyCode || null, row.exportExtraJson || "{}"
   ]);
   return result.changes;
 }
@@ -129,6 +130,7 @@ function makeBaseRow(payload, normalized, id, now) {
     notes: String(payload.notes || "").trim(),
     linkedInterventionId: String(payload.linkedInterventionId || "").trim() || null,
     linkedRondeId: String(payload.linkedRondeId || "").trim() || null,
+    exportExtraJson: stringifyExportExtraJson(payload.exportExtraValues),
     createdAt: now,
     updatedAt: now
   };
@@ -343,6 +345,7 @@ async function updateGardiennage(store, payload) {
           site_id = ?, site_display = ?, start_time = ?, end_time = ?, crosses_midnight = ?,
           recurrence_start_date = ?, recurrence_end_date = ?, is_ponctuel = ?,
           intervenant_id = ?, intervenant_name = ?, notes = ?, intervention_id = ?, linked_ronde_id = ?,
+          export_extra_json = ?,
           planning_batch_id = NULL, planning_snapshot_json = NULL,
           planning_slot_start = '', planning_slot_end = '', updated_at = ?
          WHERE id = ? AND updated_at = ?`,
@@ -352,7 +355,9 @@ async function updateGardiennage(store, payload) {
           normalized.recurrenceStartDate, normalized.recurrenceEndDate, normalized.isPonctuel ? 1 : 0,
           String(payload.intervenantId || "").trim() || null, String(payload.intervenantName || "").trim(),
           String(payload.notes || "").trim(), String(payload.linkedInterventionId || "").trim() || null,
-          String(payload.linkedRondeId || "").trim() || null, now, entryId, payload.expectedUpdatedAt
+          String(payload.linkedRondeId || "").trim() || null,
+          stringifyExportExtraJson(payload.exportExtraValues),
+          now, entryId, payload.expectedUpdatedAt
         ]
       );
       if (!result.changes) store.fail("gardiennage:update", "Gardiennage modifié ailleurs.", "GARDIENNAGE_CONFLICT");
@@ -414,13 +419,15 @@ async function updateGardiennage(store, payload) {
     await tx.run(
       `UPDATE gardiennage_entries
        SET site_id = ?, site_display = ?, intervenant_id = ?, intervenant_name = ?, notes = ?,
-           intervention_id = ?, linked_ronde_id = ?, planning_snapshot_json = ?, updated_at = ?
+           intervention_id = ?, linked_ronde_id = ?, planning_snapshot_json = ?,
+           export_extra_json = ?, updated_at = ?
        WHERE (planning_batch_id = ? OR id = ?) AND status = 'CLOTURE'`,
       [
         String(payload.siteId || "").trim() || null, String(payload.siteDisplay || "").trim(),
         String(payload.intervenantId || "").trim() || null, String(payload.intervenantName || "").trim(),
         String(payload.notes || "").trim(), String(payload.linkedInterventionId || "").trim() || null,
-        String(payload.linkedRondeId || "").trim() || null, snapshotJson, now, batchId, entryId
+        String(payload.linkedRondeId || "").trim() || null, snapshotJson,
+        stringifyExportExtraJson(payload.exportExtraValues), now, batchId, entryId
       ]
     );
     return { existing, returnId, inserted: slots.length, preserved: closedRows.length };

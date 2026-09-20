@@ -9,6 +9,7 @@
  * @module electron/store/domains/mainCourante/entries
  */
 
+const { parseExportExtraJson, stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { requireMainCourantePersistence } = require("./persistence");
 const { allocateNextDailyCode, localDayIsoFromTimestamp } = require("../../core/dailyEntryCode");
 const {
@@ -46,7 +47,18 @@ async function listMainCouranteEntries(store, { requesterRole }) {
  */
 async function createMainCouranteEntry(
   store,
-  { requesterRole, requesterUsername, id, operatorName, siteId, siteDisplay, anomalyTypeId, anomalyTypeLabel, information }
+  {
+    requesterRole,
+    requesterUsername,
+    id,
+    operatorName,
+    siteId,
+    siteDisplay,
+    anomalyTypeId,
+    anomalyTypeLabel,
+    information,
+    exportExtraValues
+  }
 ) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireMainCourantePersistence(store, "mainCourante:create");
@@ -77,8 +89,9 @@ async function createMainCouranteEntry(
     await tx.run(
       `INSERT INTO main_courante_entries (
         id, created_at, operator_name, site_id, site_display,
-        anomaly_type_id, anomaly_type_label, information, status, updated_at, daily_code
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        anomaly_type_id, anomaly_type_label, information, status, updated_at, daily_code,
+        export_extra_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         entryId,
         now,
@@ -90,7 +103,8 @@ async function createMainCouranteEntry(
         cleanInfo,
         "EN_ATTENTE",
         now,
-        dailyCode
+        dailyCode,
+        stringifyExportExtraJson(exportExtraValues)
       ]
     );
     return { existing: null };
@@ -154,7 +168,8 @@ async function updateMainCouranteEntryOperator(
     anomalyTypeId,
     anomalyTypeLabel,
     information,
-    requesterFullName
+    requesterFullName,
+    exportExtraValues
   }
 ) {
   store.ensureDataReaderRole(requesterRole);
@@ -204,6 +219,7 @@ async function updateMainCouranteEntryOperator(
         anomaly_type_id = ?,
         anomaly_type_label = ?,
         information = ?,
+        export_extra_json = ?,
         updated_at = ?
       WHERE id = ? AND updated_at = ?`,
       [
@@ -212,6 +228,10 @@ async function updateMainCouranteEntryOperator(
         cleanTypeId,
         cleanTypeLabel,
         cleanInfo,
+        stringifyExportExtraJson({
+          ...parseExportExtraJson(row.export_extra_json),
+          ...(exportExtraValues && typeof exportExtraValues === "object" ? exportExtraValues : {})
+        }),
         now,
         entryId,
         expectedUpdatedAt
@@ -263,7 +283,17 @@ async function updateMainCouranteEntryOperator(
  */
 async function applyMainCouranteManagerAction(
   store,
-  { requesterRole, requesterUsername, id, expectedUpdatedAt, managerName, managerObservation, decision, role }
+  {
+    requesterRole,
+    requesterUsername,
+    id,
+    expectedUpdatedAt,
+    managerName,
+    managerObservation,
+    decision,
+    role,
+    exportExtraValues
+  }
 ) {
   if (requesterRole !== role.RESPONSABLE && requesterRole !== role.DEV) {
     store.fail("mainCourante:manager", "Accès refusé : droits insuffisants.", "AUTH_FORBIDDEN", { requesterRole });
@@ -334,9 +364,23 @@ async function applyMainCouranteManagerAction(
         manager_name = ?,
         prise_en_compte_at = ?,
         closed_at = ?,
+        export_extra_json = ?,
         updated_at = ?
       WHERE id = ? AND updated_at = ?`,
-      [nextStatus, mergedObs || null, mgrName || null, priseAt, closedAt, now, entryId, expectedUpdatedAt]
+      [
+        nextStatus,
+        mergedObs || null,
+        mgrName || null,
+        priseAt,
+        closedAt,
+        stringifyExportExtraJson({
+          ...parseExportExtraJson(row.export_extra_json),
+          ...(exportExtraValues && typeof exportExtraValues === "object" ? exportExtraValues : {})
+        }),
+        now,
+        entryId,
+        expectedUpdatedAt
+      ]
     );
     if (!result.changes) {
       store.fail(

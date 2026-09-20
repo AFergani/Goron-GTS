@@ -4,7 +4,7 @@
 
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import type { RequestOrigin } from "../model/requestOrigin";
-import type { LineDraft } from "../model/rondeRequestLineDraft";
+import { isChosenRoundKindDraft, type LineDraft, type RoundKindDraft } from "../model/rondeRequestLineDraft";
 
 export type BuildRondePlanningSnapshotParams = {
   requestDate: string;
@@ -41,7 +41,9 @@ export function buildRondePlanningSnapshotFromDrafts(
     siteId: params.siteId,
     intervenantId: params.intervenantId,
     createRoundsEnabled: true,
-    lines: params.lines.map((ln) => ({
+    lines: params.lines
+      .filter((ln): ln is LineDraft & { roundKind: RoundKindDraft } => isChosenRoundKindDraft(ln.roundKind))
+      .map((ln) => ({
       roundKind: ln.roundKind,
       requestedTime: ln.requestedTime,
       randomWindowStart: ln.randomWindowStart,

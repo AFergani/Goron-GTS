@@ -2,12 +2,13 @@
  * Section demande de la fiche ronde (date, site, motif, observation, origine).
  */
 
+import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
-import { DateInput } from "../../common/components/DateInput";
+import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
@@ -50,6 +51,7 @@ type RondeEntryRequestSectionProps = {
   onClearPendingSiteFields: () => void;
   onClearPendingIntervenantFields: () => void;
   onIntervenantIdChange: (id: string) => void;
+  besideMotif?: ReactNode;
 };
 
 export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
@@ -79,100 +81,97 @@ export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
 
   return (
     <>
-      <CreateFormSection title="Date de la demande">
-        <div className="mc-form-grid mc-form-grid-main">
-          <label className="mc-field">
-            <span>Date de la demande</span>
-            <DateInput
-              value={requestDate}
-              disabled={lockDemandeFields}
-              onChange={(e) => props.onRequestDateChange(e.target.value)}
-            />
-          </label>
-        </div>
-      </CreateFormSection>
-
-      {isCreateMode ? (
-        <SearchEntry
-          sites={sites}
-          intervenants={intervenants}
-          selectedSite={selectedSite}
-          selectedIntervenant={selectedIntervenant}
-          onSelectedSiteChange={(site) => {
-            props.onSelectedSiteChange(site);
-            if (site) props.onClearPendingSiteFields();
-          }}
-          onSelectedIntervenantChange={(item) => {
-            props.onSelectedIntervenantChange(item);
-            if (item) props.onClearPendingIntervenantFields();
-          }}
-          showPendingSiteForm={showPendingSiteForm}
-          showPendingIntervenantForm={showPendingIntervenantForm}
-          onTogglePendingSite={props.onTogglePendingSite}
-          onTogglePendingIntervenant={props.onTogglePendingIntervenant}
-          pendingSiteForm={(
-            <div className="mc-form-grid mc-form-grid-main">
-              <label className="mc-field">
-                <span>Nouveau code site</span>
-                <input value={pendingCode} onChange={(e) => props.onPendingCodeChange(e.target.value)} />
-              </label>
-              <label className="mc-field">
-                <span>Nouveau nom de site</span>
-                <input value={pendingName} onChange={(e) => props.onPendingNameChange(e.target.value)} />
-              </label>
-            </div>
-          )}
-          pendingIntervenantForm={(
-            <div className="mc-form-grid mc-form-grid-main">
-              <label className="mc-field mc-field-full">
-                <span>Nouveau prestataire</span>
-                <input
-                  value={pendingIntervenantName}
-                  onChange={(e) => props.onPendingIntervenantNameChange(e.target.value)}
-                />
-              </label>
-            </div>
-          )}
-          onNotify={onNotify}
-          siteButtonLabel="À créer ?"
-          intervenantButtonLabel="À créer ?"
-          showSiteAction={!selectedSite}
-          showIntervenantAction={!selectedIntervenant}
+      <div className="request-head-row">
+        <RequestDateTimeField
+          date={requestDate}
+          showTime={false}
+          label="Date de la demande"
+          disabled={lockDemandeFields}
+          onDateChange={props.onRequestDateChange}
         />
-      ) : (
-        <>
-          <label className="mc-field">
-            <span>Site</span>
-            <SiteDisplayCopyButton
-              siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
-              onNotify={onNotify}
-            />
-          </label>
-          {entry?.source === "PLANIFIE" ? (
-            <div className="mc-field mc-field-full">
-              <p className="muted mc-ref-hint" style={{ marginBottom: 8 }}>
-                Prestataire défini à la <strong>création</strong> du passage planifié. Modifiez uniquement si une autre
-                équipe est intervenue ou en cas d&apos;erreur de saisie.
-              </p>
-              <IntervenantSearchInput
-                intervenants={intervenants}
-                disabled={lockFields}
-                selectedIntervenant={selectedIntervenant}
-                onSelectedIntervenantChange={(item) => props.onIntervenantIdChange(item?.id || "")}
-              />
-            </div>
-          ) : (
+        {isCreateMode ? (
+          <SearchEntry
+            className="request-head-row__refs"
+            sites={sites}
+            intervenants={intervenants}
+            selectedSite={selectedSite}
+            selectedIntervenant={selectedIntervenant}
+            onSelectedSiteChange={(site) => {
+              props.onSelectedSiteChange(site);
+              if (site) props.onClearPendingSiteFields();
+            }}
+            onSelectedIntervenantChange={(item) => {
+              props.onSelectedIntervenantChange(item);
+              if (item) props.onClearPendingIntervenantFields();
+            }}
+            showPendingSiteForm={showPendingSiteForm}
+            showPendingIntervenantForm={showPendingIntervenantForm}
+            onTogglePendingSite={props.onTogglePendingSite}
+            onTogglePendingIntervenant={props.onTogglePendingIntervenant}
+            pendingSiteForm={(
+              <div className="mc-form-grid mc-form-grid-main">
+                <label className="mc-field">
+                  <span>Nouveau code site</span>
+                  <input value={pendingCode} onChange={(e) => props.onPendingCodeChange(e.target.value)} />
+                </label>
+                <label className="mc-field">
+                  <span>Nouveau nom de site</span>
+                  <input value={pendingName} onChange={(e) => props.onPendingNameChange(e.target.value)} />
+                </label>
+              </div>
+            )}
+            pendingIntervenantForm={(
+              <div className="mc-form-grid mc-form-grid-main">
+                <label className="mc-field mc-field-full">
+                  <span>Nouveau prestataire</span>
+                  <input
+                    value={pendingIntervenantName}
+                    onChange={(e) => props.onPendingIntervenantNameChange(e.target.value)}
+                  />
+                </label>
+              </div>
+            )}
+            onNotify={onNotify}
+            siteButtonLabel="À créer ?"
+            intervenantButtonLabel="À créer ?"
+            showSiteAction={!selectedSite}
+            showIntervenantAction={!selectedIntervenant}
+          />
+        ) : (
+          <div className="request-head-row__refs">
             <label className="mc-field">
-              <span>Prestataire</span>
-              <input
-                value={selectedIntervenant?.name || entry?.intervenantName || "—"}
-                readOnly
-                className="mc-input-readonly"
+              <span>Site</span>
+              <SiteDisplayCopyButton
+                siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+                onNotify={onNotify}
               />
             </label>
-          )}
-        </>
-      )}
+            {entry?.source === "PLANIFIE" ? (
+              <div className="mc-field mc-field-full">
+                <p className="muted mc-ref-hint" style={{ marginBottom: 8 }}>
+                  Prestataire défini à la <strong>création</strong> du passage planifié. Modifiez uniquement si une autre
+                  équipe est intervenue ou en cas d&apos;erreur de saisie.
+                </p>
+                <IntervenantSearchInput
+                  intervenants={intervenants}
+                  disabled={lockFields}
+                  selectedIntervenant={selectedIntervenant}
+                  onSelectedIntervenantChange={(item) => props.onIntervenantIdChange(item?.id || "")}
+                />
+              </div>
+            ) : (
+              <label className="mc-field">
+                <span>Prestataire</span>
+                <input
+                  value={selectedIntervenant?.name || entry?.intervenantName || "—"}
+                  readOnly
+                  className="mc-input-readonly"
+                />
+              </label>
+            )}
+          </div>
+        )}
+      </div>
 
       {!rondeMotifs.length ? (
         <p className="error mc-field-error">
@@ -181,8 +180,14 @@ export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
       ) : null}
 
       <CreateFormSection title="Motif de la demande">
-        <div className="mc-form-grid mc-form-grid-main mc-form-grid-align-start">
-          <label className="mc-field mc-field-full">
+        <div
+          className={
+            props.besideMotif
+              ? "request-motif-row request-motif-row--with-extra"
+              : "mc-form-grid mc-form-grid-main mc-form-grid-align-start"
+          }
+        >
+          <label className={`mc-field ${props.besideMotif ? "request-motif-row__motif" : "mc-field-full"}`}>
             <span>Motif</span>
             <select
               value={motifTypeId}
@@ -197,6 +202,7 @@ export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
               ))}
             </select>
           </label>
+          {props.besideMotif}
           <label className="mc-field mc-field-full">
             <span>Commentaire du motif (facultatif)</span>
             <textarea

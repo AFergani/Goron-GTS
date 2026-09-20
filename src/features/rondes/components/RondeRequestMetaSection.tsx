@@ -2,12 +2,12 @@
  * Meta demande : date/heure, motif, origine, site, prestataire, consigne.
  */
 
+import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import { SearchEntry } from "../../common/components/SearchEntry";
-import { TimeInput } from "../../common/components/TimeInput";
-import { DateInput } from "../../common/components/DateInput";
+import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeMotifTypeRef } from "../model/ronde.types";
 import type { RequestOrigin } from "../model/requestOrigin";
@@ -55,26 +55,96 @@ type RondeRequestMetaSectionProps = {
   onPendingIntervenantNameChange: (value: string) => void;
   onClearPendingSite: () => void;
   onClearPendingIntervenant: () => void;
+  besideConsigne?: ReactNode;
 };
 
 export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
   const locked = Boolean(props.readOnly);
   return (
     <>
-      <div className="ronde-planned-profile-modal__schedule-row">
-        <label className="ronde-planned-profile-modal__schedule-field">
-          <span>Date de la demande</span>
-          <DateInput
-            value={props.requestDate}
-            disabled={locked}
-            onChange={(e) => props.onRequestDateChange(e.target.value)}
+      <div className="request-head-row">
+        <RequestDateTimeField
+          date={props.requestDate}
+          time={props.requestTime}
+          disabled={locked}
+          onDateChange={props.onRequestDateChange}
+          onTimeChange={props.onRequestTimeChange}
+        />
+        {!props.isEdit && !props.isLinkedExistingBatch && !props.isContract && props.canCreatePendingRefs && !locked ? (
+          <SearchEntry
+            className="request-head-row__refs"
+            sites={props.sites}
+            intervenants={props.intervenants}
+            selectedSite={props.selectedSite}
+            selectedIntervenant={props.selectedIntervenant}
+            onSelectedSiteChange={(s: SiteRef | null) => {
+              props.onSiteIdChange(s?.id ?? null);
+              if (s) props.onClearPendingSite();
+            }}
+            onSelectedIntervenantChange={(i: IntervenantRef | null) => {
+              props.onIntervenantIdChange(i?.id ?? "");
+              if (i) props.onClearPendingIntervenant();
+            }}
+            showPendingSiteForm={props.showPendingSiteForm}
+            showPendingIntervenantForm={props.showPendingIntervenantForm}
+            onTogglePendingSite={props.onTogglePendingSite}
+            onTogglePendingIntervenant={props.onTogglePendingIntervenant}
+            pendingSiteForm={(
+              <div className="mc-form-grid mc-form-grid-main">
+                <label className="mc-field">
+                  <span>Nouveau code site</span>
+                  <input value={props.pendingCode} onChange={(e) => props.onPendingCodeChange(e.target.value)} />
+                </label>
+                <label className="mc-field">
+                  <span>Nouveau nom de site</span>
+                  <input value={props.pendingName} onChange={(e) => props.onPendingNameChange(e.target.value)} />
+                </label>
+              </div>
+            )}
+            pendingIntervenantForm={(
+              <div className="mc-form-grid mc-form-grid-main">
+                <label className="mc-field mc-field-full">
+                  <span>Nouvel intervenant</span>
+                  <input
+                    value={props.pendingIntervenantName}
+                    onChange={(e) => props.onPendingIntervenantNameChange(e.target.value)}
+                  />
+                </label>
+              </div>
+            )}
+            onNotify={props.onNotify}
+            showSiteAction={!props.selectedSite}
+            showIntervenantAction={!props.selectedIntervenant}
           />
-        </label>
-        <label className="ronde-planned-profile-modal__schedule-field">
-          <span>Heure de la demande</span>
-          <TimeInput value={props.requestTime} disabled={locked} onChange={props.onRequestTimeChange} />
-        </label>
-        <label className="ronde-planned-profile-modal__schedule-field ronde-planned-profile-modal__schedule-field--motif">
+        ) : (
+          <div className="request-head-row__refs">
+            <SiteSearchInput
+              sites={props.sites}
+              disabled={locked}
+              selectedSite={props.selectedSite}
+              copyNotify={props.onNotify}
+              labelText="Site"
+              onSelectedSiteChange={(s) => {
+                props.onSiteIdChange(s?.id ?? null);
+                if (s) props.onClearPendingSite();
+              }}
+            />
+            <IntervenantSearchInput
+              intervenants={props.intervenants}
+              disabled={locked}
+              selectedIntervenant={props.selectedIntervenant}
+              labelText="Prestataire"
+              onSelectedIntervenantChange={(i) => {
+                props.onIntervenantIdChange(i?.id ?? "");
+                if (i) props.onClearPendingIntervenant();
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="ronde-planned-profile-modal__schedule-row">
+        <label className="mc-field ronde-planned-profile-modal__schedule-field--motif">
           <span>Motif de la demande</span>
           <select
             value={props.motifTypeId}
@@ -88,7 +158,18 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
             ))}
           </select>
         </label>
-        <label className="ronde-planned-profile-modal__schedule-field ronde-planned-profile-modal__schedule-field--origin">
+        <label className="mc-field">
+          <span>{props.origin === "APPEL_CLIENT" ? "Nom du client (obligatoire)" : "Nom du client"}</span>
+          <input
+            type="text"
+            value={props.clientName}
+            disabled={locked}
+            onChange={(e) => props.onClientNameChange(e.target.value)}
+            aria-label="Nom du client"
+            placeholder="Ex. nom du contact ou de la société"
+          />
+        </label>
+        <label className="mc-field ronde-planned-profile-modal__schedule-field--origin">
           <span>Origine</span>
           {props.isOriginFixed || locked ? (
             <span className="ronde-origin-badge" title={props.originLabel}>
@@ -105,104 +186,22 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
         </label>
       </div>
 
-      {!props.isEdit && !props.isLinkedExistingBatch && !props.isContract && props.canCreatePendingRefs && !locked ? (
-        <SearchEntry
-          sites={props.sites}
-          intervenants={props.intervenants}
-          selectedSite={props.selectedSite}
-          selectedIntervenant={props.selectedIntervenant}
-          onSelectedSiteChange={(s: SiteRef | null) => {
-            props.onSiteIdChange(s?.id ?? null);
-            if (s) props.onClearPendingSite();
-          }}
-          onSelectedIntervenantChange={(i: IntervenantRef | null) => {
-            props.onIntervenantIdChange(i?.id ?? "");
-            if (i) props.onClearPendingIntervenant();
-          }}
-          showPendingSiteForm={props.showPendingSiteForm}
-          showPendingIntervenantForm={props.showPendingIntervenantForm}
-          onTogglePendingSite={props.onTogglePendingSite}
-          onTogglePendingIntervenant={props.onTogglePendingIntervenant}
-          pendingSiteForm={(
-            <div className="mc-form-grid mc-form-grid-main">
-              <label className="mc-field">
-                <span>Nouveau code site</span>
-                <input value={props.pendingCode} onChange={(e) => props.onPendingCodeChange(e.target.value)} />
-              </label>
-              <label className="mc-field">
-                <span>Nouveau nom de site</span>
-                <input value={props.pendingName} onChange={(e) => props.onPendingNameChange(e.target.value)} />
-              </label>
-            </div>
-          )}
-          pendingIntervenantForm={(
-            <div className="mc-form-grid mc-form-grid-main">
-              <label className="mc-field mc-field-full">
-                <span>Nouvel intervenant</span>
-                <input
-                  value={props.pendingIntervenantName}
-                  onChange={(e) => props.onPendingIntervenantNameChange(e.target.value)}
-                />
-              </label>
-            </div>
-          )}
-          onNotify={props.onNotify}
-          showSiteAction={!props.selectedSite}
-          showIntervenantAction={!props.selectedIntervenant}
-        />
-      ) : (
-        <div className="ronde-planned-profile-modal__site-prest-row">
-          <SiteSearchInput
-            sites={props.sites}
-            disabled={locked}
-            selectedSite={props.selectedSite}
-            copyNotify={props.onNotify}
-            labelText="Site"
-            onSelectedSiteChange={(s) => {
-              props.onSiteIdChange(s?.id ?? null);
-              if (s) props.onClearPendingSite();
-            }}
-          />
-          <IntervenantSearchInput
-            intervenants={props.intervenants}
-            disabled={locked}
-            selectedIntervenant={props.selectedIntervenant}
-            labelText="Prestataire"
-            onSelectedIntervenantChange={(i) => {
-              props.onIntervenantIdChange(i?.id ?? "");
-              if (i) props.onClearPendingIntervenant();
-            }}
-          />
-        </div>
-      )}
-
-      {props.origin === "APPEL_CLIENT" ? (
-        <label>
-          Nom du client (obligatoire)
-          <input
-            type="text"
-            value={props.clientName}
-            disabled={locked}
-            onChange={(e) => props.onClientNameChange(e.target.value)}
-            aria-label="Nom du client"
-            placeholder="Ex. nom du contact ou de la société"
+      <div className={props.besideConsigne ? "request-motif-row request-motif-row--with-extra" : undefined}>
+        <label className={`mc-field ${props.besideConsigne ? "request-motif-row__motif" : "mc-field-full"}`}>
+          <span>Consigne de ronde</span>
+          <textarea
+            className="mc-textarea"
+            rows={4}
+            value={props.consigne}
+            readOnly={locked || props.isEdit || props.isLinkedExistingBatch}
+            onChange={(e) => props.onConsigneChange(e.target.value)}
           />
         </label>
-      ) : null}
-
-      <label>
-        Consigne de ronde
-        <textarea
-          className="mc-textarea"
-          rows={4}
-          value={props.consigne}
-          readOnly={locked || props.isEdit || props.isLinkedExistingBatch}
-          onChange={(e) => props.onConsigneChange(e.target.value)}
-        />
-      </label>
+        {props.besideConsigne}
+      </div>
       {props.isLinkedExistingBatch ? (
-        <label>
-          Détail des modification
+        <label className="mc-field mc-field-full">
+          <span>Détail des modification</span>
           <textarea
             className="mc-textarea"
             rows={3}

@@ -38,6 +38,9 @@ export type GardiennagePlanningSnapshotV1 = {
   isContinuous: boolean;
   /** H24 sans date de fin : prestation jusqu'à nouvel ordre (horizon glissant prolongé par le backend). */
   isOpenEnded?: boolean;
+  /** Date/heure d'émission de la demande (hors moteur de créneaux). */
+  requestDate?: string;
+  requestTime?: string;
   lines: GardiennagePlanningLineV1[];
 };
 
@@ -76,6 +79,7 @@ export type GardiennageEntry = {
   planningSlotEnd?: string;
   /** Numéro métier `JJMMAAAA-XX` (recherche / titre). */
   dailyCode: string;
+  exportExtraValues?: Record<string, string>;
 };
 
 /** Création / mise à jour (planification optionnelle pour lots générés). */
@@ -94,6 +98,7 @@ export type GardiennageSavePayload = {
   linkedInterventionId: string | null;
   linkedRondeId: string | null;
   planningSnapshot?: GardiennagePlanningSnapshotV1 | null;
+  exportExtraValues?: Record<string, string>;
 };
 
 /** Clôture manuelle (horaires effectifs, bon, CR ; `closeDate` pour une occurrence de série). */
@@ -105,4 +110,5 @@ export type GardiennageClosePayload = {
   workOrderNumber: string;
   /** Date du jour clôturé (AAAA-MM-JJ) pour les séries planifiées. */
   closeDate?: string;
+  exportExtraValues?: Record<string, string>;
 };

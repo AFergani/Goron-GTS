@@ -72,7 +72,7 @@ function normalizeClosureCustomValues(input) {
   for (const [rawKey, rawValue] of Object.entries(input)) {
     const key = String(rawKey || "").trim().toLowerCase()
       .replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_")
-      .replace(/^_+|_+$/g, "").slice(0, 40);
+      .replace(/^_+|_+$/g, "").slice(0, 63);
     if (key) output[key] = String(rawValue ?? "").trim().slice(0, 1000);
   }
   return output;
@@ -149,6 +149,27 @@ async function getRondeById(db, id) {
      WHERE r.id = ?`,
     [id]
   );
+}
+
+const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Jour d’attribution du numéro de fiche.
+ * Lot exceptionnel : date de la demande (figée pour tout le lot, même si le passage théorique change).
+ * Ronde contractuelle : date théorique du passage.
+ *
+ * @param {string} source
+ * @param {string} passageDateIso
+ * @param {unknown} snapshotJson
+ * @returns {string}
+ */
+function resolveRondeDailyCodeDayIso(source, passageDateIso, snapshotJson) {
+  if (String(source || "").trim().toUpperCase() === "PLANIFIE") {
+    return passageDateIso;
+  }
+  const parsed = parseJsonObject(snapshotJson, null);
+  const demandDate = String(parsed?.requestDate || "").trim();
+  return ISO_DAY_RE.test(demandDate) ? demandDate : passageDateIso;
 }
 
 /** @param {unknown} raw @param {string} source @param {import('../../../userStore')} store @returns {string|null} */
@@ -296,6 +317,7 @@ async function createRonde(store, payload) {
   const requestBatchId = source !== "PLANIFIE"
     ? String(payload.requestBatchId || "").trim().slice(0, 48) || null
     : null;
+  const snapshotJson = normalizePlanningSnapshot(payload.requestPlanningSnapshotJson, source, store);
   const insertParams = [
     entryId, null, null, source, originInterventionId, normalized.siteId,
     normalized.siteDisplay, normalized.requestDate, normalized.motifTypeId,
@@ -309,7 +331,7 @@ async function createRonde(store, payload) {
     planned.plannedRoundKind,
     source === "PLANIFIE" && PLANNED_SLOT_KEY_RE.test(String(payload.plannedSlotKey || "").trim())
       ? String(payload.plannedSlotKey).trim().slice(0, 120) : null,
-    normalizePlanningSnapshot(payload.requestPlanningSnapshotJson, source, store),
+    snapshotJson,
     requestBatchId, status, status === "ANNULE" ? cancellationReason : null,
     null
   ];
@@ -329,7 +351,9 @@ async function createRonde(store, payload) {
     insertParams[1] = now;
     insertParams[2] = now;
     insertParams[insertParams.length - 1] = status === "EN_COURS" ? null : now;
-    insertParams.push(await allocateNextDailyCode(tx, "ronde", normalized.requestDate));
+    insertParams.push(
+      await allocateNextDailyCode(tx, "ronde", resolveRondeDailyCodeDayIso(source, normalized.requestDate, snapshotJson))
+    );
     await tx.run(INSERT_SQL, insertParams);
     return { kind: "created", batchBefore, now };
   });
@@ -647,7 +671,11 @@ async function updateRondeBatchSharedFields(store, payload) {
               normalized.originKind, normalized.originDetail || null, normalized.intervenantId,
               normalized.intervenantName, null, null, null, null, null, "{}", null, null, null,
               snapshotJson, template.request_batch_id || null, "EN_COURS", null, null,
-              await allocateNextDailyCode(tx, "ronde", requestDate)
+              await allocateNextDailyCode(
+                tx,
+                "ronde",
+                resolveRondeDailyCodeDayIso(template.source || "URGENCE", requestDate, snapshotJson)
+              )
             ]);
             createdIds.push(id);
           }

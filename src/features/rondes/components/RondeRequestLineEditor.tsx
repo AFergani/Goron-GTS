@@ -10,8 +10,7 @@ import { TimeInput } from "../../common/components/TimeInput";
 import { RONDE_WEEKDAY_BITS } from "../model/rondePlannedSummary";
 import {
   rondeRequestLineDisplayNumber,
-  type LineDraft,
-  type RoundKindDraft
+  type LineDraft
 } from "../model/rondeRequestLineDraft";
 
 type RondeRequestLineEditorProps = {
@@ -68,6 +67,9 @@ export function RondeRequestLineEditor({
       {lines.map((line, index) => {
         const displayNumber = rondeRequestLineDisplayNumber(index, lines.length);
         const isNewest = index === 0;
+        const typeChosen = Boolean(line.roundKind);
+        const daysDisabled = readOnly || !typeChosen || lockWeekdaysFromValidityRange;
+        const unsetTypeTooltip = typeChosen ? undefined : "Choisissez d’abord un type de ronde";
         return (
           <fieldset
             key={line.id}
@@ -100,7 +102,7 @@ export function RondeRequestLineEditor({
                   value={line.roundKind}
                   disabled={readOnly}
                   onChange={(e) => {
-                    const nextKind = e.target.value as RoundKindDraft;
+                    const nextKind = e.target.value as LineDraft["roundKind"];
                     onUpdateLine(index, { roundKind: nextKind });
                     if (nextKind === "ACCOMPAGNEMENT") {
                       onSingleDayChange(true);
@@ -114,6 +116,7 @@ export function RondeRequestLineEditor({
                     }
                   }}
                 >
+                  <option value="">—</option>
                   <option value="OPENING">Ouverture</option>
                   <option value="CLOSING">Fermeture</option>
                   <option value="ACCOMPAGNEMENT">Accompagnement</option>
@@ -121,18 +124,7 @@ export function RondeRequestLineEditor({
                 </select>
               </label>
               <div className="ronde-request-line-grid__controls">
-                {line.roundKind !== "RANDOM" ? (
-                  <div className="ronde-request-line-grid__row ronde-request-line-grid__row--first">
-                    <label className="ronde-request-line-grid__field-large">
-                      Heure demandée
-                    <TimeInput
-                      value={line.requestedTime}
-                      disabled={readOnly}
-                      onChange={(value) => onUpdateLine(index, { requestedTime: value })}
-                    />
-                    </label>
-                  </div>
-                ) : (
+                {line.roundKind === "RANDOM" ? (
                   <div className="ronde-request-line-grid__row ronde-request-line-grid__row--random-modes">
                     <div className="ronde-request-line-grid__mode-group" role="group" aria-label="Mode intervalle">
                       <label>
@@ -178,7 +170,18 @@ export function RondeRequestLineEditor({
                       </label>
                     </div>
                   </div>
-                )}
+                ) : line.roundKind ? (
+                  <div className="ronde-request-line-grid__row ronde-request-line-grid__row--first">
+                    <label className="ronde-request-line-grid__field-large">
+                      Heure demandée
+                    <TimeInput
+                      value={line.requestedTime}
+                      disabled={readOnly}
+                      onChange={(value) => onUpdateLine(index, { requestedTime: value })}
+                    />
+                    </label>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="ronde-planned-profile-line__weekday-toggles">
@@ -187,21 +190,24 @@ export function RondeRequestLineEditor({
               </span>
             <ToggleSwitch
               checked={isSingleDay}
-              disabled={readOnly || lockWeekdaysFromValidityRange}
+              disabled={daysDisabled}
+              tooltip={unsetTypeTooltip}
               onChange={onSingleDayChange}
               label="Jour unique"
               labelFirst
             />
             <ToggleSwitch
               checked={line.includeHolidayEves}
-              disabled={readOnly || lockWeekdaysFromValidityRange}
+              disabled={daysDisabled}
+              tooltip={unsetTypeTooltip}
               onChange={(next) => onUpdateLine(index, { includeHolidayEves: next })}
               label="Veille jour férié"
               labelFirst
             />
             <ToggleSwitch
               checked={line.includeHolidays}
-              disabled={readOnly || lockWeekdaysFromValidityRange}
+              disabled={daysDisabled}
+              tooltip={unsetTypeTooltip}
               onChange={(next) => onUpdateLine(index, { includeHolidays: next })}
               label="Jours fériés"
               labelFirst
@@ -215,7 +221,8 @@ export function RondeRequestLineEditor({
               <ToggleSwitch
                 key={d.bit}
                 checked={(line.weekdaysMask & d.bit) !== 0}
-                disabled={readOnly || isSingleDay || lockWeekdaysFromValidityRange}
+                disabled={daysDisabled || isSingleDay}
+                tooltip={unsetTypeTooltip}
                 onChange={(next) =>
                   onUpdateLine(index, {
                     weekdaysMask: next ? line.weekdaysMask | d.bit : line.weekdaysMask & ~d.bit

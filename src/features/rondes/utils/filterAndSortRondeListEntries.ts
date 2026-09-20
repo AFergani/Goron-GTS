@@ -46,6 +46,7 @@ export function filterAndSortRondeListEntries(
     .sort((a, b) => {
       const left = Date.parse(`${a.requestDate}T12:00:00`);
       const right = Date.parse(`${b.requestDate}T12:00:00`);
-      return right - left;
+      if (left !== right) return left - right;
+      return (a.dailyCode || "").localeCompare(b.dailyCode || "", "fr");
     });
 }

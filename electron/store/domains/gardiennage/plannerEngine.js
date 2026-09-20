@@ -8,6 +8,7 @@
  */
 
 const { addDaysIso, normalizeDateIso } = require("../../core/isoDate");
+const { floorValidityStartToRequest } = require("../../core/alignRequestValidity");
 
 /**
  * @param {string} isoDate
@@ -164,8 +165,25 @@ function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
     ? resolveH24ValidToTime(fromTime, snapshot.validToTime)
     : String(snapshot.validToTime || "").trim();
   if (!fromDate || !toDate || !isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
-  const rangeStart = toIsoDateTime(fromDate, fromTime);
-  const rangeEnd = toIsoDateTime(toDate, toTime);
+  const validityHasTime = Boolean(snapshot.isContinuous) || fromTime !== "00:00";
+  const floored = floorValidityStartToRequest(
+    {
+      requestDate: snapshot.requestDate,
+      requestTime: snapshot.requestTime,
+      validFromDate: fromDate,
+      validFromTime: fromTime,
+      validToDate: toDate,
+      validToTime: toTime
+    },
+    { validityHasTime, compareEndTimes: false }
+  );
+  const effectiveFromDate = normalizeDateIso(floored.validFromDate) || fromDate;
+  const effectiveToDate = normalizeDateIso(floored.validToDate) || toDate;
+  const effectiveFromTime = String(floored.validFromTime || fromTime).trim();
+  const effectiveToTime = String(floored.validToTime || toTime).trim();
+  if (!isValidPlanningTime(effectiveFromTime) || !isValidPlanningTime(effectiveToTime)) return [];
+  const rangeStart = toIsoDateTime(effectiveFromDate, effectiveFromTime);
+  const rangeEnd = toIsoDateTime(effectiveToDate, effectiveToTime);
   if (rangeStart >= rangeEnd) return [];
   if (snapshot.isContinuous) {
     return [{
@@ -186,7 +204,7 @@ function buildGardiennageSlotsFromSnapshot(snapshot, options = {}) {
   const slots = [];
   for (const line of snapshot.lines || []) {
     if (!isValidPlanningTime(line.startTime) || !isValidPlanningTime(line.endTime)) continue;
-    const dates = collectActiveDatesForLine(line, fromDate, toDate, anchoredDates, holiday);
+    const dates = collectActiveDatesForLine(line, effectiveFromDate, effectiveToDate, anchoredDates, holiday);
     for (const date of dates) {
       const startIso = toIsoDateTime(date, line.startTime);
       const crossesMidnight = line.endTime <= line.startTime;

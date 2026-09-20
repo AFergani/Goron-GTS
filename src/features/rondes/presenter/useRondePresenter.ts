@@ -1,17 +1,18 @@
 /**
- * Presenter rondes : liste, CRUD, statuts, lots exceptionnels.
+ * Presenter rondes : liste, CRUD, statuts, lots exceptionnels, synthèse du mois.
  *
  * Polling aligné sur les badges sidebar (`DATA_REFRESH_POLL_MS`). Persistance PostgreSQL. Utilisé par `RondePage`
  * (onglets urgence / planifié ; profils via modales page).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { DATA_REFRESH_POLL_MS } from "../../common/constants/dataRefreshPoll";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeOriginKind, RondeSavePayload, RondeStatus } from "../model/ronde.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import { computeRondeMonthSummaryStats } from "../utils/rondeMonthStats";
 
 function makeRondeId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -272,9 +273,12 @@ export function useRondePresenter({ requesterRole, requesterUsername, onToast }:
     }
   };
 
+  const monthStats = useMemo(() => computeRondeMonthSummaryStats(entries), [entries]);
+
   return {
     entries,
     loading,
+    monthStats,
     loadEntries,
     createEntry,
     updateEntry,

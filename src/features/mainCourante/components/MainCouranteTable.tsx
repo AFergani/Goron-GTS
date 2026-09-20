@@ -209,7 +209,7 @@ export function MainCouranteTable({
   const sortLabel = (key: MainCouranteSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   if (!entries.length) {
-    return <p className="muted">Aucune entrée pour le moment.</p>;
+    return <p className="muted">Aucune entrée à afficher.</p>;
   }
 
   const canOperatorEdit = (entry: MainCouranteEntry) => entry.status === "EN_ATTENTE" && entry.operatorName === currentOperatorName;

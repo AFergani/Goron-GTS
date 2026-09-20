@@ -177,8 +177,8 @@ export function GardiennageTable({
     statut: (a: GardiennageEntry, b: GardiennageEntry) => statusLabelFr(a.status).localeCompare(statusLabelFr(b.status), "fr")
   };
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<GardiennageEntry, GardiennageSortKey>(entries, comparators, {
-    key: "createdAt",
-    direction: "desc"
+    key: "planning",
+    direction: "asc"
   });
   const sortLabel = (key: GardiennageSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 

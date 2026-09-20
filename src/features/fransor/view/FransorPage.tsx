@@ -9,7 +9,7 @@
  * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
@@ -151,6 +151,7 @@ export function FransorPage({
   const [closureModalSelectedMonth, setClosureModalSelectedMonth] = useState("");
   const [closuresByMonth, setClosuresByMonth] = useState<Record<string, FransorClosure[]>>({});
   const [closureYearLoading, setClosureYearLoading] = useState(false);
+  const closureYearLoadGen = useRef(0);
 
   const [compactDayLabels, setCompactDayLabels] = useState(false);
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
@@ -306,28 +307,36 @@ export function FransorPage({
 
   const closureModalYearMonths = useMemo(() => getYearMonthKeys(closureModalYear), [closureModalYear]);
 
-  const refreshClosureYear = useCallback(async () => {
-    setClosureYearLoading(true);
-    try {
-      const results = await Promise.all(
-        closureModalYearMonths.map((month) => gtsApiClient.listFransorClosures({ requesterRole, month }))
-      );
-      const byMonth: Record<string, FransorClosure[]> = {};
-      closureModalYearMonths.forEach((month, index) => {
-        byMonth[month] = results[index];
-      });
-      setClosuresByMonth(byMonth);
-    } catch (error) {
-      onToast?.(error instanceof Error ? error.message : "Erreur de chargement des périodes.", "error");
-    } finally {
-      setClosureYearLoading(false);
-    }
-  }, [closureModalYearMonths, onToast, requesterRole]);
+  const refreshClosureYear = useCallback(
+    async (year: number) => {
+      if (!Number.isFinite(year)) return;
+      const months = getYearMonthKeys(year);
+      const gen = ++closureYearLoadGen.current;
+      setClosureYearLoading(true);
+      try {
+        const results = await Promise.all(
+          months.map((month) => gtsApiClient.listFransorClosures({ requesterRole, month }))
+        );
+        if (gen !== closureYearLoadGen.current) return;
+        const byMonth: Record<string, FransorClosure[]> = {};
+        months.forEach((month, index) => {
+          byMonth[month] = results[index];
+        });
+        setClosuresByMonth((previous) => ({ ...previous, ...byMonth }));
+      } catch (error) {
+        if (gen !== closureYearLoadGen.current) return;
+        onToast?.(error instanceof Error ? error.message : "Erreur de chargement des périodes.", "error");
+      } finally {
+        if (gen === closureYearLoadGen.current) setClosureYearLoading(false);
+      }
+    },
+    [onToast, requesterRole]
+  );
 
   useEffect(() => {
     if (!showClosureModal) return;
-    void refreshClosureYear();
-  }, [showClosureModal, refreshClosureYear, presenter.closures]);
+    void refreshClosureYear(closureModalYear);
+  }, [showClosureModal, closureModalYear, refreshClosureYear]);
 
   const selectedMonthClosures = useMemo(() => {
     if (!closureModalSelectedMonth) return [];
@@ -336,8 +345,13 @@ export function FransorPage({
 
   const openClosureModal = () => {
     const pageYear = Number(presenter.month.slice(0, 4));
-    setClosureModalYear(Number.isFinite(pageYear) ? pageYear : new Date().getFullYear());
+    const year = Number.isFinite(pageYear) ? pageYear : new Date().getFullYear();
+    setClosureModalYear(year);
     setClosureModalSelectedMonth(presenter.month);
+    setClosuresByMonth((previous) => ({
+      ...previous,
+      [presenter.month]: presenter.closures
+    }));
     setShowClosureModal(true);
   };
 
@@ -399,8 +413,12 @@ export function FransorPage({
       setEditingClosureId(null);
       if (showClosureModal) {
         const savedMonth = startDate.slice(0, 7);
+        const savedYear = Number(savedMonth.slice(0, 4));
         setClosureModalSelectedMonth(savedMonth);
-        setClosureModalYear(Number(savedMonth.slice(0, 4)));
+        setClosureModalYear(savedYear);
+        if (savedYear === closureModalYear) {
+          await refreshClosureYear(savedYear);
+        }
       }
       onToast?.("Exception calendrier enregistrée.");
     } catch (error) {
@@ -916,6 +934,7 @@ export function FransorPage({
                   aria-label={`Mois de l'année ${closureModalYear}, sélectionner un mois pour afficher ses périodes`}
                 >
                   {closureModalYearMonths.map((month) => {
+                    const monthLoaded = Object.prototype.hasOwnProperty.call(closuresByMonth, month);
                     const count = closuresByMonth[month]?.length ?? 0;
                     const isSelected = closureModalSelectedMonth === month;
                     const isPageMonth = presenter.month === month;
@@ -934,7 +953,7 @@ export function FransorPage({
                           className={`fransor-closures-count-badge fransor-closures-count-badge--chip${count === 0 ? " fransor-closures-count-badge--empty" : ""}`}
                           aria-hidden="true"
                         >
-                          {closureYearLoading ? "…" : count}
+                          {closureYearLoading && !monthLoaded ? "…" : count}
                         </span>
                       </button>
                     );
@@ -1047,7 +1066,9 @@ export function FransorPage({
                     </tbody>
                   </table>
                 )}
-                {!closureYearLoading && closureModalSelectedMonth && selectedMonthClosures.length === 0 ? (
+                {closureModalSelectedMonth &&
+                Object.prototype.hasOwnProperty.call(closuresByMonth, closureModalSelectedMonth) &&
+                selectedMonthClosures.length === 0 ? (
                   <p className="muted fransor-closure-empty">
                     Aucune période enregistrée pour {formatMonthFr(closureModalSelectedMonth)}.
                   </p>
@@ -1093,9 +1114,14 @@ export function FransorPage({
                 disabled={!deleteClosureReason.trim()}
                 onClick={() => {
                   if (!deleteClosureId || !deleteClosureReason.trim()) return;
-                  void presenter.deleteClosure(deleteClosureId, deleteClosureReason.trim());
+                  const id = deleteClosureId;
+                  const reason = deleteClosureReason.trim();
                   setDeleteClosureId(null);
                   setDeleteClosureReason("");
+                  void (async () => {
+                    await presenter.deleteClosure(id, reason);
+                    if (showClosureModal) await refreshClosureYear(closureModalYear);
+                  })();
                 }}
               >
                 Confirmer suppression

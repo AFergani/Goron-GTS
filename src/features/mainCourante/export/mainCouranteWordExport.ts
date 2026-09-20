@@ -20,8 +20,9 @@ import {
   renderDocxtemplaterBlob,
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
-import { exportTimestampForFilename, safeExportFilenamePart } from "../../common/utils/exportFilename";
+import { ficheWordExportFilename } from "../../common/utils/exportFilename";
 import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
+import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
 
 const MAIN_COURANTE_TEMPLATE_FILE = "main-courante-template.docx";
 const MAIN_COURANTE_TEMPLATE_URL = "/templates/main-courante-template.docx";
@@ -43,17 +44,18 @@ async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null
       throw new Error("Template introuvable");
     }
     return renderDocxtemplaterBlob(buffer, {
+      ...siteDocxFields(entry.siteDisplay),
       date_creation: safeDocxText(formatMainCouranteDate(entry.createdAt)),
       operateur: safeDocxText(entry.operatorName),
       responsable: safeDocxText(entry.managerName),
-      site: safeDocxText(entry.siteDisplay),
       type_anomalie: safeDocxText(entry.anomalyTypeLabel),
-      etat: safeDocxText(statusLabelFr(entry.status)),
+      statut: safeDocxText(statusLabelFr(entry.status)),
       numeroFiche: safeDocxText(entry.dailyCode),
       prise_en_compte: safeDocxText(entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
       date_cloture: safeDocxText(entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
       information_operateur: safeDocxText(entry.information),
-      observation_responsable: safeDocxText(entry.managerObservation || "—")
+      observation_responsable: safeDocxText(entry.managerObservation || "—"),
+      ...formVariableDocxExtras(entry.exportExtraValues)
     });
   } catch {
     if (!templateMissingWarningShown) {
@@ -140,7 +142,7 @@ async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
     fieldParagraph("État", statusLabelFr(entry.status)),
     fieldParagraph("Prise en compte", entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
     fieldParagraph("Clôturé le", entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
-    ...multilineSection("Information (opérateur)", entry.information),
+    ...multilineSection("Observation", entry.information),
     ...multilineSection("Observation responsable", entry.managerObservation || "—")
   ];
 
@@ -169,7 +171,6 @@ async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
 export async function exportMainCouranteEntryToWord(entry: MainCouranteEntry): Promise<SaveExportFileResult> {
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildEntryDocument(entry)));
-  const part = safeExportFilenamePart(entry.siteDisplay || entry.anomalyTypeLabel || "main-courante");
-  const name = `main-courante_${part}_${exportTimestampForFilename()}.docx`;
+  const name = ficheWordExportFilename("main-courante", entry.dailyCode, entry.siteDisplay);
   return saveExportBlob(blob, name);
 }

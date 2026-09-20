@@ -63,7 +63,7 @@ export async function exportRondeToExcel(
   ws["!rows"] = [{ hpt: 22 }];
   ws["!cols"] = [
     { wch: 14 },
-    { wch: 14 },
+    { wch: 18 },
     { wch: 34 },
     { wch: 18 },
     { wch: 24 },

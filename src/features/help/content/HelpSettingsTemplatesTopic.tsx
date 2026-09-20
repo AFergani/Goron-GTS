@@ -18,7 +18,7 @@ export function HelpSettingsTemplatesTopic() {
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
         <div className="help-center-table-wrap">
-          <table className="help-center-table">
+          <table className="help-center-table help-center-table--profile">
             <thead>
               <tr>
                 <th scope="col">Votre profil</th>
@@ -64,7 +64,7 @@ export function HelpSettingsTemplatesTopic() {
           <li>
             <strong>Syntaxe des balises (Docxtemplater) :</strong> vos documents Word doivent utiliser des balises (jetons) spécifiques entourées
             d&apos;accolades, comme <code>{"{site}"}</code> ou <code>{"{date_creation}"}</code>. Cliquez sur l&apos;icône{" "}
-            <strong>Aide variables (?)</strong> présente sur chaque ligne pour obtenir la liste exacte des jetons textuels acceptés par flux.
+            <strong>Variable</strong> présente sur chaque ligne pour obtenir la liste exacte des jetons textuels acceptés par flux.
           </li>
           <li>
             <strong>Variables personnalisées :</strong> si vous utilisez des champs complémentaires (notamment pour les interventions), assurez-vous
@@ -98,6 +98,7 @@ export function HelpSettingsTemplatesTopic() {
         <p className="muted" style={{ marginTop: 0 }}>
           Ce tableau liste les trames de base indispensables à l&apos;application. Les fichiers <code>.docx</code> supplémentaires présents dans le
           dossier (hors noms déjà listés) apparaissent aussi comme modèles personnalisés détectés automatiquement.
+          Sur une ligne personnalisée, <strong>Supprimer</strong> retire le fichier du dossier (confirmation). Les trames par défaut n&apos;ont pas ce bouton.
         </p>
         <div className="help-center-callout help-center-callout--warn" role="note">
           <strong>Attention :</strong> ne renommez pas ces fichiers sur votre ordinateur — l&apos;application ne reconnaîtrait plus le flux.

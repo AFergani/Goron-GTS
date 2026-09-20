@@ -3218,13 +3218,31 @@ th {
 }
 
 /* Intervention — première ligne : date/heure, site, prestataire */
-.intervention-entry-modal .request-head-row {
-  margin-bottom: 12px;
-}
-
 .intervention-entry-modal .request-head-row > .mc-site-field-wrap,
 .intervention-entry-modal .request-head-row > .mc-field {
   min-width: 0;
+}
+.main-courante-entry-modal .request-head-row {
+  grid-template-columns: max-content minmax(8rem, 1fr) minmax(14rem, 1.6fr);
+  margin-bottom: 12px;
+}
+
+.main-courante-entry-modal .request-head-row > .mc-field,
+.main-courante-entry-modal .request-head-row > .mc-field-with-inline-action,
+.main-courante-entry-modal .request-head-row > .mc-site-field-wrap {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .main-courante-entry-modal .request-head-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .main-courante-entry-modal .request-head-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Intervention — arrivée / départ : une ligne dans la modale (taille intermédiaire) */
@@ -3315,8 +3333,35 @@ th {
   }
 }
 
-.mc-field-full .intervention-motif-textarea {
+.mc-field-full .intervention-motif-textarea,
+.request-motif-row__motif .intervention-motif-textarea {
   min-height: 56px;
+}
+
+.request-motif-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.request-motif-row--with-extra {
+  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 18rem);
+}
+
+.request-motif-row__extra {
+  min-width: 0;
+}
+
+.request-motif-row__extra .mc-field {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .request-motif-row--with-extra {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .mc-field-error {
@@ -5539,7 +5584,6 @@ fieldset.ronde-planned-weekdays {
 
 /* Date / heure : mêmes largeurs que le référentiel global (ex. Heure de la demande). */
 .gardiennage-date-field input[type="date"],
-.gardiennage-date-input-wrap input[type="date"],
 .gardiennage-planning-validity .gardiennage-date-field input[type="date"],
 .gardiennage-horaires-row .gardiennage-date-field input[type="date"] {
   width: var(--gts-input-date-width);
@@ -5548,7 +5592,6 @@ fieldset.ronde-planned-weekdays {
 }
 
 .gardiennage-time-field input[type="time"],
-.gardiennage-date-input-wrap input[type="time"],
 .gardiennage-planning-validity .gardiennage-time-field input[type="time"],
 .gardiennage-horaires-row .gardiennage-time-field input[type="time"] {
   width: var(--gts-input-time-width);
@@ -5628,31 +5671,6 @@ fieldset.ronde-planned-weekdays {
   align-items: center;
   gap: 6px;
   font-size: 0.87em;
-}
-
-.gardiennage-date-input-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.gardiennage-date-input-wrap .gardiennage-date-placeholder {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: var(--text-2);
-  font-size: var(--gts-control-font-size, 14px);
-  line-height: 1;
-}
-
-.gardiennage-date-input-wrap input.gardiennage-date-input--empty {
-  color: transparent;
-}
-
-.gardiennage-date-input-wrap input.gardiennage-date-input--empty::-webkit-datetime-edit {
-  opacity: 0;
 }
 
 .gardiennage-date-label {

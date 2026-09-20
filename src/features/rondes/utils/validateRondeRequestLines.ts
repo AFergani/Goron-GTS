@@ -17,6 +17,9 @@ export function validateRondeRequestLines(
   for (let i = 0; i < lines.length; i += 1) {
     const ln = lines[i];
     const label = `Ligne ${rondeRequestLineDisplayNumber(i, lines.length)}`;
+    if (!ln.roundKind) {
+      return `${label}: sélectionnez un type de ronde.`;
+    }
     if (ln.roundKind !== "RANDOM" && !ln.requestedTime.trim()) {
       return `${label}: heure demandée obligatoire.`;
     }

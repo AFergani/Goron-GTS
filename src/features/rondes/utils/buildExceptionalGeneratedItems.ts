@@ -29,7 +29,7 @@ export type ExceptionalGeneratedResult = {
   intervalHonorNote: string;
 };
 
-function isDedicatedKind(kind: RoundKindDraft): kind is DedicatedRondeKind {
+function isDedicatedKind(kind: RoundKindDraft | ""): kind is DedicatedRondeKind {
   return kind === "OPENING" || kind === "CLOSING" || kind === "ACCOMPAGNEMENT";
 }
 

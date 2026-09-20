@@ -12,11 +12,27 @@ const SUITE_INTERVENTION_DETAIL_PREFIX = /^Suite intervention\.\s*/i;
 export function requestOriginFromStoredEntry(row: {
   originInterventionId?: string | null;
   originKind?: RondeOriginKind;
+  source?: string;
+  originDetail?: string;
+  requestPlanningSnapshot?: { origin?: string } | null;
 }): RequestOrigin {
-  if (row.originInterventionId) return "SUITE_INTERVENTION";
+  if (isSuiteInterventionRonde(row)) return "SUITE_INTERVENTION";
   if (row.originKind === "CLIENT") return "APPEL_CLIENT";
   if (row.originKind === "TELESURVEILLANCE") return "CONTRAT";
   return "AUTRE";
+}
+
+/** Ronde créée à la suite d’une intervention (lien ou libellé persisté). */
+export function isSuiteInterventionRonde(row: {
+  originInterventionId?: string | null;
+  source?: string;
+  originDetail?: string;
+  requestPlanningSnapshot?: { origin?: string } | null;
+}): boolean {
+  if (String(row.originInterventionId || "").trim()) return true;
+  if (row.source === "LIEE_INTERVENTION") return true;
+  if (row.requestPlanningSnapshot?.origin === "SUITE_INTERVENTION") return true;
+  return SUITE_INTERVENTION_DETAIL_PREFIX.test(String(row.originDetail || "").trim());
 }
 
 /** Mappe l’origine UI vers le kind API (`originKind`). */
@@ -42,7 +58,7 @@ export function formatRequestOriginDetail(
   const consigne = String(opts.consigne ?? "").trim();
   const clientName = String(opts.clientName ?? "").trim();
   if (origin === "SUITE_INTERVENTION") {
-    return consigne ? `Suite intervention. ${consigne}` : "Suite intervention.";
+    return clientName ? `Suite intervention. ${clientName}` : "Suite intervention.";
   }
   if (origin === "APPEL_CLIENT") {
     return clientName;
@@ -53,4 +69,20 @@ export function formatRequestOriginDetail(
 /** Retire le préfixe « Suite intervention. » d’un détail stocké. */
 export function stripSuiteInterventionPrefix(detail: string): string {
   return String(detail ?? "").replace(SUITE_INTERVENTION_DETAIL_PREFIX, "").trim();
+}
+
+/** Nom client persisté sur une suite d’intervention (vide = repli télésurveillance à l’affichage). */
+export function suiteInterventionClientName(row: {
+  originKind?: RondeOriginKind;
+  originDetail?: string;
+  horairesDemandeObs?: string;
+}): string {
+  if (row.originKind === "CLIENT") {
+    return String(row.originDetail || "").trim();
+  }
+  const stripped = stripSuiteInterventionPrefix(String(row.originDetail || ""));
+  if (!stripped) return "";
+  const consigne = String(row.horairesDemandeObs || "").trim();
+  if (consigne && stripped === consigne) return "";
+  return stripped;
 }

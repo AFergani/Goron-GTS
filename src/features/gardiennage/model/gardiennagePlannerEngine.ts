@@ -8,6 +8,7 @@
  */
 
 import type { GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
+import { floorValidityStartToRequest } from "../../common/utils/alignRequestAndValidity";
 import { isValidPlanningTime, resolveH24ValidToTime } from "./gardiennagePlanningForm";
 import {
   buildHolidayMatchers,
@@ -59,8 +60,25 @@ export function buildGardiennageSlotsFromSnapshot(
     ? resolveH24ValidToTime(fromTime, String(snapshot.validToTime || "").trim())
     : String(snapshot.validToTime || "").trim();
   if (!isValidPlanningTime(fromTime) || !isValidPlanningTime(toTime)) return [];
-  const rangeStart = toIsoDateTime(snapshot.validFromDate, fromTime);
-  const rangeEnd = toIsoDateTime(snapshot.validToDate, toTime);
+  const validityHasTime = Boolean(snapshot.isContinuous) || fromTime !== "00:00";
+  const floored = floorValidityStartToRequest(
+    {
+      requestDate: String(snapshot.requestDate || ""),
+      requestTime: String(snapshot.requestTime || ""),
+      validFromDate: snapshot.validFromDate,
+      validFromTime: fromTime,
+      validToDate: snapshot.validToDate,
+      validToTime: toTime
+    },
+    { validityHasTime, compareEndTimes: false }
+  );
+  const fromDate = floored.validFromDate || snapshot.validFromDate;
+  const toDate = floored.validToDate || snapshot.validToDate;
+  const effectiveFromTime = floored.validFromTime || fromTime;
+  const effectiveToTime = floored.validToTime || toTime;
+  if (!isValidPlanningTime(effectiveFromTime) || !isValidPlanningTime(effectiveToTime)) return [];
+  const rangeStart = toIsoDateTime(fromDate, effectiveFromTime);
+  const rangeEnd = toIsoDateTime(toDate, effectiveToTime);
   if (rangeStart >= rangeEnd) return [];
 
   const holiday = buildHolidayMatchers(options.holidayDateIsos || []);
@@ -89,8 +107,8 @@ export function buildGardiennageSlotsFromSnapshot(
     if (!line.startTime || !line.endTime) continue;
     const activeDates = collectActiveDatesForLine(
       line,
-      snapshot.validFromDate,
-      snapshot.validToDate,
+      fromDate,
+      toDate,
       anchoredStartDates,
       holiday
     );

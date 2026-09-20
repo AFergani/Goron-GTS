@@ -578,6 +578,7 @@ export const gtsApiClient = {
     anomalyTypeId: string;
     anomalyTypeLabel: string;
     information: string;
+    exportExtraValues?: Record<string, string>;
   }) {
     return sessionCall(window.gtsApi.createMainCouranteEntry, payload);
   },
@@ -600,6 +601,7 @@ export const gtsApiClient = {
     managerName: string;
     managerObservation: string;
     decision: "suivre" | "cloture";
+    exportExtraValues?: Record<string, string>;
   }) {
     return sessionCall(window.gtsApi.applyMainCouranteManagerAction, payload);
   },

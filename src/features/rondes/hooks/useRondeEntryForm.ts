@@ -3,8 +3,10 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import type { IntervenantRef, SiteRef } from "../../../types";
+import type { IntervenantRef, Role, SiteRef } from "../../../types";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
+import type { FormTarget } from "../../settings/model/formVariables.types";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { normalizeTimeForSave } from "../../common/utils/timeInput";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
@@ -44,6 +46,7 @@ type UseRondeEntryFormParams = {
   plannedProfiles: RondePlannedProfileRef[];
   linkedInterventionEntry?: InterventionEntry | null;
   createPreset?: RondeEntryCreatePreset | null;
+  requesterRole?: Role;
   onClose: () => void;
 };
 
@@ -57,6 +60,7 @@ export function useRondeEntryForm({
   plannedProfiles,
   linkedInterventionEntry,
   createPreset,
+  requesterRole,
   onClose
 }: UseRondeEntryFormParams) {
   const [requestDate, setRequestDate] = useState(formatNowDate());
@@ -111,6 +115,20 @@ export function useRondeEntryForm({
     if (!plannedProfileId) return null;
     return plannedProfiles.find((item) => item.id === plannedProfileId) ?? null;
   }, [isCreateMode, createPreset?.source, createPreset?.plannedProfileId, entry?.plannedProfileId, plannedProfiles]);
+
+  const rondeFormTarget: FormTarget =
+    entry?.source === "PLANIFIE" || createPreset?.source === "PLANIFIE" ? "RONDE_PLANIFIEE" : "RONDE_EXCEPTIONNELLE";
+  const extras = useFormVariableFields({
+    isOpen,
+    requesterRole,
+    formTarget: rondeFormTarget,
+    site: selectedSite,
+    plannedProfileId: activePlannedProfile?.id || null,
+    seedValues: isCreateMode ? {} : entry?.closureCustomValues,
+    seedKey: isCreateMode ? `create:${createPreset?.plannedSlotKey || "new"}` : entry?.id
+  });
+  const requestExtraDefs = extras.requestDefs;
+  const closureExtraDefs = extras.closureDefs;
 
   const plannedLineRequestedTime = useMemo(() => {
     const isCreatePlanned = isCreateMode && createPreset?.source === "PLANIFIE";
@@ -384,6 +402,10 @@ export function useRondeEntryForm({
     effectiveLogicalDate,
     hasLogicalDateTransition,
     logicalDateTransitionLabel,
-    createCloseGuard
+    createCloseGuard,
+    requestExtraDefs,
+    closureExtraDefs,
+    extraValues: extras.values,
+    setExtraValues: extras.setValues
   };
 }

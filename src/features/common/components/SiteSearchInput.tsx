@@ -154,7 +154,6 @@ export function SiteSearchInput({
                     >
                       <span className="mc-site-suggest-code">{s.code}</span>
                       <span className="mc-site-suggest-name">{s.name}</span>
-                      {s.parc?.trim() ? <span className="mc-site-suggest-parc">{s.parc}</span> : null}
                     </button>
                   </li>
                 ))}

@@ -33,6 +33,7 @@ export type MainCouranteEntry = {
   closedAt?: string;
   /** Numéro métier `JJMMAAAA-XX` (recherche / titre). */
   dailyCode: string;
+  exportExtraValues?: Record<string, string>;
 };
 
 export type MainCouranteSavePayload = {
@@ -41,6 +42,7 @@ export type MainCouranteSavePayload = {
   anomalyTypeId: string;
   anomalyTypeLabel: string;
   information: string;
+  exportExtraValues?: Record<string, string>;
 };
 
 export type MainCouranteCreatePayload = MainCouranteSavePayload;

@@ -23,9 +23,10 @@
  * @returns {{
  *   getDocumentTemplate: (templateName: string) => object,
  *   listDocumentTemplatesPayload: () => object,
- *   installDocumentTemplateCopy: (payload: object) => Promise<object>,
- *   upsertScopedDocumentTemplate: (payload: object) => Promise<object>,
- *   resolveWritableTemplatesDirectory: () => string
+   *   installDocumentTemplateCopy: (payload: object) => Promise<object>,
+   *   upsertScopedDocumentTemplate: (payload: object) => Promise<object>,
+   *   deleteCustomDocumentTemplate: (payload: object) => Promise<object>,
+   *   resolveWritableTemplatesDirectory: () => string
  * }}
  */
 function createDocumentTemplatesService(deps) {
@@ -45,6 +46,12 @@ function createDocumentTemplatesService(deps) {
     { name: "Tous les fichiers", extensions: ["*"] }
   ];
 
+  const BUILTIN_TEMPLATE_FILE_NAMES = new Set([
+    "main-courante-template.docx",
+    "intervention-template.docx",
+    "ronde-template.docx"
+  ]);
+
   /**
    * Résout le premier chemin existant pour un nom de fichier modèle (données puis bundle).
    *
@@ -57,7 +64,9 @@ function createDocumentTemplatesService(deps) {
     const dataCandidates = getDataRootCandidates().map((dataRoot) => path.join(dataRoot, "templates", safeName));
     const appBundledCandidates = [
       path.join(appDirname, "..", "dist", "templates", safeName),
-      path.join(processCwd, "dist", "templates", safeName)
+      path.join(processCwd, "dist", "templates", safeName),
+      path.join(appDirname, "..", "public", "templates", safeName),
+      path.join(processCwd, "public", "templates", safeName)
     ];
     for (const filePath of [...dataCandidates, ...appBundledCandidates]) {
       try {
@@ -157,11 +166,10 @@ function createDocumentTemplatesService(deps) {
   /**
    * Titre liste pour un `.docx` hors modèles embarqués.
    *
-   * @param {string} fileName
    * @param {string} helpId
    * @returns {string}
    */
-  function customTemplateTitle(fileName, helpId) {
+  function customTemplateTitle(helpId) {
     const labels = {
       intervention: "Intervention",
       ronde: "Ronde",
@@ -170,8 +178,8 @@ function createDocumentTemplatesService(deps) {
       "main-courante": "Main courante"
     };
     const label = labels[helpId];
-    if (label) return `Modèle personnalisé — ${label} (${fileName})`;
-    return `Modèle personnalisé (${fileName})`;
+    if (label) return `Modèle personnalisé — ${label}`;
+    return "Modèle personnalisé";
   }
 
   /**
@@ -188,6 +196,68 @@ function createDocumentTemplatesService(deps) {
     const dir = path.join(dataRoot, "templates");
     fs.mkdirSync(dir, { recursive: true });
     return dir;
+  }
+
+  /**
+   * Vérifie qu'un nom de fichier .docx n'est pas un modèle embarqué.
+   *
+   * @param {string} fileName
+   * @returns {string} Nom sanitizé
+   */
+  function assertDeletableCustomTemplateName(fileName) {
+    const safeName = path.basename(String(fileName || "").trim());
+    if (!safeName.toLowerCase().endsWith(".docx")) {
+      throw new Error("Le nom cible doit se terminer par .docx.");
+    }
+    if (BUILTIN_TEMPLATE_FILE_NAMES.has(safeName) || BUILTIN_TEMPLATE_FILE_NAMES.has(safeName.toLowerCase())) {
+      throw new Error("Les modèles par défaut ne peuvent pas être supprimés.");
+    }
+    return safeName;
+  }
+
+  /**
+   * Supprime un .docx personnalisé uniquement s'il est dans le dossier d'écriture du poste.
+   *
+   * @param {string} safeName
+   * @returns {string} Chemin supprimé
+   */
+  function unlinkCustomTemplateInWritableDir(safeName) {
+    const templatesDir = path.resolve(resolveWritableTemplatesDirectory());
+    const dest = path.resolve(templatesDir, safeName);
+    const prefix = templatesDir.endsWith(path.sep) ? templatesDir : `${templatesDir}${path.sep}`;
+    if (dest !== templatesDir && !dest.startsWith(prefix)) {
+      throw new Error("Chemin de modèle invalide.");
+    }
+    if (!fs.existsSync(dest)) {
+      throw new Error("Fichier modèle introuvable dans le dossier des modèles.");
+    }
+    fs.unlinkSync(dest);
+    return dest;
+  }
+
+  /**
+   * Retire les attributions encore liées à un fichier (si la table existe).
+   *
+   * @param {object} payload
+   * @param {string} safeName
+   */
+  async function deleteAssignmentsForTemplateFile(payload, safeName) {
+    const userStore = getUserStore();
+    if (!userStore) return;
+    try {
+      const rows = await userStore.listTemplateAssignments({ requesterRole: payload.requesterRole });
+      for (const row of rows || []) {
+        if (String(row.templateFileName || "") !== safeName) continue;
+        await userStore.deleteTemplateAssignment({
+          requesterRole: payload.requesterRole,
+          requesterUsername: payload.requesterUsername,
+          id: row.id,
+          reason: "Fichier modèle personnalisé supprimé"
+        });
+      }
+    } catch {
+      /* table absente après reset, ou lecture impossible */
+    }
   }
 
   /**
@@ -254,7 +324,7 @@ function createDocumentTemplatesService(deps) {
           templates.push({
             kind: "custom",
             templateKey: `custom:${f}`,
-            title: customTemplateTitle(f, helpId),
+            title: customTemplateTitle(helpId),
             fileName: f,
             helpId,
             resolvedPath: full,
@@ -360,11 +430,68 @@ function createDocumentTemplatesService(deps) {
     };
   }
 
+  /**
+   * Supprime un modèle Word personnalisé du dossier d'écriture (pas les trames par défaut).
+   * Retire aussi les attributions qui pointent encore vers ce fichier.
+   *
+   * RBAC : `ensureDataManagerRole`. Audit : `DATA_DOCUMENT_TEMPLATE_DELETE`.
+   *
+   * @param {object} payload
+   * @param {string} payload.requesterRole
+   * @param {string} payload.requesterUsername
+   * @param {string} payload.targetFileName
+   * @returns {Promise<{ success: true, fileName: string }>}
+   */
+  async function deleteCustomDocumentTemplate(payload) {
+    ensureStore();
+    const userStore = getUserStore();
+    const { requesterRole, requesterUsername, targetFileName } = payload || {};
+    userStore.ensureDataManagerRole(requesterRole);
+    const safeName = assertDeletableCustomTemplateName(targetFileName);
+    const destPath = unlinkCustomTemplateInWritableDir(safeName);
+    await deleteAssignmentsForTemplateFile({ requesterRole, requesterUsername }, safeName);
+    userStore.logAudit({
+      actorUsername: requesterUsername || "unknown",
+      action: "DATA_DOCUMENT_TEMPLATE_DELETE",
+      details: { fileName: safeName, destPath }
+    });
+    return { success: true, fileName: safeName };
+  }
+
+  /**
+   * Si plus aucune attribution n'utilise ce fichier, le retire du dossier writable.
+   *
+   * @param {object} payload
+   * @param {string} payload.requesterRole
+   * @param {string} payload.targetFileName
+   */
+  async function deleteCustomTemplateFileIfUnreferenced(payload) {
+    const safeName = assertDeletableCustomTemplateName(payload?.targetFileName);
+    const userStore = getUserStore();
+    if (userStore) {
+      try {
+        const rows = await userStore.listTemplateAssignments({ requesterRole: payload.requesterRole });
+        const stillUsed = (rows || []).some((row) => String(row.templateFileName || "") === safeName);
+        if (stillUsed) return { success: true, deleted: false };
+      } catch {
+        return { success: true, deleted: false };
+      }
+    }
+    try {
+      unlinkCustomTemplateInWritableDir(safeName);
+      return { success: true, deleted: true };
+    } catch {
+      return { success: true, deleted: false };
+    }
+  }
+
   return {
     getDocumentTemplate,
     listDocumentTemplatesPayload,
     installDocumentTemplateCopy,
     upsertScopedDocumentTemplate,
+    deleteCustomDocumentTemplate,
+    deleteCustomTemplateFileIfUnreferenced,
     resolveWritableTemplatesDirectory
   };
 }

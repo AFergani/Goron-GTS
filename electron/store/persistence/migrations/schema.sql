@@ -324,6 +324,7 @@ CREATE INDEX IF NOT EXISTS idx_main_courante_status
 DROP INDEX IF EXISTS idx_main_courante_status_archived;
 
 ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+ALTER TABLE main_courante_entries ADD COLUMN IF NOT EXISTS export_extra_json TEXT NOT NULL DEFAULT '{}';
 UPDATE main_courante_entries e
 SET daily_code = sub.code
 FROM (
@@ -460,6 +461,7 @@ CREATE INDEX IF NOT EXISTS idx_gardiennage_intervention
   ON gardiennage_entries (intervention_id);
 
 ALTER TABLE gardiennage_entries ADD COLUMN IF NOT EXISTS daily_code TEXT;
+ALTER TABLE gardiennage_entries ADD COLUMN IF NOT EXISTS export_extra_json TEXT NOT NULL DEFAULT '{}';
 UPDATE gardiennage_entries e
 SET daily_code = sub.code
 FROM (

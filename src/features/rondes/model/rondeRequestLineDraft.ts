@@ -10,7 +10,8 @@ export type RoundKindDraft = "OPENING" | "CLOSING" | "ACCOMPAGNEMENT" | "RANDOM"
 
 export type LineDraft = {
   id: string;
-  roundKind: RoundKindDraft;
+  /** Vide = type non choisi (placeholder « — » à la création). */
+  roundKind: RoundKindDraft | "";
   requestedTime: string;
   randomWindowStart: string;
   randomWindowEnd: string;
@@ -26,18 +27,24 @@ function newLineDraftId(prefix = "line"): string {
   return crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function normalizeRoundKindDraft(value: unknown): RoundKindDraft {
+function normalizeRoundKindDraft(value: unknown): RoundKindDraft | "" {
   return value === "OPENING" || value === "CLOSING" || value === "ACCOMPAGNEMENT" || value === "RANDOM"
     ? value
-    : "RANDOM";
+    : value === ""
+      ? ""
+      : "RANDOM";
+}
+
+export function isChosenRoundKindDraft(value: string): value is RoundKindDraft {
+  return value === "OPENING" || value === "CLOSING" || value === "ACCOMPAGNEMENT" || value === "RANDOM";
 }
 
 /** Ligne brouillon par défaut (création / fallback). */
 export function createDefaultLineDraft(overrides?: Partial<LineDraft>): LineDraft {
   return {
     id: newLineDraftId(),
-    roundKind: "OPENING",
-    requestedTime: "08:00",
+    roundKind: "",
+    requestedTime: "",
     randomWindowStart: "",
     randomWindowEnd: "",
     randomRoundsCount: "",
@@ -121,6 +128,7 @@ export function formatLineDraftSummary(
   line: LineDraft,
   opts?: { omitWeekdayRecurrence?: boolean }
 ): string {
+  if (!line.roundKind) return "Type de ronde à choisir";
   const intervalMinutes = parseDraftIntervalMinutes(line);
   const roundsCount = parseDraftRoundsCount(line);
   const omitWeekdayRecurrence = Boolean(opts?.omitWeekdayRecurrence);

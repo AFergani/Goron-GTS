@@ -14,7 +14,7 @@ import {
 } from "../model/rondePlannedSlotEngine";
 import { formatLocalDateIso, formatLocalTimeHm } from "../model/rondeCalendarLocal";
 import { isRondeTimeHm, normalizeRondeHmOr } from "../utils/rondeDateTime";
-import { requestOriginLabelFr, type RequestOrigin } from "../model/requestOrigin";
+import { requestOriginLabelFr, stripSuiteInterventionPrefix, type RequestOrigin } from "../model/requestOrigin";
 import {
   createDefaultLineDraft,
   lineRefToDraft,
@@ -25,6 +25,13 @@ import { buildExceptionalGeneratedItems } from "../utils/buildExceptionalGenerat
 import { buildContractualGeneratedPreview } from "../utils/buildContractualGeneratedPreview";
 import { resolveValidityWeekdayLock } from "../utils/resolveValidityWeekdayLock";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
+import type { FormTarget } from "../../settings/model/formVariables.types";
+import {
+  applyRequestDateTimeChange,
+  applyValidFromDateTimeChange,
+  type RequestValidityRange
+} from "../../common/utils/alignRequestAndValidity";
 
 export type UseRondeRequestFormParams = {
   isOpen: boolean;
@@ -148,9 +155,14 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
       setConsigne(s.consigne ?? "");
       {
         const fromBatch = String(props.linkedBatchEntries?.[0]?.originDetail ?? "").trim();
-        setClientName(
-          (props.fixedOrigin ?? replayOriginFallback) === "APPEL_CLIENT" ? fromBatch : ""
-        );
+        const originForClient = props.fixedOrigin ?? replayOriginFallback;
+        if (originForClient === "APPEL_CLIENT") {
+          setClientName(fromBatch);
+        } else if (originForClient === "SUITE_INTERVENTION") {
+          setClientName(stripSuiteInterventionPrefix(fromBatch));
+        } else {
+          setClientName("");
+        }
       }
       {
         const md = String(props.linkedBatchEntries?.[0]?.motifDetail ?? "").trim();
@@ -221,6 +233,15 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
   ]);
 
   const isContract = origin === "CONTRAT";
+  const extras = useFormVariableFields({
+    isOpen: props.isOpen,
+    requesterRole: props.requesterRole,
+    formTarget: (isContract ? "RONDE_PLANIFIEE" : "RONDE_EXCEPTIONNELLE") as FormTarget,
+    site: selectedSite,
+    plannedProfileId: props.editProfile?.id || null,
+    seedValues: {},
+    seedKey: props.editProfile?.id || "request-create"
+  });
   const isOriginFixed = Boolean(props.fixedOrigin || props.initialInterventionId);
   const originLabel = useMemo(() => requestOriginLabelFr(origin), [origin]);
   const canCreatePendingRefs = Boolean(props.onCreatePendingSite && props.onCreatePendingIntervenant);
@@ -237,6 +258,14 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
 
   const updateLine = (idx: number, patch: Partial<LineDraft>) => {
     setLines((prev) => prev.map((line, i) => (i === idx ? { ...line, ...patch } : line)));
+  };
+
+  /** Désactive le jour unique sans laisser Du = Au verrouiller les jours. */
+  const onSingleDayChange = (next: boolean) => {
+    if (!next) {
+      setValidTo((to) => (to.trim() === validFrom.trim() ? "" : to));
+    }
+    setIsSingleDay(next);
   };
 
   const addLine = () => {
@@ -258,7 +287,6 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
         : "08:00";
     setLines((prev) => [
       createDefaultLineDraft({
-        requestedTime: isSingleDay ? fromTimeNorm : "08:00",
         randomWindowStart: isSingleDay ? fromTimeNorm : "",
         randomWindowEnd: isSingleDay ? "23:59" : "",
         weekdaysMask: dayMask
@@ -367,7 +395,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
       let changed = false;
       const next = prev.map((line) => {
         let draft = line;
-        if (dayMask && line.weekdaysMask !== dayMask) {
+        if (dayMask && line.roundKind && line.weekdaysMask !== dayMask) {
           draft = { ...draft, weekdaysMask: dayMask };
           changed = true;
         }
@@ -391,11 +419,63 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     });
   }, [isSingleDay, validFrom, validTo, validFromTime]);
 
+  const rondeAlignOpts = { validityHasTime: true, compareEndTimes: true } as const;
+
+  const currentValidityRange = (): RequestValidityRange => ({
+    requestDate,
+    requestTime,
+    validFromDate: validFrom,
+    validFromTime,
+    validToDate: validTo,
+    validToTime
+  });
+
+  const commitAlignedRange = (next: RequestValidityRange) => {
+    const gluedToRequest =
+      next.validFromDate.trim() === next.requestDate.trim() &&
+      (next.validFromTime.trim() || "00:00") === (next.requestTime.trim() || "00:00");
+    if (isSingleDay && gluedToRequest && next.validFromDate.trim()) {
+      const todayIso = formatLocalDateIso(new Date());
+      const from = next.validFromDate.trim();
+      singleDayAutoKeyRef.current = `${from}|${from === todayIso ? "today" : "other"}`;
+    }
+    setRequestDate(next.requestDate);
+    setRequestTime(next.requestTime);
+    setValidFrom(next.validFromDate);
+    setValidFromTime(next.validFromTime);
+    setValidTo(next.validToDate);
+    setValidToTime(next.validToTime);
+  };
+
+  const onRequestDateChange = (value: string) => {
+    commitAlignedRange(
+      applyRequestDateTimeChange(currentValidityRange(), { date: value, time: requestTime }, rondeAlignOpts)
+    );
+  };
+
+  const onRequestTimeChange = (value: string) => {
+    commitAlignedRange(
+      applyRequestDateTimeChange(currentValidityRange(), { date: requestDate, time: value }, rondeAlignOpts)
+    );
+  };
+
+  const onValidFromChange = (value: string) => {
+    commitAlignedRange(
+      applyValidFromDateTimeChange(currentValidityRange(), { date: value, time: validFromTime }, rondeAlignOpts)
+    );
+  };
+
+  const onValidFromTimeChange = (value: string) => {
+    commitAlignedRange(
+      applyValidFromDateTimeChange(currentValidityRange(), { date: validFrom, time: value }, rondeAlignOpts)
+    );
+  };
+
   return {
     requestDate,
-    setRequestDate,
+    setRequestDate: onRequestDateChange,
     requestTime,
-    setRequestTime,
+    setRequestTime: onRequestTimeChange,
     siteId,
     setSiteId,
     intervenantId,
@@ -411,15 +491,15 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     motifDetail,
     setMotifDetail,
     validFrom,
-    setValidFrom,
+    setValidFrom: onValidFromChange,
     validFromTime,
-    setValidFromTime,
+    setValidFromTime: onValidFromTimeChange,
     validTo,
     setValidTo,
     validToTime,
     setValidToTime,
     isSingleDay,
-    setIsSingleDay,
+    setIsSingleDay: onSingleDayChange,
     lines,
     setLines,
     showPendingSiteForm,
@@ -450,6 +530,9 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     updateLine,
     addLine,
     exceptionalPreview: generationPreview,
-    lockWeekdaysFromValidityRange
+    lockWeekdaysFromValidityRange,
+    requestExtraDefs: extras.requestDefs,
+    extraValues: extras.values,
+    setExtraValues: extras.setValues
   };
 }

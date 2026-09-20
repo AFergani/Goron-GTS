@@ -5,13 +5,18 @@
  * (`[isOpen, entry?.id]`). Soumission via callback parent (audit côté API).
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import type { Role, SiteRef } from "../../../types";
 import type { GardiennageClosePayload, GardiennageEntry } from "../model/gardiennage.types";
 import { TimeInput } from "../../common/components/TimeInput";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 
 type GardiennageCloseModalProps = {
   isOpen: boolean;
   entry: GardiennageEntry | null;
+  requesterRole: Role;
+  sites: SiteRef[];
   onClose: () => void;
   onSubmit: (id: string, expectedUpdatedAt: string, payload: GardiennageClosePayload) => Promise<boolean>;
   closeDate?: string;
@@ -36,6 +41,8 @@ const EMPTY: CloseForm = {
 export function GardiennageCloseModal({
   isOpen,
   entry,
+  requesterRole,
+  sites,
   onClose,
   onSubmit,
   closeDate,
@@ -44,6 +51,18 @@ export function GardiennageCloseModal({
 }: GardiennageCloseModalProps) {
   const [form, setForm] = useState<CloseForm>(EMPTY);
   const [isSaving, setIsSaving] = useState(false);
+  const selectedSite = useMemo(
+    () => (entry?.siteId ? sites.find((site) => site.id === entry.siteId) ?? null : null),
+    [entry?.siteId, sites]
+  );
+  const extras = useFormVariableFields({
+    isOpen,
+    requesterRole,
+    formTarget: "GARDIENNAGE",
+    site: selectedSite,
+    seedValues: entry?.exportExtraValues,
+    seedKey: entry?.id
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -65,7 +84,8 @@ export function GardiennageCloseModal({
         actualEndTime: form.actualEndTime,
         workOrderNumber: form.workOrderNumber,
         closureReport: form.closureReport,
-        closeDate
+        closeDate,
+        exportExtraValues: extras.values
       });
       if (ok) onClose();
     } finally {
@@ -182,6 +202,19 @@ export function GardiennageCloseModal({
               onChange={(e) => setForm((f) => ({ ...f, closureReport: e.target.value }))}
             />
           </label>
+          <FormVariableFields
+            defs={extras.requestDefs}
+            values={extras.values}
+            onValuesChange={extras.setValues}
+            disabled
+            title="Champs de la demande"
+          />
+          <FormVariableFields
+            defs={extras.closureDefs}
+            values={extras.values}
+            onValuesChange={extras.setValues}
+            disabled={isSaving}
+          />
         </div>
 
         {/* FOOTER */}

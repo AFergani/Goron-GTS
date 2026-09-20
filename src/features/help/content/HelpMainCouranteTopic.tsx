@@ -24,7 +24,7 @@ export function HelpMainCouranteTopic() {
           <li>
             <strong>Saisie obligatoire :</strong> un <strong>type d&apos;anomalie</strong> est toujours proposé (défaut{" "}
             <strong>Voir Observation</strong> si vous n&apos;en avez pas créé d&apos;autre) ; décrivez le fait dans le champ{" "}
-            <strong>Observation (opérateur)</strong> (ce qui s&apos;est passé, qui a contacté, impact sur le site, etc.).
+            <strong>Observation</strong> (ce qui s&apos;est passé, qui a contacté, impact sur le site, etc.).
           </li>
           <li>
             <strong>Identification du site :</strong>

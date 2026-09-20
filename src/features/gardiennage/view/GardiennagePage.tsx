@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { ServiceListFiltersBar } from "../../common/components/ServiceListFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
+import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -32,7 +33,7 @@ import { ListExportButtons } from "../../common/components/ExportFileButtons";
 import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
 import { WORKSTATION_EXPORT_KEYS } from "../../common/utils/workstationExportPaths";
 
-const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v1";
+const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v2";
 
 type GardiennagePageProps = {
   requesterRole: Role;
@@ -82,9 +83,9 @@ export function GardiennagePage({
   const workstationExports = useWorkstationExports();
 
   const [displayMode, setDisplayMode] = useState<"day" | "list">(() => {
-    if (typeof window === "undefined") return "day";
+    if (typeof window === "undefined") return "list";
     const raw = window.localStorage.getItem(GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY);
-    return raw === "list" ? "list" : "day";
+    return raw === "day" ? "day" : "list";
   });
 
   /* ── Onglet Du jour ── */
@@ -369,7 +370,7 @@ export function GardiennagePage({
               onStatusFilterChange={setStatusFilter}
             />
 
-            {!presenter.loading ? (
+            <ListLoadingOverlay loading={presenter.loading}>
               <GardiennageTable
                 entries={planificationPaginated}
                 showPeriode
@@ -378,41 +379,36 @@ export function GardiennagePage({
                 onClose={openCloseModal}
                 onNotify={onToast}
               />
-            ) : (
-              <p className="muted">Chargement…</p>
-            )}
-
-            <TablePaginationBar
-              currentPage={planifFilters.currentPage}
-              totalPages={totalPages}
-              totalItems={planificationFiltered.length}
-              pageSize={planifFilters.pageSize}
-              onPageChange={planifFilters.setCurrentPage}
-              onPageSizeChange={planifFilters.setPageSize}
-            />
+              <TablePaginationBar
+                currentPage={planifFilters.currentPage}
+                totalPages={totalPages}
+                totalItems={planificationFiltered.length}
+                pageSize={planifFilters.pageSize}
+                onPageChange={planifFilters.setCurrentPage}
+                onPageSizeChange={planifFilters.setPageSize}
+              />
+            </ListLoadingOverlay>
           </>
         ) : (
           <>
             {references.error ? <p className="error">{references.error}</p> : null}
 
-            {!presenter.loading && duJourEntries.length === 0 ? (
-              <div className="main-log-empty">
-                <p className="muted">Aucun gardiennage planifié ou actif pour cette date.</p>
-              </div>
-            ) : null}
-
-            {!presenter.loading && duJourEntries.length > 0 ? (
-              <GardiennageTable
-                entries={duJourEntries}
-                hoursForDate={selectedDate}
-                onEdit={openEdit}
-                onDelete={openDeleteConfirm}
-                onClose={openCloseModal}
-                onNotify={onToast}
-              />
-            ) : null}
-
-            {presenter.loading ? <p className="muted">Chargement…</p> : null}
+            <ListLoadingOverlay loading={presenter.loading}>
+              {duJourEntries.length === 0 ? (
+                <div className="main-log-empty">
+                  <p className="muted">Aucun gardiennage planifié ou actif pour cette date.</p>
+                </div>
+              ) : (
+                <GardiennageTable
+                  entries={duJourEntries}
+                  hoursForDate={selectedDate}
+                  onEdit={openEdit}
+                  onDelete={openDeleteConfirm}
+                  onClose={openCloseModal}
+                  onNotify={onToast}
+                />
+              )}
+            </ListLoadingOverlay>
           </>
         )}
       </section>
@@ -447,6 +443,8 @@ export function GardiennagePage({
       <GardiennageCloseModal
         isOpen={closeModalOpen}
         entry={closeModalEntry}
+        requesterRole={requesterRole}
+        sites={references.sites}
         closeDate={selectedDate}
         onClose={() => { setCloseModalOpen(false); setCloseModalEntry(null); }}
         onSubmit={presenter.closeEntry}

@@ -33,6 +33,12 @@ type TemplateAssignmentRow = {
   updatedAt: string;
 };
 
+function formatTemplateNameWithFile(title: string, fileName: string): string {
+  const suffix = `(${fileName})`;
+  if (title.includes(suffix)) return title;
+  return `${title} ${suffix}`;
+}
+
 export function TemplatesManagementPanel({ requesterRole, requesterUsername, sites, onNotify }: TemplatesManagementPanelProps) {
   const [templates, setTemplates] = useState<DocumentTemplateListItem[]>([]);
   const [assignments, setAssignments] = useState<TemplateAssignmentRow[]>([]);
@@ -46,6 +52,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const [assignSite, setAssignSite] = useState<SiteRef | null>(null);
   const [assignFamille, setAssignFamille] = useState("");
   const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
+  const [deleteCustomFileName, setDeleteCustomFileName] = useState<string | null>(null);
 
   const refreshTemplates = useCallback(async () => {
     setLoadingList(true);
@@ -163,6 +170,24 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
       setDeleteAssignmentId(null);
       onNotify?.("Attribution supprimée.");
       await refreshAssignments();
+      await refreshTemplates();
+    } catch (err) {
+      onNotify?.(err instanceof Error ? err.message : "Suppression impossible.");
+    }
+  };
+
+  const confirmDeleteCustomFile = async () => {
+    if (!deleteCustomFileName) return;
+    try {
+      await gtsApiClient.deleteCustomDocumentTemplate({
+        requesterRole,
+        requesterUsername,
+        targetFileName: deleteCustomFileName
+      });
+      setDeleteCustomFileName(null);
+      onNotify?.("Modèle personnalisé supprimé.");
+      await refreshTemplates();
+      await refreshAssignments();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Suppression impossible.");
     }
@@ -171,7 +196,16 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   return (
     <>
       <div className="templates-management-panel">
-        <div className="row settings-tab-toolbar settings-tab-toolbar--end">
+        <div className="row settings-tab-toolbar">
+          {writableDir ? (
+            <p className="muted templates-management-panel__writable" title={writableDir}>
+              Dossier d’écriture des remplacements : <code>{writableDir}</code>
+            </p>
+          ) : (
+            <p className="muted templates-management-panel__writable">
+              Base non configurée : impossible de déterminer le dossier d’écriture.
+            </p>
+          )}
           <div className="row-actions">
             <button
               type="button"
@@ -206,18 +240,10 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
             </button>
           </div>
         </div>
-        {writableDir ? (
-          <p className="muted templates-management-panel__writable">
-            Dossier d’écriture des remplacements : <code>{writableDir}</code>
-          </p>
-        ) : (
-          <p className="muted">Base non configurée : impossible de déterminer le dossier d’écriture.</p>
-        )}
 
         <div className="table-scroll-x">
-          <table className="data-table-fixed templates-management-panel__table">
+          <table className="data-table-fixed templates-management-panel__table templates-management-panel__table--files">
             <colgroup>
-              <col />
               <col />
               <col />
               <col className="templates-management-panel__col-actions" />
@@ -225,7 +251,6 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
             <thead>
               <tr>
                 <th>Modèle</th>
-                <th>Fichier</th>
                 <th>Chemin résolu</th>
                 <th className="templates-management-panel__col-actions">Actions</th>
               </tr>
@@ -233,16 +258,15 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
             <tbody>
               {loadingList ? (
                 <tr>
-                  <td colSpan={4} className="muted">
+                  <td colSpan={3} className="muted">
                     Chargement…
                   </td>
                 </tr>
               ) : (
                 templates.map((row) => (
                   <tr key={row.templateKey}>
-                    <td>{row.title}</td>
-                    <td>
-                      <code>{row.fileName}</code>
+                    <td className="templates-management-panel__name-cell" title={formatTemplateNameWithFile(row.title, row.fileName)}>
+                      {formatTemplateNameWithFile(row.title, row.fileName)}
                     </td>
                     <td className="templates-management-panel__path-cell">
                       <span
@@ -265,12 +289,12 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                         <button
                           type="button"
                           className="btn-light"
-                          title="Aide variables"
-                          aria-label={`Aide variables ${row.title}`}
+                          title="Variables du modèle"
+                          aria-label={`Variables du modèle ${row.title}`}
                           onClick={() => setHelpId(row.helpId)}
                         >
                           <CircleHelp size={16} aria-hidden />
-                          Aide
+                          Variable
                         </button>
                         <button
                           type="button"
@@ -283,6 +307,19 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                           <FileUp size={16} aria-hidden />
                           Remplacer
                         </button>
+                        {row.kind === "custom" ? (
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            title="Supprimer ce fichier modèle personnalisé"
+                            aria-label={`Supprimer le modèle ${row.fileName}`}
+                            disabled={!writableDir}
+                            onClick={() => setDeleteCustomFileName(row.fileName)}
+                          >
+                            <Trash2 size={16} aria-hidden />
+                            Supprimer
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -325,12 +362,12 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                         <button
                           type="button"
                           className="btn-light"
-                          title="Aide variables (mêmes champs que le modèle par défaut de ce flux)"
-                          aria-label={`Aide variables ${flowKindLabel(row.flowKind)}`}
+                          title="Variables du modèle (mêmes champs que le modèle par défaut de ce flux)"
+                          aria-label={`Variables du modèle ${flowKindLabel(row.flowKind)}`}
                           onClick={() => setHelpId(helpIdFromFlowKind(row.flowKind))}
                         >
                           <CircleHelp size={16} aria-hidden />
-                          Aide
+                          Variable
                         </button>
                         <button
                           type="button"
@@ -457,11 +494,20 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
       <ConfirmModal
         isOpen={Boolean(deleteAssignmentId)}
         title="Supprimer cette attribution ?"
-        message="L’attribution sera retirée pour ce flux et cette portée."
+        message="L’attribution sera retirée pour ce flux et cette portée. Si plus aucun flux n’utilise le fichier, il sera aussi retiré du dossier des modèles."
         confirmLabel="Supprimer"
         confirmClassName="btn-danger"
         onCancel={() => setDeleteAssignmentId(null)}
         onConfirm={() => void confirmDeleteAssignment()}
+      />
+      <ConfirmModal
+        isOpen={Boolean(deleteCustomFileName)}
+        title="Supprimer ce modèle personnalisé ?"
+        message="Le fichier sera retiré du dossier des modèles. Les attributions éventuelles qui l’utilisent seront aussi supprimées."
+        confirmLabel="Supprimer"
+        confirmClassName="btn-danger"
+        onCancel={() => setDeleteCustomFileName(null)}
+        onConfirm={() => void confirmDeleteCustomFile()}
       />
     </>
   );

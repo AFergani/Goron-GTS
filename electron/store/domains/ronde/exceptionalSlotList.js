@@ -1,12 +1,13 @@
 /**
  * Orchestrateur des passages d’une demande exceptionnelle (snapshot v1).
  *
- * Utilise le noyau `slotTimeKernel`. Appelé par l’UI (preview) et par Electron (création / resync).
+ * Utilise le noyau `slotTimeKernel` et le moteur d’alignement demande / Validité Du.
  *
  * @module electron/store/domains/ronde/exceptionalSlotList
  */
 
 const kernel = require("./slotTimeKernel");
+const { floorValidityStartToRequest } = require("../../core/alignRequestValidity");
 
 /**
  * @param {string} dateIso
@@ -103,18 +104,38 @@ function hhmmToMinutes(time) {
  */
 function buildDesiredExceptionalSlotList(snapshot, holidayDateIsoSet) {
   if (!snapshot || snapshot.version !== 1) return [];
-  const rangeEndIso =
+  const rangeEndIsoRaw =
     snapshot.validTo && String(snapshot.validTo).trim()
       ? String(snapshot.validTo).trim()
       : String(snapshot.validFrom || "").trim();
-  const safeFrom = String(snapshot.validFrom || "").trim();
-  if (!safeFrom || !rangeEndIso || rangeEndIso < safeFrom) return [];
-  const validFromTimeNorm = kernel.TIME_RE.test(String(snapshot.validFromTime || "").trim())
+  const safeFromRaw = String(snapshot.validFrom || "").trim();
+  if (!safeFromRaw || !rangeEndIsoRaw || rangeEndIsoRaw < safeFromRaw) return [];
+  const validFromTimeRaw = kernel.TIME_RE.test(String(snapshot.validFromTime || "").trim())
     ? String(snapshot.validFromTime).trim()
     : "00:00";
-  const validToTimeNorm = kernel.TIME_RE.test(String(snapshot.validToTime || "").trim())
+  const validToTimeRaw = kernel.TIME_RE.test(String(snapshot.validToTime || "").trim())
     ? String(snapshot.validToTime).trim()
     : "23:59";
+  const floored = floorValidityStartToRequest(
+    {
+      requestDate: snapshot.requestDate,
+      requestTime: snapshot.requestTime,
+      validFromDate: safeFromRaw,
+      validFromTime: validFromTimeRaw,
+      validToDate: rangeEndIsoRaw,
+      validToTime: validToTimeRaw
+    },
+    { validityHasTime: true, compareEndTimes: true }
+  );
+  const safeFrom = String(floored.validFromDate || "").trim();
+  const rangeEndIso = String(floored.validToDate || "").trim() || rangeEndIsoRaw;
+  if (!safeFrom || !rangeEndIso || rangeEndIso < safeFrom) return [];
+  const validFromTimeNorm = kernel.TIME_RE.test(String(floored.validFromTime || "").trim())
+    ? String(floored.validFromTime).trim()
+    : validFromTimeRaw;
+  const validToTimeNorm = kernel.TIME_RE.test(String(floored.validToTime || "").trim())
+    ? String(floored.validToTime).trim()
+    : validToTimeRaw;
   const validityStartMs = kernel.parseDateTimeSafeMs(safeFrom, validFromTimeNorm);
   const validityEndMs = kernel.parseDateTimeSafeMs(rangeEndIso, validToTimeNorm);
   if (validityStartMs == null || validityEndMs == null || validityEndMs < validityStartMs) return [];
@@ -140,7 +161,8 @@ function buildDesiredExceptionalSlotList(snapshot, holidayDateIsoSet) {
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const raw = lines[lineIndex] || {};
-    const rk = raw.roundKind || "OPENING";
+    const rk = String(raw.roundKind || "").trim();
+    if (!rk) continue;
     const kind = rk === "OPENING" || rk === "CLOSING" || rk === "ACCOMPAGNEMENT" || rk === "RANDOM" ? rk : "RANDOM";
     if (kind === "RANDOM") continue;
     const requestedTime = String(raw.requestedTime ?? "");
@@ -163,7 +185,8 @@ function buildDesiredExceptionalSlotList(snapshot, holidayDateIsoSet) {
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const raw = lines[lineIndex] || {};
-    const rk = raw.roundKind || "OPENING";
+    const rk = String(raw.roundKind || "").trim();
+    if (!rk) continue;
     const ln = {
       roundKind: rk === "OPENING" || rk === "CLOSING" || rk === "ACCOMPAGNEMENT" || rk === "RANDOM" ? rk : "RANDOM",
       requestedTime: String(raw.requestedTime ?? ""),

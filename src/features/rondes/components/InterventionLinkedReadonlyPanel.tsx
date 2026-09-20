@@ -4,10 +4,8 @@
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import {
-  INTERVENTION_NO_WORK_ORDER_LABEL,
-  type InterventionEntry
-} from "../../intervention/model/intervention.types";
+import { type InterventionEntry } from "../../intervention/model/intervention.types";
+import { formatInterventionWorkOrderNumber } from "../../intervention/export/interventionExportFormat";
 import type { NotifyToast } from "../../common/model/toast.types";
 
 type InterventionLinkedReadonlyPanelProps = {
@@ -45,7 +43,7 @@ export function InterventionLinkedReadonlyPanel({ entry, onNotify }: Interventio
       </div>
       <div className="linked-intervention-ro-field">
         <span>N° bon</span>
-        {entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL}
+        {formatInterventionWorkOrderNumber(entry)}
       </div>
       <div className="linked-intervention-ro-field">
         <span>Compte rendu intervention</span>

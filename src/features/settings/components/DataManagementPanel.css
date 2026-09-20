@@ -4,26 +4,30 @@
   z-index: 1200;
 }
 
-.data-import-batch-modal {
-  max-width: 420px;
-  width: min(92vw, 420px);
+.modal.data-import-batch-modal {
+  width: min(22rem, 92vw);
+  max-width: 22rem;
+  max-height: none;
+  padding: 12px 14px;
 }
 
-.data-import-batch-modal .data-import-batch-progress {
+.modal.data-import-batch-modal .data-import-batch-progress {
   width: 100%;
-  height: 10px;
-  margin-top: 12px;
+  height: 8px;
+  margin-top: 8px;
   accent-color: var(--accent);
 }
 
-.data-import-batch-modal .data-import-batch-label {
-  margin: 0 0 4px;
+.modal.data-import-batch-modal .data-import-batch-label {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
   font-weight: 600;
+  cursor: default;
 }
 
-.data-import-batch-modal .data-import-batch-hint {
-  margin: 8px 0 0;
-  font-size: 0.9em;
+.modal.data-import-batch-modal .data-import-batch-hint {
+  margin: 0;
+  font-size: 0.82em;
 }
 
 .data-pending-submissions-btn {

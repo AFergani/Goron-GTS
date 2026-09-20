@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { RondeMotifTypeRef, RondeEntry } from "../model/ronde.types";
-import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
+import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { HolidayRef, IntervenantRef } from "../../../types";
 import {
   ApplicablePlannedSlot,
@@ -18,8 +18,9 @@ import type { NotifyToast } from "../../common/model/toast.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { DateInput } from "../../common/components/DateInput";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
-import { enumerateInclusiveDateIsos, findPlannedEntryForSlot, hhmmToMinutes } from "../utils/rondeDateTime";
+import { findPlannedEntryForSlot, hhmmToMinutes } from "../utils/rondeDateTime";
 import { extractRondeRequestedTimeHm } from "../utils/rondePassageRules";
+import { rondePassageKindLabel } from "../utils/rondePassageKindLabel";
 
 function shiftDateRonde(iso: string, delta: number): string {
   const [y, m, day] = iso.split("-").map(Number);
@@ -34,27 +35,6 @@ function formatDateLongRonde(iso: string): string {
   return new Date(y, m - 1, day).toLocaleDateString("fr-FR", {
     weekday: "long", day: "2-digit", month: "long", year: "numeric"
   });
-}
-
-/** Type de passage (sans numéro) pour une fiche exceptionnelle. */
-function exceptionalPassageKindLabel(entry: RondeEntry): string {
-  if (entry.plannedRoundKind) {
-    return formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind);
-  }
-  const snapshotLines = entry.requestPlanningSnapshot?.lines ?? [];
-  const requestedTime = extractRondeRequestedTimeHm(entry);
-  for (const line of snapshotLines) {
-    const t = String(line.requestedTime || "").trim();
-    if (t !== requestedTime) continue;
-    if (line.roundKind) return formatPlannedRoundKindLabel(line.roundKind as RondePlannedRoundKind);
-  }
-  const obs = String(entry.horairesDemandeObs || "").toLowerCase();
-  if (obs.includes("ouverture")) return "Ouverture";
-  if (obs.includes("fermeture")) return "Fermeture";
-  if (obs.includes("accompagnement")) return "Accompagnement";
-  if (obs.includes("aléatoire") || obs.includes("aleatoire") || obs.includes("random")) return "Aléatoire";
-  // Lots multi-passages sans détail : traiter comme aléatoire pour la numérotation.
-  return "Aléatoire";
 }
 
 function compareEntriesByRequestedTime(a: RondeEntry, b: RondeEntry): number {
@@ -124,37 +104,10 @@ export function RondePlannedDaySection({
 
   const rows = useMemo(() => groupSlotsBySite(openPlannedSlots), [openPlannedSlots]);
 
-  const displayDateByEntryId = useMemo(() => {
-    const assignments = new Map<string, string>();
-    const byBatch = new Map<string, RondeEntry[]>();
-
-    for (const entry of entries) {
-      if (!entry.requestBatchId) continue;
-      const list = byBatch.get(entry.requestBatchId);
-      if (list) list.push(entry);
-      else byBatch.set(entry.requestBatchId, [entry]);
-    }
-
-    for (const batchEntries of byBatch.values()) {
-      const snap = batchEntries.find((e) => e.requestPlanningSnapshot)?.requestPlanningSnapshot;
-      const from = String(snap?.validFrom || "").trim();
-      const to = String(snap?.validTo || from).trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) continue;
-      const dates = enumerateInclusiveDateIsos(from, /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : from);
-      if (!dates.length) continue;
-      const sorted = [...batchEntries].sort(compareEntriesByRequestedTime);
-      sorted.forEach((entry, index) => {
-        assignments.set(entry.id, dates[Math.min(index, dates.length - 1)] || entry.requestDate);
-      });
-    }
-
-    return assignments;
-  }, [entries]);
-
   const entryRows = useMemo(() => {
     const dayEntries = entries.filter((entry) => {
       if (entry.status !== "EN_COURS") return false;
-      return (displayDateByEntryId.get(entry.id) ?? entry.requestDate) === dayIso;
+      return entry.requestDate === dayIso;
     });
     const grouped = new Map<string, { siteId: string; siteDisplay: string; items: RondeEntry[] }>();
     for (const entry of dayEntries) {
@@ -173,11 +126,11 @@ export function RondePlannedDaySection({
     return Array.from(grouped.values()).map((row) => {
       const items = [...row.items].sort(compareEntriesByRequestedTime);
       const labels = numberPassageLabels(
-        items.map((entry) => ({ id: entry.id, kind: exceptionalPassageKindLabel(entry) }))
+        items.map((entry) => ({ id: entry.id, kind: rondePassageKindLabel(entry) }))
       );
       return { ...row, items, labels };
     });
-  }, [entries, dayIso, displayDateByEntryId]);
+  }, [entries, dayIso]);
 
   const today = getLocalDateIso();
   const isToday = dayIso === today;
@@ -310,7 +263,7 @@ export function RondePlannedDaySection({
                               title="Ouvrir la fiche ronde"
                               onClick={() => onOpenEntry(entry)}
                             >
-                              {row.labels.get(entry.id) || exceptionalPassageKindLabel(entry)}
+                              {row.labels.get(entry.id) || rondePassageKindLabel(entry)}
                             </button>
                           </div>
                         ))}

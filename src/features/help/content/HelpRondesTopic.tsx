@@ -107,7 +107,7 @@ export function HelpRondesTopic() {
 
         <h4 className="help-center-subsection-title">1. La programmation (configuration responsable)</h4>
         <p className="muted">
-          L&apos;onglet <strong>Ronde contractuelle</strong> (bouton <strong>Planifier une ronde</strong>, ou
+          L&apos;onglet <strong>Ronde contractuelle</strong> (bouton <strong>Nouvelle planification</strong>, ou
           <strong> Profils</strong> / <strong>Demande liée</strong>) permet de définir le cadre : choix du site,
           du prestataire, dates de validité (<strong>Du / Au</strong>) et consignes permanentes destinées aux agents. L&apos;enregistrement crée
           un profil actif, mais <strong>ne génère pas de fiches instantanément</strong>.
@@ -134,8 +134,11 @@ export function HelpRondesTopic() {
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">⚡ Créer une ronde exceptionnelle</h3>
         <p className="muted">
-          La <strong>vue journée</strong> affiche uniquement les fiches encore <strong>en cours</strong> du jour sélectionné.
+          La <strong>vue journée</strong> affiche uniquement les fiches encore <strong>en cours</strong> du jour de
+          passage théorique sélectionné (pas la date d&apos;émission de la demande si elle diffère).
           Passez en <strong>vue liste</strong> pour filtrer, consulter l&apos;historique ou ouvrir une <strong>Demande liée</strong>.
+          Le <strong>numéro de fiche</strong> d&apos;un lot exceptionnel est figé sur la date de la demande
+          (ex. créée le 19/09 → 19092026-01, 19092026-02…), même si un passage est prévu un autre jour.
         </p>
         <ol className="muted help-center-list help-center-list--ordered">
           <li>

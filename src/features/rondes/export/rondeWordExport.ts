@@ -12,16 +12,16 @@ import {
   renderDocxtemplaterBlob,
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
-import { safeExportFilenamePart } from "../../common/utils/exportFilename";
-import { splitSiteDisplayParts } from "../../common/utils/siteDisplayCopy";
-import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import { computeRondeLogicalDate } from "../utils/logicalDate";
-import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";
+import { ficheWordExportFilename } from "../../common/utils/exportFilename";
+import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
+import { formatDateShortFr, formatIsoDatesInTextToFrench } from "../../common/utils/formatDateShortFr";
+import type { HolidayRef } from "../../../types";
+import { formatRondeConsigne, formatRondeResumeDemande } from "../utils/formatRondeResumeDemande";
+import { rondePassageKindWordLabel } from "../utils/rondePassageKindLabel";
 import type { RondeEntry } from "../model/ronde.types";
-import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
-import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
+import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { plannedProfileWordTemplateFileName } from "./profileTemplateFilename";
-import { rondeOriginSummaryFr, rondeStatusLabelFr } from "./rondeExportFormat";
+import { formatRondeClosureDateFr } from "./rondeExportFormat";
 
 let templateMissingWarningShown = false;
 
@@ -29,81 +29,50 @@ let templateMissingWarningShown = false;
 export const DEFAULT_RONDE_WORD_TEMPLATE_FILE = "ronde-template.docx";
 type RondeTemplateFlowKind = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE";
 
-function roundKindLabel(entry: RondeEntry): string {
-  const k = entry.plannedRoundKind;
-  if (!k) return "—";
-  return formatPlannedRoundKindLabel(k as RondePlannedRoundKind);
-}
+type RondeWordRenderContext = {
+  profiles?: RondePlannedProfileRef[] | null;
+  holidayDateIsos?: string[];
+};
 
 /** Données Docxtemplater : jetons ronde contractuelle + champs fiche + clés champs de clôture. */
 function buildTemplateData(
   entry: RondeEntry,
-  profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  _profileLabel: string,
+  ctx?: RondeWordRenderContext
 ): Record<string, string> {
-  const parts = splitSiteDisplayParts(entry.siteDisplay);
-  const siteCode = safeDocxText(parts.codePart);
-  const siteName = safeDocxText(parts.namePart);
-  const siteLabel = safeDocxText(entry.siteDisplay);
-  const profil = safeDocxText(profileLabel);
+  const siteFields = siteDocxFields(entry.siteDisplay);
   const dateJour = formatDateShortFr(entry.requestDate);
-  const heureDem = resolvePlannedHeureDemandeeFromProfiles(entry, profiles);
-  const customLogicalDate = String(
-    entry.closureCustomValues?.date_logique_passage || entry.closureCustomValues?.date_logique || ""
-  ).trim();
-  const logicalDateComputed = computeRondeLogicalDate({
-    requestDate: entry.requestDate,
-    plannedRoundKind: entry.plannedRoundKind || null,
-    arrivalTime: entry.arrivalTime,
-    departureTime: entry.departureTime,
-    preferredDate: customLogicalDate || null
-  });
-  const logicalDateIso = logicalDateComputed.logicalDate;
-  const logicalDateFr = logicalDateIso ? formatDateShortFr(logicalDateIso) : "—";
-  const transitionDateLabel =
-    logicalDateIso && entry.requestDate && logicalDateIso !== entry.requestDate
-      ? `${formatDateShortFr(entry.requestDate)} -> ${logicalDateFr}`
-      : "Aucune transition détectée";
+  const resumeOpts = {
+    profiles: ctx?.profiles,
+    holidayDateIsos: ctx?.holidayDateIsos
+  };
+  const resumeDemande = formatRondeResumeDemande(entry, resumeOpts);
+  const consigne = formatRondeConsigne(entry, resumeOpts);
 
   const base: Record<string, string> = {
-    site_code: siteCode,
-    site_name: siteName,
-    site_label: siteLabel,
-    profil_label: profil,
-    profil_libelle: profil,
+    ...siteFields,
+    numeroFiche: safeDocxText(entry.dailyCode),
     prestataire: safeDocxText(entry.intervenantName),
+    motif: safeDocxText(entry.motifTypeLabel),
     date_demande: safeDocxText(dateJour),
-    date_du_jour: safeDocxText(dateJour),
-    heure_demandee: safeDocxText(heureDem || "—"),
-    motif_type: safeDocxText(entry.motifTypeLabel),
-    motif_detail: safeDocxText(entry.motifDetail),
-    motif: safeDocxText(
-      entry.motifDetail.trim() ? `${entry.motifTypeLabel.trim()} (${entry.motifDetail.trim()})` : entry.motifTypeLabel
-    ),
-    horaires_demande_obs: safeDocxText(entry.horairesDemandeObs),
-    origine: safeDocxText(rondeOriginSummaryFr(entry)),
     heure_arrivee: safeDocxText(entry.arrivalTime),
     heure_depart: safeDocxText(entry.departureTime),
     duree_minutes:
       entry.durationMinutes == null ? "—" : safeDocxText(`${entry.durationMinutes} min`),
     numero_bon: safeDocxText(entry.workOrderNumber),
     compte_rendu: safeDocxText(entry.report),
-    statut: safeDocxText(rondeStatusLabelFr(entry, { feminine: true })),
-    numeroFiche: safeDocxText(entry.dailyCode),
-    type_passage: safeDocxText(roundKindLabel(entry)),
-    date_logique_passage: safeDocxText(logicalDateFr),
-    date_logique: safeDocxText(logicalDateFr),
-    date_logique_iso: safeDocxText(logicalDateIso),
-    transition_date: safeDocxText(transitionDateLabel),
-    passage_apres_minuit: logicalDateComputed.shiftedAfterMidnight ? "Oui" : "Non"
+    type_passage: safeDocxText(rondePassageKindWordLabel(entry)),
+    consigne: safeDocxText(consigne),
+    resume_demande: safeDocxText(resumeDemande),
+    date_cloture: safeDocxText(formatRondeClosureDateFr(entry, ctx?.profiles) || "—")
   };
 
-  const merged: Record<string, string> = { ...base };
-  const customs = entry.closureCustomValues && typeof entry.closureCustomValues === "object" ? entry.closureCustomValues : {};
-  for (const [key, val] of Object.entries(customs)) {
-    const k = String(key || "").trim();
-    if (!k) continue;
-    merged[k] = safeDocxText(val);
+  const merged: Record<string, string> = {
+    ...base,
+    ...formVariableDocxExtras(entry.closureCustomValues)
+  };
+  for (const [key, value] of Object.entries(merged)) {
+    merged[key] = formatIsoDatesInTextToFrench(value);
   }
   return merged;
 }
@@ -155,10 +124,10 @@ async function renderDocxFromBuffer(
   entry: RondeEntry,
   profileLabel: string,
   buffer: ArrayBuffer,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Blob | null> {
   try {
-    return renderDocxtemplaterBlob(buffer, buildTemplateData(entry, profileLabel, profiles));
+    return renderDocxtemplaterBlob(buffer, buildTemplateData(entry, profileLabel, ctx));
   } catch {
     return null;
   }
@@ -167,12 +136,12 @@ async function renderDocxFromBuffer(
 async function renderFromProfileTemplate(
   entry: RondeEntry,
   profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Blob | null> {
   try {
     const buffer = await loadProfileTemplateBuffer(profileLabel);
     if (!buffer) return null;
-    const blob = await renderDocxFromBuffer(entry, profileLabel, buffer, profiles);
+    const blob = await renderDocxFromBuffer(entry, profileLabel, buffer, ctx);
     if (!blob && !templateMissingWarningShown) {
       templateMissingWarningShown = true;
       console.warn(
@@ -194,12 +163,12 @@ async function renderFromProfileTemplate(
 async function renderFromScopedPlannedRondeTemplate(
   entry: RondeEntry,
   profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Blob | null> {
   try {
     const buffer = await loadScopedRondeTemplateBuffer(entry, "RONDE_PLANIFIEE");
     if (!buffer) return null;
-    return renderDocxFromBuffer(entry, profileLabel, buffer, profiles);
+    return renderDocxFromBuffer(entry, profileLabel, buffer, ctx);
   } catch {
     return null;
   }
@@ -208,12 +177,12 @@ async function renderFromScopedPlannedRondeTemplate(
 async function renderFromScopedExceptionalRondeTemplate(
   entry: RondeEntry,
   profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Blob | null> {
   try {
     const buffer = await loadScopedRondeTemplateBuffer(entry, "RONDE_EXCEPTIONNELLE");
     if (!buffer) return null;
-    return renderDocxFromBuffer(entry, profileLabel, buffer, profiles);
+    return renderDocxFromBuffer(entry, profileLabel, buffer, ctx);
   } catch {
     return null;
   }
@@ -229,19 +198,19 @@ async function loadDefaultRondeTemplateBuffer(): Promise<ArrayBuffer | null> {
 async function renderFromDefaultRondeTemplate(
   entry: RondeEntry,
   profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Blob | null> {
   const buffer = await loadDefaultRondeTemplateBuffer();
   if (!buffer) return null;
-  return renderDocxFromBuffer(entry, profileLabel, buffer, profiles);
+  return renderDocxFromBuffer(entry, profileLabel, buffer, ctx);
 }
 
 async function buildFallbackDocument(
   entry: RondeEntry,
   profileLabel: string,
-  profiles?: RondePlannedProfileRef[] | null
+  ctx?: RondeWordRenderContext
 ): Promise<Document> {
-  const data = buildTemplateData(entry, profileLabel, profiles);
+  const data = buildTemplateData(entry, profileLabel, ctx);
   const lines = Object.entries(data).map(([k, v]) => `${k} : ${v}`);
   return new Document({
     creator: "Goron GTS",
@@ -274,26 +243,31 @@ async function buildFallbackDocument(
  * Enregistre la fiche Word d’une ronde.
  *
  * @param entry - Fiche ronde.
- * @param options - Libellé de profil et liste des programmations (modèle Word).
+ * @param options - Libellé de profil, programmations et jours fériés (récapitulatif Word).
  * @returns Chemin enregistré, ou annulation utilisateur.
  */
 export async function exportRondeEntryToWord(
   entry: RondeEntry,
-  options?: { profileLabel?: string; profiles?: RondePlannedProfileRef[] | null }
+  options?: {
+    profileLabel?: string;
+    profiles?: RondePlannedProfileRef[] | null;
+    holidays?: HolidayRef[] | null;
+  }
 ): Promise<SaveExportFileResult> {
-  const profiles = options?.profiles;
-  const label = resolveProfileLabel(entry, profiles, options?.profileLabel);
+  const ctx: RondeWordRenderContext = {
+    profiles: options?.profiles,
+    holidayDateIsos: (options?.holidays || []).map((item) => item.dateIso)
+  };
+  const label = resolveProfileLabel(entry, ctx.profiles, options?.profileLabel);
   const isPlannedFlow = isPlannedFlowEntry(entry);
   const templateBlob =
     (isPlannedFlow
-      ? await renderFromScopedPlannedRondeTemplate(entry, label || "—", profiles)
-      : await renderFromScopedExceptionalRondeTemplate(entry, label || "—", profiles)) ??
-    (isPlannedFlow && label ? await renderFromProfileTemplate(entry, label, profiles) : null) ??
-    (await renderFromDefaultRondeTemplate(entry, label || "—", profiles));
+      ? await renderFromScopedPlannedRondeTemplate(entry, label || "—", ctx)
+      : await renderFromScopedExceptionalRondeTemplate(entry, label || "—", ctx)) ??
+    (isPlannedFlow && label ? await renderFromProfileTemplate(entry, label, ctx) : null) ??
+    (await renderFromDefaultRondeTemplate(entry, label || "—", ctx));
   const blob =
-    templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry, label || "—", profiles)));
-  const part = safeExportFilenamePart(entry.siteDisplay || entry.workOrderNumber || "ronde");
-  const datePart = safeExportFilenamePart(formatDateShortFr(entry.requestDate));
-  const name = `Ronde_${part}_${datePart}.docx`;
+    templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry, label || "—", ctx)));
+  const name = ficheWordExportFilename("Ronde", entry.dailyCode, entry.siteDisplay);
   return saveExportBlob(blob, name);
 }

@@ -27,7 +27,7 @@ function syntheticProfileFromDrafts(params: {
 }): RondePlannedProfileRef {
   const payloads = buildRondeProfileLinesFromDrafts(params.lines, params.motifTypeId);
   const lines: RondePlannedProfileLineRef[] = payloads.map((pl, index) => ({
-    id: params.lines[index]?.id || `preview-line-${index}`,
+    id: pl.id || `preview-line-${index}`,
     profileId: "__preview__",
     sortOrder: index,
     roundKind: pl.roundKind,
@@ -58,7 +58,7 @@ function syntheticProfileFromDrafts(params: {
     intervenantDisplay: null,
     notes: "",
     planningValidFrom: params.validFrom,
-    planningValidTo: params.validTo.trim() || params.validFrom,
+    planningValidTo: params.validTo.trim() || null,
     cancellationRequestReason: null,
     cancellationRequestedAt: null,
     cancellationRequestedBy: null,

@@ -4,6 +4,8 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
+import type { FormVariableFieldDef } from "../../common/model/formVariableField.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
 import { TimeInput } from "../../common/components/TimeInput";
@@ -44,6 +46,11 @@ type RondeEntryExecutionSectionProps = {
   onReportChange: (value: string) => void;
   onIntervenantIdChange: (id: string) => void;
   onClosureCustomValuesChange: Dispatch<SetStateAction<Record<string, string>>>;
+  requestExtraDefs?: FormVariableFieldDef[];
+  closureExtraDefs?: FormVariableFieldDef[];
+  extraValues?: Record<string, string>;
+  onExtraValuesChange?: Dispatch<SetStateAction<Record<string, string>>>;
+  requestExtrasReadOnly?: boolean;
 };
 
 export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProps) {
@@ -180,6 +187,23 @@ export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProp
           resolveFieldLabel={resolveFieldLabel}
           disabled={lockFields}
         />
+      ) : null}
+      {props.onExtraValuesChange ? (
+        <>
+          <FormVariableFields
+            defs={props.requestExtraDefs || []}
+            values={props.extraValues || {}}
+            onValuesChange={props.onExtraValuesChange}
+            disabled={props.requestExtrasReadOnly ?? true}
+            title="Champs de la demande"
+          />
+          <FormVariableFields
+            defs={props.closureExtraDefs || []}
+            values={props.extraValues || {}}
+            onValuesChange={props.onExtraValuesChange}
+            disabled={lockFields}
+          />
+        </>
       ) : null}
     </>
   );

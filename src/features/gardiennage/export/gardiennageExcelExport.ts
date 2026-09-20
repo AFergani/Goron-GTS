@@ -10,6 +10,7 @@ import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkb
 import type { GardiennageEntry } from "../model/gardiennage.types";
 import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 
 const HEADERS = [
   "N°",
@@ -25,19 +26,12 @@ const HEADERS = [
   "Ronde liée"
 ] as const;
 
-function formatDateFr(dateIso: string): string {
-  if (!dateIso) return "";
-  const d = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function formatPeriod(entry: GardiennageEntry): string {
-  const start = formatDateFr(entry.recurrenceStartDate);
+  const start = formatDateShortFr(entry.recurrenceStartDate);
   if (!start) return "";
   if (entry.isPonctuel) return start;
   if (!entry.recurrenceEndDate) return `${start} -> Jusqu'à nouvel ordre`;
-  return `${start} -> ${formatDateFr(entry.recurrenceEndDate)}`;
+  return `${start} -> ${formatDateShortFr(entry.recurrenceEndDate)}`;
 }
 
 function formatSchedule(entry: GardiennageEntry): string {

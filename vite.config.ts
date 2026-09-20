@@ -3,24 +3,29 @@ import react from "@vitejs/plugin-react";
 
 /**
  * Le noyau ronde vit en CommonJS (require Electron). Vite le sert tel quel au renderer,
- * où `module` n’existe pas. On le réécrit en `export default` uniquement pour l’UI.
+ * où `module` / `require` n’existent pas. On le réécrit en ESM uniquement pour l’UI.
  */
 function rondeKernelCjsForRenderer(): Plugin {
-  const isRondeKernelFile = (id: string, fileName: string) =>
-    id.replace(/\\/g, "/").includes(`/electron/store/domains/ronde/${fileName}`);
+  const isElectronFile = (id: string, fragment: string) =>
+    id.replace(/\\/g, "/").includes(`/electron/store/${fragment}`);
 
   return {
     name: "ronde-kernel-cjs-for-renderer",
     transform(code, id) {
-      const isKernel = isRondeKernelFile(id, "slotTimeKernel.js");
-      const isList = isRondeKernelFile(id, "exceptionalSlotList.js");
-      if (!isKernel && !isList) return null;
+      const isKernel = isElectronFile(id, "domains/ronde/slotTimeKernel.js");
+      const isList = isElectronFile(id, "domains/ronde/exceptionalSlotList.js");
+      const isAlign = isElectronFile(id, "core/alignRequestValidity.js");
+      if (!isKernel && !isList && !isAlign) return null;
 
       let next = code;
       if (isList) {
         next = next.replace(
           /const kernel = require\("\.\/slotTimeKernel"\);/,
           'import * as __rondeKernelNs from "./slotTimeKernel.js";\nconst kernel = __rondeKernelNs.default ?? __rondeKernelNs;'
+        );
+        next = next.replace(
+          /const \{ floorValidityStartToRequest \} = require\("\.\.\/\.\.\/core\/alignRequestValidity"\);/,
+          'import * as __alignValidityNs from "../../core/alignRequestValidity.js";\nconst { floorValidityStartToRequest } = __alignValidityNs.default ?? __alignValidityNs;'
         );
       }
       if (!/\bmodule\.exports\s*=/.test(next)) return null;

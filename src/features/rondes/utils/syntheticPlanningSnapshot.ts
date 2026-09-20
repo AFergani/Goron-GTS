@@ -23,7 +23,10 @@ export function syntheticPlanningSnapshotForLinkedDemand(row: {
   const origin = requestOriginFromStoredEntry(row);
   const rawDetail = String(row.originDetail ?? row.horairesDemandeObs ?? "").trim();
   const consigne = origin === "SUITE_INTERVENTION" ? stripSuiteInterventionPrefix(rawDetail) : rawDetail;
-  const defaultLine = createDefaultLineDraft();
+  const defaultLine = createDefaultLineDraft({
+    roundKind: "OPENING",
+    requestedTime: "08:00"
+  });
   return {
     version: 1,
     requestDate: row.requestDate,

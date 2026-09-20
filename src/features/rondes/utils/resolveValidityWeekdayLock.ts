@@ -22,7 +22,8 @@ export function resolveValidityWeekdayLock(opts: {
   const to = opts.validTo.trim();
   if (!from || !to || to < from) return null;
   const dayCount = inclusiveCalendarDayCount(from, to);
-  if (dayCount < 1 || dayCount > 7) return null;
+  /* Jour unique : géré par `isSingleDay`, pas par ce verrou (sinon Du = Au fige l’UI). */
+  if (dayCount < 2 || dayCount > 7) return null;
   const mask = weekdaysMaskForInclusiveDateRange(from, to);
   return mask > 0 ? mask : null;
 }

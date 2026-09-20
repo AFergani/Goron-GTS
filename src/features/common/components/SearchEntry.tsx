@@ -32,6 +32,8 @@ type SearchEntryProps = {
   showIntervenantField?: boolean;
   siteLabel?: string | null;
   intervenantLabel?: string | null;
+  /** Classes du conteneur (ex. `request-head-row__refs` pour une ligne partagée). */
+  className?: string;
 };
 
 export function SearchEntry({
@@ -55,10 +57,11 @@ export function SearchEntry({
   showSiteField = true,
   showIntervenantField = true,
   siteLabel = "Site",
-  intervenantLabel = "Prestataire"
+  intervenantLabel = "Prestataire",
+  className
 }: SearchEntryProps) {
   return (
-    <div className="mc-form-grid mc-form-grid-main">
+    <div className={["mc-form-grid", "mc-form-grid-main", className].filter(Boolean).join(" ")}>
       {showSiteField ? (
         <div className="mc-field-with-inline-action">
           <SiteSearchInput

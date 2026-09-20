@@ -639,6 +639,7 @@ declare global {
         anomalyTypeId: string;
         anomalyTypeLabel: string;
         information: string;
+        exportExtraValues?: Record<string, string>;
       }) => Promise<MainCouranteEntry>;
       updateMainCouranteEntryOperator: (payload: {
         requesterRole: Role;
@@ -655,6 +656,7 @@ declare global {
         managerName: string;
         managerObservation: string;
         decision: "suivre" | "cloture";
+        exportExtraValues?: Record<string, string>;
       }) => Promise<MainCouranteEntry>;
       reopenMainCouranteEntry: (payload: {
         requesterRole: Role;

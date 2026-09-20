@@ -299,7 +299,7 @@ async function deleteTemplateAssignment(store, payload) {
       reason
     }
   });
-  return { success: true };
+  return { success: true, templateFileName: String(existing.template_file_name || "") };
 }
 
 /**
