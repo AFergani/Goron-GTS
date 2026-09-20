@@ -21,6 +21,30 @@ function cleanUserFacingMessage(message: string, fallback: string): string {
 }
 
 /**
+ * Remplace les erreurs disque Windows (fichier ouvert / verrouillé) par un libellé clair.
+ *
+ * @param message - Message déjà débarrassé du bruit IPC
+ * @returns Message affichable
+ */
+function mapFileLockMessage(message: string): string {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("ebusy") ||
+    normalized.includes("resource busy or locked") ||
+    normalized.includes("being used by another process")
+  ) {
+    return "Fichier déjà ouvert. Fermez-le dans Word ou Excel, puis réessayez.";
+  }
+  if (
+    (normalized.includes("eacces") || normalized.includes("eperm")) &&
+    /,\s*open\s+'/i.test(message)
+  ) {
+    return "Impossible d'enregistrer : accès refusé. Fermez le fichier s'il est ouvert, ou choisissez un autre emplacement.";
+  }
+  return message;
+}
+
+/**
  * Extrait le message métier d'une erreur (IPC, backend ou locale).
  *
  * @param error - Erreur capturée (souvent `Error` avec message Electron)
@@ -35,19 +59,19 @@ export function extractUserFacingErrorMessage(error: unknown, fallback = "Une er
 
   const ipcWrapped = raw.match(/Error invoking remote method\s+'[^']+'\s*:\s*(?:Error:\s*)?([\s\S]+)$/i);
   if (ipcWrapped?.[1]) {
-    return cleanUserFacingMessage(ipcWrapped[1], fallback);
+    return mapFileLockMessage(cleanUserFacingMessage(ipcWrapped[1], fallback));
   }
 
   const channelOnly = raw.match(/^'[^']+'\s*:\s*(?:Error:\s*)?([\s\S]+)$/i);
   if (channelOnly?.[1]) {
-    return cleanUserFacingMessage(channelOnly[1], fallback);
+    return mapFileLockMessage(cleanUserFacingMessage(channelOnly[1], fallback));
   }
 
   const segments = raw.split(/\s*Error:\s*/i);
   if (segments.length > 1) {
     const last = segments[segments.length - 1]?.trim();
-    if (last) return cleanUserFacingMessage(last, fallback);
+    if (last) return mapFileLockMessage(cleanUserFacingMessage(last, fallback));
   }
 
-  return cleanUserFacingMessage(raw, fallback);
+  return mapFileLockMessage(cleanUserFacingMessage(raw, fallback));
 }

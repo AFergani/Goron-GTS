@@ -5,10 +5,7 @@
  */
 
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
-import {
-  INTERVENTION_NO_WORK_ORDER_LABEL,
-  type InterventionEntry
-} from "../model/intervention.types";
+import { type InterventionEntry } from "../model/intervention.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { saveExportBlob, type SaveExportFileResult } from "../../common/utils/saveExportBlob";
 import {
@@ -17,8 +14,9 @@ import {
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import { safeExportFilenamePart } from "../../common/utils/exportFilename";
-import { statusLabelFr } from "./interventionExportFormat";
+import { formatInterventionWorkOrderNumber } from "./interventionExportFormat";
+import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
+import { ficheWordExportFilename } from "../../common/utils/exportFilename";
 
 const INTERVENTION_TEMPLATE_NAME = "intervention-template.docx";
 const INTERVENTION_TEMPLATE_URL = "/templates/intervention-template.docx";
@@ -37,26 +35,19 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       webFallbackUrl: INTERVENTION_TEMPLATE_URL
     });
     if (!buffer) throw new Error("Template introuvable");
-    const extras: Record<string, string> = {};
-    const rawExtras = entry.exportExtraValues && typeof entry.exportExtraValues === "object" ? entry.exportExtraValues : {};
-    for (const [k, v] of Object.entries(rawExtras)) {
-      if (!k) continue;
-      extras[k] = safeDocxText(v);
-    }
+    const extras = formVariableDocxExtras(entry.exportExtraValues);
+    const delayLabel = entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`;
     return renderDocxtemplaterBlob(buffer, {
-      dateDemande: safeDocxText(formatDateShortFr(entry.requestDate) || "—"),
-      dateDemandeIso: safeDocxText(entry.requestDate),
-      heureDemande: safeDocxText(entry.requestTime),
-      site: safeDocxText(entry.siteDisplay),
+      ...siteDocxFields(entry.siteDisplay),
+      date_demande: safeDocxText(formatDateShortFr(entry.requestDate) || "—"),
+      heure_demande: safeDocxText(entry.requestTime),
       motif: safeDocxText(entry.requestReason),
       prestataire: safeDocxText(entry.intervenantName),
-      heureArrivee: safeDocxText(entry.arrivalTime),
-      heureDepart: safeDocxText(entry.departureTime),
-      delaiMinutes: safeDocxText(entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`),
-      delaiMinutesLabel: safeDocxText(entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`),
-      numeroBonIntervention: safeDocxText(entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL),
-      compteRendu: safeDocxText(entry.report),
-      statut: safeDocxText(statusLabelFr(entry.status)),
+      heure_arrivee: safeDocxText(entry.arrivalTime),
+      heure_depart: safeDocxText(entry.departureTime),
+      delai_minutes: safeDocxText(delayLabel),
+      numero_bon: safeDocxText(formatInterventionWorkOrderNumber(entry)),
+      compte_rendu: safeDocxText(entry.report),
       numeroFiche: safeDocxText(entry.dailyCode),
       ...extras
     });
@@ -91,7 +82,7 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure d'arrivée : ${safeDocxText(entry.arrivalTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de départ : ${safeDocxText(entry.departureTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Délai d'arrivée : ${safeDocxText(entry.delayMinutes)} min`)] }),
-          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Numéro du bon : ${safeDocxText(entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL)}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Numéro du bon : ${safeDocxText(formatInterventionWorkOrderNumber(entry))}`)] }),
           new Paragraph({ spacing: { before: 220, after: 80 }, children: [new TextRun({ text: "Observation :", bold: true })] }),
           new Paragraph({ spacing: { after: 80 }, children: [new TextRun(safeDocxText(entry.report))] })
         ]
@@ -109,8 +100,6 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
 export async function exportInterventionEntryToWord(entry: InterventionEntry): Promise<SaveExportFileResult> {
   const templateBlob = await renderFromTemplate(entry);
   const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry)));
-  const part = safeExportFilenamePart(entry.siteDisplay || entry.workOrderNumber || "intervention");
-  const datePart = safeExportFilenamePart(formatDateShortFr(entry.requestDate) || "date");
-  const name = `Intervention_${part}_${datePart}.docx`;
+  const name = ficheWordExportFilename("Intervention", entry.dailyCode, entry.siteDisplay);
   return saveExportBlob(blob, name);
 }

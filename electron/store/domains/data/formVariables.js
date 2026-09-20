@@ -22,6 +22,12 @@ const FORM_TARGETS = new Set([
   "GARDIENNAGE"
 ]);
 const FIELD_TYPES = new Set(["text", "textarea", "number", "time", "select", "toggle"]);
+const ENTRY_STAGES = new Set(["REQUEST", "CLOSURE"]);
+
+function normalizeEntryStage(raw) {
+  const stage = String(raw || "").trim().toUpperCase();
+  return ENTRY_STAGES.has(stage) ? stage : "CLOSURE";
+}
 
 /**
  * @param {import('../../../userStore')} store
@@ -79,7 +85,7 @@ async function listFormVariables(store, payload) {
   store.ensureDataReaderRole(payload.requesterRole);
   const db = requirePersistence(store);
   const vars = await db.all(
-    `SELECT id, sort_order, field_key, label, field_type, placeholder, required, options_json, created_at, updated_at
+    `SELECT id, sort_order, field_key, label, field_type, placeholder, required, options_json, entry_stage, created_at, updated_at
      FROM data_form_variables
      WHERE is_active = 1
      ORDER BY sort_order ASC, label ASC`,
@@ -111,6 +117,7 @@ async function listFormVariables(store, payload) {
     required: Boolean(Number(row.required)),
     options: parseOptionsJson(row.options_json),
     assignments: byVar.get(String(row.id || "")) || [],
+    entryStage: normalizeEntryStage(row.entry_stage),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }));
@@ -118,7 +125,7 @@ async function listFormVariables(store, payload) {
 
 /**
  * @param {object} input - Variable saisie côté UI.
- * @returns {{ fieldKey: string, label: string, fieldType: string, placeholder: string, required: boolean, options: string[], assignments: Array<{ kind: string, value: string }> }}
+ * @returns {{ fieldKey: string, label: string, fieldType: string, placeholder: string, required: boolean, options: string[], assignments: Array<{ kind: string, value: string }>, entryStage: string }}
  */
 function normalizeVariable(input) {
   const fieldKey = String(input?.fieldKey || "").trim().toLowerCase();
@@ -139,7 +146,8 @@ function normalizeVariable(input) {
   if (!hasContractuelle) {
     assignments = assignments.filter((a) => a.kind !== "PROFILE");
   }
-  return { fieldKey, label, fieldType, placeholder, required, options, assignments };
+  const entryStage = normalizeEntryStage(input?.entryStage);
+  return { fieldKey, label, fieldType, placeholder, required, options, assignments, entryStage };
 }
 
 /**
@@ -222,8 +230,8 @@ async function saveFormVariables(store, payload) {
       const varId = generateEntityId();
       await tx.run(
         `INSERT INTO data_form_variables (
-          id, sort_order, field_key, label, field_type, placeholder, required, options_json, is_active, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          id, sort_order, field_key, label, field_type, placeholder, required, options_json, is_active, entry_stage, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
           varId,
           index,
@@ -233,6 +241,7 @@ async function saveFormVariables(store, payload) {
           item.placeholder,
           item.required ? 1 : 0,
           JSON.stringify(item.fieldType === "select" ? item.options : []),
+          item.entryStage,
           now,
           now
         ]

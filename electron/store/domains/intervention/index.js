@@ -5,10 +5,9 @@
  */
 
 const entries = require("./entries");
-const { mapInterventionRow, parseExportExtraJson } = require("./mapping");
+const { mapInterventionRow } = require("./mapping");
 
 module.exports = {
   mapInterventionRow,
-  parseExportExtraJson,
   ...entries
 };

@@ -6,12 +6,10 @@
 
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../common/hooks/useTableSort";
-import {
-  INTERVENTION_NO_WORK_ORDER_LABEL,
-  type InterventionEntry
-} from "../model/intervention.types";
+import { type InterventionEntry } from "../model/intervention.types";
 import {
   formatInterventionDateTime,
+  formatInterventionWorkOrderNumber,
   statusLabelFr,
   statusTone
 } from "../export/interventionExportFormat";
@@ -44,12 +42,12 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onNotify }: Int
   };
   const { sortedEntries, sortDirection, sortKey, toggleSort } = useTableSort<InterventionEntry, InterventionSortKey>(entries, comparators, {
     key: "date",
-    direction: "desc"
+    direction: "asc"
   });
   const sortLabel = (key: InterventionSortKey) => (sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕");
 
   if (!entries.length) {
-    return <p className="muted">Aucune intervention.</p>;
+    return <p className="muted">Aucune intervention à afficher.</p>;
   }
 
   return (
@@ -98,7 +96,7 @@ export function InterventionTable({ entries, onOpen, onFollowUp, onNotify }: Int
               <td>{entry.arrivalTime || "—"}</td>
               <td>{entry.departureTime || "—"}</td>
               <td>{entry.delayMinutes == null ? "—" : `${entry.delayMinutes} min`}</td>
-              <td>{entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL}</td>
+              <td>{formatInterventionWorkOrderNumber(entry)}</td>
               <td className="intv-col-status-actions">
                 <div className="mc-status-actions-stack">
                   <span className={`mc-status-badge mc-status-badge--${statusTone(entry.status)}`}>

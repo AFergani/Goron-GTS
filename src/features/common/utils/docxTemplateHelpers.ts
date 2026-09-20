@@ -5,6 +5,7 @@
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
+import { formatIsoDatesInTextToFrench } from "./formatDateShortFr";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -83,6 +84,15 @@ export async function loadDocumentTemplateBuffer(options: {
   }
 }
 
+/** Convertit les dates ISO des jetons Word en JJ/MM/AAAA (heure locale si présente). */
+function frenchReportDocxData(data: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    next[key] = typeof value === "string" ? formatIsoDatesInTextToFrench(value) : value;
+  }
+  return next;
+}
+
 /** Rend un Buffer modèle Docxtemplater en Blob .docx. */
 export function renderDocxtemplaterBlob(buffer: ArrayBuffer, data: Record<string, unknown>): Blob {
   const zip = new PizZip(buffer);
@@ -90,7 +100,7 @@ export function renderDocxtemplaterBlob(buffer: ArrayBuffer, data: Record<string
     paragraphLoop: true,
     linebreaks: true
   });
-  doc.render(data);
+  doc.render(frenchReportDocxData(data));
   return doc.getZip().generate({
     type: "blob",
     mimeType: DOCX_MIME

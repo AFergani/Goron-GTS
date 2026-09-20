@@ -5,7 +5,7 @@
  * `exportExtraValues` : variables Word configurées.
  */
 
-/** Libellé lorsque aucun bon d'intervention n'est saisi (aligné backend). */
+/** Libellé lorsque le N° de bon est laissé vide à la saisie du CR (pas un défaut des fiches en cours). */
 export const INTERVENTION_NO_WORK_ORDER_LABEL = "Pas de bon";
 
 export type InterventionStatus = "EN_COURS" | "CLOTURE" | "ANNULE";

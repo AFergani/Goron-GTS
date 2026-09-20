@@ -4,16 +4,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { IntervenantRef, Role, SiteRef } from "../../../types";
-import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { normalizeTimeForSave } from "../../common/utils/timeInput";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
-import type { FormVariableDef } from "../../settings/model/formVariables.types";
+import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import type { InterventionEntry } from "../model/intervention.types";
 import { INTERVENTION_NO_WORK_ORDER_LABEL } from "../model/intervention.types";
-import type { InterventionFormFieldDef } from "../model/interventionFormFields.types";
-import { filterInterventionFormVariables } from "../utils/filterInterventionFormVariables";
 import {
   computeInterventionLogicalDate,
   inferArrivalDateFromEntry,
@@ -64,8 +61,6 @@ export function useInterventionEntryForm({
   const [showPendingIntervenantForm, setShowPendingIntervenantForm] = useState(false);
   const [showCancelReasonDialog, setShowCancelReasonDialog] = useState(false);
   const [cancelReasonInput, setCancelReasonInput] = useState("");
-  const [wordExtraDefs, setWordExtraDefs] = useState<InterventionFormFieldDef[]>([]);
-  const [exportExtraValues, setExportExtraValues] = useState<Record<string, string>>({});
   const [logicalDateOverride, setLogicalDateOverride] = useState("");
   const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
@@ -79,6 +74,18 @@ export function useInterventionEntryForm({
   const canFixKnownReferences = !isCreateMode && isResponsable;
   const lockCoreFields = !isCreateMode && !canFixKnownReferences;
   const formLockedClosed = entry?.status === "CLOTURE";
+  const extras = useFormVariableFields({
+    isOpen,
+    requesterRole,
+    formTarget: "INTERVENTION",
+    site: selectedSite,
+    seedValues: isCreateMode ? {} : entry?.exportExtraValues,
+    seedKey: isCreateMode ? "create" : entry?.id
+  });
+  const requestExtraDefs = extras.requestDefs;
+  const closureExtraDefs = extras.closureDefs;
+  const exportExtraValues = extras.values;
+  const setExportExtraValues = extras.setValues;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -102,7 +109,6 @@ export function useInterventionEntryForm({
     setWorkOrderNumber("");
     setReport("");
     setIntervenantId("");
-    setExportExtraValues({});
     setLogicalDateOverride("");
   }, [isOpen, isCreateMode]);
 
@@ -132,7 +138,6 @@ export function useInterventionEntryForm({
     );
     setReport(entry.report || "");
     setIntervenantId(entry.intervenantId || "");
-    setExportExtraValues({ ...(entry.exportExtraValues ?? {}) });
     setLogicalDateOverride(
       String((entry.exportExtraValues || {}).date_logique_passage || (entry.exportExtraValues || {}).date_logique || "").trim()
     );
@@ -170,29 +175,6 @@ export function useInterventionEntryForm({
     ? `${formatDateShortFr(requestDate)} -> ${formatDateShortFr(effectiveLogicalDate)}`
     : "";
 
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    void gtsApiClient.listFormVariables({ requesterRole }).then((rows) => {
-      if (cancelled) return;
-      setWordExtraDefs(filterInterventionFormVariables(rows as FormVariableDef[], selectedSite));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, requesterRole, selectedSite?.id, selectedSite?.famille]);
-
-  useEffect(() => {
-    if (!wordExtraDefs.length) return;
-    setExportExtraValues((prev) => {
-      const next = { ...prev };
-      for (const d of wordExtraDefs) {
-        if (next[d.fieldKey] === undefined) next[d.fieldKey] = "";
-      }
-      return next;
-    });
-  }, [wordExtraDefs]);
-
   const isInterventionCreateDirty = useMemo(() => {
     if (!isCreateMode) return false;
     return Boolean(
@@ -211,6 +193,7 @@ export function useInterventionEntryForm({
         departureTime.trim() ||
         workOrderNumber.trim() ||
         report.trim() ||
+        Object.values(exportExtraValues).some((value) => String(value || "").trim()) ||
         requestDate !== getLocalDateIso()
     );
   }, [
@@ -230,6 +213,7 @@ export function useInterventionEntryForm({
     departureTime,
     workOrderNumber,
     report,
+    exportExtraValues,
     requestDate
   ]);
 
@@ -278,7 +262,8 @@ export function useInterventionEntryForm({
     setShowCancelReasonDialog,
     cancelReasonInput,
     setCancelReasonInput,
-    wordExtraDefs,
+    requestExtraDefs,
+    closureExtraDefs,
     exportExtraValues,
     setExportExtraValues,
     isActionSubmitting,

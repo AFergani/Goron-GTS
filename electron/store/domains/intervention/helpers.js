@@ -3,7 +3,7 @@
  *
  * Aucun accès base. Appelé par `entries.js`.
  * Clôture : heure d'arrivée, heure de départ, compte-rendu.
- * N° de bon optionnel (repli « Pas de bon »). Annulation : passage non exigé.
+ * N° de bon optionnel (vide en base ; « Pas de bon » n’est qu’un libellé d’affichage après CR). Annulation : passage non exigé.
  * `EN_COURS` : saisie partielle.
  *
  * @module electron/store/domains/intervention/helpers
@@ -15,14 +15,15 @@ const { addDaysIso, normalizeDateIso, normalizeTimeHm } = require("../../core/is
 const INTERVENTION_NO_WORK_ORDER_LABEL = "Pas de bon";
 
 /**
- * Normalise le N° de bon : vide ou déjà « Pas de bon » → libellé unique.
+ * Normalise le N° de bon : vide ou « Pas de bon » → chaîne vide.
+ * Le libellé d’affichage « Pas de bon » n’est pas stocké ; il n’apparaît qu’une fois le CR commencé.
  *
  * @param {unknown} value - Saisie opérateur ou valeur SQL
- * @returns {string} Numéro saisi, ou `Pas de bon`
+ * @returns {string} Numéro saisi, ou chaîne vide
  */
 function resolveWorkOrderNumber(value) {
   const trimmed = String(value || "").trim();
-  if (!trimmed || trimmed === INTERVENTION_NO_WORK_ORDER_LABEL) return INTERVENTION_NO_WORK_ORDER_LABEL;
+  if (!trimmed || trimmed === INTERVENTION_NO_WORK_ORDER_LABEL) return "";
   return trimmed;
 }
 

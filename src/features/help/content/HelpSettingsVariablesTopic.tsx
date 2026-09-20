@@ -17,7 +17,7 @@ export function HelpSettingsVariablesTopic() {
       <div className="help-center-card help-center-card--accent">
         <h3 className="help-center-card-title">🔐 Matrice des droits : qui peut gérer quoi ?</h3>
         <div className="help-center-table-wrap">
-          <table className="help-center-table">
+          <table className="help-center-table help-center-table--profile">
             <thead>
               <tr>
                 <th scope="col">Votre profil</th>
@@ -95,6 +95,10 @@ export function HelpSettingsVariablesTopic() {
             <strong>Formulaires :</strong> les modules métiers dans lesquels le champ va s&apos;injecter.
           </li>
           <li>
+            <strong>Saisie :</strong> indique si le champ se remplit <em>à la demande</em> (création) ou{" "}
+            <em>à la clôture</em> (retour terrain / traitement).
+          </li>
+          <li>
             <strong>Profils ronde contractuelle :</strong> indique les profils de rondes spécifiques concernés (affiche un tiret si le champ ne
             concerne pas les rondes contractuelles).
           </li>
@@ -136,6 +140,13 @@ export function HelpSettingsVariablesTopic() {
                 spécifiques de rondes. Si vous ne cochez aucun profil, la variable s&apos;appliquera à toutes les rondes contractuelles sans
                 distinction.
               </li>
+              <li>
+                <em>Option moment de saisie :</em> un menu <strong>Moment de saisie</strong> apparaît dès qu&apos;un
+                formulaire est coché. Choisissez <strong>À la demande</strong> pour le remplir dès la création (il reste
+                visible en lecture seule à la clôture), ou <strong>À la clôture</strong> pour le réserver au retour
+                terrain (ou au traitement responsable en main courante). Les variables existantes restent à la clôture
+                tant que vous ne les modifiez pas.
+              </li>
             </ul>
           </li>
           <li>
@@ -164,6 +175,10 @@ export function HelpSettingsVariablesTopic() {
           <li>
             S&apos;il s&apos;agit d&apos;une ronde contractuelle, le profil de la ronde doit faire partie des profils sélectionnés (ou la variable doit
             être configurée sur tous les profils).
+          </li>
+          <li>
+            Le <strong>moment de saisie</strong> doit correspondre à l&apos;écran ouvert (création = à la demande, clôture
+            ou traitement = à la clôture). Un champ « à la demande » réapparaît en lecture seule à la clôture.
           </li>
         </ol>
       </div>

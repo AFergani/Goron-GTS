@@ -210,9 +210,12 @@ CREATE TABLE IF NOT EXISTS data_form_variables (
   required INTEGER NOT NULL DEFAULT 0,
   options_json TEXT NOT NULL DEFAULT '[]',
   is_active INTEGER NOT NULL DEFAULT 1,
+  entry_stage TEXT NOT NULL DEFAULT 'CLOSURE',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+ALTER TABLE data_form_variables ADD COLUMN IF NOT EXISTS entry_stage TEXT NOT NULL DEFAULT 'CLOSURE';
 
 CREATE TABLE IF NOT EXISTS data_form_variable_assignments (
   id TEXT PRIMARY KEY,

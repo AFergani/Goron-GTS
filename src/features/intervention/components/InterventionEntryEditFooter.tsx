@@ -77,14 +77,26 @@ export function InterventionEntryEditFooter({
         ) : null}
         {entry.status === "EN_COURS" ? (
           <>
-            <button type="button" className="btn-danger" disabled={isActionSubmitting} onClick={onRequestCancel}>
-              Annuler l&apos;intervention
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={isActionSubmitting}
+              onClick={onRequestCancel}
+              aria-label="Annuler l'intervention"
+            >
+              Annuler
             </button>
             <button type="submit" className="mc-btn-primary" disabled={isActionSubmitting}>
               {isActionSubmitting ? "Enregistrement…" : "Enregistrer"}
             </button>
-            <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onCloseIntervention}>
-              Clôturer l&apos;intervention
+            <button
+              type="button"
+              className="btn-light"
+              disabled={isActionSubmitting}
+              onClick={onCloseIntervention}
+              aria-label="Clôturer l'intervention"
+            >
+              Clôturer
             </button>
           </>
         ) : entry.status === "CLOTURE" || entry.status === "ANNULE" ? (

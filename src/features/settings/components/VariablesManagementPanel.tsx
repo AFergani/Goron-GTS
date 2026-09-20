@@ -9,7 +9,15 @@ import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { RondePlannedProfileRef } from "../../rondes/model/rondePlanned.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
-import type { FormTarget, FormVariableDef, FormVariablePayload } from "../model/formVariables.types";
+import {
+  FORM_VARIABLE_ENTRY_STAGE_OPTIONS,
+  formVariableEntryStageLabel,
+  normalizeFormVariableEntryStage,
+  type FormTarget,
+  type FormVariableDef,
+  type FormVariableEntryStage,
+  type FormVariablePayload
+} from "../model/formVariables.types";
 import { WORD_TEMPLATE_FIELD_TYPES, labelToFieldKey, wordTemplateFieldTypeLabel } from "../model/wordTemplateFieldTypes";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 
@@ -50,6 +58,7 @@ export function VariablesManagementPanel({
   const [draftScopeKind, setDraftScopeKind] = useState<"ALL" | "SITE" | "FAMILLE">("ALL");
   const [draftScopeSite, setDraftScopeSite] = useState<SiteRef | null>(null);
   const [draftScopeFamille, setDraftScopeFamille] = useState("");
+  const [draftEntryStage, setDraftEntryStage] = useState<FormVariableEntryStage>("CLOSURE");
   const [deleteFieldKey, setDeleteFieldKey] = useState<string | null>(null);
   const canEdit = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
@@ -81,7 +90,8 @@ export function VariablesManagementPanel({
           placeholder: v.placeholder,
           required: v.required,
           options: v.options,
-          assignments: v.assignments
+          assignments: v.assignments,
+          entryStage: v.entryStage
         }));
         const saved = await gtsApiClient.saveFormVariables({
           requesterRole,
@@ -115,6 +125,7 @@ export function VariablesManagementPanel({
     setDraftScopeKind("ALL");
     setDraftScopeSite(null);
     setDraftScopeFamille("");
+    setDraftEntryStage("CLOSURE");
     setModalOpen(true);
   };
 
@@ -144,6 +155,7 @@ export function VariablesManagementPanel({
       setDraftScopeSite(null);
       setDraftScopeFamille("");
     }
+    setDraftEntryStage(normalizeFormVariableEntryStage(row.entryStage));
     setModalOpen(true);
   };
 
@@ -207,6 +219,7 @@ export function VariablesManagementPanel({
     } else if (draftScopeKind === "FAMILLE" && normalizedScopeFamille) {
       assignments.push({ kind: "FAMILLE", value: normalizedScopeFamille });
     }
+    const entryStage = draftEntryStage;
 
     const nextRows =
       editKey && editingRow
@@ -219,6 +232,7 @@ export function VariablesManagementPanel({
                   placeholder: draftPlaceholder.trim(),
                   options,
                   assignments,
+                  entryStage,
                   updatedAt: now
                 }
               : row
@@ -235,6 +249,7 @@ export function VariablesManagementPanel({
               required: false,
               options,
               assignments,
+              entryStage,
               createdAt: now,
               updatedAt: now
             }
@@ -298,6 +313,7 @@ export function VariablesManagementPanel({
               <th>Type</th>
               <th>Portée</th>
               <th>Formulaires</th>
+              <th>Saisie</th>
               <th>Profils ronde contractuelle</th>
               <th>Actions</th>
             </tr>
@@ -305,7 +321,7 @@ export function VariablesManagementPanel({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Chargement...
                 </td>
               </tr>
@@ -334,6 +350,9 @@ export function VariablesManagementPanel({
                       .filter((a) => a.kind === "FORM")
                       .map((a) => formTargetLabel[a.value as FormTarget] || a.value)
                       .join(", ") || "—"}
+                  </td>
+                  <td>
+                    {formVariableEntryStageLabel(normalizeFormVariableEntryStage(row.entryStage))}
                   </td>
                   <td>
                     {(() => {
@@ -381,7 +400,7 @@ export function VariablesManagementPanel({
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Aucune variable définie.
                 </td>
               </tr>
@@ -503,6 +522,25 @@ export function VariablesManagementPanel({
                   ))}
                 </div>
               </label>
+              {draftForms.length ? (
+                <label>
+                  Moment de saisie
+                  <select
+                    value={draftEntryStage}
+                    onChange={(e) => setDraftEntryStage(normalizeFormVariableEntryStage(e.target.value))}
+                  >
+                    {FORM_VARIABLE_ENTRY_STAGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="muted" style={{ display: "block", marginTop: 6, fontWeight: "normal" }}>
+                    À la demande : saisi à la création, repris en lecture seule à la clôture. À la clôture : uniquement
+                    sur le retour terrain (ou le traitement responsable en main courante).
+                  </span>
+                </label>
+              ) : null}
               <label>
                 Profils ronde contractuelle (choix multiple)
                 <p className="muted" style={{ marginTop: 6, marginBottom: 8, fontWeight: "normal" }}>

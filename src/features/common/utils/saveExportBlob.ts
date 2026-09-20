@@ -6,6 +6,7 @@
  */
 
 import { gtsApiClient, type SaveExportFileResult } from "../../../infrastructure/api/gtsApiClient";
+import { extractUserFacingErrorMessage } from "./extractUserFacingErrorMessage";
 
 export type { SaveExportFileResult };
 
@@ -21,7 +22,11 @@ export async function saveExportBlob(blob: Blob, filename: string): Promise<Save
   const lower = filename.toLowerCase();
   const kind = lower.endsWith(".xlsx") ? "xlsx" : "docx";
   if (typeof window !== "undefined" && typeof window.gtsApi?.saveExportFile === "function") {
-    return gtsApiClient.saveExportFile({ defaultFileName: filename, kind, bytes });
+    try {
+      return await gtsApiClient.saveExportFile({ defaultFileName: filename, kind, bytes });
+    } catch (error) {
+      throw new Error(extractUserFacingErrorMessage(error, "Impossible d'enregistrer le fichier."));
+    }
   }
   fallbackBrowserDownload(blob, filename);
   return { canceled: false, filePath: null };

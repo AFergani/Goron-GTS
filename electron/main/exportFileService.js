@@ -89,6 +89,30 @@ function createExportFileService(deps) {
   }
 
   /**
+   * Transforme une erreur d’écriture disque (fichier ouvert, verrou Windows) en message lisible.
+   *
+   * @param {unknown} error
+   * @returns {never}
+   */
+  function throwFriendlyWriteError(error) {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+    if (
+      code === "EBUSY" ||
+      /resource busy or locked/i.test(message) ||
+      /being used by another process/i.test(message)
+    ) {
+      throw new Error("Fichier déjà ouvert. Fermez-le dans Word ou Excel, puis réessayez.");
+    }
+    if (code === "EACCES" || code === "EPERM") {
+      throw new Error(
+        "Impossible d'enregistrer : accès refusé. Fermez le fichier s'il est ouvert, ou choisissez un autre emplacement."
+      );
+    }
+    throw error;
+  }
+
+  /**
    * Ouvre « Enregistrer sous », écrit le fichier et mémorise le dossier.
    *
    * @param {object} payload
@@ -131,7 +155,11 @@ function createExportFileService(deps) {
       target = `${target}${expectedExt}`;
     }
 
-    fs.writeFileSync(target, buffer);
+    try {
+      fs.writeFileSync(target, buffer);
+    } catch (error) {
+      throwFriendlyWriteError(error);
+    }
     writeLastExportDir(path.dirname(target));
     return { canceled: false, filePath: target };
   }

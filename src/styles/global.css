@@ -21,6 +21,7 @@
   --gts-control-radius: 6px;
   --gts-input-date-width: 9.25rem;
   --gts-filter-date-gap: 12px;
+  --gts-toolbar-sep-gap: 6px;
   --gts-input-time-width: 5.5rem;
   --bg: #070f22;
   --surf: #0b1730;
@@ -144,6 +145,86 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   margin: 0;
   padding: 0;
   cursor: pointer;
+  filter: invert(1);
+  opacity: 0.92;
+}
+
+/* Thème clair : icônes natives sombres (le thème sombre inverse déjà ci-dessus). */
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 1;
+}
+
+/* Date + heure : même libellé `mc-field > span` que Site / Prestataire / Motif. */
+.request-datetime-field {
+  min-width: 0;
+}
+
+.request-datetime-field__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-head-row {
+  display: grid;
+  grid-template-columns: max-content minmax(12rem, 1.45fr) minmax(10rem, 1.15fr);
+  gap: 12px 16px;
+  align-items: start;
+  margin-bottom: 12px;
+  overflow: visible;
+}
+
+.request-head-row__refs {
+  display: contents;
+}
+
+@media (max-width: 960px) {
+  .request-head-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .request-datetime-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .request-head-row {
+    grid-template-columns: 1fr;
+  }
+
+  .request-datetime-field {
+    grid-column: auto;
+  }
+}
+
+.request-motif-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.request-motif-row--with-extra {
+  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 18rem);
+}
+
+.request-motif-row__extra {
+  min-width: 0;
+}
+
+.request-motif-row__extra .mc-field {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .request-motif-row--with-extra {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 button {

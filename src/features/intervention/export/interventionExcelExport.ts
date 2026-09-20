@@ -5,12 +5,10 @@
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 import * as XLSX from "xlsx";
-import {
-  INTERVENTION_NO_WORK_ORDER_LABEL,
-  type InterventionEntry
-} from "../model/intervention.types";
+import { type InterventionEntry } from "../model/intervention.types";
 import {
   formatInterventionDateTime,
+  formatInterventionWorkOrderNumber,
   statusLabelFr
 } from "./interventionExportFormat";
 
@@ -46,7 +44,7 @@ export async function exportInterventionToExcel(entries: InterventionEntry[]) {
       entry.arrivalTime || "",
       entry.departureTime || "",
       entry.delayMinutes ?? "",
-      entry.workOrderNumber || INTERVENTION_NO_WORK_ORDER_LABEL,
+      formatInterventionWorkOrderNumber(entry),
       entry.report || "",
       statusLabelFr(entry.status)
     ])

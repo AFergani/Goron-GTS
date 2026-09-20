@@ -72,7 +72,8 @@ export function HelpInterventionsTopic() {
                 </td>
                 <td>Champs complémentaires personnalisés (selon configuration).</td>
                 <td>
-                  <strong>Facultatif</strong> (utile pour l&apos;export Word).
+                  <strong>À la création</strong> si le champ est réglé « à la demande », sinon{" "}
+                  <strong>au retour terrain</strong> (clôture).
                 </td>
               </tr>
             </tbody>

@@ -6,7 +6,7 @@
  * `copySource` permet d'extraire le code d'un libellé différent de l'affichage.
  */
 
-import { copySiteDisplayCode } from "../utils/siteDisplayCopy";
+import { copySiteDisplayCode, splitSiteDisplayParts } from "../utils/siteDisplayCopy";
 import type { NotifyToast } from "../model/toast.types";
 
 type SiteDisplayCopyButtonProps = {
@@ -31,6 +31,8 @@ export function SiteDisplayCopyButton({
   className
 }: SiteDisplayCopyButtonProps) {
   const display = siteLabel.trim() || "—";
+  const siteCode = splitSiteDisplayParts(copySource ?? siteLabel).codePart;
+  const copyHint = siteCode ? `Copier le code site (${siteCode})` : "Copier le code site";
   const cls =
     className ?? (variant === "table" ? "mc-site-copy-btn" : "mc-input-readonly mc-site-copy-field");
 
@@ -39,8 +41,8 @@ export function SiteDisplayCopyButton({
       type="button"
       className={cls}
       onClick={() => void copySiteDisplayCode(copySource ?? siteLabel, onNotify)}
-      title="Copier le code site (entre parenthèses)"
-      aria-label="Copier le code site"
+      title={copyHint}
+      aria-label={copyHint}
     >
       {display}
     </button>

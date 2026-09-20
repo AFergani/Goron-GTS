@@ -1,24 +1,40 @@
 /**
- * Filtre les variables de formulaire applicables à une intervention (FORM + scopes site/famille).
+ * Filtre les variables de formulaire selon la cible, le site/famille et le profil ronde.
  */
 
 import type { SiteRef } from "../../../types";
-import type { FormVariableDef } from "../../settings/model/formVariables.types";
-import type { InterventionFormFieldDef } from "../model/interventionFormFields.types";
+import {
+  normalizeFormVariableEntryStage,
+  type FormTarget,
+  type FormVariableDef
+} from "../../settings/model/formVariables.types";
+import type { FormVariableFieldDef } from "../model/formVariableField.types";
 
-function normalizeInterventionFieldType(raw: unknown): InterventionFormFieldDef["fieldType"] {
+function normalizeFieldType(raw: unknown): FormVariableFieldDef["fieldType"] {
   const s = String(raw || "").trim().toLowerCase();
   if (s === "textarea" || s === "number" || s === "time" || s === "select" || s === "toggle") return s;
   return "text";
 }
 
-export function filterInterventionFormVariables(
+export function filterFormVariables(
   rows: FormVariableDef[],
-  selectedSite: SiteRef | null
-): InterventionFormFieldDef[] {
+  formTarget: FormTarget,
+  selectedSite: SiteRef | null,
+  plannedProfileId?: string | null
+): FormVariableFieldDef[] {
   const selectedFamille = String(selectedSite?.famille || "").trim().toUpperCase();
+  const profileId = String(plannedProfileId || "").trim();
   return rows
-    .filter((row) => row.assignments.some((a) => a.kind === "FORM" && a.value === "INTERVENTION"))
+    .filter((row) => row.assignments.some((a) => a.kind === "FORM" && a.value === formTarget))
+    .filter((row) => {
+      if (formTarget !== "RONDE_PLANIFIEE") return true;
+      const profileScopes = row.assignments
+        .filter((a) => a.kind === "PROFILE")
+        .map((a) => String(a.value || "").trim())
+        .filter(Boolean);
+      if (!profileScopes.length) return true;
+      return Boolean(profileId && profileScopes.includes(profileId));
+    })
     .filter((row) => {
       const siteScopes = row.assignments.filter((a) => a.kind === "SITE").map((a) => String(a.value || "").trim());
       const familleScopes = row.assignments
@@ -34,9 +50,10 @@ export function filterInterventionFormVariables(
       sortOrder: r.sortOrder,
       fieldKey: r.fieldKey,
       label: r.label,
-      fieldType: normalizeInterventionFieldType(r.fieldType),
+      fieldType: normalizeFieldType(r.fieldType),
       placeholder: r.placeholder ?? "",
       options: Array.isArray(r.options) ? r.options : [],
+      entryStage: normalizeFormVariableEntryStage(r.entryStage),
       createdAt: r.createdAt,
       updatedAt: r.updatedAt
     }));

@@ -2,20 +2,17 @@
  * Formatage dates / statuts intervention (UI tableau + exports Excel / Word).
  */
 
-import type { InterventionEntry } from "../model/intervention.types";
+import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import {
+  INTERVENTION_NO_WORK_ORDER_LABEL,
+  type InterventionEntry
+} from "../model/intervention.types";
 
 export function formatInterventionDateTime(date: string, time: string): string {
-  if (!date) return "—";
-  const iso = `${date}T${time || "00:00"}:00`;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  const dateFr = formatDateShortFr(date);
+  if (!dateFr) return "—";
+  const timeHm = String(time || "").trim();
+  return timeHm ? `${dateFr} ${timeHm}` : dateFr;
 }
 
 /** Libellé statut pour tableau et exports. */
@@ -30,4 +27,16 @@ export function statusTone(status: InterventionEntry["status"]): "cloture" | "en
   if (status === "CLOTURE") return "cloture";
   if (status === "ANNULE") return "en-attente";
   return "en-cours";
+}
+
+/**
+ * N° de bon pour le tableau / les exports.
+ * « Pas de bon » seulement si le CR a commencé (clôture ou heure d’arrivée) et que le champ est resté vide.
+ */
+export function formatInterventionWorkOrderNumber(entry: Pick<InterventionEntry, "workOrderNumber" | "status" | "arrivalTime">): string {
+  const raw = String(entry.workOrderNumber || "").trim();
+  const isEmpty = !raw || raw === INTERVENTION_NO_WORK_ORDER_LABEL;
+  if (!isEmpty) return raw;
+  const crStarted = entry.status === "CLOTURE" || Boolean(String(entry.arrivalTime || "").trim());
+  return crStarted ? INTERVENTION_NO_WORK_ORDER_LABEL : "—";
 }

@@ -22,7 +22,7 @@ import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 import { InterventionEntryEditHeader } from "./InterventionEntryEditHeader";
 import { InterventionRequestMetaSection } from "./InterventionRequestMetaSection";
 import { InterventionPassageSection } from "./InterventionPassageSection";
-import { InterventionExportExtraFields } from "./InterventionExportExtraFields";
+import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { InterventionEntryEditFooter } from "./InterventionEntryEditFooter";
 import { InterventionEntryReasonDialogs } from "./InterventionEntryReasonDialogs";
 
@@ -356,7 +356,27 @@ export function InterventionEntryModal({
                   form.setShowPendingIntervenantForm(false);
                   form.setPendingIntervenantName("");
                 }}
+                besideMotif={
+                  form.requestExtraDefs.length === 1 ? (
+                    <FormVariableFields
+                      defs={form.requestExtraDefs}
+                      values={form.exportExtraValues}
+                      onValuesChange={form.setExportExtraValues}
+                      disabled={!form.isCreateMode || form.formLockedClosed}
+                      compact
+                    />
+                  ) : null
+                }
               />
+              {form.requestExtraDefs.length > 1 ? (
+                <FormVariableFields
+                  defs={form.requestExtraDefs}
+                  values={form.exportExtraValues}
+                  onValuesChange={form.setExportExtraValues}
+                  disabled={!form.isCreateMode || form.formLockedClosed}
+                  title="Champs de la demande"
+                />
+              ) : null}
               {!form.showRequiredFieldsOnly ? (
                 <>
                   <InterventionPassageSection
@@ -375,8 +395,8 @@ export function InterventionEntryModal({
                     onWorkOrderNumberChange={form.setWorkOrderNumber}
                     onReportChange={form.setReport}
                   />
-                  <InterventionExportExtraFields
-                    defs={form.wordExtraDefs}
+                  <FormVariableFields
+                    defs={form.closureExtraDefs}
                     values={form.exportExtraValues}
                     onValuesChange={form.setExportExtraValues}
                     disabled={form.formLockedClosed}

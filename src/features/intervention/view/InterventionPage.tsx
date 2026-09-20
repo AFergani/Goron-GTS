@@ -16,6 +16,7 @@ import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { ServiceListFiltersBar } from "../../common/components/ServiceListFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
+import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 import type { InterventionEntry } from "../model/intervention.types";
 import { useInterventionPresenter } from "../presenter/useInterventionPresenter";
 import { useInterventionReferenceData } from "../presenter/useInterventionReferenceData";
@@ -164,7 +165,7 @@ export function InterventionPage({
       .sort((a, b) => {
         const left = Date.parse(`${a.requestDate}T${a.requestTime || "00:00"}:00`);
         const right = Date.parse(`${b.requestDate}T${b.requestTime || "00:00"}:00`);
-        return right - left;
+        return left - right;
       });
   }, [filters.dateFrom, filters.dateTo, filters.search, familyFilter, intervention.entries, intervenantFilter, references.sites, statusFilter]);
 
@@ -312,29 +313,30 @@ export function InterventionPage({
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
         />
-        {intervention.loading ? <p className="muted">Chargement des interventions…</p> : null}
-        <InterventionTable
-          entries={pagedEntries}
-          onNotify={onToast}
-          onOpen={(entry) => {
-            setActiveEntry(entry);
-            setModalMode("edit");
-            setModalOpen(true);
-          }}
-          onFollowUp={(entry) => {
-            setActiveEntry(entry);
-            setModalMode("edit");
-            setModalOpen(true);
-          }}
-        />
-        <TablePaginationBar
-          currentPage={filters.currentPage}
-          totalPages={totalPages}
-          totalItems={filteredEntries.length}
-          pageSize={filters.pageSize}
-          onPageChange={filters.setCurrentPage}
-          onPageSizeChange={filters.setPageSize}
-        />
+        <ListLoadingOverlay loading={intervention.loading}>
+          <InterventionTable
+            entries={pagedEntries}
+            onNotify={onToast}
+            onOpen={(entry) => {
+              setActiveEntry(entry);
+              setModalMode("edit");
+              setModalOpen(true);
+            }}
+            onFollowUp={(entry) => {
+              setActiveEntry(entry);
+              setModalMode("edit");
+              setModalOpen(true);
+            }}
+          />
+          <TablePaginationBar
+            currentPage={filters.currentPage}
+            totalPages={totalPages}
+            totalItems={filteredEntries.length}
+            pageSize={filters.pageSize}
+            onPageChange={filters.setCurrentPage}
+            onPageSizeChange={filters.setPageSize}
+          />
+        </ListLoadingOverlay>
       </section>
 
       <InterventionEntryModal

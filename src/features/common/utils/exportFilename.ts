@@ -8,6 +8,25 @@ export function safeExportFilenamePart(s: string): string {
   return t.slice(0, 48) || "entree";
 }
 
+/**
+ * Nom d’un rapport Word par fiche : préfixe + site + numéro métier `JJMMAAAA-XX`.
+ * Le numéro évite d’écraser un autre rapport du même jour / même site.
+ *
+ * @param prefix - Préfixe métier (`Ronde`, `Intervention`, `main-courante`).
+ * @param dailyCode - Numéro de fiche, ou vide (repli `sans-numero`).
+ * @param siteDisplay - Libellé site affiché.
+ */
+export function ficheWordExportFilename(
+  prefix: string,
+  dailyCode: string | null | undefined,
+  siteDisplay?: string | null
+): string {
+  const site = safeExportFilenamePart(String(siteDisplay || "").trim() || prefix);
+  const code = String(dailyCode || "").trim();
+  const codePart = safeExportFilenamePart(code || "sans-numero");
+  return `${prefix}_${site}_${codePart}.docx`;
+}
+
 /** Horodatage UTC compact pour suffixe de fichier (`2026-09-03-12-26-00`). */
 export function exportTimestampForFilename(): string {
   return new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");

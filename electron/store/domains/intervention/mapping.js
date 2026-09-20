@@ -7,11 +7,12 @@
  * `linked_ronde_id` / `linked_gardiennage_id` viennent de `getCrossDomainLinks`
  * (overlay sur la ligne), pas de la table.
  *
- * N° de bon vide (fiches anciennes) : repli « Pas de bon » via `helpers`.
+ * N° de bon vide ou « Pas de bon » (fiches anciennes) : chaîne vide via `helpers`.
  *
  * @module electron/store/domains/intervention/mapping
  */
 
+const { parseExportExtraJson } = require("../../core/exportExtraJson");
 const { resolveWorkOrderNumber } = require("./helpers");
 
 /**
@@ -36,23 +37,6 @@ function requireEntryId(store, payload, source) {
   const id = String(payload?.id || "").trim();
   if (!id) store.fail(source, "Identifiant manquant.", "INTERVENTION_ID_REQUIRED");
   return id;
-}
-
-/**
- * Parse les variables Word (`export_extra_json`) : objet `pg` ou texte JSON.
- *
- * @param {unknown} raw
- * @returns {Record<string, unknown>}
- */
-function parseExportExtraJson(raw) {
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
-  if (raw == null || raw === "") return {};
-  try {
-    const parsed = JSON.parse(String(raw));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
 }
 
 /**

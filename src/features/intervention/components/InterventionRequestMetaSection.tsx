@@ -2,12 +2,12 @@
  * Meta demande : date/heure, site, prestataire, motif.
  */
 
+import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
-import { TimeInput } from "../../common/components/TimeInput";
-import { DateInput } from "../../common/components/DateInput";
+import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { NotifyToast } from "../../common/model/toast.types";
 
@@ -43,6 +43,8 @@ type InterventionRequestMetaSectionProps = {
   onTogglePendingIntervenant: () => void;
   onClearPendingSiteFields: () => void;
   onClearPendingIntervenantFields: () => void;
+  /** Un champ personnalisé « à la demande » collé à droite du motif. */
+  besideMotif?: ReactNode;
 };
 
 export function InterventionRequestMetaSection(props: InterventionRequestMetaSectionProps) {
@@ -77,24 +79,20 @@ export function InterventionRequestMetaSection(props: InterventionRequestMetaSec
     onTogglePendingSite,
     onTogglePendingIntervenant,
     onClearPendingSiteFields,
-    onClearPendingIntervenantFields
+    onClearPendingIntervenantFields,
+    besideMotif
   } = props;
 
   return (
     <>
-      <div className="mc-form-grid intervention-request-meta-grid">
-        <label className="mc-field">
-          <span>Date de la demande</span>
-          <DateInput
-            value={requestDate}
-            disabled={formLockedClosed}
-            onChange={(e) => onRequestDateChange(e.target.value)}
-          />
-        </label>
-        <label className="mc-field">
-          <span>Heure de la demande</span>
-          <TimeInput value={requestTime} disabled={formLockedClosed} onChange={onRequestTimeChange} />
-        </label>
+      <div className="request-head-row">
+        <RequestDateTimeField
+          date={requestDate}
+          time={requestTime}
+          disabled={formLockedClosed}
+          onDateChange={onRequestDateChange}
+          onTimeChange={onRequestTimeChange}
+        />
         {isCreateMode ? (
           <>
             <SiteSearchInput
@@ -184,15 +182,18 @@ export function InterventionRequestMetaSection(props: InterventionRequestMetaSec
         )}
       </div>
 
-      <label className="mc-field mc-field-full">
-        <span>Motif</span>
-        <textarea
-          value={requestReason}
-          disabled={lockCoreFields || formLockedClosed}
-          onChange={(e) => onRequestReasonChange(e.target.value)}
-          className={`mc-textarea intervention-motif-textarea ${lockCoreFields || formLockedClosed ? "mc-textarea-readonly" : ""}`}
-        />
-      </label>
+      <div className={besideMotif ? "request-motif-row request-motif-row--with-extra" : undefined}>
+        <label className={`mc-field ${besideMotif ? "request-motif-row__motif" : "mc-field-full"}`}>
+          <span>Motif</span>
+          <textarea
+            value={requestReason}
+            disabled={lockCoreFields || formLockedClosed}
+            onChange={(e) => onRequestReasonChange(e.target.value)}
+            className={`mc-textarea intervention-motif-textarea ${lockCoreFields || formLockedClosed ? "mc-textarea-readonly" : ""}`}
+          />
+        </label>
+        {besideMotif}
+      </div>
     </>
   );
 }
