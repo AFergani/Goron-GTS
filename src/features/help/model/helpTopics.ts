@@ -18,6 +18,7 @@ export type HelpTopicId =
   | "settings-templates"
   | "settings-variables"
   | "settings-database"
+  | "settings-connection"
   | "settings-audit";
 
 export type HelpPageAccess = {
@@ -96,6 +97,7 @@ export function buildHelpNavigation(ctx: HelpAccessContext): HelpNavItem[] {
 
     if (ctx.canManageUsers) {
       items.push({ id: "settings-database", label: "Gestion base de données", emoji: "💾" });
+      items.push({ id: "settings-connection", label: "Connexion PostgreSQL", emoji: "🔌" });
       items.push({ id: "settings-audit", label: "Journal des actions", emoji: "📜" });
     }
   }

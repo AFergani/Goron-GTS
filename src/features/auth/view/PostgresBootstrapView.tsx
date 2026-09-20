@@ -12,6 +12,7 @@ import {
   type PostgresBusyPhase,
   type PostgresConfigDraft
 } from "../../settings/components/PostgresConnectionPanel";
+import { PostgresBackupPanel } from "../../settings/components/PostgresBackupPanel";
 import type { PublicPostgresConfig, PostgresTestResult } from "../../../infrastructure/api/gtsApiClient";
 
 type PostgresBootstrapViewProps = {
@@ -25,14 +26,19 @@ type PostgresBootstrapViewProps = {
   error: string;
   /** Récupération depuis l'écran login (config déjà connue mais injoignable). */
   isRecoveryMode?: boolean;
+  /** Restauration d'un dump depuis l'écran login. */
+  isRestoreMode?: boolean;
   /** Config actuelle redevenue joignable (ex. Docker relancé). */
   recoveryRestored?: boolean;
   recoveryRestoredMessage?: string;
   onCancelRecovery?: () => void;
+  onRestored?: () => void;
+  onNotify?: (message: string, tone?: "success" | "error" | "warning") => void;
 };
 
 /**
  * Vue contrôlée : logo + panneau connexion serveur PostgreSQL.
+ * En restauration, le panneau s'élargit pour le tableau des dumps.
  */
 export function PostgresBootstrapView({
   config,
@@ -44,17 +50,25 @@ export function PostgresBootstrapView({
   busyPhase,
   error,
   isRecoveryMode = false,
+  isRestoreMode = false,
   recoveryRestored = false,
   recoveryRestoredMessage = "",
-  onCancelRecovery
+  onCancelRecovery,
+  onRestored,
+  onNotify
 }: PostgresBootstrapViewProps) {
   const isBusy = busyPhase !== "idle";
 
   return (
     <main className="auth-page">
-      <section className="panel login-panel postgres-bootstrap-panel" aria-busy={isBusy}>
-        <AuthLogo />
-        <h1>{isRecoveryMode ? "Connexion base de données" : "Initialisation GTS"}</h1>
+      <section
+        className={`panel login-panel postgres-bootstrap-panel${isRestoreMode ? " postgres-bootstrap-panel--restore" : ""}`}
+        aria-busy={isBusy}
+      >
+        <AuthLogo compact={isRestoreMode} />
+        <h1>
+          {isRestoreMode ? "Restaurer une sauvegarde" : isRecoveryMode ? "Connexion base de données" : "Initialisation GTS"}
+        </h1>
 
         {isRecoveryMode && recoveryRestored ? (
           <>
@@ -67,6 +81,18 @@ export function PostgresBootstrapView({
                 Retour à la connexion
               </button>
             ) : null}
+          </>
+        ) : isRestoreMode ? (
+          <>
+            <PostgresBackupPanel variant="recovery" onNotify={onNotify} onRestored={onRestored} />
+            {onCancelRecovery ? (
+              <div className="login-links">
+                <button type="button" className="link-btn" onClick={onCancelRecovery} disabled={isBusy}>
+                  Retour à la connexion
+                </button>
+              </div>
+            ) : null}
+            {error && !isBusy ? <p className="error">{error}</p> : null}
           </>
         ) : (
           <>
@@ -93,6 +119,8 @@ export function PostgresBootstrapView({
               testResult={testResult}
               busyPhase={busyPhase}
             />
+            <h4>Restaurer une sauvegarde</h4>
+            <PostgresBackupPanel variant="recovery" onNotify={onNotify} onRestored={onRestored} />
             {isRecoveryMode && onCancelRecovery ? (
               <div className="login-links">
                 <button type="button" className="link-btn" onClick={onCancelRecovery} disabled={isBusy}>

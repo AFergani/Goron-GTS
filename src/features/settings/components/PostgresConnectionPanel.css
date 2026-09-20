@@ -79,16 +79,6 @@
   color: var(--text);
 }
 
-.postgres-config-password-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.postgres-config-password-row input {
-  flex: 1;
-}
-
 .postgres-config-actions {
   display: flex;
   flex-wrap: wrap;

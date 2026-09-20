@@ -25,7 +25,7 @@ export function HelpSettingsAuditTopic() {
           station et à gérer les comptes utilisateurs.
         </div>
         <div className="help-center-table-wrap">
-          <table className="help-center-table">
+          <table className="help-center-table help-center-table--profile">
             <thead>
               <tr>
                 <th scope="col">Votre profil</th>
@@ -200,10 +200,11 @@ export function HelpSettingsAuditTopic() {
             <strong>Les logs applicatifs :</strong> tracent le comportement des utilisateurs (qui a cliqué, modifié ou supprimé quoi).
           </li>
           <li>
-            <strong>Les logs techniques :</strong> documentent les erreurs applicatives (connexion PostgreSQL, exceptions métier, diagnostics
-            support) dans l&apos;onglet dédié. La barre de filtres y reprend la période, la famille et le statut, ainsi que les boutons{" "}
-            <strong>Exporter données</strong> / <strong>Ouvrir l&apos;Excel</strong>. Acteur et Cible n&apos;y figurent pas, ces notions n&apos;existant
-            pas sur les événements techniques.
+            <strong>Les logs techniques :</strong> documentent la connexion PostgreSQL, les sauvegardes (cycle,
+            copies manuelles, comparaison, restauration) et les diagnostics support dans l&apos;onglet dédié. La barre de
+            filtres y reprend la période, la famille et le statut, ainsi que les boutons{" "}
+            <strong>Exporter données</strong> / <strong>Ouvrir l&apos;Excel</strong>. Acteur et Cible n&apos;y figurent pas en
+            colonnes ; le nom de l&apos;opérateur peut apparaître dans le détail au survol.
           </li>
         </ul>
         <div className="help-center-callout help-center-callout--tip" role="note">

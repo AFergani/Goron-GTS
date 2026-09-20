@@ -6,7 +6,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
-import { gtsApiClient, type PublicPostgresConfig, type PostgresTestResult, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
+import { gtsApiClient, type TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import { getDefaultPageAccessByRole } from "../model/settings.types";
 import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
@@ -20,7 +20,6 @@ import type {
 } from "../../rondes/model/rondePlanned.types";
 import { exportAuditLogsToExcel } from "../export/auditExcelExport";
 import { exportTechErrorLogsToExcel } from "../export/techErrorLogsExcelExport";
-import { DEFAULT_POSTGRES_CONFIG_DRAFT, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
 import { canSessionAccessOperatorsTab, canSessionManageUser, isSessionStationAdmin } from "../model/userHierarchy";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 
@@ -152,10 +151,6 @@ export function useSettingsPresenter({
     setConfirmFullName(value);
   }, []);
   const [dbWritable, setDbWritable] = useState<boolean>(false);
-  const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
-  const [postgresDraft, setPostgresDraft] = useState<PostgresConfigDraft>(DEFAULT_POSTGRES_CONFIG_DRAFT);
-  const [postgresTestResult, setPostgresTestResult] = useState<PostgresTestResult | null>(null);
-  const [postgresBusyPhase, setPostgresBusyPhase] = useState<PostgresBusyPhase>("idle");
   const resetUserForm = useCallback(() => {
     setCreateForm({
       username: "",
@@ -191,103 +186,6 @@ export function useSettingsPresenter({
     }, 5000);
     return () => clearInterval(timer);
   }, []);
-
-  const loadPostgresConfig = useCallback(async () => {
-    if (!session || !isSessionStationAdmin(session)) return;
-    try {
-      const cfg = await gtsApiClient.getPostgresConfig();
-      setPostgresConfig(cfg);
-      setPostgresDraft({
-        host: cfg.host,
-        port: cfg.port,
-        database: cfg.database,
-        user: cfg.user,
-        password: ""
-      });
-    } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Impossible de charger la configuration PostgreSQL."));
-    }
-  }, [onError, session]);
-
-  const onSavePostgresConfig = useCallback(async () => {
-    if (!session || postgresBusyPhase !== "idle") return;
-    onError("");
-    setPostgresBusyPhase("saving");
-    setPostgresTestResult(null);
-    try {
-      const result = await gtsApiClient.savePostgresConfig({
-        requesterRole: session.user.role,
-        requesterUsername: session.user.username,
-        host: postgresDraft.host,
-        port: postgresDraft.port,
-        database: postgresDraft.database,
-        user: postgresDraft.user,
-        password: postgresDraft.password
-      });
-      setPostgresConfig(result.config);
-      setPostgresDraft((prev) => ({ ...prev, password: "" }));
-      if (result.reconnect?.reachable) {
-        onToast("Configuration PostgreSQL enregistrée. Connexion OK.", "success");
-      } else {
-        onToast(
-          `Configuration enregistrée, mais reconnexion incomplète${result.reconnect?.error ? ` : ${result.reconnect.error}` : "."}`,
-          "warning"
-        );
-      }
-    } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Impossible d'enregistrer la configuration PostgreSQL."));
-    } finally {
-      setPostgresBusyPhase("idle");
-    }
-  }, [onError, onToast, postgresBusyPhase, postgresDraft, session]);
-
-  const onTestPostgresConfig = useCallback(async () => {
-    if (!session || postgresBusyPhase !== "idle") return;
-    onError("");
-    setPostgresBusyPhase("testing");
-    try {
-      const result = await gtsApiClient.testPostgresConfig({
-        requesterRole: session.user.role,
-        requesterUsername: session.user.username,
-        host: postgresDraft.host,
-        port: postgresDraft.port,
-        database: postgresDraft.database,
-        user: postgresDraft.user,
-        password: postgresDraft.password
-      });
-      setPostgresTestResult(result);
-      if (result.reachable) {
-        onToast("Test PostgreSQL réussi.");
-      } else {
-        onError(result.error || "Connexion PostgreSQL impossible.");
-      }
-    } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Échec du test PostgreSQL."));
-    } finally {
-      setPostgresBusyPhase("idle");
-    }
-  }, [onError, onToast, postgresBusyPhase, postgresDraft, session]);
-
-  const onReconnectPostgres = useCallback(async () => {
-    if (!session || postgresBusyPhase !== "idle") return;
-    onError("");
-    setPostgresBusyPhase("reconnecting");
-    try {
-      const result = await gtsApiClient.reconnectPostgres({
-        requesterRole: session.user.role,
-        requesterUsername: session.user.username
-      });
-      if (result.reachable) {
-        onToast("PostgreSQL reconnecté.");
-      } else {
-        onError(result.error || "Reconnexion PostgreSQL impossible.");
-      }
-    } catch (err) {
-      onError(extractUserFacingErrorMessage(err, "Reconnexion PostgreSQL impossible."));
-    } finally {
-      setPostgresBusyPhase("idle");
-    }
-  }, [onError, onToast, postgresBusyPhase, session]);
 
   const loadUsers = useCallback(async () => {
     if (!session) return;
@@ -508,12 +406,6 @@ export function useSettingsPresenter({
       return () => clearInterval(timer);
     }
 
-    if (activeSettingsTab === "database") {
-      if (!canManageUsers) return;
-      void loadPostgresConfig();
-      return;
-    }
-
     if (activeSettingsTab === "audit") {
       if (!canManageUsers) return;
       void loadAuditLogs();
@@ -528,7 +420,6 @@ export function useSettingsPresenter({
     activeSettingsTab,
     loadAuditLogs,
     loadTechErrorLogs,
-    loadPostgresConfig,
     loadDataSection,
     loadUsers,
     session,
@@ -1546,15 +1437,6 @@ export function useSettingsPresenter({
     confirmDialog,
     closeConfirmDialog,
     handleConfirmDialog,
-    postgresConfig,
-    postgresDraft,
-    setPostgresDraft,
-    postgresTestResult,
-    postgresBusyPhase,
-    onSavePostgresConfig,
-    onTestPostgresConfig,
-    onReconnectPostgres,
-    loadPostgresConfig,
     dbWritable,
     onQuitApp,
     onMinimizeApp,

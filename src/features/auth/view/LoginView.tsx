@@ -27,6 +27,8 @@ type LoginViewProps = {
   showDbRecoveryLink?: boolean;
   /** Ouvre l'écran de reconfiguration de la connexion DB. */
   onOpenDbRecovery?: () => void;
+  /** Ouvre l'écran de restauration d'une sauvegarde PostgreSQL. */
+  onOpenDbRestore?: () => void;
 };
 
 export function LoginView({
@@ -39,7 +41,8 @@ export function LoginView({
   onChange,
   onOpenPeerReset,
   showDbRecoveryLink = false,
-  onOpenDbRecovery
+  onOpenDbRecovery,
+  onOpenDbRestore
 }: LoginViewProps) {
   return (
     <main className="auth-page">
@@ -108,6 +111,11 @@ export function LoginView({
           {showDbRecoveryLink && onOpenDbRecovery ? (
             <button type="button" className="link-btn" onClick={onOpenDbRecovery} disabled={isLoggingIn}>
               Base de données inaccessible ?
+            </button>
+          ) : null}
+          {onOpenDbRestore ? (
+            <button type="button" className="link-btn" onClick={onOpenDbRestore} disabled={isLoggingIn}>
+              Restaurer une sauvegarde
             </button>
           ) : null}
         </div>

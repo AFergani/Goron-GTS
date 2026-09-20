@@ -131,3 +131,113 @@ function Wait-LaboKey {
         Start-Sleep -Seconds 2
     }
 }
+
+function Get-LaboBackupConfigPath {
+    return (Join-Path (Get-LaboUserDataDir) "gts-pg-backup-labo.json")
+}
+
+function Get-LaboBackupOutDir {
+    param([string]$OutDir)
+    $chosen = [string]$OutDir
+    if (-not $chosen) {
+        $cfgPath = Get-LaboBackupConfigPath
+        if (Test-Path -LiteralPath $cfgPath) {
+            try {
+                $raw = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $chosen = [string]$raw.outDir
+            } catch {
+                $chosen = ""
+            }
+        }
+    }
+    if (-not $chosen) {
+        $docs = [Environment]::GetFolderPath("MyDocuments")
+        $chosen = Join-Path $docs "Goron-GTS-backups"
+    }
+    return $chosen
+}
+
+function Save-LaboBackupOutDir {
+    param([Parameter(Mandatory = $true)][string]$OutDir)
+    $dir = (Get-LaboUserDataDir)
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir | Out-Null
+    }
+    $payload = @{ outDir = $OutDir } | ConvertTo-Json
+    Set-Content -LiteralPath (Get-LaboBackupConfigPath) -Value $payload -Encoding UTF8
+}
+
+function Invoke-LaboPostgresDump {
+    param(
+        [Parameter(Mandatory = $true)][string]$DestinationFile,
+        [switch]$Silent
+    )
+    if (-not (Test-LaboContainerRunning)) {
+        throw "Conteneur $($script:LaboContainerName) arrete. Demarrez-le (menu 1) puis reessayez."
+    }
+    $destDir = Split-Path -Parent $DestinationFile
+    if (-not (Test-Path -LiteralPath $destDir)) {
+        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    }
+    $partial = "$DestinationFile.partial"
+    if (Test-Path -LiteralPath $partial) {
+        Remove-Item -LiteralPath $partial -Force
+    }
+    $cmd = 'docker exec {0} pg_dump -U {1} -d {2} -F c --no-owner --no-acl > "{3}"' -f `
+        $script:LaboContainerName, $script:LaboAppUser, $script:LaboDatabaseName, $partial
+    cmd.exe /c $cmd
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $partial)) {
+        if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue }
+        throw "pg_dump a echoue (code $LASTEXITCODE). Verifiez Docker et le conteneur."
+    }
+    $fs = [System.IO.File]::OpenRead($partial)
+    try {
+        $buf = New-Object byte[] 5
+        $read = $fs.Read($buf, 0, 5)
+        $header = [System.Text.Encoding]::ASCII.GetString($buf, 0, $read)
+        if ($header -ne "PGDMP") {
+            throw "Le fichier genere n'est pas une sauvegarde PostgreSQL valide."
+        }
+    } finally {
+        $fs.Close()
+    }
+    Move-Item -LiteralPath $partial -Destination $DestinationFile -Force
+    if (-not $Silent) {
+        Write-Host "Dump OK : $DestinationFile" -ForegroundColor Green
+    }
+}
+
+function Get-LaboBackupTaskName {
+    return "GoronGTS-PostgreSQL-backup"
+}
+
+function Test-LaboBackupTaskExists {
+    return [bool](Get-ScheduledTask -TaskName (Get-LaboBackupTaskName) -ErrorAction SilentlyContinue)
+}
+
+function Unregister-LaboScheduledTask {
+    $taskName = Get-LaboBackupTaskName
+    if (-not (Test-LaboBackupTaskExists)) {
+        return $false
+    }
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+    return $true
+}
+
+function Register-LaboScheduledPowershellTask {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScriptFile,
+        [string]$ArgumentTail = ""
+    )
+    # schtasks /TR casse les chemins du type « 01 - Projet » (le tiret est lu comme une option).
+    $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptFile`""
+    if ($ArgumentTail) {
+        $arg = "$arg $ArgumentTail"
+    }
+    $action = New-ScheduledTaskAction -Execute $ps -Argument $arg
+    $trigger = New-ScheduledTaskTrigger -Daily -At "03:00"
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+    Register-ScheduledTask -TaskName (Get-LaboBackupTaskName) -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+}

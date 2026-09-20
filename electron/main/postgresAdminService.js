@@ -90,7 +90,7 @@ function createPostgresAdminService(deps) {
     const probe = await probePostgresLab();
     if (!probe.reachable) return;
     const err = new Error(
-      "PostgreSQL est accessible avec la configuration actuelle. Connectez-vous pour la modifier dans Paramètres."
+      "PostgreSQL est accessible avec la configuration actuelle. Pour changer d'adresse, utilisez le lien de récupération lorsque la base est injoignable."
     );
     err.code = "BOOTSTRAP_NOT_ALLOWED";
     throw err;

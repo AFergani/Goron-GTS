@@ -77,6 +77,8 @@ export function usePostgresBootstrapPresenter({
   const [pgReachable, setPgReachable] = useState(true);
   /** Ouverture manuelle de l'écran d'init depuis le login (récupération). */
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  /** Restauration d'un dump depuis l'écran login. */
+  const [restoreOpen, setRestoreOpen] = useState(false);
   /** Config actuelle redevenue joignable pendant la récupération (Docker relancé, etc.). */
   const [recoveryRestored, setRecoveryRestored] = useState(false);
   const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
@@ -89,6 +91,7 @@ export function usePostgresBootstrapPresenter({
     setRecoveryRestored(false);
     setPostgresTestResult(null);
     setRecoveryOpen(false);
+    setRestoreOpen(false);
     onError("");
     onClearLoginError?.();
     onToast("PostgreSQL est de nouveau accessible. Vous pouvez vous connecter.");
@@ -147,14 +150,14 @@ export function usePostgresBootstrapPresenter({
 
   // Sur l'écran login : re-sonde périodiquement pour masquer le bouton dès que PG revient.
   useEffect(() => {
-    if (!statusLoaded || needsSetup || recoveryOpen) return;
+    if (!statusLoaded || needsSetup || recoveryOpen || restoreOpen) return;
     const timer = window.setInterval(() => {
       void refreshStatus().catch(() => {
         setPgReachable(false);
       });
     }, REACHABILITY_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [statusLoaded, needsSetup, recoveryOpen, refreshStatus]);
+  }, [statusLoaded, needsSetup, recoveryOpen, restoreOpen, refreshStatus]);
 
   // En récupération : détecter le retour de Docker / serveur sans écraser le brouillon saisi.
   useEffect(() => {
@@ -193,6 +196,7 @@ export function usePostgresBootstrapPresenter({
     onClearLoginError?.();
     setPostgresTestResult(null);
     setRecoveryRestored(false);
+    setRestoreOpen(false);
     setRecoveryOpen(true);
   }, [onClearLoginError, onError]);
 
@@ -201,6 +205,23 @@ export function usePostgresBootstrapPresenter({
     setPostgresTestResult(null);
     setRecoveryRestored(false);
     setRecoveryOpen(false);
+    setRestoreOpen(false);
+    void refreshStatus().catch(() => {
+      setPgReachable(false);
+    });
+  }, [onError, refreshStatus]);
+
+  const openRestoreSetup = useCallback(() => {
+    onError("");
+    onClearLoginError?.();
+    setRecoveryRestored(false);
+    setRecoveryOpen(false);
+    setRestoreOpen(true);
+  }, [onClearLoginError, onError]);
+
+  const closeRestoreSetup = useCallback(() => {
+    onError("");
+    setRestoreOpen(false);
     void refreshStatus().catch(() => {
       setPgReachable(false);
     });
@@ -281,11 +302,12 @@ export function usePostgresBootstrapPresenter({
   return {
     statusLoaded,
     needsSetup,
-    /** Afficher l'écran bootstrap (1ère init ou récupération ouverte). */
-    showBootstrap: needsSetup || recoveryOpen,
+    /** Afficher l'écran bootstrap (1ère init, récupération ou restauration). */
+    showBootstrap: needsSetup || recoveryOpen || restoreOpen,
     /** Bouton secours sur login : config déjà connue mais serveur injoignable. */
     showDbRecoveryLink: statusLoaded && !needsSetup && !pgReachable,
     isRecoveryMode: recoveryOpen && !needsSetup,
+    isRestoreMode: restoreOpen && !needsSetup,
     recoveryRestored: recoveryOpen && !needsSetup && recoveryRestored,
     recoveryRestoredMessage: RECOVERY_RESTORED_MESSAGE,
     postgresConfig,
@@ -295,6 +317,8 @@ export function usePostgresBootstrapPresenter({
     busyPhase,
     openRecoverySetup,
     closeRecoverySetup,
+    openRestoreSetup,
+    closeRestoreSetup,
     onSavePostgresBootstrap,
     onTestPostgresBootstrap
   };

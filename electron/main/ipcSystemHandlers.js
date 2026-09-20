@@ -27,6 +27,7 @@ const { probePostgresLabMonitored } = require("../store/persistence");
  * @param {(username: string) => boolean} deps.canManageDatabase
  * @param {(enabled: boolean) => void} deps.setDevToolsAccessEnabled
  * @param {object} deps.postgresAdmin
+ * @param {object} deps.postgresBackup
  * @returns {void}
  */
 function registerSystemIpcHandlers(deps) {
@@ -45,7 +46,8 @@ function registerSystemIpcHandlers(deps) {
     getMainWindow,
     canManageDatabase,
     setDevToolsAccessEnabled,
-    postgresAdmin
+    postgresAdmin,
+    postgresBackup
   } = deps;
 
   handleIpc("system:getDbConfig", () => getDbConfig());
@@ -69,7 +71,18 @@ function registerSystemIpcHandlers(deps) {
   handleIpcAuth("system:installDocumentTemplateCopy", (payload) => documentTemplates.installDocumentTemplateCopy(payload));
   handleIpcAuth("system:listTemplateAssignments", (payload) => getUserStore().listTemplateAssignments(payload));
   handleIpcAuth("system:upsertScopedDocumentTemplate", (payload) => documentTemplates.upsertScopedDocumentTemplate(payload));
-  handleIpcAuth("system:deleteTemplateAssignment", (payload) => getUserStore().deleteTemplateAssignment(payload));
+  handleIpcAuth("system:deleteCustomDocumentTemplate", (payload) => documentTemplates.deleteCustomDocumentTemplate(payload));
+  handleIpcAuth("system:deleteTemplateAssignment", async (payload) => {
+    const result = await getUserStore().deleteTemplateAssignment(payload);
+    const fileName = String(result?.templateFileName || "").trim();
+    if (fileName) {
+      await documentTemplates.deleteCustomTemplateFileIfUnreferenced({
+        requesterRole: payload.requesterRole,
+        targetFileName: fileName
+      });
+    }
+    return result;
+  });
   handleIpcAuth("system:resolveTemplateFileForContext", (payload) => getUserStore().resolveTemplateFileForContext(payload));
   handleIpcAuth("system:openTemplatesFolder", () => {
     try {
@@ -144,6 +157,25 @@ function registerSystemIpcHandlers(deps) {
     }
     return postgresAdmin.reconnect();
   });
+
+  handleIpc("system:getPostgresBackupStatus", () => postgresBackup.getStatus());
+  handleIpcAuth("system:pickPostgresBackupFolder", (payload = {}) => postgresBackup.pickFolder(payload));
+  handleIpcAuth("system:savePostgresBackupSettings", (payload = {}) => postgresBackup.saveSettings(payload));
+  handleIpcAuth("system:openPostgresBackupFolder", (payload = {}) => {
+    if (!canManageDatabase(payload?.requesterUsername)) {
+      throw new Error("Droits insuffisants pour ouvrir le dossier de sauvegarde.");
+    }
+    return postgresBackup.openFolder();
+  });
+  handleIpcAuth("system:runPostgresBackup", (payload = {}) => postgresBackup.runManualDump(payload));
+  handleIpcAuth("system:runPostgresBackupSaveAs", (payload = {}) => postgresBackup.runManualDumpSaveAs(payload));
+  handleIpcAuth("system:startPostgresBackupCycle", (payload = {}) => postgresBackup.startBackupCycle(payload));
+  handleIpc("system:pickPostgresBackupFile", () => postgresBackup.pickDumpFile());
+  // Restaurer / comparer sans session : écran login / bootstrap (Docker recréé).
+  handleIpc("system:restorePostgresBackup", (payload = {}) => postgresBackup.restoreBackup(payload || {}));
+  handleIpcAuth("system:restorePostgresBackupAuth", (payload = {}) => postgresBackup.restoreBackup(payload));
+  handleIpc("system:comparePostgresBackup", (payload = {}) => postgresBackup.compareBackup(payload || {}));
+  handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) => postgresBackup.compareBackup(payload));
 
   handleIpc("system:quitApp", () => {
     setIsAppQuitting(true);

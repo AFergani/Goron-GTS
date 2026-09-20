@@ -52,6 +52,7 @@ export function isHelpTopicAllowed(topicId: HelpTopicId, access?: HelpAccessCont
     case "settings-variables":
       return canAccessSettingsDataHelp(access);
     case "settings-database":
+    case "settings-connection":
       return canAccessDatabaseHelp(access);
     case "settings-audit":
       return canAccessAuditHelp(access);

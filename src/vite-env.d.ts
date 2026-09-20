@@ -24,6 +24,7 @@ import type {
   FransorEntry,
   FransorMonthlyRecap
 } from "./types";
+import type { PostgresBackupStatus, PostgresCompareResult, PostgresRestoreResult } from "./infrastructure/api/gtsApi.types";
 import type { MainCouranteEntry, MainCouranteSavePayload } from "./features/mainCourante/model/mainCourante.types";
 import type { InterventionEntry, InterventionSavePayload } from "./features/intervention/model/intervention.types";
 import type { PendingIntervenant, PendingSite } from "./features/common/model/pendingRefs.types";
@@ -83,6 +84,12 @@ declare global {
         resolvedPath?: string | null;
         templatesRelativePath?: string;
       }>;
+      deleteCustomDocumentTemplate: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        targetFileName: string;
+      }) => Promise<{ success: boolean; fileName: string }>;
       listTemplateAssignments: (payload: { sessionToken: string; requesterRole: Role }) => Promise<
         Array<{
           id: string;
@@ -125,7 +132,7 @@ declare global {
         requesterUsername: string;
         id: string;
         reason: string;
-      }) => Promise<{ success: boolean }>;
+      }) => Promise<{ success: boolean; templateFileName?: string }>;
       resolveTemplateFileForContext: (payload: {
         sessionToken: string;
         requesterRole: Role;
@@ -260,6 +267,70 @@ declare global {
         requesterRole: Role;
         requesterUsername: string;
       }) => Promise<{ success: boolean; reachable: boolean; error: string | null }>;
+      getPostgresBackupStatus: (payload?: { sessionToken?: string | null }) => Promise<PostgresBackupStatus>;
+      pickPostgresBackupFolder: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{ canceled: boolean; folderPath: string | null; config: PostgresBackupStatus }>;
+      savePostgresBackupSettings: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        autoEnabled: boolean;
+      }) => Promise<PostgresBackupStatus>;
+      openPostgresBackupFolder: (payload: { sessionToken: string }) => Promise<{
+        success: boolean;
+        path: string | null;
+        error: string | null;
+      }>;
+      runPostgresBackup: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{ success: boolean; fileName: string; config: PostgresBackupStatus }>;
+      runPostgresBackupSaveAs: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{
+        canceled: boolean;
+        fileName: string | null;
+        filePath: string | null;
+        config: PostgresBackupStatus;
+      }>;
+      startPostgresBackupCycle: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{ success: boolean; fileName: string; config: PostgresBackupStatus }>;
+      pickPostgresBackupFile: (payload?: { sessionToken?: string | null }) => Promise<{
+        canceled: boolean;
+        filePath: string | null;
+        fileName: string | null;
+      }>;
+      restorePostgresBackup: (payload: {
+        filePath?: string;
+        fileName?: string;
+      }) => Promise<PostgresRestoreResult>;
+      restorePostgresBackupAuth: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        filePath?: string;
+        fileName?: string;
+      }) => Promise<PostgresRestoreResult>;
+      comparePostgresBackup: (payload: {
+        filePath?: string;
+        fileName?: string;
+      }) => Promise<PostgresCompareResult>;
+      comparePostgresBackupAuth: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        filePath?: string;
+        fileName?: string;
+      }) => Promise<PostgresCompareResult>;
       quitApp: (payload?: { sessionToken?: string | null }) => Promise<{ success: boolean }>;
       minimizeApp: (payload?: { sessionToken?: string | null }) => Promise<{ success: boolean }>;
       subscribeAppExitChoiceRequest: (callback: () => void) => () => void;

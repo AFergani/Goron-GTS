@@ -50,6 +50,7 @@ Double-clic : `Lancer-Menu-Labo.bat`
 | 9 | Tester la connexion PG |
 | 10 | Purger le journal app (avec .bak) |
 | 11 | **Reset complet** base `goron_gts` + reapplique `schema.sql` (tapez `RESET`) |
+| 12 | Dump PostgreSQL (fichier .dump) + tache Windows quotidienne a 03:00, sans l'application |
 | Q | Quitter |
 
 ## Logs hors app

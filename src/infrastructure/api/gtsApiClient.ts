@@ -47,6 +47,8 @@ import type {
   DbHealth,
   GardiennageStatusResult,
   OpenExportFileResult,
+  PostgresBackupFile,
+  PostgresBackupStatus,
   PostgresLabHealth,
   PostgresReconnectResult,
   PostgresTestResult,
@@ -68,8 +70,12 @@ export type {
   DbHealth,
   GardiennageStatusResult,
   OpenExportFileResult,
+  PostgresBackupFile,
+  PostgresBackupStatus,
   PostgresLabHealth,
   PostgresReconnectResult,
+  PostgresRestoreResult,
+  PostgresCompareResult,
   PostgresTestResult,
   PublicPostgresConfig,
   SaveExportFileResult,
@@ -98,6 +104,9 @@ export const gtsApiClient = {
   },
   installDocumentTemplateCopy(targetFileName: string) {
     return sessionCall(window.gtsApi.installDocumentTemplateCopy, { targetFileName });
+  },
+  deleteCustomDocumentTemplate(payload: { requesterRole: Role; requesterUsername: string; targetFileName: string }) {
+    return sessionCall(window.gtsApi.deleteCustomDocumentTemplate, payload);
   },
   listTemplateAssignments(payload: { requesterRole: Role }): Promise<TemplateAssignmentRow[]> {
     return sessionCall(window.gtsApi.listTemplateAssignments, payload);
@@ -209,6 +218,52 @@ export const gtsApiClient = {
   },
   reconnectPostgres(payload: { requesterRole: Role; requesterUsername: string }): Promise<PostgresReconnectResult> {
     return sessionCall(window.gtsApi.reconnectPostgres, payload);
+  },
+  getPostgresBackupStatus(): Promise<PostgresBackupStatus> {
+    return window.gtsApi.getPostgresBackupStatus();
+  },
+  pickPostgresBackupFolder(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.pickPostgresBackupFolder, payload);
+  },
+  savePostgresBackupSettings(payload: { requesterRole: Role; requesterUsername: string; autoEnabled: boolean }) {
+    return sessionCall(window.gtsApi.savePostgresBackupSettings, payload);
+  },
+  openPostgresBackupFolder() {
+    return sessionOnlyCall(window.gtsApi.openPostgresBackupFolder);
+  },
+  runPostgresBackup(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.runPostgresBackup, payload);
+  },
+  runPostgresBackupSaveAs(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.runPostgresBackupSaveAs, payload);
+  },
+  startPostgresBackupCycle(payload: { requesterRole: Role; requesterUsername: string }) {
+    return sessionCall(window.gtsApi.startPostgresBackupCycle, payload);
+  },
+  pickPostgresBackupFile() {
+    return window.gtsApi.pickPostgresBackupFile();
+  },
+  restorePostgresBackup(payload: { filePath?: string; fileName?: string }) {
+    return window.gtsApi.restorePostgresBackup(payload);
+  },
+  restorePostgresBackupAuth(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    filePath?: string;
+    fileName?: string;
+  }) {
+    return sessionCall(window.gtsApi.restorePostgresBackupAuth, payload);
+  },
+  comparePostgresBackup(payload: { filePath?: string; fileName?: string }) {
+    return window.gtsApi.comparePostgresBackup(payload);
+  },
+  comparePostgresBackupAuth(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    filePath?: string;
+    fileName?: string;
+  }) {
+    return sessionCall(window.gtsApi.comparePostgresBackupAuth, payload);
   },
   quitApp(): Promise<{ success: boolean }> {
     return window.gtsApi.quitApp();

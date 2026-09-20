@@ -15,6 +15,7 @@ import { HelpSettingsDataTopic } from "./HelpSettingsDataTopic";
 import { HelpSettingsOperatorsTopic } from "./HelpSettingsOperatorsTopic";
 import { HelpSettingsAuditTopic } from "./HelpSettingsAuditTopic";
 import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
+import { HelpSettingsConnectionTopic } from "./HelpSettingsConnectionTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
 import { HelpSettingsVariablesTopic } from "./HelpSettingsVariablesTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
@@ -54,6 +55,9 @@ export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessCon
   }
   if (topicId === "settings-database") {
     return <HelpSettingsDatabaseTopic />;
+  }
+  if (topicId === "settings-connection") {
+    return <HelpSettingsConnectionTopic />;
   }
   if (topicId === "settings-audit") {
     return <HelpSettingsAuditTopic />;

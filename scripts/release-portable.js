@@ -495,6 +495,22 @@ function prepareLaboToolsBundle(releaseRootDir) {
 }
 
 /**
+ * Copie le menu console de production (relance PG + dumps hors application).
+ *
+ * @param {string} releaseRootDir - `Release_Goron-GTS-x.y.z`
+ */
+function prepareProdToolsBundle(releaseRootDir) {
+  const sourceDir = path.join(rootDir, "outils_prod");
+  if (!fs.existsSync(sourceDir)) {
+    throw new Error(`Dossier outils production introuvable: ${sourceDir}`);
+  }
+  const targetDir = path.join(releaseRootDir, "outils_prod");
+  ensureEmptyDirectory(targetDir, "outils_prod");
+  copyDirectoryRecursive(sourceDir, targetDir);
+  console.log(`📦 Outils production prêts: ${targetDir}`);
+}
+
+/**
  * Guide unique de création d’environnement labo (sans recopier Demo_Travail).
  *
  * @param {string} version - Version semver de la release.
@@ -535,6 +551,7 @@ function main() {
   prepareInstallerReleaseBundle(releaseVersion, installerExePath, stagingReleaseDir);
   prepareFolderReleaseBundle(releaseVersion, unpackedExePath, stagingReleaseDir);
   prepareLaboToolsBundle(stagingReleaseDir);
+  prepareProdToolsBundle(stagingReleaseDir);
   prepareLaboEnvironmentGuide(releaseVersion, stagingReleaseDir);
   const releaseRootDir = promoteStagedRelease(stagingReleaseDir, canonicalReleaseDir);
 
@@ -560,6 +577,7 @@ function main() {
   console.log("   - Installateur: installer/");
   console.log("   - Dossier exe+resources: folder/");
   console.log("   - Outils labo + schema.sql: outils_labo/");
+  console.log("   - Outils production: outils_prod/");
   console.log("   - Guide labo: 00-LIRE-EN-PREMIER.txt");
 }
 

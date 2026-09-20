@@ -13,7 +13,7 @@ function Show-Menu {
     Write-Host "| [1] Demarrer le conteneur    | [5] Etat Docker / PG         | [9] Tester la connexion      |" -ForegroundColor Cyan
     Write-Host "| [2] Redemarrer le conteneur  | [6] Logs Docker (live)       | [10] Purger le journal app   |" -ForegroundColor Cyan
     Write-Host "| [3] Auto-restart du conteneur| [7] Journal de l'app         | [11] Reset base + schema     |" -ForegroundColor Cyan
-    Write-Host "| [4] Arreter le conteneur     | [8] Ouvrir le dossier logs   |                              |" -ForegroundColor Cyan
+    Write-Host "| [4] Arreter le conteneur     | [8] Ouvrir le dossier logs   | [12] Dump PG (tache 3 h)    |" -ForegroundColor Cyan
     Write-Host "+------------------------------+------------------------------+------------------------------+" -ForegroundColor Cyan
     Write-Host " Conteneur : $($script:LaboContainerName)   Journal : %APPDATA%\$($script:LaboAppDataName)\$($script:LaboPgEventsFileName)" -ForegroundColor DarkGray
     Write-Host "                                                                              [Q] Quitter`n" -ForegroundColor White
@@ -50,6 +50,7 @@ do {
         "9"  { Invoke-LaboScript "9_Labo_TestPg.ps1" }
         "10" { Invoke-LaboScript "10_Labo_PurgeAppLog.ps1" }
         "11" { Invoke-LaboScript "11_Labo_ResetDatabase.ps1" }
+        "12" { Invoke-LaboScript "12_Labo_Backup.ps1" }
         "Q" {
             Write-Host "`nA bientot !" -ForegroundColor Cyan
             break

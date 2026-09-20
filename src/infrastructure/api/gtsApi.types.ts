@@ -58,6 +58,50 @@ export type PostgresReconnectResult = {
   error: string | null;
 };
 
+export type PostgresBackupKind = "daily" | "monthly" | "manual" | "custom";
+
+export type PostgresBackupFile = {
+  fileName: string;
+  filePath: string;
+  kind: PostgresBackupKind;
+  createdAt: string;
+  sizeBytes: number;
+};
+
+export type PostgresRestoreResult = {
+  success: boolean;
+  fileName: string;
+  reportHtmlPath: string | null;
+};
+
+export type PostgresCompareResult = {
+  success: boolean;
+  fileName: string;
+  reportHtmlPath: string;
+  totals: {
+    lost: number;
+    recovered: number;
+    changed: number;
+  };
+};
+
+export type PostgresBackupStatus = {
+  folderPath: string | null;
+  autoEnabled: boolean;
+  autoEligible: boolean;
+  host: string;
+  dailyHour: number;
+  dailyKeep: number;
+  monthlyKeep: number;
+  lastRunAt: string | null;
+  lastRunKind: "daily" | "monthly" | "manual" | null;
+  lastRunStatus: "ok" | "error" | null;
+  lastRunError: string | null;
+  lastRunFileName: string | null;
+  cycleStarted: boolean;
+  files: PostgresBackupFile[];
+};
+
 export type TemplateAssignmentRow = {
   id: string;
   flowKind: TemplateFlowKind;

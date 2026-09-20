@@ -2,7 +2,7 @@
  * Journal technique local des événements PostgreSQL (`gts-pg-events.log` dans userData).
  *
  * Affiché dans Paramètres → Journal (section technique).
- * Distinct de `audit_logs` (métier). Événements PG : fichier local uniquement.
+ * Distinct de `audit_logs` (métier). Connexion PG et sauvegardes : fichier local uniquement.
  *
  * @module electron/store/domains/journals/techErrorLogs
  */
@@ -10,12 +10,20 @@
 const authUsersDomain = require("../users/authUsers");
 const { readPostgresEvents } = require("../../persistence/postgresEventLog");
 
-/** Libellés français des codes émis par `postgresLabMonitor`. */
+/** Libellés français des codes du journal technique local. */
 const TECH_CODE_LABELS = {
   PG_LAB_UNREACHABLE: "PostgreSQL injoignable au démarrage",
   PG_LAB_CONNECTION_LOST: "Perte de connexion PostgreSQL",
   PG_LAB_CONNECTION_RESTORED: "Reconnexion PostgreSQL",
-  PG_UNAVAILABLE: "Base PostgreSQL inaccessible"
+  PG_UNAVAILABLE: "Base PostgreSQL inaccessible",
+  PG_BACKUP_AUTO_OK: "Sauvegarde journalière PostgreSQL enregistrée",
+  PG_BACKUP_MANUAL_OK: "Sauvegarde manuelle PostgreSQL enregistrée",
+  PG_BACKUP_FAILED: "Sauvegarde PostgreSQL impossible",
+  PG_BACKUP_RESTORE_OK: "Restauration PostgreSQL terminée",
+  PG_BACKUP_RESTORE_FAILED: "Restauration PostgreSQL impossible",
+  PG_BACKUP_RESTORE_REPORT_FAILED: "Restauration OK, rapport d'écarts impossible",
+  PG_BACKUP_COMPARE_OK: "Comparaison dump / base actuelle terminée",
+  PG_BACKUP_COMPARE_FAILED: "Comparaison dump / base actuelle impossible"
 };
 
 /**

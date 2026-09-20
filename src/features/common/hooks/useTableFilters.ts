@@ -12,7 +12,7 @@ import { useCallback, useState } from "react";
  * Couplé à `TableFiltersBar`, `ServiceListFiltersBar` et `TablePaginationBar` dans les vues métier.
  *
  * Utilisé par : MainCourantePage, InterventionPage, RondePage, GardiennagePage
- * (onglet planification), listes de profils planifiés.
+ * (onglet planification), listes de profils planifiés, liste des sauvegardes PostgreSQL.
  */
 
 /** API exposée aux pages et barres de filtres */

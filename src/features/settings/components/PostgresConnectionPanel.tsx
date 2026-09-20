@@ -1,7 +1,7 @@
 /**
- * Panneau admin : connexion PostgreSQL (hôte, port, base, utilisateur, mot de passe chiffré).
- * Affiché dans Paramètres → Base de données (responsable / directeur de station, Admin),
- * et en variante bootstrap avant login.
+ * Panneau connexion PostgreSQL (hôte, port, base, utilisateur, mot de passe chiffré).
+ * Utilisé à l'initialisation / récupération (avant login). L'onglet Paramètres
+ * « Gestion base de données » affiche les sauvegardes, pas ce formulaire.
  */
 
 import { CircleHelp, Loader2 } from "lucide-react";
@@ -17,7 +17,7 @@ export type PostgresConfigDraft = {
   password: string;
 };
 
-/** Brouillon initial (labo Docker) : bootstrap avant login et panneau Paramètres. */
+/** Brouillon initial (labo Docker) : bootstrap avant login. */
 export const DEFAULT_POSTGRES_CONFIG_DRAFT: PostgresConfigDraft = {
   host: "127.0.0.1",
   port: 5432,
@@ -36,8 +36,6 @@ type PostgresConnectionPanelProps = {
   onTest: () => void | Promise<void>;
   onReconnect?: () => void | Promise<void>;
   testResult: PostgresTestResult | null;
-  /** Compat : true = phase générique « saving ». Préférer `busyPhase`. */
-  busy?: boolean;
   busyPhase?: PostgresBusyPhase;
   /** `bootstrap` = premier paramétrage avant login (sans reconnexion manuelle). */
   variant?: "admin" | "bootstrap";
@@ -56,13 +54,12 @@ export function PostgresConnectionPanel({
   onTest,
   onReconnect,
   testResult,
-  busy = false,
   busyPhase,
   variant = "admin",
   onHelpClick
 }: PostgresConnectionPanelProps) {
   const isBootstrap = variant === "bootstrap";
-  const phase: PostgresBusyPhase = busyPhase ?? (busy ? "saving" : "idle");
+  const phase: PostgresBusyPhase = busyPhase ?? "idle";
   const isBusy = phase !== "idle";
 
   const sourceLabel =

@@ -373,9 +373,12 @@ export function AppShell() {
             busyPhase={pgBootstrap.busyPhase}
             error={bootstrapError}
             isRecoveryMode={pgBootstrap.isRecoveryMode}
+            isRestoreMode={pgBootstrap.isRestoreMode}
             recoveryRestored={pgBootstrap.recoveryRestored}
             recoveryRestoredMessage={pgBootstrap.recoveryRestoredMessage}
-            onCancelRecovery={pgBootstrap.closeRecoverySetup}
+            onCancelRecovery={pgBootstrap.isRestoreMode ? pgBootstrap.closeRestoreSetup : pgBootstrap.closeRecoverySetup}
+            onRestored={pgBootstrap.closeRestoreSetup}
+            onNotify={notifyToast}
           />
           {exitChoiceModal}
           <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -396,6 +399,7 @@ export function AppShell() {
           onOpenPeerReset={auth.onOpenPeerReset}
           showDbRecoveryLink={pgBootstrap.showDbRecoveryLink}
           onOpenDbRecovery={pgBootstrap.openRecoverySetup}
+          onOpenDbRestore={pgBootstrap.openRestoreSetup}
         />
         <PeerResetModal
           isOpen={auth.showPeerResetModal}
@@ -515,14 +519,6 @@ export function AppShell() {
             onDeletePendingSiteSubmission={(payload) => settings.onDeletePendingSiteSubmission(payload)}
             onDeletePendingIntervenantSubmission={(payload) => settings.onDeletePendingIntervenantSubmission(payload)}
             onNotify={notifyToast}
-            postgresConfig={settings.postgresConfig}
-            postgresDraft={settings.postgresDraft}
-            postgresTestResult={settings.postgresTestResult}
-            postgresBusyPhase={settings.postgresBusyPhase}
-            onPostgresDraftChange={settings.setPostgresDraft}
-            onSavePostgresConfig={() => void settings.onSavePostgresConfig()}
-            onTestPostgresConfig={() => void settings.onTestPostgresConfig()}
-            onReconnectPostgres={() => void settings.onReconnectPostgres()}
             onOpenHelpTopic={openHelpCenter}
             showCreateModal={settings.showCreateModal}
             onCloseCreateModal={() => settings.setShowCreateModal(false)}

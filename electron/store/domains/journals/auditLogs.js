@@ -4,6 +4,7 @@
  * Lecture seule : les écritures passent par `UserStore.logAudit` → `writeAudit`.
  * Accès : profils station admin (`ensureStationAdminAccess`).
  * Acteurs / cibles enrichis avec `full_name` depuis `users` (repli = login).
+ * Les identifiants `system:…` (dump auto, clôture auto, etc.) s'affichent « Système ».
  *
  * @module electron/store/domains/journals/auditLogs
  */
@@ -69,6 +70,9 @@ async function loadDisplayNameByUsername(store) {
 function toDisplayName(displayNameByUsername, value) {
   const username = String(value || "").trim();
   if (!username) return null;
+  if (username === "system" || username.toLowerCase().startsWith("system:")) {
+    return "Système";
+  }
   return displayNameByUsername.get(username) || username;
 }
 

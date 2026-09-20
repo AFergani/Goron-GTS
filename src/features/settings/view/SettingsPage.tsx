@@ -16,7 +16,7 @@ import { CreateUserModal } from "../components/CreateUserModal";
 import { DataManagementPanel } from "../components/DataManagementPanel";
 import { TemplatesManagementPanel } from "../components/TemplatesManagementPanel";
 import { VariablesManagementPanel } from "../components/VariablesManagementPanel";
-import { PostgresConnectionPanel, type PostgresBusyPhase, type PostgresConfigDraft } from "../components/PostgresConnectionPanel";
+import { PostgresBackupPanel } from "../components/PostgresBackupPanel";
 import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
@@ -27,7 +27,7 @@ import type { SaveExportFileResult } from "../../../infrastructure/api/gtsApiCli
 import type { Role } from "../../../types";
 import type { CreateUserFormState, DataRefreshTarget, DataTab, DocumentsTab, SettingsTab } from "../model/settings.types";
 import type { NotifyToast } from "../../common/model/toast.types";
-import type { PublicPostgresConfig, PostgresTestResult, TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
+import type { TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import type {
   AnomalyTypeRef,
   AuditLog,
@@ -75,10 +75,6 @@ type SettingsPageProps = {
   pendingSites: PendingSite[];
   pendingIntervenants: PendingIntervenant[];
   currentUsername: string;
-  postgresConfig: PublicPostgresConfig | null;
-  postgresDraft: PostgresConfigDraft;
-  postgresTestResult: PostgresTestResult | null;
-  postgresBusyPhase: PostgresBusyPhase;
   onTabChange: (next: SettingsTab) => void;
   activeDataTab: DataTab;
   onDataTabChange: (next: DataTab) => void;
@@ -127,10 +123,6 @@ type SettingsPageProps = {
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onNotify: NotifyToast;
-  onPostgresDraftChange: (next: PostgresConfigDraft) => void;
-  onSavePostgresConfig: () => void;
-  onTestPostgresConfig: () => void;
-  onReconnectPostgres: () => void;
   onOpenHelpTopic: (topicId: HelpTopicId) => void;
   showCreateModal: boolean;
   onCloseCreateModal: () => void;
@@ -602,15 +594,11 @@ export function SettingsPage(props: SettingsPageProps) {
 
       {activeTab === "database" && props.canManageUsers && (
         <section className="panel">
-          <PostgresConnectionPanel
-            config={props.postgresConfig}
-            draft={props.postgresDraft}
-            onDraftChange={props.onPostgresDraftChange}
-            onSave={props.onSavePostgresConfig}
-            onTest={props.onTestPostgresConfig}
-            onReconnect={props.onReconnectPostgres}
-            testResult={props.postgresTestResult}
-            busyPhase={props.postgresBusyPhase}
+          <PostgresBackupPanel
+            variant="admin"
+            requesterRole={props.requesterRole}
+            requesterUsername={props.currentUsername}
+            onNotify={props.onNotify}
             onHelpClick={() => props.onOpenHelpTopic("settings-database")}
           />
         </section>

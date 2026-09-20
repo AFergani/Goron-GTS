@@ -10,6 +10,7 @@ const sessionMain = require("./store/core/session");
 const { createDocumentTemplatesService } = require("./main/documentTemplates");
 const { createExportFileService } = require("./main/exportFileService");
 const { createPostgresAdminService } = require("./main/postgresAdminService");
+const { createPostgresBackupService } = require("./main/postgresBackupService");
 const { createAppConfigService } = require("./main/appConfigService");
 const { createWindowService } = require("./main/windowService");
 const { registerAuthIpcHandlers } = require("./main/ipcAuthHandlers");
@@ -21,7 +22,7 @@ const { registerSystemIpcHandlers } = require("./main/ipcSystemHandlers");
  *
  * Rôle : orchestrer le cycle de vie de l'application, le store applicatif
  * (`UserStore` / PostgreSQL connexion directe, badge DB), les planificateurs
- * (clôture auto gardiennage/rondes) et le pont IPC vers le renderer.
+ * (clôture auto gardiennage/rondes, sauvegardes PG) et le pont IPC vers le renderer.
  *
  * Boot PostgreSQL-only : connexion directe au serveur, badge DB.
  * La logique détaillée vit dans `electron/main/*` ; ce fichier
@@ -159,6 +160,16 @@ const postgresAdmin = createPostgresAdminService({
   canManageDatabase
 });
 
+const postgresBackup = createPostgresBackupService({
+  dialog,
+  shell,
+  app,
+  getMainWindow: () => mainWindow,
+  getUserStore: () => userStore,
+  canManageDatabase,
+  postgresAdmin
+});
+
 /**
  * Indicateurs de boot du poste (pas un diagnostic PostgreSQL).
  * - `configured` : `UserStore` instancié (après `initUserStore`).
@@ -250,8 +261,23 @@ function mapTechnicalErrorToFrenchMessage(error) {
   const fallback = "Une erreur technique est survenue. Merci de reessayer.";
   const rawMessage =
     error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "";
-  if (!rawMessage) return fallback;
+  const code = error && typeof error === "object" && typeof error.code === "string" ? error.code : "";
+  if (!rawMessage && !code) return fallback;
   const normalized = rawMessage.toLowerCase();
+  if (
+    code === "EBUSY" ||
+    normalized.includes("ebusy") ||
+    normalized.includes("resource busy or locked") ||
+    normalized.includes("being used by another process")
+  ) {
+    return "Fichier déjà ouvert. Fermez-le dans Word ou Excel, puis réessayez.";
+  }
+  if (
+    (code === "EACCES" || code === "EPERM" || normalized.includes("eacces") || normalized.includes("eperm")) &&
+    /,\s*open\s+'/i.test(rawMessage)
+  ) {
+    return "Impossible d'enregistrer : accès refusé. Fermez le fichier s'il est ouvert, ou choisissez un autre emplacement.";
+  }
   if (
     normalized.includes("connection terminated") ||
     normalized.includes("econnrefused") ||
@@ -382,7 +408,8 @@ registerSystemIpcHandlers({
   setDevToolsAccessEnabled: (enabled) => {
     devToolsAccessEnabled = Boolean(enabled);
   },
-  postgresAdmin
+  postgresAdmin,
+  postgresBackup
 });
 
 registerAuthIpcHandlers({
@@ -411,11 +438,13 @@ app.whenReady().then(async () => {
   sessionMain.loadPersistedSessions();
   initUserStore();
   startGardiennageAutoCloseScheduler();
+  postgresBackup.startScheduler();
   createWindow();
 });
 
 app.on("window-all-closed", () => {
   stopGardiennageAutoCloseScheduler();
+  postgresBackup.stopScheduler();
   // Windows/Linux : dernière fenêtre fermée = quitter.
   if (process.platform !== "darwin") app.quit();
 });

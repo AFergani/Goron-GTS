@@ -96,6 +96,8 @@ function toFrenchDetailKey(key: string): string {
     address: "Adresse",
     target: "Cible",
     fileName: "Fichier",
+    folderPath: "Dossier",
+    autoEnabled: "Sauvegardes automatiques",
     total: "Total",
     success: "Succès",
     failed: "Erreurs",
@@ -853,6 +855,14 @@ function formatOldValuesTooltip(log: AuditLog) {
       `Nom affiché: ${String(deleted.fullName || "-")}`,
       `Motif: ${String(detailsAny.reason || "-")}`
     ].join("\n");
+  }
+  if (log.action === "POSTGRES_BACKUP_FOLDER_SET") {
+    const after = (detailsAny.after || detailsAny) as Record<string, unknown>;
+    return ["Dossier de sauvegarde", ...formatDetailsAsLines(after)].join("\n");
+  }
+  if (log.action === "POSTGRES_BACKUP_SETTINGS_SAVE") {
+    const after = (detailsAny.after || detailsAny) as Record<string, unknown>;
+    return ["Planning automatique", ...formatDetailsAsLines(after)].join("\n");
   }
   if (log.action.endsWith("_CREATE")) {
     const created = detailsAny.created || detailsAny;

@@ -1,8 +1,8 @@
 /**
- * Journal local des événements PostgreSQL (perte / retour de connexion) — par poste.
+ * Journal local des événements PostgreSQL (connexion, sauvegardes) — par poste.
  *
  * Fichier append-only JSON Lines : `{userData}/gts-pg-events.log`.
- * Écriture : `postgresLabMonitor`. Lecture : journal technique Paramètres.
+ * Écriture : `postgresLabMonitor`, `postgresBackupService`. Lecture : journal technique Paramètres.
  *
  * @module electron/store/persistence/postgresEventLog
  */

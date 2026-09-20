@@ -1,0 +1,90 @@
+/* Panneau sauvegardes PostgreSQL (Paramètres → Base de données). */
+
+.postgres-backup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.postgres-backup-panel .postgres-config-actions {
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.postgres-backup-panel .postgres-config-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.postgres-backup-filter-tools {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.postgres-backup-filter-tools > label {
+  flex: 0 1 14rem;
+  max-width: 16rem;
+}
+
+.postgres-backup-filter-tools .postgres-config-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.postgres-backup-table-wrap {
+  overflow-x: auto;
+}
+
+.postgres-backup-table-wrap .data-table-fixed {
+  min-width: 56rem;
+}
+
+.postgres-backup-col-date {
+  width: 17.5rem;
+}
+
+.postgres-backup-col-type {
+  width: 10.5rem;
+}
+
+.postgres-backup-col-actions {
+  width: 12.5rem;
+}
+
+.postgres-backup-file-cell {
+  white-space: nowrap;
+}
+
+.postgres-backup-date-cell {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Écran connexion / bootstrap : filtres et actions sur toute la largeur, sans colonne boutons étroite. */
+.postgres-bootstrap-panel .postgres-backup-filter-tools {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.postgres-bootstrap-panel .postgres-backup-filter-tools > label {
+  flex: 0 0 11rem;
+  max-width: none;
+}
+
+.postgres-bootstrap-panel .postgres-backup-filter-tools .postgres-config-actions {
+  flex: 1 1 20rem;
+  justify-content: flex-start;
+}
+
+.postgres-bootstrap-panel .postgres-backup-table-wrap .data-table-fixed {
+  min-width: 48rem;
+}

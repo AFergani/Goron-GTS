@@ -30,6 +30,11 @@
   padding: 24px;
 }
 
+.auth-page:has(.postgres-bootstrap-panel) {
+  place-items: start center;
+  overflow: auto;
+}
+
 .content {
   width: 100%;
   max-width: none;
@@ -59,7 +64,9 @@
 }
 
 .postgres-bootstrap-panel.login-panel {
-  max-width: 560px;
+  max-width: min(70rem, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
 }
 
 .login-submit-busy {
@@ -304,6 +311,7 @@
   align-items: end;
   gap: 8px;
   min-width: 0;
+  overflow: visible;
 }
 
 .mc-field-with-inline-action > *:first-child {
@@ -644,7 +652,7 @@
   justify-content: space-between;
   gap: 10px 16px;
   width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -661,11 +669,13 @@
   align-items: center;
   justify-content: flex-end;
   flex: 0 1 auto;
-  padding-bottom: 6px;
+  padding-bottom: var(--gts-toolbar-sep-gap);
 }
 
 .tabs-bar__toolbar {
   margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .tabs-bar__toolbar .mc-btn-primary,
@@ -2691,7 +2701,17 @@ th {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  padding-bottom: var(--gts-toolbar-sep-gap);
   margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Déjà séparées par `.tabs-bar` / `.gard-panel-head` : pas de second trait. */
+.main-courante-table-toolbar.tabs-bar__toolbar,
+.main-courante-table-toolbar.gard-panel-head__toolbar {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .export-file-buttons {
@@ -2704,7 +2724,8 @@ th {
 /* Bandeaux outils : le toggle ne doit pas s'étirer comme dans les grilles de formulaire */
 .main-courante-table-toolbar .toggle-switch,
 .gard-panel-head__toolbar .toggle-switch,
-.tabs-bar__toolbar .toggle-switch {
+.tabs-bar__toolbar .toggle-switch,
+.postgres-backup-panel .postgres-config-actions .toggle-switch {
   width: auto;
   min-width: 12.25rem;
   flex: 0 0 auto;
@@ -2920,6 +2941,27 @@ th {
 
 .main-log-loading {
   margin: 0 0 10px;
+}
+
+.list-loading-overlay-host {
+  position: relative;
+  min-height: 6.5rem;
+}
+
+.list-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surf) 78%, transparent);
+  backdrop-filter: blur(3px);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .main-log-modal textarea {
@@ -3175,27 +3217,14 @@ th {
   min-height: 72px;
 }
 
-/* Intervention — date / heure / site / prestataire sur une ligne */
-.intervention-entry-modal .intervention-request-meta-grid {
-  grid-template-columns: minmax(8.5rem, 0.85fr) minmax(5.5rem, 0.55fr) minmax(12rem, 1.45fr) minmax(10rem, 1.15fr);
+/* Intervention — première ligne : date/heure, site, prestataire */
+.intervention-entry-modal .request-head-row {
   margin-bottom: 12px;
 }
 
-.intervention-entry-modal .intervention-request-meta-grid > .mc-site-field-wrap,
-.intervention-entry-modal .intervention-request-meta-grid > .mc-field {
+.intervention-entry-modal .request-head-row > .mc-site-field-wrap,
+.intervention-entry-modal .request-head-row > .mc-field {
   min-width: 0;
-}
-
-@media (max-width: 960px) {
-  .intervention-entry-modal .intervention-request-meta-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 560px) {
-  .intervention-entry-modal .intervention-request-meta-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Intervention — arrivée / départ : une ligne dans la modale (taille intermédiaire) */
@@ -3227,14 +3256,18 @@ th {
   color: var(--text-2);
 }
 
-.main-courante-entry-modal.intervention-entry-modal .mc-field > span:first-child,
-.main-courante-entry-modal.intervention-entry-modal .mc-label-row,
-.main-courante-entry-modal.intervention-entry-modal .intervention-passage-group__label,
-.main-courante-entry-modal.intervention-entry-modal .mc-modal-section-title,
-.main-courante-entry-modal.ronde-entry-modal .mc-field > span:first-child,
-.main-courante-entry-modal.ronde-entry-modal .mc-label-row,
-.main-courante-entry-modal.ronde-entry-modal .mc-modal-section-title,
-.main-courante-entry-modal.ronde-entry-modal .mc-section-label {
+.main-courante-entry-modal .mc-field > span:first-child,
+.main-courante-entry-modal .mc-label-row,
+.main-courante-entry-modal .intervention-passage-group__label,
+.main-courante-entry-modal .mc-modal-section-title,
+.main-courante-entry-modal .mc-section-label,
+.main-courante-entry-modal .create-form-section-title,
+.ronde-planned-rule-modal .mc-field > span:first-child,
+.ronde-planned-rule-modal .mc-label-row,
+.ronde-planned-rule-modal .create-form-section-title,
+.ronde-planned-rule-modal .ronde-planned-profile-modal__schedule-field span,
+.ronde-planned-rule-modal .ronde-planned-profile-modal__schedule-field__label,
+.ronde-planned-rule-modal .ronde-planned-profile-modal__validity-label {
   color: var(--text);
 }
 
@@ -3323,6 +3356,11 @@ th {
   position: relative;
   width: 100%;
   min-width: 0;
+  overflow: visible;
+}
+
+.mc-site-field-wrap:has(.mc-site-suggest) {
+  z-index: 24;
 }
 
 .mc-site-field-wrap .mc-field {
@@ -3376,8 +3414,9 @@ th {
   left: 0;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 30;
-  max-height: 220px;
+  z-index: 40;
+  /* Au moins 3 sites visibles, jusqu’à 5 avant le défilement. */
+  max-height: calc((2.6rem * 5) + 8px);
   overflow-y: auto;
   margin: 0;
   padding: 4px 0;
@@ -3394,6 +3433,8 @@ th {
   gap: 8px 12px;
   align-items: baseline;
   width: 100%;
+  min-height: 2.6rem;
+  box-sizing: border-box;
   text-align: left;
   padding: 8px 12px;
   border: none;
@@ -3406,12 +3447,6 @@ th {
 
 .mc-site-suggest-item:hover {
   background: var(--hover);
-}
-
-.mc-site-suggest-parc {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  color: var(--text-2);
 }
 
 .mc-site-suggest-code {
@@ -3551,7 +3586,7 @@ th {
   min-width: 140px;
 }
 
-/* Largeur fixe : « Planifier une ronde » / « Nouvelle ronde » ne décalent pas la barre. */
+/* Largeur fixe : « Nouvelle planification » / « Nouvelle ronde » ne décalent pas la barre. */
 .ronde-primary-action-btn {
   width: 12rem;
   min-width: 12rem;
@@ -3983,10 +4018,16 @@ th {
 
 .ronde-planned-profile-modal__schedule-row {
   display: grid;
-  grid-template-columns: minmax(132px, 0.8fr) minmax(132px, 0.7fr) minmax(210px, 1.6fr) auto;
-  gap: 10px;
-  align-items: end;
+  grid-template-columns: minmax(12rem, 1.1fr) minmax(12rem, 1.4fr) auto;
+  gap: 12px 16px;
+  align-items: start;
   margin-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+  .ronde-planned-profile-modal__schedule-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ronde-planned-profile-modal__schedule-field {
@@ -3997,8 +4038,8 @@ th {
 
 .ronde-planned-profile-modal__schedule-field span,
 .ronde-planned-profile-modal__schedule-field__label {
-  font-size: 13px;
-  color: var(--text-2);
+  font-size: 12px;
+  color: var(--text);
 }
 
 .ronde-planned-profile-modal__schedule-field--motif {
@@ -4756,8 +4797,25 @@ fieldset.ronde-planned-weekdays {
   justify-content: space-between;
 }
 
+.templates-management-panel .settings-tab-toolbar {
+  flex-wrap: nowrap;
+}
+
+.templates-management-panel .settings-tab-toolbar .row-actions {
+  flex: 0 0 auto;
+}
+
 .templates-management-panel__writable {
-  margin-top: 6px;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templates-management-panel__writable code {
+  font-size: 0.92em;
 }
 
 .templates-assign-modal__site-search,
@@ -4803,13 +4861,29 @@ fieldset.ronde-planned-weekdays {
 
 .templates-management-panel__table {
   margin-top: 12px;
-  min-width: 980px;
+}
+
+.table-scroll-x .templates-management-panel__table--files {
+  min-width: 0;
+  width: 100%;
+}
+
+.templates-management-panel__name-cell {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .templates-management-panel__path-cell {
   font-size: 12px;
-  word-break: break-all;
-  max-width: 420px;
+  overflow: hidden;
+  max-width: 0;
+}
+
+.templates-management-panel__path-cell > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .templates-management-panel__path--ok {
@@ -4821,19 +4895,18 @@ fieldset.ronde-planned-weekdays {
 }
 
 .templates-management-panel__col-actions {
-  width: 16.5rem;
-  min-width: 16.5rem;
-  white-space: nowrap;
+  width: 17rem;
+  min-width: 11rem;
   text-align: left;
   vertical-align: middle;
 }
 
 .templates-management-panel__row-actions {
   display: inline-flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   justify-content: flex-start;
-  align-items: center;
 }
 
 .templates-management-panel__row-actions > button {
@@ -5725,7 +5798,7 @@ fieldset.ronde-planned-weekdays {
   align-items: center;
   justify-content: space-between;
   gap: 10px 16px;
-  padding-bottom: 12px;
+  padding-bottom: var(--gts-toolbar-sep-gap);
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
@@ -5742,6 +5815,8 @@ fieldset.ronde-planned-weekdays {
 
 .gard-panel-head__toolbar {
   margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
   flex: 0 1 auto;
 }
 

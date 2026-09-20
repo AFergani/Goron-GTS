@@ -5,6 +5,10 @@
 
 import type { ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
+import { matchesIsoDateRange } from "../../common/utils/matchesIsoDateRange";
+
+/** Conservé pour le journal Paramètres (`SettingsPage`). */
+export { matchesIsoDateRange as matchesJournalDateRange };
 
 type JournalFiltersBarProps = {
   dateFrom: string;
@@ -28,21 +32,6 @@ type JournalFiltersBarProps = {
   onReset: () => void;
   actions: ReactNode;
 };
-
-/**
- * Indique si un horodatage est dans la période Du/Au (bornes inclusives).
- *
- * @param occurredAt - Date ISO de la ligne.
- * @param dateFrom - `YYYY-MM-DD` ou vide.
- * @param dateTo - `YYYY-MM-DD` ou vide.
- */
-export function matchesJournalDateRange(occurredAt: string, dateFrom: string, dateTo: string): boolean {
-  const logDate = new Date(occurredAt);
-  if (Number.isNaN(logDate.getTime())) return false;
-  const fromOk = !dateFrom || logDate >= new Date(`${dateFrom}T00:00:00`);
-  const toOk = !dateTo || logDate <= new Date(`${dateTo}T23:59:59`);
-  return fromOk && toOk;
-}
 
 /**
  * @param props.actions - Boutons d’export (à gauche du reset).

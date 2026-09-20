@@ -130,7 +130,8 @@ export function HelpWelcomeTopic() {
         </ul>
         <div className="help-center-callout help-center-callout--warn" role="note">
           <strong>Indisponibilité :</strong> en cas de voyant rouge, vérifiez le serveur PostgreSQL et le réseau local, puis consultez l&apos;aide{" "}
-          <em>Gestion base de données</em> et le <em>Journal des actions</em> / logs techniques si besoin.
+          <em>Connexion PostgreSQL</em> (hôte / mot de passe technique), <em>Gestion base de données</em> (sauvegardes) et le{" "}
+          <em>Journal des actions</em> / logs techniques si besoin.
         </div>
       </div>
 
