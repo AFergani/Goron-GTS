@@ -6,120 +6,37 @@
  * copie du récap mensuel, gestion des périodes exceptionnelles.
  *
  * Montée depuis `AppShell` si la permission page `fransor` est active.
+ * Calendrier : `fransorCalendar.ts`. Modales : `FransorEntryModal`, `FransorClosureExceptionsModal`.
  * Responsables : référentiel géré dans Paramètres ; ici lecture + saisie uniquement.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
-import { useModalEscape } from "../../common/hooks/useModalEscape";
 import type { FransorClosure, Role } from "../../../types";
+import {
+  formatDayCardAriaLabel,
+  formatDayCardLabel,
+  formatMonthFr,
+  getDaysInMonth,
+  getWeekendDayLabel,
+  getWeekdayOffsetFromMonday,
+  getYearMonthKeys,
+  isWeekend,
+  shiftMonth,
+  type FransorDisplayedDay
+} from "../model/fransorCalendar";
+import { FransorEntryModal } from "../components/FransorEntryModal";
+import { FransorClosureExceptionsModal } from "../components/FransorClosureExceptionsModal";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 
 /** Libellé fixe du bouton de copie site (code métier entre parenthèses, hors référentiel). */
 const FRANSOR_SITE_COPY_LABEL = "FRANSOR INDUSTRIE (FRANSOR)";
 
-
-/** Jours ISO du mois `YYYY-MM` */
-function getDaysInMonth(month: string) {
-  const [year, monthPart] = month.split("-").map((v) => Number(v));
-  if (!year || !monthPart) return [];
-  const total = new Date(year, monthPart, 0).getDate();
-  const days: string[] = [];
-  for (let day = 1; day <= total; day += 1) {
-    const iso = `${year}-${String(monthPart).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    days.push(iso);
-  }
-  return days;
-}
-
-function isWeekend(isoDate: string) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
-
-function getWeekendDayLabel(isoDate: string): "samedi" | "dimanche" | null {
-  const date = new Date(`${isoDate}T00:00:00`);
-  const day = date.getDay();
-  if (day === 6) return "samedi";
-  if (day === 0) return "dimanche";
-  return null;
-}
-
-function getWeekdayOffsetFromMonday(isoDate: string) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  return (date.getDay() + 6) % 7;
-}
-
-type FransorDisplayedDay = {
-  date: string;
-  missingOpening: boolean;
-  missingClosing: boolean;
-  openingResponsableId?: string;
-  closingResponsableId?: string;
-};
-
-function formatDateFr(isoDate: string) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-/** Libellé carte calendrier (mois déjà indiqué dans le sélecteur). Ex. « Lundi 04 » ou « Mer 04 » en compact. */
-function formatDayCardLabel(isoDate: string, compact = false) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  const weekdayRaw = date
-    .toLocaleDateString("fr-FR", { weekday: compact ? "short" : "long" })
-    .replace(/\.$/, "");
-  const weekday = `${weekdayRaw.charAt(0).toUpperCase()}${weekdayRaw.slice(1)}`;
-  const dayNum = date.toLocaleDateString("fr-FR", { day: "2-digit" });
-  return `${weekday} ${dayNum}`;
-}
-
-function formatDayCardAriaLabel(isoDate: string) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-}
-
-function formatMonthFr(month: string) {
-  const [year, monthPart] = month.split("-").map((v) => Number(v));
-  if (!year || !monthPart) return month;
-  const date = new Date(year, monthPart - 1, 1);
-  const text = date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Libellé court du mois (ex. « Mai »). */
-function formatMonthShortFr(month: string) {
-  const [year, monthPart] = month.split("-").map((v) => Number(v));
-  if (!year || !monthPart) return month;
-  const date = new Date(year, monthPart - 1, 1);
-  const text = date.toLocaleDateString("fr-FR", { month: "short" }).replace(/\.$/, "");
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, monthPart] = month.split("-").map((v) => Number(v));
-  if (!year || !monthPart) return month;
-  const date = new Date(year, monthPart - 1 + delta, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Les 12 clés `YYYY-MM` d'une année civile. */
-function getYearMonthKeys(year: number) {
-  return Array.from({ length: 12 }, (_, index) => {
-    const monthPart = String(index + 1).padStart(2, "0");
-    return `${year}-${monthPart}`;
-  });
-}
-
-function formatClosureModeLabel(mode: "CLOSED" | "OPEN") {
-  return mode === "OPEN" ? "Ouvert" : "Fermer";
-}
 
 export function FransorPage({
   requesterRole,
@@ -445,10 +362,6 @@ export function FransorPage({
     enabled: showClosureModal && !deleteClosureId,
     isDirty: closureDirty,
     onClose: closeClosureModal
-  });
-  useModalEscape(Boolean(deleteClosureId), () => {
-    setDeleteClosureId(null);
-    setDeleteClosureReason("");
   });
 
   /** Ouvre la modale de saisie (jour courant ou date calendrier, états préremplis) */
@@ -780,365 +693,63 @@ export function FransorPage({
         </table>
       </section>
 
-      {showAddModal && (
-        <div className="modal-overlay" onClick={addCloseGuard.requestClose}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Ajouter une saisie Fransor</h3>
-            <div className="form">
-              <label>
-                Date
-                <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
-              </label>
-              <label>
-                Action : Ouverture
-                <div className="fransor-entry-row">
-                  <button
-                    type="button"
-                    className={
-                      entryOuvertureDone
-                        ? "mc-btn-primary fransor-entry-action-btn"
-                        : "btn-light fransor-entry-action-btn"
-                    }
-                    onClick={() => setEntryOuvertureDone((prev) => !prev)}
-                    title="Activer ou désactiver la saisie d’ouverture"
-                    aria-pressed={entryOuvertureDone}
-                  >
-                    Ouverture
-                  </button>
-                  <select
-                    value={entryOuvertureResponsableId}
-                    onChange={(e) => setEntryOuvertureResponsableId(e.target.value)}
-                    disabled={!entryOuvertureDone}
-                  >
-                    <option value="">Responsable ouverture</option>
-                    {presenter.responsables.map((resp) => (
-                      <option key={resp.id} value={resp.id}>
-                        {resp.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </label>
-              <label>
-                Action : Fermeture
-                <div className="fransor-entry-row">
-                  <button
-                    type="button"
-                    className={
-                      entryFermetureDone
-                        ? "mc-btn-primary fransor-entry-action-btn"
-                        : "btn-light fransor-entry-action-btn"
-                    }
-                    onClick={() => setEntryFermetureDone((prev) => !prev)}
-                    title="Activer ou désactiver la saisie de fermeture"
-                    aria-pressed={entryFermetureDone}
-                  >
-                    Fermeture
-                  </button>
-                  <select
-                    value={entryFermetureResponsableId}
-                    onChange={(e) => setEntryFermetureResponsableId(e.target.value)}
-                    disabled={!entryFermetureDone}
-                  >
-                    <option value="">Responsable fermeture</option>
-                    {presenter.responsables.map((resp) => (
-                      <option key={resp.id} value={resp.id}>
-                        {resp.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </label>
-            </div>
-            <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={addCloseGuard.requestClose}>
-                Annuler
-              </button>
-              <button type="button" onClick={() => void submitQuickEntry()}>
-                Enregistrer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showClosureModal && (
-        <div className="modal-overlay" onClick={closureCloseGuard.requestClose}>
-          <div className="modal fransor-help-modal fransor-closure-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="fransor-closure-modal-title">Périodes exceptionnelles (ouvertures et fermetures)</h3>
+      <FransorEntryModal
+        isOpen={showAddModal}
+        entryDate={entryDate}
+        entryOuvertureDone={entryOuvertureDone}
+        entryFermetureDone={entryFermetureDone}
+        entryOuvertureResponsableId={entryOuvertureResponsableId}
+        entryFermetureResponsableId={entryFermetureResponsableId}
+        responsables={presenter.responsables}
+        onRequestClose={addCloseGuard.requestClose}
+        onSubmit={() => void submitQuickEntry()}
+        setEntryDate={setEntryDate}
+        setEntryOuvertureDone={setEntryOuvertureDone}
+        setEntryFermetureDone={setEntryFermetureDone}
+        setEntryOuvertureResponsableId={setEntryOuvertureResponsableId}
+        setEntryFermetureResponsableId={setEntryFermetureResponsableId}
+      />
+      <FransorClosureExceptionsModal
+        isOpen={showClosureModal}
+        pageMonth={presenter.month}
+        closureModalYear={closureModalYear}
+        closureModalYearMonths={closureModalYearMonths}
+        closureModalSelectedMonth={closureModalSelectedMonth}
+        closuresByMonth={closuresByMonth}
+        closureYearLoading={closureYearLoading}
+        selectedMonthClosures={selectedMonthClosures}
+        closureStartDate={closureStartDate}
+        closureEndDate={closureEndDate}
+        closureLabel={closureLabel}
+        closureMode={closureMode}
+        editingClosureId={editingClosureId}
+        deleteClosureId={deleteClosureId}
+        deleteClosureReason={deleteClosureReason}
+        onRequestClose={closureCloseGuard.requestClose}
+        changeClosureModalYear={changeClosureModalYear}
+        resetClosureModalToCurrentMonth={resetClosureModalToCurrentMonth}
+        setClosureModalSelectedMonth={setClosureModalSelectedMonth}
+        setClosureStartDate={setClosureStartDate}
+        setClosureEndDate={setClosureEndDate}
+        setClosureLabel={setClosureLabel}
+        setClosureMode={setClosureMode}
+        setEditingClosureId={setEditingClosureId}
+        setDeleteClosureId={setDeleteClosureId}
+        setDeleteClosureReason={setDeleteClosureReason}
+        onSubmitException={() => void submitClosureException()}
+        onConfirmDelete={() => {
+          if (!deleteClosureId || !deleteClosureReason.trim()) return;
+          const id = deleteClosureId;
+          const reason = deleteClosureReason.trim();
+          setDeleteClosureId(null);
+          setDeleteClosureReason("");
+          void (async () => {
+            await presenter.deleteClosure(id, reason);
+            if (showClosureModal) await refreshClosureYear(closureModalYear);
+          })();
+        }}
+      />
 
-            <div className="fransor-closure-modal-sections">
-              <section className="fransor-closure-help" aria-labelledby="fransor-closure-help-title">
-                <h4 id="fransor-closure-help-title">Aide rapide</h4>
-                <ol>
-                  <li>
-                    <strong>Parcourir :</strong> choisir l&apos;année, puis cliquer sur un mois — le chiffre sur la carte
-                    indique le nombre de périodes enregistrées pour ce mois.
-                  </li>
-                  <li>
-                    <strong>Consulter :</strong> le tableau en bas liste les périodes du mois sélectionné.
-                  </li>
-                  <li>
-                    <strong>Créer :</strong> renseigner la date de début, la date de fin (optionnelle), le type (Ouvert/Fermer)
-                    et un motif, puis cliquer sur <strong>Enregistrer exception</strong>.
-                  </li>
-                  <li>
-                    <strong>Modifier :</strong> utiliser l&apos;icône crayon dans le tableau, ajuster les valeurs, puis
-                    réenregistrer.
-                  </li>
-                  <li>
-                    <strong>Supprimer :</strong> utiliser l&apos;icône suppression, puis saisir un motif obligatoire.
-                  </li>
-                </ol>
-              </section>
-
-              <section className="fransor-closure-nav-section" aria-label="Navigation par année et par mois">
-                <div className="fransor-closure-year-row">
-                  <span className="fransor-closure-year-label">Année :</span>
-                  <div className="fransor-month-input-row fransor-closure-year-input-row">
-                    <button
-                      type="button"
-                      className="btn-light action-icon-btn"
-                      title="Année précédente"
-                      aria-label="Année précédente"
-                      onClick={() => changeClosureModalYear(closureModalYear - 1)}
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                    <input
-                      type="number"
-                      className="fransor-closure-year-input"
-                      value={closureModalYear}
-                      min={2000}
-                      max={2100}
-                      step={1}
-                      aria-label="Année des périodes exceptionnelles"
-                      onChange={(event) => {
-                        const parsed = Number(event.target.value);
-                        if (Number.isFinite(parsed)) changeClosureModalYear(parsed);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="btn-light action-icon-btn"
-                      title="Année suivante"
-                      aria-label="Année suivante"
-                      onClick={() => changeClosureModalYear(closureModalYear + 1)}
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-light action-icon-btn"
-                      title="Revenir au mois en cours"
-                      aria-label="Revenir au mois en cours"
-                      onClick={resetClosureModalToCurrentMonth}
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  </div>
-                </div>
-                <div
-                  className="fransor-closure-month-window"
-                  role="group"
-                  aria-label={`Mois de l'année ${closureModalYear}, sélectionner un mois pour afficher ses périodes`}
-                >
-                  {closureModalYearMonths.map((month) => {
-                    const monthLoaded = Object.prototype.hasOwnProperty.call(closuresByMonth, month);
-                    const count = closuresByMonth[month]?.length ?? 0;
-                    const isSelected = closureModalSelectedMonth === month;
-                    const isPageMonth = presenter.month === month;
-                    return (
-                      <button
-                        key={month}
-                        type="button"
-                        className={`fransor-closure-month-chip${isSelected ? " fransor-closure-month-chip--selected" : ""}${isPageMonth ? " fransor-closure-month-chip--page-month" : ""}`}
-                        onClick={() => setClosureModalSelectedMonth(month)}
-                        aria-pressed={isSelected}
-                        title={`${formatMonthFr(month)} : ${count} période${count > 1 ? "s" : ""}`}
-                        aria-label={`${formatMonthFr(month)}, ${count} période${count > 1 ? "s" : ""}`}
-                      >
-                        <span className="fransor-closure-month-chip-name">{formatMonthShortFr(month)}</span>
-                        <span
-                          className={`fransor-closures-count-badge fransor-closures-count-badge--chip${count === 0 ? " fransor-closures-count-badge--empty" : ""}`}
-                          aria-hidden="true"
-                        >
-                          {closureYearLoading && !monthLoaded ? "…" : count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="fransor-closure-form-section" aria-label="Ajout ou modification d'une période">
-                <div className="row fransor-closure-create">
-                  <label>
-                    Date début
-                    <input type="date" value={closureStartDate} onChange={(e) => setClosureStartDate(e.target.value)} />
-                  </label>
-                  <label>
-                    Date fin (optionnelle)
-                    <input
-                      type="date"
-                      value={closureEndDate}
-                      onChange={(e) => setClosureEndDate(e.target.value)}
-                      title="Optionnel: remplir seulement pour une période"
-                    />
-                  </label>
-                  <select
-                    value={closureMode}
-                    onChange={(e) => setClosureMode(e.target.value === "OPEN" ? "OPEN" : "CLOSED")}
-                    aria-label="Type d'exception calendrier"
-                  >
-                    <option value="CLOSED">Fermer</option>
-                    <option value="OPEN">Ouvert</option>
-                  </select>
-                  <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Motif (ex: Férié)" />
-                </div>
-                <div className="fransor-closure-actions">
-                  {editingClosureId && (
-                    <button
-                      type="button"
-                      className="btn-light action-icon-btn"
-                      title="Annuler la modification"
-                      aria-label="Annuler la modification"
-                      onClick={() => {
-                        setEditingClosureId(null);
-                        setClosureStartDate("");
-                        setClosureEndDate("");
-                        setClosureLabel("");
-                        setClosureMode("CLOSED");
-                      }}
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  )}
-                  <button type="button" onClick={() => void submitClosureException()}>
-                    {editingClosureId ? "Mettre à jour exception" : "Enregistrer exception"}
-                  </button>
-                </div>
-              </section>
-
-              <section className="fransor-closure-list-section" aria-label="Liste des périodes du mois sélectionné">
-                {closureModalSelectedMonth ? (
-                  <h4 className="fransor-closure-list-title">{formatMonthFr(closureModalSelectedMonth)}</h4>
-                ) : null}
-                {selectedMonthClosures.length > 0 && (
-                  <table className="fransor-closure-table">
-                    <thead>
-                      <tr>
-                        <th>Du</th>
-                        <th>Au</th>
-                        <th>Type</th>
-                        <th>Motif</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedMonthClosures.map((closure) => (
-                        <tr key={closure.id}>
-                          <td>{formatDateFr(closure.startDate)}</td>
-                          <td>{formatDateFr(closure.endDate)}</td>
-                          <td>{formatClosureModeLabel(closure.mode)}</td>
-                          <td>{closure.label}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="btn-light action-icon-btn"
-                              title="Modifier l'exception"
-                              aria-label="Modifier l'exception"
-                              onClick={() => {
-                                setEditingClosureId(closure.id);
-                                setClosureStartDate(closure.startDate);
-                                setClosureEndDate(closure.endDate);
-                                setClosureLabel(closure.label);
-                                setClosureMode(closure.mode);
-                              }}
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-danger action-icon-btn"
-                              title="Supprimer l'exception"
-                              aria-label="Supprimer l'exception"
-                              onClick={() => {
-                                setDeleteClosureId(closure.id);
-                                setDeleteClosureReason("");
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {closureModalSelectedMonth &&
-                Object.prototype.hasOwnProperty.call(closuresByMonth, closureModalSelectedMonth) &&
-                selectedMonthClosures.length === 0 ? (
-                  <p className="muted fransor-closure-empty">
-                    Aucune période enregistrée pour {formatMonthFr(closureModalSelectedMonth)}.
-                  </p>
-                ) : null}
-              </section>
-            </div>
-            <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={closureCloseGuard.requestClose}>
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteClosureId && (
-        <div className="modal-overlay">
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Supprimer l'exception</h3>
-            <div className="form">
-              <label>
-                Motif de suppression (obligatoire)
-                <input
-                  value={deleteClosureReason}
-                  onChange={(e) => setDeleteClosureReason(e.target.value)}
-                  placeholder="Ex: saisie erronée / période annulée"
-                />
-              </label>
-            </div>
-            <div className="row-actions modal-actions">
-              <button
-                type="button"
-                className="btn-light"
-                onClick={() => {
-                  setDeleteClosureId(null);
-                  setDeleteClosureReason("");
-                }}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                disabled={!deleteClosureReason.trim()}
-                onClick={() => {
-                  if (!deleteClosureId || !deleteClosureReason.trim()) return;
-                  const id = deleteClosureId;
-                  const reason = deleteClosureReason.trim();
-                  setDeleteClosureId(null);
-                  setDeleteClosureReason("");
-                  void (async () => {
-                    await presenter.deleteClosure(id, reason);
-                    if (showClosureModal) await refreshClosureYear(closureModalYear);
-                  })();
-                }}
-              >
-                Confirmer suppression
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <DiscardConfirmModal
         isOpen={addCloseGuard.showDiscardConfirm}
         onCancel={addCloseGuard.cancelDiscard}
