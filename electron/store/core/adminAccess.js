@@ -2,8 +2,8 @@
  * Accès administrateur local (profil DEV) : lecture / écriture du code maître.
  *
  * Priorité : fichier chiffré `{userData}/gts-admin.enc` (DPAPI / `safeStorage`),
- * puis le fichier fourni `{userData}/data/acces_admin.env` (dev comme packagé),
- * puis repli `data/acces_admin.env` du répertoire de travail.
+ * puis `{userData}/data/acces_admin.env` (même dossier AppData, fourni hors appli).
+ * Pas de repli vers le répertoire de travail ni le voisin de l'exécutable.
  *
  * Consommé par `UserStore` (`resolveAdminAccess` au constructeur) et `ipcAuthHandlers`
  * (`auth:setAdminCode` → `writeEncryptedAdminCode`).
@@ -15,7 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const { readEncryptedString, writeEncryptedString } = require("./safeStorageFile");
 
-/** Nom du fichier `.env` legacy sous `data/`. */
+/** Nom du fichier `.env` fourni sous `{userData}/data/`. */
 const ADMIN_ENV_FILE_NAME = "acces_admin.env";
 /** Clés acceptées dans le `.env` (première valeur non vide). */
 const ADMIN_MASTER_CODE_KEYS = ["GTS_ADMIN_MASTER_CODE", "ADMIN_MASTER_CODE"];
@@ -53,86 +53,51 @@ function parseDotEnvFile(content) {
 }
 
 /**
- * Chemins candidats de `acces_admin.env`.
- * Toujours le fichier fourni dans `userData` d’abord (évite un code différent en `npm run dev`).
+ * Résout le dossier AppData Electron (`userData`).
  *
- * @param {object} options
- * @param {boolean} [options.isPackaged=false] - Ajoute les replis voisin de l’exe si packagé.
- * @param {string} [options.userDataPath] - Dossier `userData` déjà connu.
- * @returns {string[]} Chemins absolus, sans doublon, dans l'ordre de test.
+ * @param {string} [userDataPath] - Dossier déjà connu (tests / `UserStore`).
+ * @returns {string} Chemin absolu, ou chaîne vide hors Electron sans `userDataPath`.
  */
-function resolveAdminEnvCandidates({ isPackaged = false, userDataPath } = {}) {
-  const candidates = new Set();
-  const push = (value) => {
-    if (value) candidates.add(path.resolve(value));
-  };
-
-  const explicitUserData = String(userDataPath || "").trim();
-  if (explicitUserData) {
-    push(path.join(explicitUserData, "data", ADMIN_ENV_FILE_NAME));
-  } else {
-    try {
-      const { app } = require("electron");
-      push(path.join(app.getPath("userData"), "data", ADMIN_ENV_FILE_NAME));
-    } catch {
-      /* tests hors Electron */
-    }
-  }
-
-  push(path.join(process.cwd(), "data", ADMIN_ENV_FILE_NAME));
-
-  if (!isPackaged) return [...candidates];
-
-  const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR || "";
-  if (portableExeDir) {
-    push(path.join(portableExeDir, "data", ADMIN_ENV_FILE_NAME));
-  }
+function resolveUserDataPath(userDataPath) {
+  const explicit = String(userDataPath || "").trim();
+  if (explicit) return explicit;
   try {
     const { app } = require("electron");
-    push(path.join(path.dirname(app.getPath("exe")), "data", ADMIN_ENV_FILE_NAME));
+    return app.getPath("userData");
   } catch {
-    /* tests hors Electron */
+    return "";
   }
-  return [...candidates];
 }
 
 /**
  * Résout le chemin du fichier chiffré `gts-admin.enc`.
  *
  * @param {string} [userDataPath] - Dossier `userData` déjà connu ; sinon `app.getPath("userData")`.
- * @returns {string|null} Chemin absolu, ou `null` hors Electron sans `userDataPath`.
+ * @returns {string|null} Chemin absolu, ou `null` si le dossier AppData est inconnu.
  */
 function resolveAdminEncFilePath(userDataPath) {
-  const base = String(userDataPath || "").trim();
-  if (base) return path.join(base, ADMIN_ENC_FILE_NAME);
-  try {
-    const { app } = require("electron");
-    return path.join(app.getPath("userData"), ADMIN_ENC_FILE_NAME);
-  } catch {
-    return null;
-  }
+  const base = resolveUserDataPath(userDataPath);
+  return base ? path.join(base, ADMIN_ENC_FILE_NAME) : null;
 }
 
 /**
- * Lit le code administrateur depuis le premier `acces_admin.env` utilisable (mode legacy).
+ * Lit le code administrateur depuis `{userData}/data/acces_admin.env`.
  *
- * @param {object} [options]
- * @param {boolean} [options.isPackaged=false] - Élargit la recherche au voisin de l'exe si packagé.
- * @param {string} [options.userDataPath] - Dossier `userData` Electron déjà connu.
- * @returns {string|null} Code maître, ou `null` si aucun fichier / aucune clé reconnue.
+ * @param {string} [userDataPath] - Dossier `userData` Electron déjà connu.
+ * @returns {string|null} Code maître, ou `null` si fichier / clé absents.
  */
-function readAdminMasterCode({ isPackaged = false, userDataPath } = {}) {
-  for (const candidate of resolveAdminEnvCandidates({ isPackaged, userDataPath })) {
-    try {
-      if (!fs.existsSync(candidate)) continue;
-      const parsed = parseDotEnvFile(fs.readFileSync(candidate, "utf-8"));
-      const code = ADMIN_MASTER_CODE_KEYS.map((key) => String(parsed[key] || "").trim()).find(Boolean);
-      if (code) return code;
-    } catch {
-      /* fichier illisible : candidat suivant */
-    }
+function readAdminMasterCode(userDataPath) {
+  const base = resolveUserDataPath(userDataPath);
+  if (!base) return null;
+  const envPath = path.join(base, "data", ADMIN_ENV_FILE_NAME);
+  try {
+    if (!fs.existsSync(envPath)) return null;
+    const parsed = parseDotEnvFile(fs.readFileSync(envPath, "utf-8"));
+    const code = ADMIN_MASTER_CODE_KEYS.map((key) => String(parsed[key] || "").trim()).find(Boolean);
+    return code || null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**
@@ -161,10 +126,9 @@ function writeEncryptedAdminCode(encFilePath, code) {
 /**
  * Détermine si l'accès administrateur local est actif et fournit le code maître.
  *
- * Ordre : fichier chiffré, puis `{userData}/data/acces_admin.env`, puis `.env` du CWD.
+ * Ordre : `{userData}/gts-admin.enc`, puis `{userData}/data/acces_admin.env`.
  *
  * @param {object} [options]
- * @param {boolean} [options.isPackaged=false] - Élargit la recherche `.env` au voisin de l'exe.
  * @param {string} [options.userDataPath] - Dossier `userData` Electron déjà connu.
  * @returns {{
  *   devMasterCode: string|null,
@@ -180,10 +144,7 @@ function resolveAdminAccess(options = {}) {
       adminAccessEnabled: true
     };
   }
-  const code = readAdminMasterCode({
-    isPackaged: Boolean(options.isPackaged),
-    userDataPath: options.userDataPath
-  });
+  const code = readAdminMasterCode(options.userDataPath);
   return {
     devMasterCode: code,
     adminAccessEnabled: Boolean(code)

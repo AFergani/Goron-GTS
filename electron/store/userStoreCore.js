@@ -52,7 +52,7 @@ const ROLE = {
  */
 class UserStoreCore {
   /**
-   * @param {{ isPackaged?: boolean, userDataPath?: string }} [options]
+   * @param {{ userDataPath?: string }} [options]
    */
   constructor(options = {}) {
     const adminAccess = resolveAdminAccess(options);
@@ -334,7 +334,7 @@ class UserStoreCore {
   /**
    * Ouverture async recommandée : instance PG-only (branchement via `attachPostgresAuditLab`).
    *
-   * @param {{ isPackaged?: boolean, userDataPath?: string }} [options]
+   * @param {{ userDataPath?: string }} [options]
    * @returns {Promise<UserStoreCore>}
    */
   static async open(options = {}) {

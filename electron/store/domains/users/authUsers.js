@@ -40,6 +40,10 @@ const {
   checkAccountCredentials
 } = require("./authUsersHelpers");
 
+/** Message unique quand le code Admin AppData est absent. */
+const ADMIN_ACCESS_FILE_MISSING_MESSAGE =
+  "Accès admin désactivé : code administrateur introuvable dans le dossier AppData de Goron GTS.";
+
 /**
  * Authentifie un utilisateur et maintient les compteurs de verrouillage.
  *
@@ -80,7 +84,7 @@ async function login(store, { username, password, role }) {
     if (devCheck === "dev-code-unavailable") {
       store.fail(
         "auth:login",
-        "Accès admin désactivé: code admin introuvable/invalide (fichier gts-admin.enc ou data/acces_admin.env).",
+        ADMIN_ACCESS_FILE_MISSING_MESSAGE,
         "AUTH_ADMIN_ACCESS_FILE_REQUIRED"
       );
     }
@@ -272,7 +276,7 @@ async function resetPasswordWithPeerValidation(
   if (validatorCheck === "dev-code-unavailable") {
     store.fail(
       "auth:peerReset",
-      "Accès admin désactivé: code admin introuvable/invalide (fichier gts-admin.enc ou data/acces_admin.env).",
+      ADMIN_ACCESS_FILE_MISSING_MESSAGE,
       "AUTH_ADMIN_ACCESS_FILE_REQUIRED"
     );
   }

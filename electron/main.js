@@ -108,7 +108,6 @@ function initUserStore() {
     void userStore.close().catch(() => {});
   }
   userStore = new UserStore({
-    isPackaged: app.isPackaged,
     userDataPath: app.getPath("userData")
   });
   // Attente possible via `userStore.whenPostgresReady()` (login / comptes).
