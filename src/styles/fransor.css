@@ -22,11 +22,6 @@
 
 /* Page Fransor — suivi quotidien, calendrier, périodes exceptionnelles */
 
-.fransor-toolbar label {
-  display: grid;
-  gap: 6px;
-}
-
 .fransor-site-copy-btn {
   position: relative;
   z-index: 1;
@@ -53,15 +48,6 @@
   gap: 8px;
   margin-left: auto;
   flex-shrink: 0;
-}
-
-.fransor-switch-right {
-  margin-left: auto;
-}
-
-.fransor-type-switch {
-  display: inline-flex;
-  gap: 8px;
 }
 
 .fransor-month-filter {
@@ -102,20 +88,6 @@
   box-sizing: border-box;
   min-height: 36px;
   font-weight: 600;
-}
-
-.fransor-action-checks {
-  display: inline-flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.fransor-action-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text);
 }
 
 .fransor-missing-days-list {
@@ -426,7 +398,6 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-.fransor-responsable-create,
 .fransor-closure-create {
   align-items: center;
   gap: 10px;
@@ -448,75 +419,8 @@
   margin-top: 0;
 }
 
-.fransor-responsable-create input {
-  flex: 1 1 280px;
-}
-
 .fransor-closure-create input[type="text"],
 .fransor-closure-create input:not([type]) {
   flex: 1 1 280px;
 }
 
-.fransor-grid-table {
-  min-width: 1100px;
-  table-layout: fixed;
-}
-
-.fransor-grid-table th,
-.fransor-grid-table td {
-  text-align: center;
-  padding: 6px;
-}
-
-.fransor-grid-table th:first-child,
-.fransor-grid-table td:first-child {
-  text-align: left;
-  position: sticky;
-  left: 0;
-  background: var(--card);
-  z-index: 1;
-}
-
-.fransor-responsable-cell {
-  min-width: 220px;
-}
-
-.fransor-responsable-row {
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.fransor-open-cell {
-  min-width: 56px;
-}
-
-.fransor-closed-cell {
-  background: rgba(120, 120, 120, 0.25);
-  color: var(--text-2);
-  font-weight: 600;
-}
-
-.fransor-mini-btn {
-  width: 24px;
-  height: 22px;
-  padding: 0;
-  margin: 0 1px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--card);
-  color: var(--text-2);
-  font-size: 11px;
-  line-height: 1;
-}
-
-.fransor-mini-btn.is-on.opening {
-  border-color: rgba(58, 185, 120, 0.7);
-  background: rgba(58, 185, 120, 0.18);
-  color: #7ce9c8;
-}
-
-.fransor-mini-btn.is-on.closing {
-  border-color: rgba(255, 192, 105, 0.75);
-  background: rgba(255, 192, 105, 0.18);
-  color: #ffd296;
-}
