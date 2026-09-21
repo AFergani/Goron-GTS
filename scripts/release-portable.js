@@ -338,7 +338,7 @@ function assertRequiredWordTemplates(relativeDir, contextLabel) {
 }
 
 /**
- * Icône Windows exigée par electron-builder et `embed-windows-icon.js`.
+ * Icône Windows exigée par electron-builder (`win.icon`).
  *
  * @returns {void}
  */

@@ -1,6 +1,6 @@
 {
   "name": "goron-gts",
-  "version": "1.0.71",
+  "version": "1.0.73",
   "description": "Application de gestion des tableurs GTS",
   "main": "electron/main.js",
   "scripts": {
@@ -28,7 +28,7 @@
   "type": "commonjs",
   "dependencies": {
     "docx": "^9.6.1",
-    "docxtemplater": "^3.68.5",
+    "docxtemplater": "^3.71.0",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.8.0",
     "pg": "^8.23.0",
@@ -42,22 +42,30 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.2.4",
     "cross-env": "^10.1.0",
     "electron": "^41.10.7",
     "electron-builder": "^26.16.1",
-    "rcedit": "^5.0.2",
     "typescript": "^6.0.3",
-    "vite": "^8.0.10",
-    "wait-on": "^9.0.5"
+    "vite": "^8.3.0",
+    "wait-on": "^9.1.0"
   },
   "overrides": {
-    "axios": "^1.16.0"
+    "axios": "1.20.0",
+    "form-data": "4.0.6",
+    "joi": "18.2.9",
+    "shell-quote": "1.10.0",
+    "postcss": "8.5.28",
+    "docxtemplater": {
+      "@xmldom/xmldom": "0.9.12"
+    },
+    "docx": {
+      "nanoid": "5.1.16"
+    }
   },
   "build": {
     "appId": "com.goron.gts",
     "productName": "Goron GTS",
-    "afterPack": "scripts/embed-windows-icon.js",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -68,7 +76,7 @@
     },
     "win": {
       "icon": "electron/app-icon.ico",
-      "signAndEditExecutable": false,
+      "signExecutable": false,
       "target": [
         {
           "target": "portable",
