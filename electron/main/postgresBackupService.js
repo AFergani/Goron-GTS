@@ -25,6 +25,7 @@ const {
   isLoopbackHost,
   reportActorLabel,
   logBackupTechEvent,
+  DUMP_EXT,
   dumpFileNameForKind,
   listDumpFiles,
   applyRetention,

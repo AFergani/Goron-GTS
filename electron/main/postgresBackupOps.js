@@ -19,6 +19,7 @@ const {
 const { appendPostgresEvent } = require("../store/persistence/postgresEventLog");
 
 const DEFAULT_CONTAINER = "goron-pg18";
+/** Extension des fichiers de dump applicatifs (`-Fc`). */
 const DUMP_EXT = ".dump";
 /** En-tête binaire d'un dump PostgreSQL `-Fc`. */
 const DUMP_MAGIC = "PGDMP";
@@ -604,6 +605,7 @@ function applyRetention(folderPath) {
 }
 
 module.exports = {
+  DUMP_EXT,
   isLoopbackHost,
   reportActorLabel,
   logBackupTechEvent,
