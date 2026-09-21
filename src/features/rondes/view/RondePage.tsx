@@ -2,7 +2,7 @@
  * Page Rondes : onglets urgence / planifié ; orchestration presenter + référentiels.
  *
  * Synthèse du mois, puis panneau liste (onglets + actions, filtres, tableau / journée).
- * Affichage liste (contractuelle et exceptionnelle) : filtre Statut par défaut « En cours ».
+ * Modales extraites dans `RondePageModals`.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -14,17 +14,11 @@ import type { RondeEntry, RondeOriginKind, RondeBatchDeleteRequestRef } from "..
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import { useRondePresenter } from "../presenter/useRondePresenter";
 import { useRondeReferenceData } from "../presenter/useRondeReferenceData";
-import { RondeEntryModal } from "../components/RondeEntryModal";
-import { RondeRequestModal } from "../components/RondeRequestModal";
-import { RondePageTabsBar } from "../components/RondePageTabsBar";
-import type { RondeListView } from "../components/RondePageTabsBar";
+import { RondePageTabsBar, type RondeListView } from "../components/RondePageTabsBar";
 import type { RondePlannedProfilePayload, RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { RondeTable } from "../components/RondeTable";
 import { RondePlannedDaySection } from "../components/RondePlannedDaySection";
-import { RondePlannedProfilesListModal } from "../components/RondePlannedProfilesListModal";
-import { RondePlannedCancellationQueueModal } from "../components/RondePlannedCancellationQueueModal";
-import { RondeBatchDeleteQueueModal } from "../components/RondeBatchDeleteQueueModal";
-import { RondePlannedProfileLifecycleModals } from "../components/RondePlannedProfileLifecycleModals";
+import { RondePageModals } from "../components/RondePageModals";
 import { RondeListFiltersBar } from "../components/RondeListFiltersBar";
 import { RondeServiceTabActions } from "../components/RondeServiceTabActions";
 import { useRondePlannedProfileLifecycle } from "../hooks/useRondePlannedProfileLifecycle";
@@ -43,7 +37,6 @@ import { useRondeDisplayMode } from "../hooks/useRondeDisplayMode";
 import { filterAndSortRondeListEntries } from "../utils/filterAndSortRondeListEntries";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
-import { GardiennageEntryModal } from "../../gardiennage/components/GardiennageEntryModal";
 import type { GardiennageSavePayload } from "../../gardiennage/model/gardiennage.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 
@@ -129,9 +122,7 @@ export function RondePage({
   } | null>(null);
   const [linkedDemandAnchorId, setLinkedDemandAnchorId] = useState<string | null>(null);
   /** D'où on a ouvert la demande liée (pour le bouton retour). */
-  const [linkedDemandOrigin, setLinkedDemandOrigin] = useState<"ronde-report" | "batch-delete-queue" | null>(
-    null
-  );
+  const [linkedDemandOrigin, setLinkedDemandOrigin] = useState<"ronde-report" | "batch-delete-queue" | null>(null);
   const [linkedGardiennageOpen, setLinkedGardiennageOpen] = useState(false);
   const [linkedRondeForGardiennage, setLinkedRondeForGardiennage] = useState<RondeEntry | null>(null);
 
@@ -317,14 +308,7 @@ export function RondePage({
         dateFrom: contractualRangeFrom,
         dateTo: contractualRangeTo
       }),
-    [
-      contractualRangeFrom,
-      contractualRangeTo,
-      references.holidays,
-      references.intervenants,
-      references.plannedProfiles,
-      ronde.entries
-    ]
+    [contractualRangeFrom, contractualRangeTo, references.holidays, references.intervenants, references.plannedProfiles, ronde.entries]
   );
   const contractualListEntries = useMemo(
     () => [...contractualEntries, ...plannedFallbackVirtualEntries],
@@ -753,272 +737,61 @@ export function RondePage({
         </ListLoadingOverlay>
       </section>
 
-      <RondeEntryModal
-        isOpen={modalOpen}
-        mode={modalMode}
-        entry={liveActiveEntry}
-        sites={references.sites}
-        intervenants={references.intervenants}
-        rondeMotifs={references.rondeMotifs}
-        plannedProfiles={references.plannedProfiles}
-        linkedInterventionEntry={null}
-        onNotify={onToast}
-        onClose={() => setModalOpen(false)}
+      <RondePageModals
+        requesterRole={requesterRole}
+        onToast={onToast}
+        ronde={ronde}
+        references={references}
+        lifecycle={lifecycle}
+        workstationExports={workstationExports}
+        modalOpen={modalOpen}
+        modalMode={modalMode}
+        liveActiveEntry={liveActiveEntry}
         createPreset={createPreset}
-        onCreate={ronde.createEntry}
-        onUpdate={ronde.updateEntry}
-        onSetStatus={ronde.setStatus}
-        onCreatePendingSite={references.createPendingSite}
-        onCreatePendingIntervenant={references.createPendingIntervenant}
+        canAccessGardiennage={canAccessGardiennage}
+        canManageRondes={canManageRondes}
+        setModalOpen={setModalOpen}
+        setModalMode={setModalMode}
+        setActiveEntry={setActiveEntry}
+        setCreatePreset={setCreatePreset}
+        setLinkedRondeForGardiennage={setLinkedRondeForGardiennage}
+        setLinkedGardiennageOpen={setLinkedGardiennageOpen}
+        linkedGardiennageOpen={linkedGardiennageOpen}
+        linkedRondeForGardiennage={linkedRondeForGardiennage}
+        createLinkedGardiennage={createLinkedGardiennage}
+        handleExportRondeWord={handleExportRondeWord}
+        openLinkedDemand={openLinkedDemand}
+        openLinkedDemandForEntry={openLinkedDemandForEntry}
+        requestModalOpen={requestModalOpen}
+        setRequestModalOpen={setRequestModalOpen}
+        clearLinkedDemandNavigation={clearLinkedDemandNavigation}
+        requestFixedOrigin={requestFixedOrigin}
+        requestInitial={requestInitial}
+        requestPlanningReplay={requestPlanningReplay}
+        linkedDemandAnchorId={linkedDemandAnchorId}
+        linkedDemandGroup={linkedDemandGroup}
+        linkedDemandOrigin={linkedDemandOrigin}
+        refreshBatchDeleteRequests={refreshBatchDeleteRequests}
+        setBatchDeleteQueueOpen={setBatchDeleteQueueOpen}
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
         onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
-        canOpenLinkedGardiennage={Boolean(
-          canAccessGardiennage &&
-            liveActiveEntry &&
-            liveActiveEntry.status === "EN_COURS" &&
-            !liveActiveEntry.id.startsWith("virtual-planned-")
-        )}
-        onOpenLinkedGardiennage={() => {
-          if (!liveActiveEntry) return;
-          setLinkedRondeForGardiennage(liveActiveEntry);
-          setLinkedGardiennageOpen(true);
-        }}
-        onOpenLinkedRequest={openLinkedDemand}
-        requesterRole={requesterRole}
-        onSaveWord={
-          liveActiveEntry ? () => void handleExportRondeWord(liveActiveEntry) : undefined
-        }
-        onOpenWord={
-          liveActiveEntry
-            ? () => void workstationExports.openLastExport(wordExportKey("ronde", liveActiveEntry.id), onToast)
-            : undefined
-        }
-        canOpenWord={
-          liveActiveEntry
-            ? Boolean(workstationExports.getLastPath(wordExportKey("ronde", liveActiveEntry.id)))
-            : false
-        }
-        lastWordFilePath={
-          liveActiveEntry ? workstationExports.getLastPath(wordExportKey("ronde", liveActiveEntry.id)) : null
-        }
+        onUpsertRondePlannedProfile={onUpsertRondePlannedProfile}
+        onDeleteRondePlannedProfile={onDeleteRondePlannedProfile}
+        onRequestRondePlannedProfileCancellation={onRequestRondePlannedProfileCancellation}
+        onReviewRondePlannedProfileCancellationRequest={onReviewRondePlannedProfileCancellationRequest}
+        onSetRondePlannedProfilePlanningEnd={onSetRondePlannedProfilePlanningEnd}
+        profileModalOpen={profileModalOpen}
+        editingProfile={editingProfile}
+        setEditingProfile={setEditingProfile}
+        closeProfileModal={closeProfileModal}
+        profilesListOpen={profilesListOpen}
+        setProfilesListOpen={setProfilesListOpen}
+        openProfileEditor={openProfileEditor}
+        cancellationQueueOpen={cancellationQueueOpen}
+        setCancellationQueueOpen={setCancellationQueueOpen}
+        batchDeleteQueueOpen={batchDeleteQueueOpen}
+        batchDeleteRequests={batchDeleteRequests}
       />
-      <GardiennageEntryModal
-        isOpen={linkedGardiennageOpen}
-        mode="create"
-        entry={null}
-        sites={references.sites}
-        intervenants={references.intervenants}
-        holidays={references.holidays}
-        requesterRole={requesterRole}
-        createPreset={
-          linkedRondeForGardiennage
-            ? {
-                siteId: linkedRondeForGardiennage.siteId,
-                siteDisplay: linkedRondeForGardiennage.siteDisplay,
-                intervenantId: linkedRondeForGardiennage.intervenantId,
-                intervenantName: linkedRondeForGardiennage.intervenantName,
-                linkedInterventionId: linkedRondeForGardiennage.originInterventionId ?? null,
-                linkedRondeId: linkedRondeForGardiennage.id
-              }
-            : null
-        }
-        onClose={() => {
-          setLinkedGardiennageOpen(false);
-          setLinkedRondeForGardiennage(null);
-        }}
-        onCreate={createLinkedGardiennage}
-        onUpdate={async () => null}
-        onCreatePendingSite={references.createPendingSite}
-        onCreatePendingIntervenant={references.createPendingIntervenant}
-        onNotify={onToast}
-      />
-      <RondeRequestModal
-        isOpen={requestModalOpen}
-        onClose={() => {
-          setRequestModalOpen(false);
-          clearLinkedDemandNavigation();
-        }}
-        fixedOrigin={requestFixedOrigin}
-        initialRequestDate={requestInitial?.requestDate}
-        initialMotifTypeId={requestInitial?.motifTypeId}
-        initialConsigne={requestInitial?.consigne}
-        initialSiteId={requestInitial?.siteId}
-        initialIntervenantId={requestInitial?.intervenantId}
-        initialInterventionId={requestInitial?.interventionId}
-        onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
-        replayPlanningSnapshot={requestPlanningReplay}
-        requesterRole={requesterRole}
-        linkedBatchEntries={linkedDemandAnchorId && linkedDemandGroup.length ? linkedDemandGroup : null}
-        onSaveLinkedBatch={(payload) => ronde.updateBatchSharedFields(payload)}
-        cancelLinkedBatchOne={async (entry, reason, kind) =>
-          ronde.setStatus(entry.id, entry.updatedAt, "ANNULE", reason, kind)
-        }
-        bulkCancelLinkedBatch={canManageRondes ? ronde.bulkCancelBatch : undefined}
-        bulkDeleteLinkedBatch={canManageRondes ? ronde.bulkDeleteBatch : undefined}
-        requestLinkedBatchDelete={!canManageRondes ? ronde.requestBatchDelete : undefined}
-        onOpenLinkedBatchRonde={(e) => {
-          setRequestModalOpen(false);
-          clearLinkedDemandNavigation();
-          setCreatePreset(null);
-          setActiveEntry(e);
-          setModalMode("edit");
-          setModalOpen(true);
-        }}
-        navigateBack={
-          linkedDemandOrigin === "batch-delete-queue"
-            ? {
-                label: "Demandes de suppression",
-                title: "Retour aux demandes de suppression",
-                onNavigate: () => {
-                  setRequestModalOpen(false);
-                  clearLinkedDemandNavigation();
-                  void refreshBatchDeleteRequests();
-                  setBatchDeleteQueueOpen(true);
-                }
-              }
-            : linkedDemandOrigin === "ronde-report" && linkedDemandAnchorId
-              ? {
-                  label: "Rapport de ronde",
-                  title: "Retour au rapport de ronde",
-                  onNavigate: () => {
-                    const anchor = ronde.entries.find((e) => e.id === linkedDemandAnchorId);
-                    if (!anchor) {
-                      onToast?.("Rapport de ronde d'origine introuvable.", "error");
-                      return;
-                    }
-                    setRequestModalOpen(false);
-                    clearLinkedDemandNavigation();
-                    setCreatePreset(null);
-                    setActiveEntry(anchor);
-                    setModalMode("edit");
-                    setModalOpen(true);
-                  }
-                }
-              : null
-        }
-        onNotify={onToast}
-        sites={references.sites}
-        intervenants={references.intervenants}
-        onCreatePendingSite={references.createPendingSite}
-        onCreatePendingIntervenant={references.createPendingIntervenant}
-        holidays={references.holidays}
-        rondeMotifs={references.rondeMotifs}
-        onCreateEntry={async (payload) => ronde.createEntry(payload)}
-        onCreateProfile={async (payload) => {
-          if (!onUpsertRondePlannedProfile) {
-            throw new Error("La création de profil n'est pas disponible.");
-          }
-          const result = await onUpsertRondePlannedProfile(payload);
-          await references.reload();
-          return result ?? undefined;
-        }}
-      />
-
-      {onUpsertRondePlannedProfile ? (
-        <RondeRequestModal
-          isOpen={profileModalOpen}
-          editProfile={editingProfile}
-          sites={references.sites}
-          intervenants={references.intervenants}
-          rondeMotifs={references.rondeMotifs}
-          requesterRole={requesterRole}
-          onNotify={onToast}
-          onClose={closeProfileModal}
-          onStopProfile={
-            lifecycle.canManageCancellation && onSetRondePlannedProfilePlanningEnd && editingProfile
-              ? () => lifecycle.beginStop(editingProfile)
-              : undefined
-          }
-          onRequestStopProfile={
-            !lifecycle.canManageCancellation &&
-            onRequestRondePlannedProfileCancellation &&
-            editingProfile &&
-            !editingProfile.cancellationRequestedAt
-              ? () => lifecycle.beginRequestCancellation(editingProfile)
-              : undefined
-          }
-          onDeleteProfile={
-            lifecycle.canDelete && onDeleteRondePlannedProfile && editingProfile
-              ? () => lifecycle.beginDelete(editingProfile)
-              : undefined
-          }
-          onCreateProfile={async (payload) => {
-            const result = await onUpsertRondePlannedProfile(payload);
-            await references.reload();
-            if (result) setEditingProfile(result);
-            return result ?? undefined;
-          }}
-        />
-      ) : null}
-
-      <RondePlannedProfilesListModal
-        isOpen={profilesListOpen}
-        profiles={references.plannedProfiles}
-        onClose={() => setProfilesListOpen(false)}
-        onOpenProfile={openProfileEditor}
-      />
-
-      <RondePlannedCancellationQueueModal
-        isOpen={cancellationQueueOpen}
-        profiles={references.plannedProfiles}
-        onClose={() => setCancellationQueueOpen(false)}
-        onApprove={(profile) => {
-          lifecycle.beginStop(profile);
-        }}
-        onReject={(profile) => {
-          lifecycle.beginReject(profile);
-        }}
-        onOpenProfile={(profile) => {
-          setCancellationQueueOpen(false);
-          openProfileEditor(profile);
-        }}
-      />
-
-      <RondeBatchDeleteQueueModal
-        isOpen={batchDeleteQueueOpen}
-        requests={batchDeleteRequests}
-        onClose={() => setBatchDeleteQueueOpen(false)}
-        onOpenLinkedDemand={(request) => {
-          const anchorId = request.entryIds[0];
-          const entry =
-            (anchorId ? ronde.entries.find((e) => e.id === anchorId) : null) ||
-            ronde.entries.find((e) => e.requestBatchId === request.requestBatchId) ||
-            null;
-          if (!entry) {
-            onToast?.("Demande liée introuvable (fiches absentes ou déjà traitées).", "error");
-            return;
-          }
-          setBatchDeleteQueueOpen(false);
-          openLinkedDemandForEntry(entry, "batch-delete-queue");
-        }}
-        onApprove={async (requestBatchId, reviewReason) => {
-          const res = await ronde.reviewBatchDeleteRequest(requestBatchId, "approve", reviewReason);
-          if (res?.ok) {
-            onToast?.("Demande de suppression approuvée.");
-            await refreshBatchDeleteRequests();
-            return true;
-          }
-          return false;
-        }}
-        onReject={async (requestBatchId, reviewReason) => {
-          const res = await ronde.reviewBatchDeleteRequest(requestBatchId, "reject", reviewReason);
-          if (res?.ok) {
-            onToast?.("Demande de suppression refusée.");
-            await refreshBatchDeleteRequests();
-            return true;
-          }
-          return false;
-        }}
-      />
-
-      <RondePlannedProfileLifecycleModals
-        lifecycle={lifecycle}
-        hasSetPlanningEnd={Boolean(onSetRondePlannedProfilePlanningEnd)}
-        hasReviewCancellation={Boolean(onReviewRondePlannedProfileCancellationRequest)}
-        hasRequestCancellation={Boolean(onRequestRondePlannedProfileCancellation)}
-        hasDelete={Boolean(onDeleteRondePlannedProfile)}
-      />
-
     </>
   );
 }
