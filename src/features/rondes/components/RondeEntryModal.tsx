@@ -1,10 +1,9 @@
 /**
  * Modale fiche ronde (saisie, clôture, intervention liée, référentiels en attente).
  *
- * Hydratation / état : useRondeEntryForm. Orchestration submit + actions statut.
+ * Hydratation / état : useRondeEntryForm. Actions : useRondeEntryModalActions.
  */
 
-import { type FormEvent } from "react";
 import { Link2 } from "lucide-react";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 import type { SiteRef, IntervenantRef, Role } from "../../../types";
@@ -15,18 +14,10 @@ import {
   type RondeSavePayload,
   type RondeSource
 } from "../model/ronde.types";
-import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
-import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
-import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
 import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
-import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
-import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate";
-import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
-import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
@@ -39,6 +30,7 @@ import {
   type RondeEntryCreatePreset,
   type RondeEntryMode
 } from "../hooks/useRondeEntryForm";
+import { useRondeEntryModalActions } from "../presenter/useRondeEntryModalActions";
 
 type Mode = RondeEntryMode;
 
@@ -206,9 +198,6 @@ export function RondeEntryModal({
     plannedLineRequestedTime,
     durationMinutes,
     logicalDateComputed,
-    effectiveLogicalDate,
-    hasLogicalDateTransition,
-    logicalDateTransitionLabel,
     createCloseGuard,
     requestExtraDefs,
     closureExtraDefs,
@@ -216,215 +205,32 @@ export function RondeEntryModal({
     setExtraValues
   } = form;
 
+  const {
+    onSubmit,
+    submitCancellation,
+    closeRonde,
+    reopenRonde,
+    resolveLabelTemplate,
+    cancelIsNonEffectuee,
+    canShowCancelAction,
+    lockFields,
+    lockActions,
+    lockDemandeFields
+  } = useRondeEntryModalActions({
+    form,
+    entry,
+    linkedInterventionEntry,
+    createPreset,
+    requesterRole,
+    onClose,
+    onCreate,
+    onUpdate,
+    onSetStatus,
+    onCreatePendingSite,
+    onCreatePendingIntervenant
+  });
+
   if (!isOpen) return null;
-
-
-  const buildPayload = (freshPending?: { siteDisplay?: string; intervenantName?: string }): RondeSavePayload | null => {
-    const resolvedSiteDisplay = selectedSite
-      ? formatSiteSelectedLabel(selectedSite)
-      : (freshPending?.siteDisplay ?? "").trim() || (entry?.siteDisplay || "").trim();
-    const resolvedIntervenantName = selectedIntervenant
-      ? selectedIntervenant.name
-      : (freshPending?.intervenantName ?? "").trim() || (entry?.intervenantName || "").trim();
-
-    if (!resolvedSiteDisplay) {
-      setFieldError("Le site est obligatoire.");
-      return null;
-    }
-    if (!resolvedIntervenantName) {
-      setFieldError("Le prestataire est obligatoire.");
-      return null;
-    }
-    if (!requestDate) {
-      setFieldError("La date de la demande est obligatoire.");
-      return null;
-    }
-    if (!motifTypeId.trim()) {
-      setFieldError("Le motif est obligatoire.");
-      return null;
-    }
-    if (originKind === "CLIENT" && !originDetail.trim()) {
-      setFieldError("Le nom du client est obligatoire lorsque l'origine est « Client ».");
-      return null;
-    }
-
-    const arrivalNorm = normalizeTimeForSave(arrivalTime);
-    const departureNorm = normalizeTimeForSave(departureTime);
-    if (arrivalNorm && !isValidTime(arrivalNorm)) {
-      setFieldError("L'heure d'arrivée est invalide.");
-      return null;
-    }
-    if (departureNorm && !isValidTime(departureNorm)) {
-      setFieldError("L'heure de départ est invalide.");
-      return null;
-    }
-
-    const execArrival = isPureCreateMode ? "" : arrivalNorm;
-    const execDeparture = isPureCreateMode ? "" : departureNorm;
-    const execBon = isPureCreateMode ? "" : workOrderNumber.trim();
-    const execReport = isPureCreateMode ? "" : report.trim();
-    const execLogicalDate = isPureCreateMode ? "" : effectiveLogicalDate;
-    const nextClosureCustomValues = {
-      ...closureCustomValues,
-      ...extraValues
-    };
-    if (execLogicalDate) {
-      nextClosureCustomValues.date_logique_passage = execLogicalDate;
-      nextClosureCustomValues.date_logique = execLogicalDate;
-      if (logicalDateTransitionLabel) {
-        nextClosureCustomValues.transition_date = logicalDateTransitionLabel;
-      } else {
-        delete nextClosureCustomValues.transition_date;
-      }
-    } else {
-      delete nextClosureCustomValues.date_logique_passage;
-      delete nextClosureCustomValues.date_logique;
-      delete nextClosureCustomValues.transition_date;
-    }
-
-    return {
-      siteId: selectedSite?.id || null,
-      siteDisplay: resolvedSiteDisplay,
-      requestDate,
-      motifTypeId: motifTypeId.trim(),
-      motifDetail: motifDetail.trim(),
-      horairesDemandeObs: horairesDemandeObs.trim(),
-      originKind,
-      originDetail: originDetail.trim(),
-      intervenantId: selectedIntervenant?.id || null,
-      intervenantName: resolvedIntervenantName,
-      arrivalTime: execArrival,
-      departureTime: execDeparture,
-      workOrderNumber: execBon,
-      report: execReport,
-      closureCustomValues: nextClosureCustomValues
-    };
-  };
-
-  const resolveLabelTemplate = (template: string) =>
-    resolveRondeClosureLabelTemplate(template, {
-      siteCode: selectedSite?.code || "",
-      siteName: selectedSite?.name || "",
-      siteLabel: selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || "",
-      profileLabel: activePlannedProfile?.label || "",
-      prestataire: selectedIntervenant?.name || entry?.intervenantName || "",
-      typePassage:
-        entry?.source === "PLANIFIE" && entry?.plannedRoundKind
-          ? formatPlannedRoundKindLabel(entry.plannedRoundKind as RondePlannedRoundKind)
-          : "",
-      heureDemandee: plannedLineRequestedTime || "",
-      dateDuJour: formatDateShortFr(requestDate),
-      heureArrivee: arrivalTime.trim(),
-      heureDepart: departureTime.trim(),
-      numeroBon: workOrderNumber.trim(),
-      compteRendu: report.trim()
-    });
-
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (statusActionBusy) return;
-    if (formLockedClosed || formLockedCanceled) return;
-    setFieldError("");
-
-    let freshPending: { siteDisplay?: string; intervenantName?: string } | undefined;
-    if (!entry) {
-      const pendingPrep = await createPendingRefsIfNeededForSubmit({
-        selectedFromCatalogSite: Boolean(selectedSite),
-        selectedFromCatalogIntervenant: Boolean(selectedIntervenant),
-        pendingCode,
-        pendingName,
-        pendingIntervenantInput: pendingIntervenantName,
-        onCreatePendingSite,
-        onCreatePendingIntervenant
-      });
-      if (!pendingPrep.ok) {
-        if (pendingPrep.errorMessage) setFieldError(pendingPrep.errorMessage);
-        return;
-      }
-      if (pendingPrep.createdSiteDisplay || pendingPrep.createdIntervenantName) {
-        freshPending = {
-          ...(pendingPrep.createdSiteDisplay ? { siteDisplay: pendingPrep.createdSiteDisplay } : {}),
-          ...(pendingPrep.createdIntervenantName ? { intervenantName: pendingPrep.createdIntervenantName } : {})
-        };
-      }
-    }
-
-    const payload = buildPayload(freshPending);
-    if (!payload) return;
-
-    if (!entry) {
-      setStatusActionBusy("save");
-      const source: RondeSource =
-        createPreset?.source === "PLANIFIE" ? "PLANIFIE" : linkedInterventionEntry?.id ? "LIEE_INTERVENTION" : "URGENCE";
-      let ok = false;
-      try {
-        ok = await onCreate({
-          ...payload,
-          source,
-          originInterventionId: linkedInterventionEntry?.id || null,
-          plannedProfileId: createPreset?.source === "PLANIFIE" ? createPreset.plannedProfileId : null,
-          plannedRoundKind: createPreset?.source === "PLANIFIE" ? createPreset.plannedRoundKind : null,
-          plannedSlotKey: createPreset?.source === "PLANIFIE" ? createPreset.plannedSlotKey : null
-        });
-      } finally {
-        setStatusActionBusy(null);
-      }
-      if (ok) onClose();
-      return;
-    }
-
-    setStatusActionBusy("save");
-    let updated: RondeEntry | null = null;
-    try {
-      updated = await onUpdate(entry.id, entry.updatedAt, payload);
-    } finally {
-      setStatusActionBusy(null);
-    }
-    if (updated) onClose();
-  };
-
-  const submitCancellation = async () => {
-    if (!entry) return;
-    if (statusActionBusy) return;
-    const cleanReason = cancelReasonInput.trim();
-    if (!cleanReason) {
-      setFieldError("Le motif est obligatoire.");
-      return;
-    }
-    const isManager = isRondeManagerRole(requesterRole);
-    const past = isRondePassagePast(entry);
-    // Non effectuée = après passage (opérateur). Responsable = annulation administrative.
-    const kind: "NON_EFFECTUEE" | "ANNULATION" = isManager ? "ANNULATION" : "NON_EFFECTUEE";
-    if (!isManager && !past) {
-      setFieldError("Une ronde ne peut être marquée non effectuée qu'après l'heure de passage.");
-      return;
-    }
-    setFieldError("");
-    setStatusActionBusy("cancel");
-    const ok = await onSetStatus(entry.id, entry.updatedAt, "ANNULE", cleanReason, kind);
-    setStatusActionBusy(null);
-    if (ok) {
-      setShowCancelReasonDialog(false);
-      setCancelReasonInput("");
-      onClose();
-    }
-  };
-
-  const isManagerRole = isRondeManagerRole(requesterRole);
-  const cancelIsNonEffectuee = Boolean(entry && !isManagerRole && isRondePassagePast(entry));
-  const canShowCancelAction =
-    Boolean(entry) &&
-    entry!.status === "EN_COURS" &&
-    (isManagerRole || (entry!.source !== "PLANIFIE" && isRondePassagePast(entry!)));
-
-  const lockFields = formLockedClosed || formLockedCanceled;
-  const lockActions = statusActionBusy !== null;
-  /** Rondes « exceptionnelles » (hors planifié) : la demande est figée après création ; seul le terrain / clôture reste éditable. */
-  const lockExceptionnelleDemandeSection =
-    !isCreateMode &&
-    entry != null &&
-    (entry.source === "URGENCE" || entry.source === "LIEE_INTERVENTION");
-  const lockDemandeFields = lockFields || lockExceptionnelleDemandeSection;
 
   /** En mode rapport (édition ou passage planifié), masquer la section demande et garder uniquement le CR. */
   const masquerSectionsDemandePlanifiee = useReportModalLayout;
@@ -609,44 +415,7 @@ export function RondeEntryModal({
               type="button"
               className="btn-light"
               disabled={lockFields || entry?.status === "CLOTURE" || lockActions}
-              onClick={async () => {
-                if (statusActionBusy) return;
-                setFieldError("");
-                const isPlannedClosure = Boolean(isPlannedCreatePreset || entry?.source === "PLANIFIE");
-                if (isPlannedClosure && !report.trim()) {
-                  setFieldError("Le compte rendu est obligatoire avant clôture.");
-                  return;
-                }
-                const payload = buildPayload();
-                if (!payload) return;
-                setStatusActionBusy("close");
-                if (!entry && isPlannedCreatePreset) {
-                  const ok = await onCreate({
-                    ...payload,
-                    source: "PLANIFIE",
-                    originInterventionId: null,
-                    plannedProfileId: createPreset?.plannedProfileId ?? null,
-                    plannedRoundKind: createPreset?.plannedRoundKind ?? null,
-                    plannedSlotKey: createPreset?.plannedSlotKey ?? null,
-                    initialStatus: "CLOTURE"
-                  });
-                  setStatusActionBusy(null);
-                  if (ok) onClose();
-                  return;
-                }
-                if (!entry) {
-                  setStatusActionBusy(null);
-                  return;
-                }
-                const updated = await onUpdate(entry.id, entry.updatedAt, payload);
-                if (!updated) {
-                  setStatusActionBusy(null);
-                  return;
-                }
-                const ok = await onSetStatus(updated.id, updated.updatedAt, "CLOTURE");
-                setStatusActionBusy(null);
-                if (ok) onClose();
-              }}
+              onClick={() => void closeRonde()}
             >
               {statusActionBusy === "close" ? "Clôture…" : "Clôturer la ronde"}
             </button>
@@ -655,14 +424,7 @@ export function RondeEntryModal({
                 type="button"
                 className="mc-btn-primary"
                 disabled={lockActions}
-                onClick={async () => {
-                  if (!entry) return;
-                  if (statusActionBusy) return;
-                  setStatusActionBusy("reopen");
-                  const ok = await onSetStatus(entry.id, entry.updatedAt, "EN_COURS");
-                  setStatusActionBusy(null);
-                  if (ok) onClose();
-                }}
+                onClick={() => void reopenRonde()}
               >
                 {statusActionBusy === "reopen" ? "Réouverture…" : "Rouvrir"}
               </button>
