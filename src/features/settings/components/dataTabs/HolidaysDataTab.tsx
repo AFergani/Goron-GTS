@@ -1,24 +1,19 @@
 /**
  * Onglet jours fériés (calendrier, fériés fixes France fusionnés).
+ * L’édition se fait dans la modale du panneau, pas en ligne.
  */
 
-import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { HolidayRef } from "../../../../types";
 import { useTableSort } from "../../../common/hooks/useTableSort";
-import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal } from "./common";
 
 type HolidaysDataTabProps = {
   canDeleteData: boolean;
-  editingHolidayId: string | null;
-  editingHolidayDateIso: string;
-  editingHolidayLabel: string;
   filteredHolidays: HolidayRef[];
   pageStart: number;
   pageEnd: number;
-  setEditingHolidayId: (value: string | null) => void;
-  setEditingHolidayDateIso: (value: string) => void;
-  setEditingHolidayLabel: (value: string) => void;
-  onUpdateHoliday: (id: string, dateIso: string, label: string) => SyncOrAsync;
+  onEditHoliday: (item: HolidayRef) => void;
   onDeleteHoliday: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
   onNotify?: (message: string) => void;
@@ -26,13 +21,19 @@ type HolidaysDataTabProps = {
 
 type HolidaySortKey = "date" | "label";
 
+/**
+ * Affiche une date ISO en jj/mm/aaaa (midi local pour éviter le décalage UTC).
+ *
+ * @param dateIso - Date `YYYY-MM-DD`
+ */
+function formatDateFr(dateIso: string): string {
+  if (!dateIso) return "";
+  const d = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateIso;
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export function HolidaysDataTab(props: HolidaysDataTabProps) {
-  const formatDateFr = (dateIso: string) => {
-    if (!dateIso) return "";
-    const d = new Date(`${dateIso}T12:00:00`);
-    if (Number.isNaN(d.getTime())) return dateIso;
-    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  };
   const isFixedHoliday = (item: HolidayRef) => String(item.id || "").startsWith("fr-fixed-");
 
   const comparators: Record<HolidaySortKey, (a: HolidayRef, b: HolidayRef) => number> = {
@@ -73,60 +74,18 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
         <tbody>
           {pagedHolidays.map((item) => (
             <tr key={item.id}>
-              <td>
-                {props.editingHolidayId === item.id ? (
-                  <input
-                    type="date"
-                    value={props.editingHolidayDateIso}
-                    onChange={(e) => props.setEditingHolidayDateIso(e.target.value)}
-                  />
-                ) : (
-                  formatDateFr(item.dateIso)
-                )}
-              </td>
-              <td>
-                {props.editingHolidayId === item.id ? (
-                  <input value={props.editingHolidayLabel} onChange={(e) => props.setEditingHolidayLabel(e.target.value)} />
-                ) : (
-                  item.label
-                )}
-              </td>
+              <td>{formatDateFr(item.dateIso)}</td>
+              <td>{item.label}</td>
               <td>
                 <div className="table-actions">
                   {isFixedHoliday(item) ? (
                     <span className="muted">Automatique</span>
-                  ) : props.editingHolidayId === item.id ? (
-                    <>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Sauvegarder"
-                        aria-label="Sauvegarder"
-                        onClick={() => {
-                          void props.onUpdateHoliday(item.id, props.editingHolidayDateIso, props.editingHolidayLabel);
-                          props.setEditingHolidayId(null);
-                        }}
-                      >
-                        <Save size={14} />
-                      </button>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Annuler"
-                        aria-label="Annuler"
-                        onClick={() => props.setEditingHolidayId(null)}
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    </>
                   ) : (
                     <button
                       className="btn-light action-icon-btn"
                       title="Modifier"
                       aria-label="Modifier"
-                      onClick={() => {
-                        props.setEditingHolidayId(item.id);
-                        props.setEditingHolidayDateIso(item.dateIso);
-                        props.setEditingHolidayLabel(item.label);
-                      }}
+                      onClick={() => props.onEditHoliday(item)}
                     >
                       <Pencil size={14} />
                     </button>
@@ -141,7 +100,9 @@ export function HolidaysDataTab(props: HolidaysDataTabProps) {
                           props.onNotify?.("Ce jour férié est injecté automatiquement et ne peut pas être supprimé.");
                           return;
                         }
-                        props.openDeleteReasonModal(`jour férié ${formatDateFr(item.dateIso)}`, (reason) => props.onDeleteHoliday(item.id, reason));
+                        props.openDeleteReasonModal(`jour férié ${formatDateFr(item.dateIso)}`, (reason) =>
+                          props.onDeleteHoliday(item.id, reason)
+                        );
                       }}
                     >
                       <Trash2 size={14} />

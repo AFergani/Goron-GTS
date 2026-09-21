@@ -398,6 +398,23 @@ class UserStoreCore {
   }
 
   /**
+   * Confirme le mot de passe d'un responsable / directeur / Admin pour une restauration.
+   *
+   * @param {{ username?: string, fullName?: string, password: string }} payload
+   * @returns {Promise<"ok"|"invalid"|"forbidden"|"dev-code-unavailable">}
+   */
+  async confirmStationAdminPassword({ username, fullName, password }) {
+    await this.whenPostgresReady();
+    await this.ensurePostgresAttached();
+    return authUsersDomain.confirmStationAdminPassword(this, {
+      username,
+      fullName,
+      password,
+      roles: ROLE
+    });
+  }
+
+  /**
    * Journal technique — no-op (les événements PG vont dans `gts-pg-events.log`).
    * Conservé pour que `failWithLog` / callers sync restent stables.
    *

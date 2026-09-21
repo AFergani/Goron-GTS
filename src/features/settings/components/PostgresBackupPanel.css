@@ -68,3 +68,165 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.modal.postgres-backup-compare-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(1180px, 96vw);
+  max-width: min(1180px, 96vw);
+  height: min(92vh, 900px);
+  max-height: min(92vh, 900px);
+  overflow: hidden;
+}
+
+.postgres-backup-compare-modal__meta,
+.postgres-backup-compare-modal__hint {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.postgres-backup-compare-modal__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-height: 12rem;
+}
+
+.postgres-restore-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.postgres-restore-confirm .mc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.postgres-backup-compare-modal__pills {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.postgres-backup-compare-modal__pill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surf);
+}
+
+.postgres-backup-compare-modal__pill span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.postgres-backup-compare-modal__tone-down {
+  color: #d64545;
+}
+
+.postgres-backup-compare-modal__tone-up {
+  color: #1f9d55;
+}
+
+.postgres-backup-compare-modal__tone-warn {
+  color: #c47d12;
+}
+
+.postgres-backup-compare-modal__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.postgres-backup-compare-modal__tab {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 2.5rem;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surf);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.postgres-backup-compare-modal__tab:hover {
+  background: var(--hover);
+}
+
+.postgres-backup-compare-modal__tab.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.postgres-backup-compare-modal__tab-counts {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.postgres-backup-compare-modal__tab.is-active .postgres-backup-compare-modal__tab-counts {
+  color: #d6e6ff;
+}
+
+.postgres-backup-compare-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.postgres-backup-compare-modal__col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surf);
+}
+
+.postgres-backup-compare-modal__col h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+
+.postgres-backup-compare-modal__col-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.postgres-backup-compare-modal__col ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.modal.postgres-backup-compare-modal .modal-actions {
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+
+@media (max-width: 960px) {
+  .postgres-backup-compare-modal__pills,
+  .postgres-backup-compare-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}

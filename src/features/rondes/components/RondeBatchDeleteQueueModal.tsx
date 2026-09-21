@@ -256,7 +256,7 @@ export function RondeBatchDeleteQueueModal({
           placeholder={
             decisionTarget?.decision === "approve"
               ? "Motif du demandeur (modifiable)"
-              : "Ex. suppression non justifiée, lot encore utile"
+              : "Ex. Motif exemple"
           }
           autoFocus
         />

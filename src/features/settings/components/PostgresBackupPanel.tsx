@@ -4,8 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CircleHelp, FolderOpen, FolderPlus, GitCompare, Loader2, PlayCircle, RotateCcw, Save, SaveAll } from "lucide-react";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { FolderOpen, FolderPlus, GitCompare, Loader2, PlayCircle, RotateCcw, Save, SaveAll } from "lucide-react";
 import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 import { TableFiltersBar } from "../../common/components/TableFiltersBar";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
@@ -17,11 +16,14 @@ import { matchesIsoDateRange } from "../../common/utils/matchesIsoDateRange";
 import {
   gtsApiClient,
   type PostgresBackupFile,
-  type PostgresBackupStatus
+  type PostgresBackupStatus,
+  type PostgresCompareResult
 } from "../../../infrastructure/api/gtsApiClient";
 import type { Role } from "../../../types";
 import { BACKUP_KIND_FILTERS, backupKindLabel } from "../model/postgresBackupDisplay";
 import { BACKUP_SORT_COMPARATORS, pickBackupAgeMarkers, PostgresBackupTable } from "./PostgresBackupTable";
+import { PostgresBackupCompareModal } from "./PostgresBackupCompareModal";
+import { PostgresRestoreConfirmModal } from "./PostgresRestoreConfirmModal";
 import "./PostgresConnectionPanel.css";
 import "./PostgresBackupPanel.css";
 
@@ -30,7 +32,6 @@ type PostgresBackupPanelProps = {
   requesterRole?: Role;
   requesterUsername?: string;
   onNotify?: (message: string, tone?: "success" | "error" | "warning") => void;
-  onHelpClick?: () => void;
   onRestored?: () => void;
 };
 
@@ -39,7 +40,6 @@ export function PostgresBackupPanel({
   requesterRole,
   requesterUsername,
   onNotify,
-  onHelpClick,
   onRestored
 }: PostgresBackupPanelProps) {
   const isAdmin = variant === "admin";
@@ -48,6 +48,7 @@ export function PostgresBackupPanel({
   const [error, setError] = useState("");
   const [restoreTarget, setRestoreTarget] = useState<{ fileName?: string; filePath?: string } | null>(null);
   const [compareTarget, setCompareTarget] = useState<{ fileName?: string; filePath?: string } | null>(null);
+  const [compareResult, setCompareResult] = useState<PostgresCompareResult | null>(null);
   const [kindFilter, setKindFilter] = useState("");
   const filters = useTableFilters({ pageSize: 25 });
 
@@ -187,21 +188,28 @@ export function PostgresBackupPanel({
     return publicCall(payload);
   };
 
-  const confirmRestore = async () => {
+  const confirmRestore = async (confirmation: {
+    accountPassword: string;
+    confirmPhrase: string;
+    managerFullName?: string;
+  }) => {
     if (!restoreTarget || busy !== "idle") return;
     setBusy("restoring");
     try {
+      const extras = {
+        accountPassword: confirmation.accountPassword,
+        confirmPhrase: confirmation.confirmPhrase,
+        managerFullName: confirmation.managerFullName
+      };
       const result = await invokeBackupFileOp(
         restoreTarget,
-        (payload) => gtsApiClient.restorePostgresBackupAuth(payload),
-        (payload) => gtsApiClient.restorePostgresBackup(payload)
+        (payload) => gtsApiClient.restorePostgresBackupAuth({ ...payload, ...extras }),
+        (payload) => gtsApiClient.restorePostgresBackup({ ...payload, ...extras })
       );
       setRestoreTarget(null);
-      notify(
-        result.reportHtmlPath
-          ? `Base restaurée depuis ${result.fileName}. Rapport des écarts ouvert.`
-          : `Base restaurée depuis ${result.fileName}.`
-      );
+      setCompareTarget(null);
+      setCompareResult(null);
+      notify(`Base restaurée depuis ${result.fileName}.`);
       await loadStatus();
       onRestored?.();
     } catch (err) {
@@ -211,23 +219,27 @@ export function PostgresBackupPanel({
     }
   };
 
-  const confirmCompare = async () => {
-    if (!compareTarget || busy !== "idle") return;
+  const startCompare = async (target: { fileName?: string; filePath?: string }) => {
+    if (busy !== "idle") return;
+    setCompareTarget(target);
+    setCompareResult(null);
     setBusy("comparing");
     try {
       const result = await invokeBackupFileOp(
-        compareTarget,
+        target,
         (payload) => gtsApiClient.comparePostgresBackupAuth(payload),
         (payload) => gtsApiClient.comparePostgresBackup(payload)
       );
-      setCompareTarget(null);
+      setCompareResult(result);
       const lost = result.totals?.lost ?? 0;
       const recovered = result.totals?.recovered ?? 0;
       const changed = result.totals?.changed ?? 0;
       notify(
-        `Comparaison ${result.fileName} : ${lost} disparaîtraient, ${recovered} reviendraient, ${changed} seraient écrasées. Rapport ouvert.`
+        `Comparaison ${result.fileName} : ${lost} disparaîtraient, ${recovered} reviendraient, ${changed} seraient écrasées.`
       );
     } catch (err) {
+      setCompareTarget(null);
+      setCompareResult(null);
       notify(extractUserFacingErrorMessage(err, "Comparaison impossible."), "error");
     } finally {
       setBusy("idle");
@@ -283,8 +295,8 @@ export function PostgresBackupPanel({
     <div className={isAdmin ? "postgres-config-panel postgres-config-panel--flat postgres-backup-panel" : "postgres-backup-panel"}>
       {!isAdmin ? (
         <p className="muted postgres-config-lead">
-          Restaurez une sauvegarde .dump une fois Docker / PostgreSQL redémarré. « Comparer » liste les fiches qui
-          disparaîtraient ou reviendraient, sans toucher à la base. La restauration remplace tout.
+          Restaurez une sauvegarde .dump une fois Docker / PostgreSQL redémarré. « Comparer » affiche tout de suite
+          les fiches qui disparaîtraient ou reviendraient, sans toucher à la base. La restauration remplace tout.
         </p>
       ) : null}
 
@@ -301,17 +313,6 @@ export function PostgresBackupPanel({
               )}
             </p>
             <div className="row-actions">
-              {onHelpClick ? (
-                <button
-                  type="button"
-                  className="btn-light action-icon-btn"
-                  title="Aide — gestion de la base de données"
-                  aria-label="Aide — gestion de la base de données"
-                  onClick={onHelpClick}
-                >
-                  <CircleHelp size={14} />
-                </button>
-              ) : null}
               <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickFolder()}>
                 <FolderPlus size={16} aria-hidden />
                 Choisir le dossier
@@ -426,7 +427,7 @@ export function PostgresBackupPanel({
                 <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget(setRestoreTarget)}>
                   Restaurer une sauvegarde depuis…
                 </button>
-                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget(setCompareTarget)}>
+                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget((target) => void startCompare(target))}>
                   <GitCompare size={16} aria-hidden />
                   Comparer une sauvegarde…
                 </button>
@@ -448,7 +449,7 @@ export function PostgresBackupPanel({
                 <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget(setRestoreTarget)}>
                   Restaurer une sauvegarde depuis…
                 </button>
-                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget(setCompareTarget)}>
+                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget((target) => void startCompare(target))}>
                   <GitCompare size={16} aria-hidden />
                   Comparer une sauvegarde…
                 </button>
@@ -469,7 +470,7 @@ export function PostgresBackupPanel({
           sortKey={sortKey}
           sortDirection={sortDirection}
           onToggleSort={toggleSort}
-          onCompare={(file) => setCompareTarget({ fileName: file.fileName, filePath: file.filePath })}
+          onCompare={(file) => void startCompare({ fileName: file.fileName, filePath: file.filePath })}
           onRestore={(file) => setRestoreTarget({ fileName: file.fileName, filePath: file.filePath })}
         />
         <TablePaginationBar
@@ -482,30 +483,33 @@ export function PostgresBackupPanel({
         />
       </ListLoadingOverlay>
 
-      <ConfirmModal
+      <PostgresBackupCompareModal
+        isOpen={Boolean(compareTarget) || Boolean(compareResult)}
+        result={compareResult}
+        loading={busy === "comparing"}
+        dumpLabel={compareResult?.dumpFileName || compareResult?.fileName || compareTarget?.fileName || ""}
+        restoreDisabled={busy !== "idle"}
+        closeDisabled={busy === "restoring"}
+        onClose={() => {
+          if (busy === "comparing" || busy === "restoring") return;
+          setCompareTarget(null);
+          setCompareResult(null);
+        }}
+        onRestore={() => {
+          if (!compareTarget || busy !== "idle") return;
+          setRestoreTarget(compareTarget);
+        }}
+      />
+      <PostgresRestoreConfirmModal
         isOpen={Boolean(restoreTarget)}
-        title="Restaurer cette sauvegarde ?"
-        message="Toutes les données actuelles de PostgreSQL seront remplacées par ce dump. L'opération est irréversible. Un rapport HTML indiquera seulement le nombre d'entrées perdues ou ajoutées par table — pas le contenu des fiches. PostgreSQL doit être démarré (Docker)."
-        confirmLabel={busy === "restoring" ? "Restauration…" : "Restaurer la base"}
-        confirmClassName="btn-danger"
-        confirmDisabled={busy === "restoring"}
+        dumpLabel={restoreTarget?.fileName || ""}
+        busy={busy === "restoring"}
+        askDisplayName={!isAdmin}
         onCancel={() => {
           if (busy === "restoring") return;
           setRestoreTarget(null);
         }}
-        onConfirm={() => void confirmRestore()}
-      />
-      <ConfirmModal
-        isOpen={Boolean(compareTarget)}
-        title="Comparer ce dump à la base actuelle ?"
-        message="La base en service n'est pas modifiée. Une copie temporaire du dump est chargée (quelques secondes à une minute), puis un rapport HTML liste les fiches qui disparaîtraient, qui reviendraient, ou qui seraient écrasées. Pas de fusion automatique : à vous de décider si une restauration complète vaut le coup."
-        confirmLabel={busy === "comparing" ? "Comparaison…" : "Comparer"}
-        confirmDisabled={busy === "comparing"}
-        onCancel={() => {
-          if (busy === "comparing") return;
-          setCompareTarget(null);
-        }}
-        onConfirm={() => void confirmCompare()}
+        onConfirm={(confirmation) => void confirmRestore(confirmation)}
       />
     </div>
   );

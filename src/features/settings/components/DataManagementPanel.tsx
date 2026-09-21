@@ -1,7 +1,8 @@
 /**
  * Panneau gestion des données : onglets référentiels, import Excel, pending sites/intervenants.
  *
- * L’import Excel (lecture classeur + lot) vit dans `dataExcelImport.ts`.
+ * Création et modification passent par la même `FormModal`. L’import Excel (lecture classeur + lot)
+ * vit dans `dataExcelImport.ts`.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -87,6 +88,15 @@ const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
   fransorResponsables: ""
 };
 
+const REFERENTIAL_MODAL_TITLES: Record<DataTab, { add: string; edit: string }> = {
+  sites: { add: "Ajouter un site", edit: "Modifier le site" },
+  intervenants: { add: "Ajouter un intervenant", edit: "Modifier l'intervenant" },
+  types: { add: "Ajouter un type d'anomalie", edit: "Modifier le type d'anomalie" },
+  rondeMotifs: { add: "Ajouter un motif de ronde", edit: "Modifier le motif de ronde" },
+  holidays: { add: "Ajouter un jour férié", edit: "Modifier le jour férié" },
+  fransorResponsables: { add: "Ajouter un responsable Fransor", edit: "Modifier le responsable Fransor" }
+};
+
 export function DataManagementPanel(props: DataManagementPanelProps) {
   const [siteCode, setSiteCode] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -99,36 +109,17 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
   const [holidayDateIso, setHolidayDateIso] = useState("");
   const [holidayLabel, setHolidayLabel] = useState("");
   const [holidayYear, setHolidayYear] = useState(String(new Date().getFullYear()));
-  const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null);
-  const [editingHolidayDateIso, setEditingHolidayDateIso] = useState("");
-  const [editingHolidayLabel, setEditingHolidayLabel] = useState("");
   const [fransorResponsableName, setFransorResponsableName] = useState("");
+  const [rondeMotifLabel, setRondeMotifLabel] = useState("");
+  const [rondeMotifColor, setRondeMotifColor] = useState("#5c6bc0");
   const [isImporting, setIsImporting] = useState(false);
   /** Progression multi-fichiers : fichier courant / total (traitement séquentiel). */
   const [importBatchProgress, setImportBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPendingSubmissionsModal, setShowPendingSubmissionsModal] = useState(false);
-  const [createModalTarget, setCreateModalTarget] = useState<
-    "sites" | "intervenants" | "types" | "rondeMotifs" | "fransorResponsables" | "holidays"
-  >("sites");
-  const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
-  const [editingSiteCode, setEditingSiteCode] = useState("");
-  const [editingSiteName, setEditingSiteName] = useState("");
-  const [editingSiteAddress, setEditingSiteAddress] = useState("");
-  const [editingSiteParc, setEditingSiteParc] = useState("");
-  const [editingSiteFamille, setEditingSiteFamille] = useState("");
-  const [editingIntervenantId, setEditingIntervenantId] = useState<string | null>(null);
-  const [editingIntervenantName, setEditingIntervenantName] = useState("");
-  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
-  const [editingTypeLabel, setEditingTypeLabel] = useState("");
-  const [editingTypeColor, setEditingTypeColor] = useState("#1f5fcf");
-  const [rondeMotifLabel, setRondeMotifLabel] = useState("");
-  const [rondeMotifColor, setRondeMotifColor] = useState("#5c6bc0");
-  const [editingRondeMotifId, setEditingRondeMotifId] = useState<string | null>(null);
-  const [editingRondeMotifLabel, setEditingRondeMotifLabel] = useState("");
-  const [editingRondeMotifColor, setEditingRondeMotifColor] = useState("#5c6bc0");
-  const [editingFransorResponsableId, setEditingFransorResponsableId] = useState<string | null>(null);
-  const [editingFransorResponsableName, setEditingFransorResponsableName] = useState("");
+  const [createModalTarget, setCreateModalTarget] = useState<DataTab>("sites");
+  /** Identifiant de la ligne en cours d’édition dans la modale (null = création). */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQueryByTab, setSearchQueryByTab] = useState<Record<DataTab, string>>(EMPTY_SEARCH_BY_TAB);
   const [siteParcFilter, setSiteParcFilter] = useState("");
@@ -297,47 +288,87 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     setHolidayLabel("");
   };
 
-  const submitCreate = async () => {
+  /** Ferme la modale référentiel et vide le brouillon (création ou édition). */
+  const closeReferentialModal = () => {
+    setShowCreateModal(false);
+    setEditingId(null);
+    resetCreateForm();
+  };
+
+  /** Ouvre la modale vide pour ajouter une entrée de l’onglet courant. */
+  const openCreateModal = () => {
+    setCreateModalTarget(props.activeDataTab);
+    setEditingId(null);
+    resetCreateForm();
+    setShowCreateModal(true);
+  };
+
+  /**
+   * Ouvre la modale d’édition (les champs doivent déjà être remplis par l’appelant).
+   *
+   * @param target - Onglet / type d’entrée
+   * @param id - Identifiant de la ligne à modifier
+   */
+  const openReferentialModal = (target: DataTab, id: string) => {
+    setCreateModalTarget(target);
+    setEditingId(id);
+    setShowCreateModal(true);
+  };
+
+  /** Enregistre une création ou une modification selon `editingId`. */
+  const submitReferentialForm = async () => {
     if (createModalTarget === "sites") {
-      await Promise.resolve(
-        props.onCreateSite({ code: siteCode, name: siteName, address: siteAddress, parc: siteParc, famille: siteFamille })
-      );
+      const payload = { code: siteCode, name: siteName, address: siteAddress, parc: siteParc, famille: siteFamille };
+      if (editingId) {
+        await Promise.resolve(props.onUpdateSite({ id: editingId, ...payload }));
+      } else {
+        await Promise.resolve(props.onCreateSite(payload));
+      }
     } else if (createModalTarget === "intervenants") {
-      await Promise.resolve(props.onCreateIntervenant(intervenantName));
+      if (editingId) {
+        await Promise.resolve(props.onUpdateIntervenant(editingId, intervenantName));
+      } else {
+        await Promise.resolve(props.onCreateIntervenant(intervenantName));
+      }
     } else if (createModalTarget === "types") {
-      await Promise.resolve(props.onCreateType(typeLabel, typeColor));
+      if (editingId) {
+        await Promise.resolve(props.onUpdateType(editingId, typeLabel, typeColor));
+      } else {
+        await Promise.resolve(props.onCreateType(typeLabel, typeColor));
+      }
     } else if (createModalTarget === "rondeMotifs") {
-      await Promise.resolve(props.onCreateRondeMotifType(rondeMotifLabel, rondeMotifColor));
+      if (editingId) {
+        await Promise.resolve(props.onUpdateRondeMotifType(editingId, rondeMotifLabel, rondeMotifColor));
+      } else {
+        await Promise.resolve(props.onCreateRondeMotifType(rondeMotifLabel, rondeMotifColor));
+      }
     } else if (createModalTarget === "holidays") {
       const date = holidayDateIso.trim();
       if (!date) {
         props.onNotify("La date est obligatoire.", "warning");
         return;
       }
-      if (holidaysForUi.some((h) => h.dateIso === date)) {
+      const dateTaken = holidaysForUi.some((h) => h.dateIso === date && h.id !== editingId);
+      if (dateTaken) {
         props.onNotify("Cette date fériée existe déjà.", "warning");
         return;
       }
-      await Promise.resolve(props.onCreateHoliday(date, holidayLabel.trim()));
+      if (editingId) {
+        await Promise.resolve(props.onUpdateHoliday(editingId, date, holidayLabel.trim()));
+      } else {
+        await Promise.resolve(props.onCreateHoliday(date, holidayLabel.trim()));
+      }
+    } else if (editingId) {
+      await Promise.resolve(props.onUpdateFransorResponsable(editingId, fransorResponsableName));
     } else {
       await Promise.resolve(props.onCreateFransorResponsable(fransorResponsableName));
     }
-    resetCreateForm();
-    setShowCreateModal(false);
+    closeReferentialModal();
   };
 
-  const createModalTitle =
-    createModalTarget === "sites"
-      ? "Ajouter un site"
-      : createModalTarget === "intervenants"
-        ? "Ajouter un intervenant"
-        : createModalTarget === "types"
-          ? "Ajouter un type d'anomalie"
-          : createModalTarget === "rondeMotifs"
-            ? "Ajouter un motif de ronde"
-            : createModalTarget === "holidays"
-              ? "Ajouter un jour férié"
-              : "Ajouter un responsable Fransor";
+  const referentialModalTitle = editingId
+    ? REFERENTIAL_MODAL_TITLES[createModalTarget].edit
+    : REFERENTIAL_MODAL_TITLES[createModalTarget].add;
 
   const openDeleteReasonModal = (label: string, onConfirm: (reason: string) => void | Promise<void>) => {
     setDeleteReasonTargetLabel(label);
@@ -409,11 +440,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
             setSiteFamilleFilter("");
           }}
           onOpenImport={() => importInputRef.current?.click()}
-          onOpenCreate={() => {
-            setCreateModalTarget(props.activeDataTab);
-            resetCreateForm();
-            setShowCreateModal(true);
-          }}
+          onOpenCreate={openCreateModal}
           onOpenPendingSubmissions={() => setShowPendingSubmissionsModal(true)}
           showImport={
             props.activeDataTab === "sites" || props.activeDataTab === "intervenants"
@@ -438,19 +465,14 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           filteredSites={filteredSites}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          editingSiteId={editingSiteId}
-          editingSiteCode={editingSiteCode}
-          editingSiteName={editingSiteName}
-          editingSiteAddress={editingSiteAddress}
-          editingSiteParc={editingSiteParc}
-          editingSiteFamille={editingSiteFamille}
-          setEditingSiteId={setEditingSiteId}
-          setEditingSiteCode={setEditingSiteCode}
-          setEditingSiteName={setEditingSiteName}
-          setEditingSiteAddress={setEditingSiteAddress}
-          setEditingSiteParc={setEditingSiteParc}
-          setEditingSiteFamille={setEditingSiteFamille}
-          onUpdateSite={props.onUpdateSite}
+          onEditSite={(site) => {
+            setSiteCode(site.code);
+            setSiteName(site.name);
+            setSiteAddress(site.address || "");
+            setSiteParc(site.parc || "");
+            setSiteFamille(site.famille || "");
+            openReferentialModal("sites", site.id);
+          }}
           onDeleteSite={props.onDeleteSite}
           openDeleteReasonModal={openDeleteReasonModal}
           onNotify={props.onNotify}
@@ -463,11 +485,10 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           filteredIntervenants={filteredIntervenants}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          editingIntervenantId={editingIntervenantId}
-          editingIntervenantName={editingIntervenantName}
-          setEditingIntervenantId={setEditingIntervenantId}
-          setEditingIntervenantName={setEditingIntervenantName}
-          onUpdateIntervenant={props.onUpdateIntervenant}
+          onEditIntervenant={(item) => {
+            setIntervenantName(item.name);
+            openReferentialModal("intervenants", item.id);
+          }}
           onDeleteIntervenant={props.onDeleteIntervenant}
           openDeleteReasonModal={openDeleteReasonModal}
         />
@@ -479,13 +500,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           filteredTypes={filteredTypes}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          editingTypeId={editingTypeId}
-          editingTypeLabel={editingTypeLabel}
-          editingTypeColor={editingTypeColor}
-          setEditingTypeId={setEditingTypeId}
-          setEditingTypeLabel={setEditingTypeLabel}
-          setEditingTypeColor={setEditingTypeColor}
-          onUpdateType={props.onUpdateType}
+          onEditType={(item) => {
+            setTypeLabel(item.label);
+            setTypeColor(item.colorHex || "#1f5fcf");
+            openReferentialModal("types", item.id);
+          }}
           onDeleteType={props.onDeleteType}
           openDeleteReasonModal={openDeleteReasonModal}
         />
@@ -497,13 +516,11 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           filteredRondeMotifs={filteredRondeMotifs}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          editingRondeMotifId={editingRondeMotifId}
-          editingRondeMotifLabel={editingRondeMotifLabel}
-          editingRondeMotifColor={editingRondeMotifColor}
-          setEditingRondeMotifId={setEditingRondeMotifId}
-          setEditingRondeMotifLabel={setEditingRondeMotifLabel}
-          setEditingRondeMotifColor={setEditingRondeMotifColor}
-          onUpdateRondeMotifType={props.onUpdateRondeMotifType}
+          onEditRondeMotif={(item) => {
+            setRondeMotifLabel(item.label);
+            setRondeMotifColor(item.colorHex || "#5c6bc0");
+            openReferentialModal("rondeMotifs", item.id);
+          }}
           onDeleteRondeMotifType={props.onDeleteRondeMotifType}
           openDeleteReasonModal={openDeleteReasonModal}
         />
@@ -512,16 +529,14 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
       {props.activeDataTab === "holidays" && (
         <HolidaysDataTab
           canDeleteData={props.canDeleteData}
-          editingHolidayId={editingHolidayId}
-          editingHolidayDateIso={editingHolidayDateIso}
-          editingHolidayLabel={editingHolidayLabel}
           filteredHolidays={filteredHolidays}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          setEditingHolidayId={setEditingHolidayId}
-          setEditingHolidayDateIso={setEditingHolidayDateIso}
-          setEditingHolidayLabel={setEditingHolidayLabel}
-          onUpdateHoliday={props.onUpdateHoliday}
+          onEditHoliday={(item) => {
+            setHolidayDateIso(item.dateIso);
+            setHolidayLabel(item.label);
+            openReferentialModal("holidays", item.id);
+          }}
           onDeleteHoliday={props.onDeleteHoliday}
           openDeleteReasonModal={openDeleteReasonModal}
           onNotify={props.onNotify}
@@ -535,11 +550,10 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
           filteredFransorResponsables={filteredFransorResponsables}
           pageStart={pageStart}
           pageEnd={pageEnd}
-          editingFransorResponsableId={editingFransorResponsableId}
-          editingFransorResponsableName={editingFransorResponsableName}
-          setEditingFransorResponsableId={setEditingFransorResponsableId}
-          setEditingFransorResponsableName={setEditingFransorResponsableName}
-          onUpdateFransorResponsable={props.onUpdateFransorResponsable}
+          onEditFransorResponsable={(item) => {
+            setFransorResponsableName(item.name);
+            openReferentialModal("fransorResponsables", item.id);
+          }}
           onDeleteFransorResponsable={props.onDeleteFransorResponsable}
           openDeleteReasonModal={openDeleteReasonModal}
         />
@@ -577,19 +591,34 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
 
       <FormModal
         isOpen={showCreateModal}
-        title={createModalTitle}
-        onClose={() => setShowCreateModal(false)}
-        onSubmit={() => submitCreate()}
-        submitLabel="Ajouter"
+        title={referentialModalTitle}
+        onClose={closeReferentialModal}
+        onSubmit={() => submitReferentialForm()}
+        submitLabel={editingId ? "Enregistrer" : "Ajouter"}
       >
         <div className="form">
           {createModalTarget === "sites" && (
             <>
-              <input placeholder="Code site" value={siteCode} onChange={(e) => setSiteCode(e.target.value)} />
-              <input placeholder="Nom du site" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
-              <input placeholder="Adresse du site" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
-              <input placeholder="Parc" value={siteParc} onChange={(e) => setSiteParc(e.target.value)} />
-              <input placeholder="Famille" value={siteFamille} onChange={(e) => setSiteFamille(e.target.value)} />
+              <label>
+                Code site
+                <input placeholder="Ex. SITE-001" value={siteCode} onChange={(e) => setSiteCode(e.target.value)} />
+              </label>
+              <label>
+                Nom du site
+                <input placeholder="Ex. Site exemple" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
+              </label>
+              <label>
+                Adresse du site
+                <input placeholder="Ex. 1 rue Exemple" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} />
+              </label>
+              <label>
+                Parc
+                <input placeholder="Ex. Parc exemple" value={siteParc} onChange={(e) => setSiteParc(e.target.value)} />
+              </label>
+              <label>
+                Famille
+                <input placeholder="Ex. Famille exemple" value={siteFamille} onChange={(e) => setSiteFamille(e.target.value)} />
+              </label>
             </>
           )}
           {createModalTarget === "intervenants" && (
@@ -598,7 +627,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               label="Nom"
               value={intervenantName}
               onChange={setIntervenantName}
-              placeholder="Nom"
+              placeholder="Ex. Prestataire exemple"
             />
           )}
           {createModalTarget === "types" && (
@@ -607,7 +636,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               label="Libellé"
               value={typeLabel}
               onChange={setTypeLabel}
-              placeholder="Type d'anomalie"
+              placeholder="Ex. Type exemple"
               colorValue={typeColor}
               onColorChange={setTypeColor}
               colorLabel="Couleur du badge"
@@ -619,7 +648,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               label="Libellé"
               value={rondeMotifLabel}
               onChange={setRondeMotifLabel}
-              placeholder="Libellé du motif"
+              placeholder="Ex. Motif exemple"
               colorValue={rondeMotifColor}
               onColorChange={setRondeMotifColor}
               colorLabel="Couleur du badge"
@@ -631,7 +660,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               label="Libellé"
               value={holidayLabel}
               onChange={setHolidayLabel}
-              placeholder="Ex. : pont local, fermeture exceptionnelle"
+              placeholder="Ex. Fermeture locale"
               dateValue={holidayDateIso}
               onDateChange={setHolidayDateIso}
               dateLabel="Date"
@@ -643,7 +672,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
               label="Nom du responsable Fransor"
               value={fransorResponsableName}
               onChange={setFransorResponsableName}
-              placeholder="Nom du responsable Fransor"
+              placeholder="Ex. Nom exemple"
             />
           )}
         </div>
@@ -688,7 +717,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
             rows={2}
             value={deleteReasonValue}
             onChange={(e) => setDeleteReasonValue(e.target.value)}
-            placeholder="Ex: soumission créée par erreur"
+            placeholder="Ex. Motif exemple"
             autoFocus
           />
         </label>

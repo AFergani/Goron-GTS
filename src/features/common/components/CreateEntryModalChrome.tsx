@@ -1,7 +1,7 @@
 /**
  * En-tête et pied de page communs des modales « Nouvelle entrée » (création métier).
  *
- * Uniformise titres et disposition Annuler | aides | Créer sur main courante,
+ * Uniformise titres et disposition Fermer | aides | Créer sur main courante,
  * intervention et ronde. Le type `gardiennage` est prévu dans les titres si une modale
  * l’adopte plus tard (gardiennage utilise aujourd’hui un chrome dédié).
  */
@@ -37,7 +37,7 @@ export function CreateEntryModalHeader({
 }
 
 /**
- * Pied de modale création : Annuler, zone d’aide centrale, bouton submit (type submit du formulaire parent).
+ * Pied de modale création : Fermer, zone d’aide centrale, bouton submit (type submit du formulaire parent).
  */
 export function CreateEntryModalFooter({
   hintContent,
@@ -57,7 +57,7 @@ export function CreateEntryModalFooter({
   return (
     <div className="mc-modal-footer mc-modal-footer-create-unified">
       <button type="button" className="btn-ghost" onClick={onCancel} disabled={submitting}>
-        Annuler
+        Fermer
       </button>
       <div className="mc-modal-footer-hints-center muted">{hintContent ?? null}</div>
       <button type="submit" className="mc-btn-primary" disabled={Boolean(submitDisabled) || submitting}>

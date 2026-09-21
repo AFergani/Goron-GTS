@@ -1,11 +1,11 @@
 /**
- * Rendu partagé pour les référentiels de type libellé + couleur.
+ * Ligne de tableau pour les référentiels libellé + couleur.
  *
- * Utilisé par les types d'anomalie et les motifs de ronde, qui partagent la même
- * logique d'édition inline : <input libellé> + <input type="color"> + boutons.
+ * Utilisée par les types d'anomalie et les motifs de ronde.
+ * L’édition se fait dans la modale du panneau, pas en ligne.
  */
 
-import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 type ReferenceItem = {
   id: string;
@@ -16,55 +16,28 @@ type ReferenceItem = {
 
 type ReferenceLabelColorRowProps<T extends ReferenceItem> = {
   item: T;
-  isEditing: boolean;
-  editingLabel: string;
-  editingColor: string;
   canDeleteData: boolean;
-  onEditStart: (item: T) => void;
-  onEditCancel: () => void;
-  onUpdate: (item: T, label: string, colorHex: string) => void | Promise<void>;
+  onEdit: (item: T) => void;
   onDelete: (item: T) => void;
-  setEditingLabel: (value: string) => void;
-  setEditingColor: (value: string) => void;
   systemLabel?: string;
   colorDefault: string;
 };
 
 export function ReferenceLabelColorRow<T extends ReferenceItem>({
   item,
-  isEditing,
-  editingLabel,
-  editingColor,
   canDeleteData,
-  onEditStart,
-  onEditCancel,
-  onUpdate,
+  onEdit,
   onDelete,
-  setEditingLabel,
-  setEditingColor,
   systemLabel = "Type système",
   colorDefault
 }: ReferenceLabelColorRowProps<T>) {
   return (
-    <tr key={item.id}>
+    <tr>
       <td>
-        {isEditing ? (
-          <div className="data-type-edit-fields">
-            <input value={editingLabel} onChange={(e) => setEditingLabel(e.target.value)} />
-            <input
-              type="color"
-              value={editingColor || colorDefault}
-              onChange={(e) => setEditingColor(e.target.value)}
-              title="Couleur du badge"
-              aria-label="Couleur du badge"
-            />
-          </div>
-        ) : (
-          <span className="data-type-label-with-color">
-            <span className="data-type-color-dot" style={{ backgroundColor: item.colorHex || colorDefault }} aria-hidden />
-            {item.label}
-          </span>
-        )}
+        <span className="data-type-label-with-color">
+          <span className="data-type-color-dot" style={{ backgroundColor: item.colorHex || colorDefault }} aria-hidden />
+          {item.label}
+        </span>
       </td>
       <td>
         {item.isSystem ? (
@@ -75,38 +48,14 @@ export function ReferenceLabelColorRow<T extends ReferenceItem>({
           </div>
         ) : (
           <div className="table-actions">
-            {isEditing ? (
-              <>
-                <button
-                  className="btn-light action-icon-btn"
-                  title="Sauvegarder"
-                  aria-label="Sauvegarder"
-                  onClick={() => {
-                    void onUpdate(item, editingLabel, editingColor || colorDefault);
-                    onEditCancel();
-                  }}
-                >
-                  <Save size={14} />
-                </button>
-                <button
-                  className="btn-light action-icon-btn"
-                  title="Annuler"
-                  aria-label="Annuler"
-                  onClick={onEditCancel}
-                >
-                  <RotateCcw size={14} />
-                </button>
-              </>
-            ) : (
-              <button
-                className="btn-light action-icon-btn"
-                title="Modifier"
-                aria-label="Modifier"
-                onClick={() => onEditStart(item)}
-              >
-                <Pencil size={14} />
-              </button>
-            )}
+            <button
+              className="btn-light action-icon-btn"
+              title="Modifier"
+              aria-label="Modifier"
+              onClick={() => onEdit(item)}
+            >
+              <Pencil size={14} />
+            </button>
             {canDeleteData && (
               <button
                 className="btn-danger action-icon-btn"

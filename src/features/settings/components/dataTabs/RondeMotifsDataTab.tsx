@@ -3,7 +3,7 @@
  */
 
 import type { RondeMotifTypeRef } from "../../../rondes/model/ronde.types";
-import type { OpenDeleteReasonModal, SyncOrAsync } from "./common";
+import type { OpenDeleteReasonModal } from "./common";
 import { LabelColorReferenceDataTab } from "./LabelColorReferenceDataTab";
 
 type RondeMotifsDataTabProps = {
@@ -11,13 +11,7 @@ type RondeMotifsDataTabProps = {
   filteredRondeMotifs: RondeMotifTypeRef[];
   pageStart: number;
   pageEnd: number;
-  editingRondeMotifId: string | null;
-  editingRondeMotifLabel: string;
-  editingRondeMotifColor: string;
-  setEditingRondeMotifId: (value: string | null) => void;
-  setEditingRondeMotifLabel: (value: string) => void;
-  setEditingRondeMotifColor: (value: string) => void;
-  onUpdateRondeMotifType: (id: string, label: string, colorHex: string) => SyncOrAsync;
+  onEditRondeMotif: (item: RondeMotifTypeRef) => void;
   onDeleteRondeMotifType: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
 };
@@ -29,13 +23,7 @@ export function RondeMotifsDataTab(props: RondeMotifsDataTabProps) {
       filteredItems={props.filteredRondeMotifs}
       pageStart={props.pageStart}
       pageEnd={props.pageEnd}
-      editingId={props.editingRondeMotifId}
-      editingLabel={props.editingRondeMotifLabel}
-      editingColor={props.editingRondeMotifColor}
-      setEditingId={props.setEditingRondeMotifId}
-      setEditingLabel={props.setEditingRondeMotifLabel}
-      setEditingColor={props.setEditingRondeMotifColor}
-      onUpdate={props.onUpdateRondeMotifType}
+      onEdit={props.onEditRondeMotif}
       onDelete={props.onDeleteRondeMotifType}
       openDeleteReasonModal={props.openDeleteReasonModal}
       columnLabel="Motif de ronde"

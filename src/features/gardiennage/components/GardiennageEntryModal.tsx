@@ -743,7 +743,7 @@ export function GardiennageEntryModal({
             rows={3}
             value={cancelReason}
             maxLength={500}
-            placeholder="Saisissez un motif d'annulation…"
+            placeholder="Ex. Motif exemple"
             className="mc-textarea"
             autoFocus
             onChange={(e) => setCancelReason(e.target.value)}

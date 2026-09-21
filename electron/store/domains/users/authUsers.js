@@ -720,6 +720,29 @@ async function ensureDevUser(store, { roles }) {
   await refreshUsersCache(store);
 }
 
+/**
+ * Vérifie le mot de passe d'un compte autorisé à gérer PostgreSQL (responsable
+ * de station, directeur, ou Admin).
+ *
+ * @param {object} store
+ * @param {{ username?: string, fullName?: string, password: string, roles: object }} options
+ * @returns {Promise<"ok"|"invalid"|"forbidden"|"dev-code-unavailable">}
+ */
+async function confirmStationAdminPassword(store, { username, fullName, password, roles }) {
+  const db = requirePersistence(store);
+  const login = String(username || "").trim().toLowerCase();
+  let row = login ? getCachedUserRow(store, login) : null;
+  if (!row && login) {
+    row = await db.get(`SELECT ${USERS_SELECT} FROM users WHERE lower(username) = ?`, [login]);
+    if (row && !isDatabaseBooleanTrue(row.is_active)) row = null;
+  }
+  if (!row && fullName) {
+    row = await getActiveUserByDisplayName(db, normalizeDisplayName(fullName));
+  }
+  if (!row || !isStationAdminRequester(row, roles)) return "forbidden";
+  return checkAccountCredentials(store, row, password, roles);
+}
+
 module.exports = {
   login,
   completeFirstLogin,
@@ -734,6 +757,7 @@ module.exports = {
   ensureStationAdminAccess,
   refreshUsersCache,
   getCachedUserRow,
-  isStationAdminRequester
+  isStationAdminRequester,
+  confirmStationAdminPassword
 };
 

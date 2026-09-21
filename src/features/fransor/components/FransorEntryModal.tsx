@@ -26,7 +26,7 @@ type FransorEntryModalProps = {
 
 /**
  * @param props.isOpen - Affichage de la modale
- * @param props.onRequestClose - Fermeture demandée (overlay, Annuler, Échap)
+ * @param props.onRequestClose - Fermeture demandée (overlay, Fermer, Échap)
  * @param props.onSubmit - Enregistrement de la saisie
  */
 export function FransorEntryModal({
@@ -119,7 +119,7 @@ export function FransorEntryModal({
         </div>
         <div className="row-actions modal-actions">
           <button type="button" className="btn-light" onClick={onRequestClose}>
-            Annuler
+            Fermer
           </button>
           <button type="button" onClick={onSubmit}>
             Enregistrer

@@ -30,14 +30,6 @@
 .postgres-config-lead {
   margin: 0;
   line-height: 1.45;
-  flex: 1;
-  min-width: 0;
-}
-
-.postgres-config-lead-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
 }
 
 .postgres-config-meta {

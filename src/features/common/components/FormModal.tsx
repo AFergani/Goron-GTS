@@ -1,5 +1,5 @@
 /**
- * Modale formulaire réutilisable (titre, contenu, annuler / soumettre).
+ * Modale formulaire réutilisable (titre, contenu, Fermer / soumettre).
  *
  * Utilisée pour les créations référentiel, alertes à bouton unique ou formulaires
  * métier avec validation locale avant soumission async.
@@ -18,7 +18,7 @@ type FormModalProps = {
   onSubmit?: () => void | Promise<void>;
   submitLabel?: string;
   cancelLabel?: string;
-  /** Masque le bouton annuler (alerte à bouton unique) */
+  /** Masque le bouton Fermer (alerte à bouton unique) */
   hideCancel?: boolean;
   /** Désactive les actions pendant une opération externe */
   busy?: boolean;
@@ -66,7 +66,7 @@ export function FormModal({
   children,
   onSubmit,
   submitLabel = "Enregistrer",
-  cancelLabel = "Annuler",
+  cancelLabel = "Fermer",
   hideCancel = false,
   busy = false,
   error,

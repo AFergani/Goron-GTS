@@ -12,6 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 const { getPostgresConnectionConfig } = require("../store/persistence/postgresConnectionConfig");
+const { probePostgresLab } = require("../store/persistence/postgresLabProbe");
 const {
   DAILY_HOUR,
   DAILY_KEEP,
@@ -19,7 +20,6 @@ const {
   readPostgresBackupConfig,
   writePostgresBackupConfig
 } = require("../store/persistence/postgresBackupConfig");
-const { captureRestoreSnapshot, writeRestoreDiffReports } = require("./postgresRestoreDiff");
 const { runDumpCompare } = require("./postgresDumpCompare");
 const {
   isLoopbackHost,
@@ -40,6 +40,8 @@ const {
 const SCHEDULER_INTERVAL_MS = 60 * 1000;
 const SCHEDULER_ACTOR = "system:pg-backup";
 const BUSY_ERROR = "Une sauvegarde, une restauration ou une comparaison est déjà en cours.";
+/** Aligné sur `RESTORE_CONFIRM_PHRASE` côté UI (`postgresRestoreConfirm.ts`). */
+const RESTORE_CONFIRM_PHRASE = "RESTAURER";
 
 /**
  * Fabrique le service de sauvegarde PostgreSQL.
@@ -411,14 +413,58 @@ function createPostgresBackupService(deps) {
   }
 
   /**
+   * Double confirmation : mot de passe du compte responsable / directeur et mot RESTAURER.
+   * Le mot de passe n'est jamais journalisé.
+   *
    * @param {object} payload
-   * @returns {Promise<{ success: boolean, fileName: string, reportHtmlPath: string|null }>}
+   * @param {string} requesterUsername
+   * @returns {Promise<void>}
+   */
+  async function assertRestoreConfirmation(payload, requesterUsername) {
+    const phrase = String(payload.confirmPhrase || "").trim().toLocaleUpperCase("fr-FR");
+    const password = String(payload.accountPassword || "");
+    payload.accountPassword = "";
+    payload.confirmPhrase = "";
+    if (phrase !== RESTORE_CONFIRM_PHRASE) {
+      throw new Error(`Pour confirmer, saisissez le mot ${RESTORE_CONFIRM_PHRASE}.`);
+    }
+    if (!password) {
+      throw new Error("Saisissez le mot de passe du compte responsable ou directeur.");
+    }
+    const store = getUserStore();
+    if (!store || typeof store.confirmStationAdminPassword !== "function") {
+      throw new Error("Impossible de vérifier le compte pour la restauration.");
+    }
+    const sessionUser =
+      requesterUsername !== SCHEDULER_ACTOR && requesterUsername !== "system:pg-bootstrap"
+        ? requesterUsername
+        : "";
+    const check = await store.confirmStationAdminPassword({
+      username: sessionUser || undefined,
+      fullName: sessionUser ? undefined : String(payload.managerFullName || "").trim(),
+      password
+    });
+    if (check === "dev-code-unavailable") {
+      throw new Error("Code administrateur indisponible sur ce poste.");
+    }
+    if (check === "forbidden") {
+      throw new Error("Seul un responsable, un directeur ou un administrateur peut restaurer.");
+    }
+    if (check !== "ok") {
+      throw new Error("Mot de passe incorrect.");
+    }
+  }
+
+  /**
+   * @param {object} payload
+   * @returns {Promise<{ success: boolean, fileName: string }>}
    */
   async function restoreBackup(payload = {}) {
     const requesterUsername = String(payload.requesterUsername || SCHEDULER_ACTOR).trim() || SCHEDULER_ACTOR;
     if (requesterUsername !== SCHEDULER_ACTOR && requesterUsername !== "system:pg-bootstrap") {
       assertCanManage(requesterUsername);
     }
+    await assertRestoreConfirmation(payload, requesterUsername);
     if (busy) {
       throw new Error(BUSY_ERROR);
     }
@@ -433,7 +479,6 @@ function createPostgresBackupService(deps) {
     const store = getUserStore();
     busy = true;
     try {
-      const before = await captureRestoreSnapshot(pg);
       if (store && typeof store.close === "function") {
         await store.close().catch(() => {});
       }
@@ -449,39 +494,13 @@ function createPostgresBackupService(deps) {
           throw new Error(reconnect.error || "Restauration terminée, mais la reconnexion applicative a échoué.");
         }
       }
-      const after = await captureRestoreSnapshot(pg);
-      let reportHtmlPath = null;
-      try {
-        const reports = writeRestoreDiffReports({
-          dumpPath: srcPath,
-          actorLabel: reportActorLabel(requesterUsername),
-          before,
-          after
-        });
-        reportHtmlPath = reports.htmlPath;
-        if (reportHtmlPath && shell && typeof shell.openPath === "function") {
-          await shell.openPath(reportHtmlPath).catch(() => "");
-        }
-      } catch (reportError) {
-        logBackupTechEvent(
-          "PG_BACKUP_RESTORE_REPORT_FAILED",
-          "Restauration OK, mais le rapport d'écarts n'a pas pu être écrit.",
-          {
-            reason: reportError instanceof Error ? reportError.message : String(reportError || ""),
-            fileName: path.basename(srcPath),
-            actorLabel: reportActorLabel(requesterUsername)
-          }
-        );
-      }
       logBackupTechEvent("PG_BACKUP_RESTORE_OK", "Restauration PostgreSQL terminée.", {
         fileName: path.basename(srcPath),
-        reportHtmlPath,
         actorLabel: reportActorLabel(requesterUsername)
       });
       return {
         success: true,
-        fileName: path.basename(srcPath),
-        reportHtmlPath
+        fileName: path.basename(srcPath)
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "Restauration impossible.");
@@ -506,7 +525,7 @@ function createPostgresBackupService(deps) {
    * Compare le dump à la base actuelle via une base temporaire (live intacte).
    *
    * @param {object} payload
-   * @returns {Promise<{ success: boolean, fileName: string, reportHtmlPath: string, totals: object }>}
+   * @returns {Promise<{ success: boolean, fileName: string, reportHtmlPath: string, totals: object, schemaWarning: boolean, dumpFileName: string, generatedAt: string, tables: object[] }>}
    */
   async function compareBackup(payload = {}) {
     const requesterUsername = String(payload.requesterUsername || SCHEDULER_ACTOR).trim() || SCHEDULER_ACTOR;
@@ -532,9 +551,6 @@ function createPostgresBackupService(deps) {
         actorLabel: reportActorLabel(requesterUsername),
         restoreIntoDatabase: (database) => restoreDatabase(pg, srcPath, { database, clean: false })
       });
-      if (compared.htmlPath && shell && typeof shell.openPath === "function") {
-        await shell.openPath(compared.htmlPath).catch(() => "");
-      }
       logBackupTechEvent("PG_BACKUP_COMPARE_OK", "Comparaison dump / base actuelle terminée.", {
         fileName: path.basename(srcPath),
         reportHtmlPath: compared.htmlPath,
@@ -547,7 +563,11 @@ function createPostgresBackupService(deps) {
         success: true,
         fileName: path.basename(srcPath),
         reportHtmlPath: compared.htmlPath,
-        totals: compared.totals
+        totals: compared.totals,
+        schemaWarning: Boolean(compared.schemaWarning),
+        dumpFileName: compared.dumpFileName,
+        generatedAt: compared.generatedAt,
+        tables: compared.tables
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || "Comparaison impossible.");

@@ -451,7 +451,7 @@ export function VariablesManagementPanel({
               <div className="modal-grid-two">
                 <label>
                   Libellé
-                  <input value={draftLabel} onChange={(e) => setDraftLabel(e.target.value)} placeholder="Ex. Référence contrat" />
+                  <input value={draftLabel} onChange={(e) => setDraftLabel(e.target.value)} placeholder="Ex. Libellé exemple" />
                 </label>
                 <label>
                   Placeholder
@@ -596,7 +596,7 @@ export function VariablesManagementPanel({
             </div>
             <div className="row-actions modal-actions">
               <button type="button" className="btn-light" onClick={requestClose}>
-                Annuler
+                Fermer
               </button>
               <button type="button" onClick={() => void saveDraftIntoRows()} disabled={saving}>
                 Enregistrer

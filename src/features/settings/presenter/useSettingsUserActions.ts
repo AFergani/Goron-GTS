@@ -195,7 +195,7 @@ export function useSettingsUserActions({
       confirmDisabled: true,
       requireReason: true,
       children: createReasonField(setConfirmReasonValue, {
-        placeholder: "Ex: demande de l'opérateur après oubli du code, compte bloqué, suspicion de compromission",
+        placeholder: "Ex. Motif exemple",
         autoFocus: true
       }),
       onConfirm: async () => {
@@ -240,7 +240,7 @@ export function useSettingsUserActions({
       confirmDisabled: true,
       requireReason: true,
       children: createReasonField(setConfirmReasonValue, {
-        placeholder: "Ex: demande de l'opérateur après saisies erronées, identité vérifiée",
+        placeholder: "Ex. Motif exemple",
         autoFocus: true
       }),
       onConfirm: async () => {
@@ -273,7 +273,7 @@ export function useSettingsUserActions({
       confirmDisabled: true,
       requireReason: true,
       children: createReasonField(setConfirmReasonValue, {
-        placeholder: "Ex: départ de l'utilisateur, suspension temporaire",
+        placeholder: "Ex. Motif exemple",
         autoFocus: true
       }),
       onConfirm: async () => {
@@ -331,7 +331,7 @@ export function useSettingsUserActions({
             "aria-label": "Nom affiché pour la réactivation"
           })
         ),
-        createReasonField(setConfirmReasonValue, { placeholder: "Ex: retour d'absence, compte réhabilité" })
+        createReasonField(setConfirmReasonValue, { placeholder: "Ex. Motif exemple" })
       ),
       onConfirm: async () => {
         onError("");

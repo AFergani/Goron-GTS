@@ -61,11 +61,7 @@ export function RondeEntryReasonDialogs({
             rows={2}
             value={cancelReasonInput}
             onChange={(e) => onCancelReasonChange(e.target.value)}
-            placeholder={
-              cancelIsNonEffectuee
-                ? "Ex: prestataire absent / accès impossible"
-                : "Ex: doublon / demande annulée"
-            }
+            placeholder="Ex. Motif exemple"
             autoFocus
           />
         </label>

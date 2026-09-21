@@ -340,7 +340,7 @@ export function RondeLinkedBatchPanel({
         <RondeConfirmReasonField
           value={deleteReason}
           onChange={setDeleteReason}
-          placeholder="Ex. prestation annulée par le client"
+          placeholder="Ex. Motif exemple"
           autoFocus
         />
       </ConfirmModal>
@@ -368,7 +368,7 @@ export function RondeLinkedBatchPanel({
         <RondeConfirmReasonField
           value={requestDeleteReason}
           onChange={setRequestDeleteReason}
-          placeholder="Ex. lot créé par erreur, prestation annulée"
+          placeholder="Ex. Motif exemple"
           autoFocus
         />
       </ConfirmModal>

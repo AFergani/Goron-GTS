@@ -1708,11 +1708,6 @@ th {
   width: 25%;
 }
 
-.data-site-edit-fields {
-  display: grid;
-  gap: 6px;
-}
-
 .data-table-fixed col.data-col-parc {
   width: 20%;
 }
@@ -4261,19 +4256,12 @@ th {
   border: 1px solid var(--border);
 }
 
-.data-type-edit-fields {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .data-type-color-field {
   display: grid;
   gap: 6px;
 }
 
-.data-type-color-field input[type="color"],
-.data-type-edit-fields input[type="color"] {
+.data-type-color-field input[type="color"] {
   width: 44px;
   min-width: 44px;
   height: 32px;

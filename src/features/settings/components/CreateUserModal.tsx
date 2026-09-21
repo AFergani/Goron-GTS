@@ -52,7 +52,6 @@ export function CreateUserModal({
       onClose={onClose}
       onSubmit={onSubmit}
       submitLabel={mode === "create" ? "Créer l'utilisateur" : "Enregistrer les modifications"}
-      cancelLabel="Annuler"
       submitDisabled={reasonMissing || !String(form.username || "").trim()}
     >
       <div className="form">
@@ -126,7 +125,7 @@ export function CreateUserModal({
               value={form.reason}
               required
               minLength={MIN_AUDIT_REASON_LENGTH}
-              placeholder="Ex: changement de fonction, correction du nom affiché"
+              placeholder="Ex. Motif exemple"
               onChange={(e) => onChange({ ...form, reason: e.target.value })}
             />
           </label>

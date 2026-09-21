@@ -455,7 +455,7 @@ export function GardiennagePage({
           <textarea
             rows={2}
             className="mc-textarea"
-            placeholder="Indiquer la raison de la suppression…"
+            placeholder="Ex. Motif exemple"
             value={deleteReason}
             maxLength={500}
             autoFocus

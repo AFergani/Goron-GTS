@@ -4,7 +4,7 @@ import { useModalEscape } from "./useModalEscape";
 /**
  * Garde de fermeture pour modales de saisie avec risque de perte de brouillon.
  *
- * Expose `requestClose` à brancher sur overlay, Annuler, croix et Échap : si `enabled`
+ * Expose `requestClose` à brancher sur overlay, Fermer, croix et Échap : si `enabled`
  * et `isDirty`, ouvre une confirmation (`showDiscardConfirm`) au lieu de fermer tout de suite.
  * Si `enabled` est faux (sous-dialogue ouvert), `requestClose` ne fait rien.
  *

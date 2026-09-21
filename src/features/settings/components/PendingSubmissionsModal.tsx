@@ -270,7 +270,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                   </span>
                                   <input
                                     value={draft.parc}
-                                    placeholder="Parc"
+                                    placeholder="Ex. Parc exemple"
                                     onChange={(e) =>
                                       setSiteDrafts((prev) => ({
                                         ...prev,
@@ -285,7 +285,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                   </span>
                                   <input
                                     value={draft.famille}
-                                    placeholder="Famille"
+                                    placeholder="Ex. Famille exemple"
                                     onChange={(e) =>
                                       setSiteDrafts((prev) => ({
                                         ...prev,
@@ -301,7 +301,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                     onClick={() => setExpandedId(null)}
                                     disabled={isSubmitting}
                                   >
-                                    Annuler
+                                    Fermer
                                   </button>
                                   <button
                                     type="button"
@@ -366,7 +366,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                   </span>
                                   <input
                                     value={draft.name}
-                                    placeholder="Nom"
+                                    placeholder="Ex. Prestataire exemple"
                                     onChange={(e) =>
                                       setIntervenantDrafts((prev) => ({
                                         ...prev,
@@ -382,7 +382,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                     onClick={() => setExpandedId(null)}
                                     disabled={isSubmitting}
                                   >
-                                    Annuler
+                                    Fermer
                                   </button>
                                   <button
                                     type="button"

@@ -1,10 +1,11 @@
 /**
  * Onglet générique référentiel « nom seul » (intervenants, responsables Fransor).
+ * L’édition se fait dans la modale du panneau, pas en ligne.
  */
 
-import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useTableSort } from "../../../common/hooks/useTableSort";
-import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal } from "./common";
 
 type NameOnlyItem = {
   id: string;
@@ -20,11 +21,7 @@ type NameOnlyReferenceDataTabProps<T extends NameOnlyItem> = {
   emptyMessage: string;
   deleteReasonPrefix: string;
   tableClassName?: string;
-  editingId: string | null;
-  editingName: string;
-  setEditingId: (value: string | null) => void;
-  setEditingName: (value: string) => void;
-  onUpdate: (id: string, name: string) => SyncOrAsync;
+  onEdit: (item: T) => void;
   onDelete: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
 };
@@ -64,50 +61,17 @@ export function NameOnlyReferenceDataTab<T extends NameOnlyItem>(props: NameOnly
         <tbody>
           {paged.map((item) => (
             <tr key={item.id}>
-              <td>
-                {props.editingId === item.id ? (
-                  <input value={props.editingName} onChange={(e) => props.setEditingName(e.target.value)} />
-                ) : (
-                  item.name
-                )}
-              </td>
+              <td>{item.name}</td>
               <td>
                 <div className="table-actions">
-                  {props.editingId === item.id ? (
-                    <>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Sauvegarder"
-                        aria-label="Sauvegarder"
-                        onClick={() => {
-                          void props.onUpdate(item.id, props.editingName);
-                          props.setEditingId(null);
-                        }}
-                      >
-                        <Save size={14} />
-                      </button>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Annuler"
-                        aria-label="Annuler"
-                        onClick={() => props.setEditingId(null)}
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="btn-light action-icon-btn"
-                      title="Modifier"
-                      aria-label="Modifier"
-                      onClick={() => {
-                        props.setEditingId(item.id);
-                        props.setEditingName(item.name);
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
+                  <button
+                    className="btn-light action-icon-btn"
+                    title="Modifier"
+                    aria-label="Modifier"
+                    onClick={() => props.onEdit(item)}
+                  >
+                    <Pencil size={14} />
+                  </button>
                   {props.canDeleteData && (
                     <button
                       className="btn-danger action-icon-btn"

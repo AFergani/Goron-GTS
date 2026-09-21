@@ -1,9 +1,9 @@
 /**
- * Modale de confirmation réutilisable (annuler / confirmer, action async).
+ * Modale de confirmation réutilisable (Fermer / confirmer, action async).
  *
  * Utilisée dans les modales métier, Paramètres et AppShell pour les suppressions,
  * validations avec motif (`children`) ou dialogues du presenter settings.
- * Overlay cliquable pour annuler ; état « Enregistrement… » pendant `onConfirm` async.
+ * Overlay cliquable pour fermer ; état « Enregistrement… » pendant `onConfirm` async.
  */
 
 import { useState } from "react";
@@ -18,7 +18,7 @@ type ConfirmModalProps = {
   confirmClassName?: string;
   /** Désactive le bouton de confirmation (ex. champ obligatoire non rempli) */
   confirmDisabled?: boolean;
-  /** Libellé du bouton secondaire (annulation / retour) */
+  /** Libellé du bouton secondaire (fermeture / retour) */
   cancelLabel?: string;
   /** Contenu additionnel affiché entre le message et les boutons (ex. champ motif) */
   children?: ReactNode;
@@ -33,7 +33,7 @@ export function ConfirmModal({
   confirmLabel,
   confirmClassName,
   confirmDisabled = false,
-  cancelLabel = "Annuler",
+  cancelLabel = "Fermer",
   children,
   onCancel,
   onConfirm

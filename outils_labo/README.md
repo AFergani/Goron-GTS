@@ -10,9 +10,9 @@ Le mot de passe ci-dessous est le secret **labo** uniquement (identique au guide
 
 | Element | Emplacement |
 |---------|-------------|
-| Scripts labo | `Goron-GTS\outils_labo\` |
-| Raccourci demarrage PG seul | `Goron-GTS\scripts\start-goron-pg18.bat` |
-| Schema SQL (reset option 11) | `Goron-GTS\electron\store\persistence\migrations\schema.sql` |
+| Scripts labo | `outils_labo\` (dépôt ou pack de release) |
+| Schema SQL (reset option 11) | dépôt : `electron\store\persistence\migrations\schema.sql` — pack : `outils_labo\schema.sql` |
+| Raccourci démarrage PG (dépôt) | `scripts\start-goron-pg18.bat` — en pack : menu labo touche 1 |
 | Conteneur Docker | `goron-pg18` (image `postgres:18`, port `127.0.0.1:5432`) |
 | Donnees PostgreSQL Docker | volume Docker `goron_gts` (propre a ce PC) |
 | Donnees / config appli Electron | `%APPDATA%\goron-gts\` |

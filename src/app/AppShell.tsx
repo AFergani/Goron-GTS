@@ -529,7 +529,6 @@ export function AppShell() {
             onDeletePendingSiteSubmission={(payload) => settings.onDeletePendingSiteSubmission(payload)}
             onDeletePendingIntervenantSubmission={(payload) => settings.onDeletePendingIntervenantSubmission(payload)}
             onNotify={notifyToast}
-            onOpenHelpTopic={openHelpCenter}
             showCreateModal={settings.showCreateModal}
             onCloseCreateModal={() => settings.setShowCreateModal(false)}
             onCreateFormChange={settings.setCreateForm}

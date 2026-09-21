@@ -53,7 +53,7 @@ export function RondePlannedProfileLifecycleModals({
           <RondeConfirmReasonField
             value={lc.requestReason}
             onChange={lc.setRequestReason}
-            placeholder="Ex. fin de contrat demandée par le client"
+            placeholder="Ex. Motif exemple"
             disabled={lc.requestSubmitting}
             autoFocus
           />
@@ -77,7 +77,7 @@ export function RondePlannedProfileLifecycleModals({
           <RondeConfirmReasonField
             value={lc.rejectReason}
             onChange={lc.setRejectReason}
-            placeholder="Ex. arrêt non validé, contrat encore actif"
+            placeholder="Ex. Motif exemple"
             disabled={lc.rejectSubmitting}
             autoFocus
           />
@@ -102,7 +102,7 @@ export function RondePlannedProfileLifecycleModals({
           <RondeConfirmReasonField
             value={lc.deleteReason}
             onChange={lc.setDeleteReason}
-            placeholder="Ex.: prestation annulée par le client"
+            placeholder="Ex. Motif exemple"
             disabled={lc.deleteSubmitting}
             autoFocus
           />

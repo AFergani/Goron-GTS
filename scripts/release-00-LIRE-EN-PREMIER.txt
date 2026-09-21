@@ -17,8 +17,10 @@ Contenu de ce pack
   00-LIRE-EN-PREMIER.txt     ce guide
   installer\                 installateur Windows (voie conseillée)
   folder\                    Goron GTS.exe + resources
-  portable\                  exe unique + data\templates
-  outils_labo\               menu labo (démarrer PG, logs, reset)
+  portable\                  exe unique + data\templates (modèles Word)
+  outils_labo\               menu labo (démarrer PG, logs, reset, dump)
+                             + schema.sql (reset sans le dépôt source)
+  outils_prod\               console production (relance PG, dumps hors appli)
 
 
 ══════════════════════════════════════
@@ -161,6 +163,14 @@ Badge base vert = environnement prêt.
   Arrêter PG      même menu → 4
   Logs Docker     même menu → 6
   Journal appli   %APPDATA%\goron-gts\gts-pg-events.log  (menu → 7 / 8)
+  Dump labo       même menu → 12  (fichier .dump, pas de rapport HTML)
+
+Sauvegardes applicatives (Paramètres) : fichiers
+  goron_gts_journaliere_AAAA-MM-JJ.dump
+  goron_gts_mensuelle_AAAA-MM.dump
+  goron_gts_manuelle_AAAA-MM-JJ_HH-mm.dump
+La comparaison dump / base se fait dans l'application. Aucun rapport HTML
+n'est créé après une restauration.
 
 Pare-feu : le labo local n'a pas besoin d'ouvrir 5432 vers le réseau.
 Sur un vrai poste serveur LAN, ouvrir TCP 5432 uniquement vers les stations.

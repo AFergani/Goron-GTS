@@ -496,7 +496,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
               ) : (
                 <label>
                   Famille
-                  <input list="familles-list" value={assignFamille} onChange={(e) => setAssignFamille(e.target.value)} placeholder="Ex. GORON" />
+                  <input list="familles-list" value={assignFamille} onChange={(e) => setAssignFamille(e.target.value)} placeholder="Ex. Famille exemple" />
                   <datalist id="familles-list">
                     {uniqueFamilles.map((f) => (
                       <option key={f} value={f} />
@@ -507,7 +507,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
             </div>
             <div className="row-actions modal-actions">
               <button type="button" className="btn-light" onClick={requestClose}>
-                Annuler
+                Fermer
               </button>
               <button type="button" onClick={() => void submitAssignment()}>
                 Choisir et attribuer le modèle

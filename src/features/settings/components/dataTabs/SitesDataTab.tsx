@@ -1,32 +1,20 @@
 /**
- * Onglet sites (CRUD, motif de suppression).
+ * Onglet sites (lecture tableau, modification via modale, motif de suppression).
  */
 
-import { Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { SiteRef } from "../../../../types";
 import { SiteDisplayCopyButton } from "../../../common/components/SiteDisplayCopyButton";
 import { useTableSort } from "../../../common/hooks/useTableSort";
 import type { NotifyToast } from "../../../common/model/toast.types";
-import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal } from "./common";
 
 type SitesDataTabProps = {
   canDeleteData: boolean;
   filteredSites: SiteRef[];
   pageStart: number;
   pageEnd: number;
-  editingSiteId: string | null;
-  editingSiteCode: string;
-  editingSiteName: string;
-  editingSiteAddress: string;
-  editingSiteParc: string;
-  editingSiteFamille: string;
-  setEditingSiteId: (value: string | null) => void;
-  setEditingSiteCode: (value: string) => void;
-  setEditingSiteName: (value: string) => void;
-  setEditingSiteAddress: (value: string) => void;
-  setEditingSiteParc: (value: string) => void;
-  setEditingSiteFamille: (value: string) => void;
-  onUpdateSite: (payload: { id: string; code: string; name: string; address: string; parc: string; famille: string }) => SyncOrAsync;
+  onEditSite: (site: SiteRef) => void;
   onDeleteSite: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
   onNotify?: NotifyToast;
@@ -88,98 +76,25 @@ export function SitesDataTab(props: SitesDataTabProps) {
           {pagedSites.map((site) => (
             <tr key={site.id}>
               <td className="mc-site-wrap">
-                {props.editingSiteId === site.id ? (
-                  <div className="data-site-edit-fields">
-                    <input
-                      aria-label="Nom du site"
-                      placeholder="Nom du site"
-                      value={props.editingSiteName}
-                      onChange={(e) => props.setEditingSiteName(e.target.value)}
-                    />
-                    <input
-                      aria-label="Code site"
-                      placeholder="Code site"
-                      value={props.editingSiteCode}
-                      onChange={(e) => props.setEditingSiteCode(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <SiteDisplayCopyButton
-                    variant="table"
-                    siteLabel={`${site.name} (${site.code})`}
-                    onNotify={props.onNotify}
-                  />
-                )}
+                <SiteDisplayCopyButton
+                  variant="table"
+                  siteLabel={`${site.name} (${site.code})`}
+                  onNotify={props.onNotify}
+                />
               </td>
-              <td>
-                {props.editingSiteId === site.id ? (
-                  <input value={props.editingSiteAddress} onChange={(e) => props.setEditingSiteAddress(e.target.value)} />
-                ) : (
-                  site.address || "-"
-                )}
-              </td>
-              <td>
-                {props.editingSiteId === site.id ? (
-                  <input value={props.editingSiteParc} onChange={(e) => props.setEditingSiteParc(e.target.value)} />
-                ) : (
-                  site.parc || "-"
-                )}
-              </td>
-              <td>
-                {props.editingSiteId === site.id ? (
-                  <input value={props.editingSiteFamille} onChange={(e) => props.setEditingSiteFamille(e.target.value)} />
-                ) : (
-                  site.famille || "-"
-                )}
-              </td>
+              <td>{site.address || "-"}</td>
+              <td>{site.parc || "-"}</td>
+              <td>{site.famille || "-"}</td>
               <td>
                 <div className="table-actions">
-                  {props.editingSiteId === site.id ? (
-                    <>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Sauvegarder"
-                        aria-label="Sauvegarder"
-                        onClick={() => {
-                          void props.onUpdateSite({
-                            id: site.id,
-                            code: props.editingSiteCode,
-                            name: props.editingSiteName,
-                            address: props.editingSiteAddress,
-                            parc: props.editingSiteParc,
-                            famille: props.editingSiteFamille
-                          });
-                          props.setEditingSiteId(null);
-                        }}
-                      >
-                        <Save size={14} />
-                      </button>
-                      <button
-                        className="btn-light action-icon-btn"
-                        title="Annuler"
-                        aria-label="Annuler"
-                        onClick={() => props.setEditingSiteId(null)}
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="btn-light action-icon-btn"
-                      title="Modifier"
-                      aria-label="Modifier"
-                      onClick={() => {
-                        props.setEditingSiteId(site.id);
-                        props.setEditingSiteCode(site.code);
-                        props.setEditingSiteName(site.name);
-                        props.setEditingSiteAddress(site.address || "");
-                        props.setEditingSiteParc(site.parc || "");
-                        props.setEditingSiteFamille(site.famille || "");
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
+                  <button
+                    className="btn-light action-icon-btn"
+                    title="Modifier"
+                    aria-label="Modifier"
+                    onClick={() => props.onEditSite(site)}
+                  >
+                    <Pencil size={14} />
+                  </button>
                   {props.canDeleteData && (
                     <button
                       className="btn-danger action-icon-btn"

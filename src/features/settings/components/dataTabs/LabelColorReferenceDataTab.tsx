@@ -1,10 +1,11 @@
 /**
  * Onglet générique référentiel libellé + couleur (types d’anomalie, motifs de ronde).
+ * L’édition se fait dans la modale du panneau, pas en ligne.
  */
 
 import { useTableSort } from "../../../common/hooks/useTableSort";
 import { ReferenceLabelColorRow } from "../shared/ReferenceLabelColorRow";
-import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal, type SyncOrAsync } from "./common";
+import { compareTextFr, tableSortArrow, type OpenDeleteReasonModal } from "./common";
 
 type LabelColorItem = {
   id: string;
@@ -18,13 +19,7 @@ type LabelColorReferenceDataTabProps<T extends LabelColorItem> = {
   filteredItems: T[];
   pageStart: number;
   pageEnd: number;
-  editingId: string | null;
-  editingLabel: string;
-  editingColor: string;
-  setEditingId: (value: string | null) => void;
-  setEditingLabel: (value: string) => void;
-  setEditingColor: (value: string) => void;
-  onUpdate: (id: string, label: string, colorHex: string) => SyncOrAsync;
+  onEdit: (item: T) => void;
   onDelete: (id: string, reason: string) => void;
   openDeleteReasonModal: OpenDeleteReasonModal;
   columnLabel: string;
@@ -70,24 +65,13 @@ export function LabelColorReferenceDataTab<T extends LabelColorItem>(props: Labe
             <ReferenceLabelColorRow
               key={item.id}
               item={item}
-              isEditing={props.editingId === item.id}
-              editingLabel={props.editingLabel}
-              editingColor={props.editingColor}
               canDeleteData={props.canDeleteData}
-              onEditStart={(row) => {
-                props.setEditingId(row.id);
-                props.setEditingLabel(row.label);
-                props.setEditingColor(row.colorHex || props.colorDefault);
-              }}
-              onEditCancel={() => props.setEditingId(null)}
-              onUpdate={(row, label, colorHex) => props.onUpdate(row.id, label, colorHex)}
+              onEdit={props.onEdit}
               onDelete={(row) => {
                 props.openDeleteReasonModal(`${props.deleteReasonPrefix} ${row.label}`, (reason) =>
                   props.onDelete(row.id, reason)
                 );
               }}
-              setEditingLabel={props.setEditingLabel}
-              setEditingColor={props.setEditingColor}
               systemLabel={props.systemLabel ?? "Type système"}
               colorDefault={props.colorDefault}
             />

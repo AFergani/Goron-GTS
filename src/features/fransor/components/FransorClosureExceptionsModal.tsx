@@ -222,7 +222,7 @@ export function FransorClosureExceptionsModal({
                     <option value="CLOSED">Fermer</option>
                     <option value="OPEN">Ouvert</option>
                   </select>
-                  <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Motif (ex: Férié)" />
+                  <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Ex. Motif exemple" />
                 </div>
                 <div className="fransor-closure-actions">
                   {editingClosureId && (
@@ -332,7 +332,7 @@ export function FransorClosureExceptionsModal({
                 <input
                   value={deleteClosureReason}
                   onChange={(e) => setDeleteClosureReason(e.target.value)}
-                  placeholder="Ex: saisie erronée / période annulée"
+                  placeholder="Ex. Motif exemple"
                 />
               </label>
             </div>
@@ -345,7 +345,7 @@ export function FransorClosureExceptionsModal({
                   setDeleteClosureReason("");
                 }}
               >
-                Annuler
+                Fermer
               </button>
               <button
                 type="button"

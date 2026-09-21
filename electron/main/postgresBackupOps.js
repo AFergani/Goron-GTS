@@ -285,15 +285,138 @@ function runCommand(command, args, options = {}) {
 }
 
 /**
+ * Valeurs non vides, sans doublon, ordre conservé.
+ *
+ * @param {string[]} values
+ * @returns {string[]}
+ */
+function uniqueNonEmpty(values) {
+  const out = [];
+  const seen = new Set();
+  for (const value of values) {
+    const key = String(value || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+/** Binaire `docker` résolu (PATH Electron souvent incomplet sous Windows). */
+let cachedDockerExecutable = null;
+
+/**
+ * Chemin du client Docker : `GTS_PG_DOCKER_BIN`, PATH, puis emplacement Windows usuel.
+ *
+ * @returns {string}
+ */
+function resolveDockerExecutable() {
+  if (cachedDockerExecutable) return cachedDockerExecutable;
+  const { spawnSync } = require("child_process");
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const candidates = uniqueNonEmpty([
+    process.env.GTS_PG_DOCKER_BIN,
+    "docker",
+    path.join(programFiles, "Docker", "Docker", "resources", "bin", "docker.exe")
+  ]);
+  for (const bin of candidates) {
+    try {
+      const result = spawnSync(bin, ["version"], {
+        windowsHide: true,
+        encoding: "utf8",
+        timeout: 8000
+      });
+      if (result.status === 0) {
+        cachedDockerExecutable = bin;
+        return bin;
+      }
+    } catch {
+      // essayer le suivant
+    }
+  }
+  cachedDockerExecutable = "docker";
+  return cachedDockerExecutable;
+}
+
+/**
+ * SQL d'administration (CREATE/DROP DATABASE) : en labo local, `psql` dans le
+ * conteneur en superutilisateur (`postgres`), sinon le compte technique.
+ *
+ * @param {object} cfg
+ * @param {string} sql
+ * @returns {Promise<void>}
+ */
+async function runPostgresAdminSql(cfg, sql) {
+  const statement = String(sql || "").trim();
+  if (!statement) {
+    throw new Error("Instruction SQL d'administration vide.");
+  }
+  const container = dockerContainerName();
+  let dockerError = null;
+  if (isLoopbackHost(cfg.host) && (await isDockerContainerRunning(container))) {
+    const users = uniqueNonEmpty(["postgres", cfg.user]);
+    const databases = uniqueNonEmpty(["postgres", "template1", cfg.database]);
+    const docker = resolveDockerExecutable();
+    for (const user of users) {
+      for (const database of databases) {
+        try {
+          await runCommand(docker, [
+            "exec",
+            "-i",
+            container,
+            "psql",
+            "-U",
+            user,
+            "-d",
+            database,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            statement
+          ]);
+          return;
+        } catch (error) {
+          dockerError = error;
+        }
+      }
+    }
+  }
+
+  const candidates = uniqueNonEmpty(["postgres", "template1", cfg.database]);
+  let clientError = null;
+  for (const database of candidates) {
+    const client = new Client({
+      host: cfg.host,
+      port: cfg.port,
+      database,
+      user: cfg.user,
+      password: cfg.password,
+      connectionTimeoutMillis: cfg.connectionTimeoutMillis || 2500
+    });
+    try {
+      await client.connect();
+      await client.query(statement);
+      await client.end().catch(() => {});
+      return;
+    } catch (error) {
+      clientError = error;
+      await client.end().catch(() => {});
+    }
+  }
+  throw dockerError || clientError || new Error("Impossible d'ouvrir une connexion d'administration PostgreSQL.");
+}
+
+/**
  * @param {string} name
  * @returns {Promise<boolean>}
  */
 async function isDockerContainerRunning(name) {
   try {
     const { spawnSync } = require("child_process");
-    const result = spawnSync("docker", ["inspect", "-f", "{{.State.Running}}", name], {
+    const result = spawnSync(resolveDockerExecutable(), ["inspect", "-f", "{{.State.Running}}", name], {
       windowsHide: true,
-      encoding: "utf8"
+      encoding: "utf8",
+      timeout: 8000
     });
     return result.status === 0 && String(result.stdout || "").trim().toLowerCase() === "true";
   } catch {
@@ -316,7 +439,9 @@ async function dumpDatabase(cfg, destPath) {
   const pgDumpArgs = ["-U", cfg.user, "-d", cfg.database, "-F", "c", "--no-owner", "--no-acl"];
   try {
     if (isLoopbackHost(cfg.host) && (await isDockerContainerRunning(container))) {
-      await runCommand("docker", ["exec", "-i", container, "pg_dump", ...pgDumpArgs], { stdoutPath: tmpPath });
+      await runCommand(resolveDockerExecutable(), ["exec", "-i", container, "pg_dump", ...pgDumpArgs], {
+        stdoutPath: tmpPath
+      });
     } else {
       await runCommand(
         "pg_dump",
@@ -395,7 +520,9 @@ async function restoreDatabase(cfg, srcPath, options = {}) {
   ];
   try {
     if (isLoopbackHost(cfg.host) && (await isDockerContainerRunning(container))) {
-      await runCommand("docker", ["exec", "-i", container, "pg_restore", ...pgRestoreArgs], { stdinPath: srcPath });
+      await runCommand(resolveDockerExecutable(), ["exec", "-i", container, "pg_restore", ...pgRestoreArgs], {
+        stdinPath: srcPath
+      });
     } else {
       await runCommand("pg_restore", ["-h", cfg.host, "-p", String(cfg.port), ...pgRestoreArgs, srcPath], {
         env: { PGPASSWORD: String(cfg.password || "") }
@@ -486,6 +613,7 @@ module.exports = {
   dumpDatabase,
   restoreDatabase,
   terminateOtherBackends,
+  runPostgresAdminSql,
   resolveDumpPath,
   isPgDumpCustomFormat,
   localDateKey,

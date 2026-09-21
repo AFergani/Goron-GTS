@@ -17,6 +17,7 @@ const {
   wrapGtsReportHtml,
   createPgClient
 } = require("./postgresRestoreDiff");
+const { runPostgresAdminSql } = require("./postgresBackupOps");
 
 const COMPARE_DB = "goron_gts_compare";
 /** Plafond de sécurité si une table explose (évite un HTML de dizaines de Mo). */
@@ -39,46 +40,32 @@ function quoteIdent(name) {
 }
 
 /**
- * Connexion d'administration (`postgres` / `template1` / base métier).
+ * Littéral SQL d'un identifiant déjà validé (datname, etc.).
  *
- * @param {object} cfg
- * @returns {Promise<import('pg').Client>}
+ * @param {string} name
+ * @returns {string}
  */
-async function connectMaintenance(cfg) {
-  const candidates = ["postgres", "template1", cfg.database].filter(Boolean);
-  let lastError = null;
-  for (const database of candidates) {
-    const client = createPgClient(cfg, database);
-    try {
-      await client.connect();
-      return client;
-    } catch (error) {
-      lastError = error;
-      await client.end().catch(() => {});
-    }
-  }
-  throw new Error(
-    lastError instanceof Error
-      ? lastError.message
-      : "Impossible d'ouvrir une connexion d'administration PostgreSQL."
-  );
+function quoteLiteral(name) {
+  quoteIdent(name);
+  return `'${name}'`;
 }
 
 /**
- * Coupe les sessions puis supprime une base (comparaison temporaire).
+ * Coupe les sessions sur la base temporaire (best-effort).
  *
- * @param {import('pg').Client} admin
+ * @param {object} cfg
  * @param {string} databaseName
  * @returns {Promise<void>}
  */
-async function terminateAndDropDatabase(admin, databaseName) {
-  await admin.query(
-    `SELECT pg_terminate_backend(pid)
-     FROM pg_stat_activity
-     WHERE datname = $1 AND pid <> pg_backend_pid()`,
-    [databaseName]
-  );
-  await admin.query(`DROP DATABASE IF EXISTS ${quoteIdent(databaseName)}`);
+async function terminateCompareBackends(cfg, databaseName) {
+  try {
+    await runPostgresAdminSql(
+      cfg,
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ${quoteLiteral(databaseName)} AND pid <> pg_backend_pid()`
+    );
+  } catch {
+    // Rien à couper, ou droit insuffisant : le DROP tentera ensuite.
+  }
 }
 
 /**
@@ -91,20 +78,20 @@ async function recreateCompareDatabase(cfg) {
   if (String(cfg.database || "") === COMPARE_DB) {
     throw new Error("La base en service porte le nom réservé à la comparaison. Impossible de continuer.");
   }
-  const admin = await connectMaintenance(cfg);
+  const db = quoteIdent(COMPARE_DB);
+  const owner = quoteIdent(String(cfg.user || "").trim());
   try {
-    await terminateAndDropDatabase(admin, COMPARE_DB);
-    await admin.query(`CREATE DATABASE ${quoteIdent(COMPARE_DB)} OWNER ${quoteIdent(cfg.user)}`);
+    await terminateCompareBackends(cfg, COMPARE_DB);
+    await runPostgresAdminSql(cfg, `DROP DATABASE IF EXISTS ${db}`);
+    await runPostgresAdminSql(cfg, `CREATE DATABASE ${db} OWNER ${owner}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || "");
     if (/permission denied|must be owner|CREATEDB/i.test(message)) {
       throw new Error(
-        "Le compte technique n'a pas le droit de créer une base temporaire (CREATEDB). Sur Docker labo c'est normalement le superutilisateur ; sur un PostgreSQL d'exploitation, accordez CREATEDB ou lancez la comparaison depuis le PC hôte."
+        "Le compte technique n'a pas le droit de créer une base temporaire (CREATEDB). Sur Docker labo, démarrez le conteneur PostgreSQL (goron-pg18) ; sur un PostgreSQL d'exploitation, accordez CREATEDB ou lancez la comparaison depuis le PC hôte."
       );
     }
     throw new Error(message || "Impossible de préparer la base temporaire de comparaison.");
-  } finally {
-    await admin.end().catch(() => {});
   }
 }
 
@@ -115,13 +102,11 @@ async function recreateCompareDatabase(cfg) {
  * @returns {Promise<void>}
  */
 async function dropCompareDatabase(cfg) {
-  const admin = await connectMaintenance(cfg);
   try {
-    await terminateAndDropDatabase(admin, COMPARE_DB);
+    await terminateCompareBackends(cfg, COMPARE_DB);
+    await runPostgresAdminSql(cfg, `DROP DATABASE IF EXISTS ${quoteIdent(COMPARE_DB)}`);
   } catch {
     // La comparaison a déjà produit le rapport si on arrive ici en finally.
-  } finally {
-    await admin.end().catch(() => {});
   }
 }
 
@@ -355,7 +340,7 @@ function renderCompareHtml(options) {
  * @param {string} options.dumpPath
  * @param {string} options.actorLabel
  * @param {(database: string) => Promise<void>} options.restoreIntoDatabase
- * @returns {Promise<{ htmlPath: string, totals: { lost: number, recovered: number, changed: number } }>}
+ * @returns {Promise<{ htmlPath: string, totals: { lost: number, recovered: number, changed: number }, schemaWarning: boolean, dumpFileName: string, generatedAt: string, tables: object[] }>}
  */
 async function runDumpCompare(options) {
   const cfg = options.cfg;
@@ -407,7 +392,28 @@ async function runDumpCompare(options) {
       schemaWarning
     };
     fs.writeFileSync(htmlPath, renderCompareHtml(payload), "utf8");
-    return { htmlPath, totals };
+    return {
+      htmlPath,
+      totals,
+      schemaWarning,
+      dumpFileName: parsed.base,
+      generatedAt: stamp.toISOString(),
+      tables: tables.map((table) => ({
+        key: table.table,
+        label: table.label,
+        counts: {
+          lost: table.lost.length,
+          recovered: table.recovered.length,
+          changed: table.changed.length
+        },
+        lost: table.lost.slice(0, FILE_LIST_CAP).map((item) => ({ label: String(item.label || "").trim() })),
+        recovered: table.recovered.slice(0, FILE_LIST_CAP).map((item) => ({ label: String(item.label || "").trim() })),
+        changed: table.changed.slice(0, FILE_LIST_CAP).map((item) => ({
+          liveLabel: String(item.liveLabel || "").trim(),
+          dumpLabel: String(item.dumpLabel || "").trim()
+        }))
+      }))
+    };
   } finally {
     await live.end().catch(() => {});
     await dump.end().catch(() => {});

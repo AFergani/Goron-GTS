@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "../../../app/session/SessionProvider";
-import { CircleHelp, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { AuditTable } from "../components/AuditTable";
 import { TechErrorLogsTable } from "../components/TechErrorLogsTable";
 import { JournalFiltersBar, matchesJournalDateRange } from "../components/JournalFiltersBar";
@@ -17,7 +17,6 @@ import { DataManagementPanel } from "../components/DataManagementPanel";
 import { TemplatesManagementPanel } from "../components/TemplatesManagementPanel";
 import { VariablesManagementPanel } from "../components/VariablesManagementPanel";
 import { PostgresBackupPanel } from "../components/PostgresBackupPanel";
-import type { HelpTopicId } from "../../help/model/helpTopics";
 import { UsersTable } from "../components/UsersTable";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import { ListExportButtons } from "../../common/components/ExportFileButtons";
@@ -123,7 +122,6 @@ type SettingsPageProps = {
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onNotify: NotifyToast;
-  onOpenHelpTopic: (topicId: HelpTopicId) => void;
   showCreateModal: boolean;
   onCloseCreateModal: () => void;
   onCreateFormChange: (next: CreateUserFormState) => void;
@@ -323,23 +321,14 @@ export function SettingsPage(props: SettingsPageProps) {
                 Tous
               </button>
             </div>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="btn-light action-icon-btn"
-                title="Aide — gestion opérateur"
-                aria-label="Aide — gestion opérateur"
-                onClick={() => props.onOpenHelpTopic("settings-operators")}
-              >
-                <CircleHelp size={14} />
-              </button>
-              {props.canManageUsers && (
+            {props.canManageUsers ? (
+              <div className="row-actions">
                 <button type="button" className="mc-btn-primary" onClick={props.onOpenCreate}>
                   <Plus size={16} aria-hidden />
                   Nouvel utilisateur
                 </button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
           <UsersTable
             session={props.session}
@@ -599,7 +588,6 @@ export function SettingsPage(props: SettingsPageProps) {
             requesterRole={props.requesterRole}
             requesterUsername={props.currentUsername}
             onNotify={props.onNotify}
-            onHelpClick={() => props.onOpenHelpTopic("settings-database")}
           />
         </section>
       )}

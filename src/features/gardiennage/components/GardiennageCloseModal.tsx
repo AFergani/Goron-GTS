@@ -236,7 +236,7 @@ export function GardiennageCloseModal({
         <div className="mc-modal-footer mc-modal-footer-split" style={{ padding: "10px 12px" }}>
           <div className="mc-modal-footer-start">
             <button type="button" className="btn-ghost" onClick={requestClose} disabled={isSaving}>
-              Annuler
+              Fermer
             </button>
           </div>
           <div className="mc-modal-footer-end">

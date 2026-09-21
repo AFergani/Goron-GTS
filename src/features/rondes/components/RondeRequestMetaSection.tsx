@@ -165,7 +165,7 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
               disabled={locked}
               onChange={(e) => props.onClientNameChange(e.target.value)}
               aria-label="Nom du client"
-              placeholder="Ex. nom du contact ou de la société"
+              placeholder="Ex. Nom exemple"
             />
           </label>
         ) : null}

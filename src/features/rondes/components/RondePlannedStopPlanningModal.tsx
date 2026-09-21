@@ -76,7 +76,7 @@ export function RondePlannedStopPlanningModal({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Ex. changement de prestataire, fin de contrat…"
+            placeholder="Ex. Motif exemple"
           />
         </label>
       </div>

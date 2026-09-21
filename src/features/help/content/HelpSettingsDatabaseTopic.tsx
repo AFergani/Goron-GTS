@@ -19,13 +19,14 @@ export function HelpSettingsDatabaseTopic() {
           supprimées.
         </li>
         <li>
-          Avant toute restauration, utilisez <strong>Comparer une sauvegarde</strong> : l&apos;application analyse le
-          fichier sans toucher à la base en service et indique les fiches qui seraient impactées (perdues, restaurées,
-          écrasées).
+          Avant toute restauration, utilisez <strong>Comparer</strong> : le résultat s&apos;affiche tout de suite
+          dans une fenêtre (fiches qui disparaîtraient, reviendraient ou seraient écrasées), sans toucher à la
+          base. Vous pouvez restaurer depuis cette même fenêtre.
         </li>
         <li>
-          ⚠️ Cliquez sur <strong>Restaurer</strong> sur la ligne concernée pour remplacer la base active par cette
-          sauvegarde. Attention : cette action remplace <strong>l&apos;intégralité des données en cours</strong>.
+          ⚠️ <strong>Restaurer</strong> remplace <strong>l&apos;intégralité des données en cours</strong>. Une
+          double confirmation est exigée : le mot de passe du compte responsable ou directeur, puis la saisie du
+          mot <strong>RESTAURER</strong>.
         </li>
         <li>
           Si l&apos;application ne démarre pas, une restauration reste possible via la{" "}

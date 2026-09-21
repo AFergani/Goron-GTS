@@ -38,7 +38,7 @@ export function InterventionEntryReasonDialogs({
           rows={2}
           value={cancelReasonInput}
           onChange={(e) => onCancelReasonChange(e.target.value)}
-          placeholder="Ex: intervention lancée par erreur"
+          placeholder="Ex. Motif exemple"
           autoFocus
         />
       </label>

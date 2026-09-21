@@ -21,7 +21,6 @@ const TECH_CODE_LABELS = {
   PG_BACKUP_FAILED: "Sauvegarde PostgreSQL impossible",
   PG_BACKUP_RESTORE_OK: "Restauration PostgreSQL terminée",
   PG_BACKUP_RESTORE_FAILED: "Restauration PostgreSQL impossible",
-  PG_BACKUP_RESTORE_REPORT_FAILED: "Restauration OK, rapport d'écarts impossible",
   PG_BACKUP_COMPARE_OK: "Comparaison dump / base actuelle terminée",
   PG_BACKUP_COMPARE_FAILED: "Comparaison dump / base actuelle impossible"
 };

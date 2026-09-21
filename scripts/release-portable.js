@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+/**
+ * Génération du pack de release Windows (portable, installateur, dossier,
+ * outils labo/prod, guide `00-LIRE-EN-PREMIER.txt`).
+ *
+ * Contrôle les fichiers réellement produits : icône, modèles Word embarqués,
+ * schema.sql, bundles Electron. Les dumps applicatifs sont des `.dump` ;
+ * aucun rapport HTML post-restauration.
+ *
+ * @module scripts/release-portable
+ */
 
 const fs = require("fs");
 const path = require("path");
@@ -283,17 +293,58 @@ function run(command, label) {
   execSync(command, { cwd: rootDir, stdio: "inherit" });
 }
 
-function assertMainCouranteTemplateExists(relativePath, contextLabel) {
-  const templatePath = path.join(rootDir, ...relativePath.split("/"));
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(
-      [
-        `Template Word manquant (${contextLabel}): ${relativePath}`,
-        "Ajoutez le modele avant de lancer la release pour eviter un export Main courante en mode degrade."
-      ].join("\n")
-    );
+/** Modèles Word embarqués (alignés sur `documentTemplates.js`). */
+const REQUIRED_WORD_TEMPLATES = [
+  "main-courante-template.docx",
+  "intervention-template.docx",
+  "ronde-template.docx"
+];
+
+/**
+ * Vérifie qu'un fichier obligatoire du pack existe.
+ *
+ * @param {string} relativePath - Chemin depuis la racine du dépôt (`/` ou `\`).
+ * @param {string} contextLabel - Contexte affiché en cas d'erreur.
+ * @returns {void}
+ */
+function assertReleaseFileExists(relativePath, contextLabel) {
+  const filePath = path.join(rootDir, ...relativePath.split(/[/\\]/));
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Fichier manquant (${contextLabel}): ${relativePath}`);
   }
-  console.log(`✅ Template Word detecte (${contextLabel}): ${relativePath}`);
+}
+
+/**
+ * Vérifie les modèles Word requis dans un dossier (`public/templates` ou `dist/templates`).
+ *
+ * @param {string} relativeDir - Dossier depuis la racine du dépôt.
+ * @param {string} contextLabel
+ * @returns {void}
+ */
+function assertRequiredWordTemplates(relativeDir, contextLabel) {
+  for (const name of REQUIRED_WORD_TEMPLATES) {
+    const relativePath = `${relativeDir}/${name}`;
+    const templatePath = path.join(rootDir, ...relativeDir.split(/[/\\]/), name);
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(
+        [
+          `Template Word manquant (${contextLabel}): ${relativePath}`,
+          "Ajoutez le modèle avant de lancer la release (exports Word dégradés sinon)."
+        ].join("\n")
+      );
+    }
+  }
+  console.log(`✅ Templates Word détectés (${contextLabel}): ${REQUIRED_WORD_TEMPLATES.join(", ")}`);
+}
+
+/**
+ * Icône Windows exigée par electron-builder et `embed-windows-icon.js`.
+ *
+ * @returns {void}
+ */
+function assertWindowsIconExists() {
+  assertReleaseFileExists("electron/app-icon.ico", "icône Windows");
+  console.log("✅ Icône Windows détectée: electron/app-icon.ico");
 }
 
 function copyDirectoryRecursive(sourceDir, targetDir) {
@@ -320,7 +371,7 @@ function pickPortableExe(sourceDir) {
     .filter((name) => /^Goron GTS .*\.exe$/i.test(name) && !/setup/i.test(name))
     .sort((a, b) => b.localeCompare(a));
   if (!candidates.length) {
-    throw new Error("Aucun executable portable trouvé dans release-portable.");
+    throw new Error("Aucun exécutable portable trouvé dans release-build.");
   }
   return path.join(sourceDir, candidates[0]);
 }
@@ -363,6 +414,12 @@ function preparePortableReleaseBundle(version, sourceExePath, releaseRootDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(path.join(dataDir, "logs"), { recursive: true });
   copyDirectoryRecursive(path.join(rootDir, "dist", "templates"), templatesDir);
+  for (const name of REQUIRED_WORD_TEMPLATES) {
+    const copied = path.join(templatesDir, name);
+    if (!fs.existsSync(copied)) {
+      throw new Error(`Template Word absent du bundle portable: data/templates/${name}`);
+    }
+  }
 
   const deployReadmePath = path.join(targetDir, "LISEZ-MOI-DEPLOIEMENT.txt");
   fs.writeFileSync(
@@ -382,7 +439,10 @@ function preparePortableReleaseBundle(version, sourceExePath, releaseRootDir) {
       "  Goron GTS " + version + ".exe",
       "  LISEZ-MOI-DEPLOIEMENT.txt   (ce fichier)",
       "  data/",
-      "    templates/               modèles Word (.docx)",
+      "    templates/               modèles Word embarqués :",
+      "                             main-courante-template.docx",
+      "                             intervention-template.docx",
+      "                             ronde-template.docx",
       "    logs/                    (réservé)",
       "",
       "=== Premier lancement (chaque poste) ===",
@@ -532,7 +592,11 @@ function main() {
   console.log(`📁 Projet: ${rootDir}`);
 
   cleanArtifacts();
-  assertMainCouranteTemplateExists("public/templates/main-courante-template.docx", "source");
+  assertWindowsIconExists();
+  assertRequiredWordTemplates("public/templates", "source");
+  assertReleaseFileExists("electron/store/persistence/migrations/schema.sql", "schéma PostgreSQL");
+  assertReleaseFileExists("outils_labo/Lancer-Menu-Labo.bat", "outils labo");
+  assertReleaseFileExists("outils_prod/Lancer-Menu-Prod.bat", "outils production");
   const releaseVersion = bumpVersionIfNeeded();
 
   if (wantsReinstallDeps) {
@@ -540,7 +604,7 @@ function main() {
   }
 
   run("npm run dist:win:all", "Build Electron Windows (portable + nsis + dossier)");
-  assertMainCouranteTemplateExists("dist/templates/main-courante-template.docx", "vite-dist");
+  assertRequiredWordTemplates("dist/templates", "vite-dist");
   const buildOutputDir = path.join(rootDir, "release-build");
   const canonicalReleaseDir = path.join(rootDir, `Release_Goron-GTS-${releaseVersion}`);
   const stagingReleaseDir = createFreshDirectory(`${canonicalReleaseDir}.__staging`);

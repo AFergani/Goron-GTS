@@ -100,14 +100,14 @@ export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, o
               value={form.reason}
               required
               disabled={busy}
-              placeholder="Ex: code oublié après congés, identité vérifiée par le collègue présent"
+              placeholder="Ex. Motif exemple"
               onChange={(e) => onChange({ ...form, reason: e.target.value })}
             />
           </label>
           {error ? <p className="error">{error}</p> : null}
           <div className="row-actions modal-actions">
             <button type="button" className="btn-light" onClick={requestClose} disabled={busy}>
-              Annuler
+              Fermer
             </button>
             <button type="submit" disabled={busy || !canSubmit}>
               {busy ? "Vérification…" : "Débloquer l'accès"}

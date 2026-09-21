@@ -1,5 +1,5 @@
 /**
- * Choix à la fermeture : annuler, déconnexion (si session), minimiser ou quitter.
+ * Choix à la fermeture : Fermer, déconnexion (si session), minimiser ou quitter.
  *
  * Affichée depuis `AppShell` (bouton Power sidebar ou croix de fenêtre via preload).
  */
@@ -36,7 +36,7 @@ export function AppExitChoiceModal({
         <p className="muted">Déconnexion, réduction en zone de notification ou arrêt complet.</p>
         <div className="row-actions app-exit-choice-modal__actions">
           <button type="button" className="btn-light" onClick={onCancel}>
-            Annuler
+            Fermer
           </button>
           {hasSession ? (
             <button type="button" className="btn-light" onClick={onDisconnect}>

@@ -237,7 +237,13 @@ export const gtsApiClient = {
   pickPostgresBackupFile() {
     return window.gtsApi.pickPostgresBackupFile();
   },
-  restorePostgresBackup(payload: { filePath?: string; fileName?: string }) {
+  restorePostgresBackup(payload: {
+    filePath?: string;
+    fileName?: string;
+    accountPassword?: string;
+    confirmPhrase?: string;
+    managerFullName?: string;
+  }) {
     return window.gtsApi.restorePostgresBackup(payload);
   },
   restorePostgresBackupAuth(payload: {
@@ -245,6 +251,9 @@ export const gtsApiClient = {
     requesterUsername: string;
     filePath?: string;
     fileName?: string;
+    accountPassword?: string;
+    confirmPhrase?: string;
+    managerFullName?: string;
   }) {
     return sessionCall(window.gtsApi.restorePostgresBackupAuth, payload);
   },

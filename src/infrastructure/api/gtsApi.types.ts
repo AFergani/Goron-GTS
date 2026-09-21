@@ -71,7 +71,25 @@ export type PostgresBackupFile = {
 export type PostgresRestoreResult = {
   success: boolean;
   fileName: string;
-  reportHtmlPath: string | null;
+};
+
+export type PostgresCompareDiffRow = {
+  label?: string;
+  liveLabel?: string;
+  dumpLabel?: string;
+};
+
+export type PostgresCompareTable = {
+  key: string;
+  label: string;
+  counts: {
+    lost: number;
+    recovered: number;
+    changed: number;
+  };
+  lost: PostgresCompareDiffRow[];
+  recovered: PostgresCompareDiffRow[];
+  changed: PostgresCompareDiffRow[];
 };
 
 export type PostgresCompareResult = {
@@ -83,6 +101,10 @@ export type PostgresCompareResult = {
     recovered: number;
     changed: number;
   };
+  schemaWarning?: boolean;
+  dumpFileName?: string;
+  generatedAt?: string;
+  tables?: PostgresCompareTable[];
 };
 
 export type PostgresBackupStatus = {
