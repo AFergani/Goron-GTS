@@ -5,71 +5,54 @@
  * et ronde, annulation avec motif, garde fermeture en création (`useCreateModalCloseGuard`).
  * Lignes récurrentes : ajout en tête, numérotation chronologique, scroll/highlight, veilles JF,
  * verrou jours sur plage ≤ 7 j, pending refs via `createPendingRefsIfNeededForSubmit`.
- * Récapitulatif type rondes (`GardiennagePlanningLinesRecap`) : résumé par ligne + compteurs.
  * Hydratation formulaire : `[isOpen, mode, entry?.id]` — pas de reset sur refresh listes.
- *
- * Fichier volumineux (~1000 lignes) : candidat à un découpage (sections planning / statut).
+ * Planification extraite dans `GardiennagePlanningSection`.
  */
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import {
   isGardiennageAutoClosureReport,
   type GardiennageEntry,
-  type GardiennagePlanningLineV1,
-  type GardiennagePlanningSnapshotV1,
   type GardiennageSavePayload,
   type GardiennageStatus
 } from "../model/gardiennage.types";
-import { buildGardiennageSlotsFromSnapshot } from "../model/gardiennagePlannerEngine";
 import {
-  buildEffectivePlanningSnapshot,
-  GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS,
   inferPlanningModeFromSnapshot,
   isPlanningFormValid,
   isValidPlanningTime,
-  parseTimeToMin,
   resolvePlanningFormMode,
-  resolvePonctuelValidToDate,
-  type GardiennagePlanningFormMode
+  resolvePonctuelValidToDate
 } from "../model/gardiennagePlanningForm";
 import {
-  buildHolidayMatchers,
-  collectActiveDatesForLine,
   GARDIENNAGE_WEEKDAYS_ALL_MASK,
-  isIsoDate as isPlanningIsoDate,
-  shiftIsoDate
+  isIsoDate as isPlanningIsoDate
 } from "../model/gardiennagePlanningCalendar";
-import {
-  gardiennagePlanningLineDisplayNumber,
-  normalizeGardiennagePlanningLinesNewestFirst,
-  syncGardiennagePlanningLineLabels
-} from "../utils/gardiennagePlanningLineOrder";
+import { normalizeGardiennagePlanningLinesNewestFirst } from "../utils/gardiennagePlanningLineOrder";
 import { resolveGardiennageValidityWeekdayLock } from "../utils/resolveGardiennageValidityWeekdayLock";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { PendingIntervenantInlineField, PendingSiteInlineFields } from "../../common/components/PendingRefInlineFields";
-import { getLocalDateIso, getLocalTimeHm, splitIsoToLocalDateTime } from "../../common/utils/localDateIso";
+import { getLocalDateIso, getLocalTimeHm } from "../../common/utils/localDateIso";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
-import { TimeInput } from "../../common/components/TimeInput";
-import { DateInput } from "../../common/components/DateInput";
 import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import {
-  applyRequestDateTimeChange,
-  applyValidFromDateTimeChange,
-  type RequestValidityRange
-} from "../../common/utils/alignRequestAndValidity";
-import { GardiennagePlanningLineWeekdays } from "./GardiennagePlanningLineWeekdays";
-import { GardiennagePlanningLinesRecap } from "./GardiennagePlanningLinesRecap";
+  createDefaultGardiennagePlanningLine,
+  dateTimeFromIsoOrNow,
+  EMPTY_GARDIENNAGE_ENTRY_FORM,
+  withRequestDateTime,
+  type GardiennageEntryFormState
+} from "../model/gardiennageEntryForm";
+import { GardiennagePlanningSection } from "./GardiennagePlanningSection";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { reportTitleWithDailyCode } from "../../common/utils/dailyEntryCode";
-import { isGardiennagePreviewSlotClosed } from "../model/gardiennageClosure";
+import { useGardiennagePlanningPreview } from "../presenter/useGardiennagePlanningPreview";
+
 export type GardiennageModalMode = "create" | "edit";
 
 /** Données pré-remplies lors d'une création depuis un contexte extérieur (ex. intervention liée). */
@@ -105,110 +88,6 @@ type GardiennageEntryModalProps = {
   onNotify?: NotifyToast;
 };
 
-type FormState = {
-  siteId: string | null;
-  siteDisplay: string;
-  startTime: string;
-  endTime: string;
-  recurrenceStartDate: string;
-  recurrenceEndDate: string;
-  isPonctuel: boolean;
-  intervenantId: string | null;
-  intervenantName: string;
-  notes: string;
-  linkedInterventionId: string | null;
-  linkedRondeId: string | null;
-  validFromDate: string;
-  validFromTime: string;
-  validToDate: string;
-  validToTime: string;
-  isContinuous: boolean;
-  planningLines: GardiennagePlanningLineV1[];
-  requestDate: string;
-  requestTime: string;
-};
-
-const EMPTY_FORM: FormState = {
-  siteId: null,
-  siteDisplay: "",
-  startTime: "",
-  endTime: "",
-  recurrenceStartDate: "",
-  recurrenceEndDate: "",
-  isPonctuel: false,
-  intervenantId: null,
-  intervenantName: "",
-  notes: "",
-  linkedInterventionId: null,
-  linkedRondeId: null,
-  validFromDate: "",
-  validFromTime: "",
-  validToDate: "",
-  validToTime: "",
-  isContinuous: false,
-  planningLines: [],
-  requestDate: "",
-  requestTime: ""
-};
-
-function formToValidityRange(form: FormState): RequestValidityRange {
-  return {
-    requestDate: form.requestDate,
-    requestTime: form.requestTime,
-    validFromDate: form.validFromDate,
-    validFromTime: form.validFromTime,
-    validToDate: form.validToDate,
-    validToTime: form.validToTime
-  };
-}
-
-function applyValidityRange(form: FormState, range: RequestValidityRange): FormState {
-  return {
-    ...form,
-    requestDate: range.requestDate,
-    requestTime: range.requestTime,
-    validFromDate: range.validFromDate,
-    validFromTime: range.validFromTime,
-    validToDate: range.validToDate,
-    validToTime: range.validToTime
-  };
-}
-
-function gardiennageAlignOpts(form: FormState) {
-  const mode = resolvePlanningFormMode(form.isPonctuel, form.isContinuous);
-  return {
-    validityHasTime: mode !== "recurring",
-    compareEndTimes: false
-  };
-}
-
-function withRequestDateTime(form: FormState, date: string, time: string): FormState {
-  return applyValidityRange(
-    form,
-    applyRequestDateTimeChange(formToValidityRange(form), { date, time }, gardiennageAlignOpts(form))
-  );
-}
-
-function withValidFromDateTime(form: FormState, date: string, time: string): FormState {
-  return applyValidityRange(
-    form,
-    applyValidFromDateTimeChange(formToValidityRange(form), { date, time }, gardiennageAlignOpts(form))
-  );
-}
-
-function formatDurationMinutes(totalMin: number): string {
-  if (!Number.isFinite(totalMin) || totalMin <= 0) return "0h00";
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${h}h${String(m).padStart(2, "0")}`;
-}
-
-function dateTimeFromIso(iso: string): { date: string; time: string } {
-  const split = splitIsoToLocalDateTime(iso);
-  if (!split.date) return { date: getLocalDateIso(), time: getLocalTimeHm() };
-  return split;
-}
-
 export function GardiennageEntryModal({
   isOpen,
   mode,
@@ -230,9 +109,9 @@ export function GardiennageEntryModal({
   onCreatePendingIntervenant,
   onNotify
 }: GardiennageEntryModalProps) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [form, setForm] = useState<GardiennageEntryFormState>(EMPTY_GARDIENNAGE_ENTRY_FORM);
   const [isSaving, setIsSaving] = useState(false);
-  const [initialForm, setInitialForm] = useState<FormState>(EMPTY_FORM);
+  const [initialForm, setInitialForm] = useState<GardiennageEntryFormState>(EMPTY_GARDIENNAGE_ENTRY_FORM);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showPendingSiteForm, setShowPendingSiteForm] = useState(false);
@@ -244,18 +123,6 @@ export function GardiennageEntryModal({
   const prevNewestLineIdRef = useRef<string | null>(null);
   const [highlightNewestLineId, setHighlightNewestLineId] = useState<string | null>(null);
 
-  const createDefaultLine = (label = "Ligne 1", anchorDate?: string): GardiennagePlanningLineV1 => ({
-    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    label,
-    // Date optionnelle : vide = ligne récurrente sur toute la validité (selon weekdaysMask).
-    anchorDate: anchorDate || "",
-    startTime: "",
-    endTime: "",
-    weekdaysMask: GARDIENNAGE_WEEKDAYS_ALL_MASK,
-    includeHolidays: false,
-    includeHolidayEves: false
-  });
-
   const isCreateMode = mode === "create";
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
 
@@ -265,12 +132,12 @@ export function GardiennageEntryModal({
   /* Initialisation à l'ouverture en mode création */
   useEffect(() => {
     if (!isOpen || !isCreateMode) return;
-    const init: FormState = {
-      ...EMPTY_FORM,
+    const init: GardiennageEntryFormState = {
+      ...EMPTY_GARDIENNAGE_ENTRY_FORM,
       recurrenceStartDate: getLocalDateIso(),
       validFromDate: getLocalDateIso(),
       validToDate: "",
-      planningLines: [createDefaultLine()],
+      planningLines: [createDefaultGardiennagePlanningLine()],
       requestDate: getLocalDateIso(),
       requestTime: getLocalTimeHm(),
       ...(createPreset ? {
@@ -315,8 +182,8 @@ export function GardiennageEntryModal({
     const isPonctuel = planningModeFromSnap === "ponctuel";
     const firstLine = snap?.lines?.[0];
     const h24OpenEnded = Boolean(snap?.isOpenEnded);
-    const created = dateTimeFromIso(entry.createdAt);
-    const hydrated: FormState = {
+    const created = dateTimeFromIsoOrNow(entry.createdAt);
+    const hydrated: GardiennageEntryFormState = {
       siteId: entry.siteId,
       siteDisplay: entry.siteDisplay,
       startTime: entry.startTime,
@@ -429,130 +296,19 @@ export function GardiennageEntryModal({
     return () => window.clearTimeout(timer);
   }, [isOpen, planningMode, form.planningLines]);
 
-  const applyPlanningMode = (mode: GardiennagePlanningFormMode) => {
-    setForm((f) => {
-      if (mode === "ponctuel") {
-        const firstLine = f.planningLines[0];
-        return {
-          ...f,
-          isPonctuel: true,
-          isContinuous: false,
-          recurrenceEndDate: "",
-          validFromTime: firstLine?.startTime || f.validFromTime || "",
-          validToTime: firstLine?.endTime || f.validToTime || "",
-          planningLines: []
-        };
-      }
-      if (mode === "h24") {
-        return {
-          ...f,
-          isPonctuel: false,
-          isContinuous: true,
-          planningLines: [],
-          validToDate: "",
-          validToTime: ""
-        };
-      }
-      return {
-        ...f,
-        isPonctuel: false,
-        isContinuous: false,
-        planningLines: f.planningLines.length ? f.planningLines : [createDefaultLine()]
-      };
-    });
-  };
-  const planningSnapshot: GardiennagePlanningSnapshotV1 = useMemo(
-    () => ({
-      ...buildEffectivePlanningSnapshot({
-        validFromDate: form.validFromDate || form.recurrenceStartDate,
-        validFromTime: form.validFromTime,
-        validToDate: planningMode === "h24"
-          ? form.validToDate
-          : (form.validToDate || form.recurrenceEndDate),
-        validToTime: form.validToTime,
-        isPonctuel: form.isPonctuel,
-        isContinuous: form.isContinuous,
-        planningLines: form.planningLines,
-        fallbackDate: getLocalDateIso()
-      }),
-      requestDate: form.requestDate,
-      requestTime: form.requestTime
-    }),
-    [form]
-  );
-  const holidayDateIsos = useMemo(
-    () => holidays.map((h) => String(h.dateIso || "").trim()).filter(Boolean),
-    [holidays]
-  );
-  const previewSlots = useMemo(
-    () => buildGardiennageSlotsFromSnapshot(planningSnapshot, { holidayDateIsos }),
-    [planningSnapshot, holidayDateIsos]
-  );
-  const previewTotalMinutes = useMemo(
-    () => previewSlots.reduce((acc, slot) => {
-      const start = new Date(slot.startIso).getTime();
-      const end = new Date(slot.endIso).getTime();
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return acc;
-      return acc + Math.round((end - start) / 60000);
-    }, 0),
-    [previewSlots]
-  );
-  const previewPerLineCounts = useMemo(
-    () => form.planningLines.map((line) => previewSlots.filter((slot) => slot.lineId === line.id).length),
-    [form.planningLines, previewSlots]
-  );
-  const previewClosedSlotsCount = useMemo(
-    () => previewSlots.filter((slot) => isGardiennagePreviewSlotClosed(slot, batchEntries)).length,
-    [previewSlots, batchEntries]
-  );
-  const linesOverlapError = useMemo(() => {
-    if (planningMode !== "recurring" || form.planningLines.length <= 1) return "";
-    const holiday = buildHolidayMatchers(holidayDateIsos);
-    const anchoredStartDates = new Set(
-      form.planningLines
-        .map((line) => (isPlanningIsoDate(line.anchorDate) ? line.anchorDate : ""))
-        .filter((value) => Boolean(value))
-    );
-    const daySegments: Record<string, Array<{ start: number; end: number }>> = {};
-    const pushDaySegment = (isoDate: string, segment: { start: number; end: number }) => {
-      if (!daySegments[isoDate]) daySegments[isoDate] = [];
-      daySegments[isoDate].push(segment);
-    };
-    for (const line of form.planningLines) {
-      const start = parseTimeToMin(line.startTime);
-      const end = parseTimeToMin(line.endTime);
-      if (start < 0 || end < 0) continue;
-      const activeDates = collectActiveDatesForLine(
-        line,
-        form.validFromDate,
-        form.validToDate,
-        anchoredStartDates,
-        holiday
-      );
-      for (const activeDate of activeDates) {
-        if (end > start) {
-          pushDaySegment(activeDate, { start, end });
-        } else if (end < start) {
-          pushDaySegment(activeDate, { start, end: 24 * 60 });
-          pushDaySegment(shiftIsoDate(activeDate, 1), { start: 0, end });
-        } else {
-          pushDaySegment(activeDate, { start: 0, end: 24 * 60 });
-        }
-      }
-    }
-    for (const isoDate of Object.keys(daySegments)) {
-      const segments = daySegments[isoDate].sort((a, b) => a.start - b.start);
-      for (let i = 1; i < segments.length; i += 1) {
-        const prev = segments[i - 1];
-        const current = segments[i];
-        // On autorise la continuité stricte (current.start === prev.end).
-        if (current.start < prev.end) {
-          return "Chevauchement détecté entre lignes de planification. Ajustez les horaires.";
-        }
-      }
-    }
-    return "";
-  }, [planningMode, form.validFromDate, form.validToDate, form.planningLines, holidayDateIsos]);
+  const {
+    planningSnapshot,
+    previewSlots,
+    previewTotalMinutes,
+    previewPerLineCounts,
+    previewClosedSlotsCount,
+    linesOverlapError
+  } = useGardiennagePlanningPreview({
+    form,
+    planningMode,
+    holidays,
+    batchEntries
+  });
 
   if (!isOpen) return null;
 
@@ -581,7 +337,6 @@ export function GardiennageEntryModal({
     }) ||
     Boolean(linesOverlapError);
 
-  const showPlanningLines = planningMode === "recurring";
   const ponctuelCrossesMidnight = planningMode === "ponctuel"
     && Boolean(form.validFromDate)
     && isValidPlanningTime(form.validFromTime)
@@ -826,294 +581,24 @@ export function GardiennageEntryModal({
               />
               </div>
 
-              {/* PLANIFICATION */}
-              <CreateFormSection title="Planification">
-                <div className="gardiennage-planning-layout">
-                  <div className="gardiennage-planning-layout__mode">
-                    <div className="gardiennage-planning-mode">
-                      <span className="gardiennage-validity-lead">Type</span>
-                      <select
-                        value={planningMode}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        onChange={(e) => applyPlanningMode(e.target.value as GardiennagePlanningFormMode)}
-                      >
-                        <option value="recurring">Planification libre</option>
-                        <option value="ponctuel">Journée unique</option>
-                        <option value="h24">H24</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="gardiennage-planning-layout__validity">
-                    {planningMode === "ponctuel" && (
-                      <div className="gardiennage-planning-validity">
-                        <span className="gardiennage-validity-lead">Validité</span>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date</span>
-                          <DateInput
-                            value={form.validFromDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
-                          />
-                        </label>
-                        <span className="gardiennage-date-sep">de</span>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Début</span>
-                          <TimeInput
-                            value={form.validFromTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => withValidFromDateTime(f, f.validFromDate, value))}
-                          />
-                        </label>
-                        <span className="gardiennage-date-sep">à</span>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Fin</span>
-                          <TimeInput
-                            value={form.validToTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
-                          />
-                        </label>
-                      </div>
-                    )}
-
-                    {planningMode === "h24" && (
-                      <div className="gardiennage-planning-validity">
-                        <span className="gardiennage-validity-lead">Validité du</span>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date</span>
-                          <DateInput
-                            value={form.validFromDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
-                          />
-                        </label>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Heure</span>
-                          <TimeInput
-                            value={form.validFromTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => withValidFromDateTime(f, f.validFromDate, value))}
-                          />
-                        </label>
-                        <span className="gardiennage-date-sep">au</span>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date fin</span>
-                          <DateInput
-                            value={form.validToDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            min={form.validFromDate || undefined}
-                            aria-label="Date de fin (optionnelle)"
-                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                          />
-                        </label>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Heure fin</span>
-                          <TimeInput
-                            value={form.validToTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            aria-label="Heure de fin (optionnelle)"
-                            onChange={(value) => setForm((f) => ({ ...f, validToTime: value }))}
-                          />
-                        </label>
-                      </div>
-                    )}
-
-                    {planningMode === "recurring" && (
-                      <div className="gardiennage-planning-validity">
-                        <span className="gardiennage-validity-lead">Validité du</span>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date</span>
-                          <DateInput
-                            value={form.validFromDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => withValidFromDateTime(f, e.target.value, f.validFromTime))}
-                          />
-                        </label>
-                        <span className="gardiennage-date-sep">au</span>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date</span>
-                          <DateInput
-                            value={form.validToDate}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            min={form.validFromDate || undefined}
-                            required
-                            aria-required="true"
-                            aria-label="Date de fin de validité (obligatoire)"
-                            onChange={(e) => setForm((f) => ({ ...f, validToDate: e.target.value }))}
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {planningMode === "ponctuel" && ponctuelCrossesMidnight && (
-                  <p className="muted mc-ref-hint">La fin est le lendemain (passage après minuit géré automatiquement).</p>
-                )}
-                {!isCreateMode && entry?.planningBatchId && entry.planningSnapshot && !isCloture && !isAnnule && (
-                  <p className="muted mc-ref-hint" role="note">
-                    La modification resynchronise tous les créneaux du lot non clôturés. Les créneaux déjà clôturés ne sont pas modifiés.
-                  </p>
-                )}
-              </CreateFormSection>
-
-              {showPlanningLines && (
-                <CreateFormSection
-                  title="Lignes de planification"
-                  headerAction={(
-                    <button
-                      type="button"
-                      className="btn-light"
-                      disabled={isSaving || isAnnule || isReadOnlyByRole}
-                      title="Ajouter une ligne"
-                      aria-label="Ajouter une ligne"
-                      onClick={() => setForm((f) => {
-                        const nextLabel = `Ligne ${f.planningLines.length + 1}`;
-                        return {
-                          ...f,
-                          planningLines: syncGardiennagePlanningLineLabels([
-                            createDefaultLine(nextLabel),
-                            ...f.planningLines
-                          ])
-                        };
-                      })}
-                    >
-                      <Plus size={16} aria-hidden />
-                    </button>
-                  )}
-                >
-                  <div className="gardiennage-planning-lines">
-                    {form.planningLines.map((line, index) => {
-                      const displayNumber = gardiennagePlanningLineDisplayNumber(index, form.planningLines.length);
-                      const isNewest = index === 0;
-                      return (
-                      <fieldset
-                        key={line.id}
-                        ref={isNewest ? newestLineRef : undefined}
-                        className={[
-                          "gardiennage-planning-line",
-                          highlightNewestLineId === line.id ? "gardiennage-planning-line--just-added" : ""
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                      >
-                        <legend className="gardiennage-planning-line__legend">
-                          <span className="gardiennage-planning-line__legend-label">Ligne {displayNumber}</span>
-                          <button
-                            type="button"
-                            className="btn-danger action-icon-btn gardiennage-planning-line__remove"
-                            disabled={isSaving || isAnnule || isReadOnlyByRole || form.planningLines.length === 1}
-                            title={form.planningLines.length === 1 ? "Au moins une ligne de planification est requise" : "Supprimer cette ligne"}
-                            aria-label={form.planningLines.length === 1 ? "Suppression impossible : une seule ligne" : `Supprimer la ligne ${displayNumber}`}
-                            onClick={() => {
-                              if (form.planningLines.length <= 1) return;
-                              setForm((f) => ({
-                                ...f,
-                                planningLines: syncGardiennagePlanningLineLabels(
-                                  f.planningLines.filter((it) => it.id !== line.id)
-                                )
-                              }));
-                            }}
-                          >
-                            <Trash2 size={14} aria-hidden />
-                          </button>
-                        </legend>
-                      <div className="gardiennage-horaires-row" style={{ alignItems: "end" }}>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Début</span>
-                          <TimeInput
-                            value={line.startTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => ({
-                              ...f,
-                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, startTime: value } : it)
-                            }))}
-                          />
-                        </label>
-                        <label className="gardiennage-time-field">
-                          <span className="gardiennage-date-label">Fin</span>
-                          <TimeInput
-                            value={line.endTime}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(value) => setForm((f) => ({
-                              ...f,
-                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, endTime: value } : it)
-                            }))}
-                          />
-                        </label>
-                        <label className="gardiennage-time-field gardiennage-duree-field">
-                          <span className="gardiennage-date-label">Durée</span>
-                          <input
-                            type="text"
-                            readOnly
-                            className="mc-input-readonly"
-                            value={formatDurationMinutes((() => {
-                              const start = parseTimeToMin(line.startTime);
-                              const end = parseTimeToMin(line.endTime);
-                              if (start < 0 || end < 0) return 0;
-                              if (end > start) return end - start;
-                              if (end < start) return (24 * 60 - start) + end;
-                              return 24 * 60;
-                            })())}
-                          />
-                        </label>
-                        <label className="gardiennage-date-field">
-                          <span className="gardiennage-date-label">Date (optionnelle)</span>
-                          <DateInput
-                            value={line.anchorDate || ""}
-                            min={form.validFromDate || undefined}
-                            max={form.validToDate || undefined}
-                            disabled={isSaving || isAnnule || isReadOnlyByRole}
-                            onChange={(e) => setForm((f) => ({
-                              ...f,
-                              planningLines: f.planningLines.map((it) => it.id === line.id ? { ...it, anchorDate: e.target.value } : it)
-                            }))}
-                          />
-                        </label>
-                      </div>
-                      <GardiennagePlanningLineWeekdays
-                        line={line}
-                        disabled={isSaving || isAnnule || isReadOnlyByRole}
-                        lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
-                        onChange={(patch) => setForm((f) => ({
-                          ...f,
-                          planningLines: f.planningLines.map((it) => (it.id === line.id ? { ...it, ...patch } : it))
-                        }))}
-                      />
-                      </fieldset>
-                      );
-                    })}
-                  </div>
-                  {linesOverlapError && (
-                    <p className="mc-ref-hint text-error">
-                      {linesOverlapError}
-                    </p>
-                  )}
-                </CreateFormSection>
-              )}
-
-              <GardiennagePlanningLinesRecap
-                mode={planningMode}
-                isEdit={!isCreateMode}
-                lines={form.planningLines}
+              <GardiennagePlanningSection
+                form={form}
+                setForm={setForm}
+                planningMode={planningMode}
+                locked={isSaving || isAnnule || isReadOnlyByRole}
+                isCreateMode={isCreateMode}
+                isCloture={isCloture}
+                isAnnule={isAnnule}
+                entry={entry}
+                ponctuelCrossesMidnight={ponctuelCrossesMidnight}
                 lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
-                validFromDate={form.validFromDate}
-                validFromTime={form.validFromTime}
-                validToDate={
-                  planningMode === "ponctuel"
-                    ? form.validFromDate
-                    : planningMode === "h24" && !form.validToDate.trim()
-                      ? ""
-                      : form.validToDate
-                }
-                validToTime={form.validToTime}
-                perLineCounts={previewPerLineCounts}
-                totalSlots={previewSlots.length}
-                totalMinutesLabel={formatDurationMinutes(previewTotalMinutes)}
-                closedSlotsCount={previewClosedSlotsCount}
-                openEnded={planningMode === "h24" && !form.validToDate.trim()}
-                openEndedHorizonDays={GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS}
+                linesOverlapError={linesOverlapError}
+                previewPerLineCounts={previewPerLineCounts}
+                previewSlotsCount={previewSlots.length}
+                previewTotalMinutes={previewTotalMinutes}
+                previewClosedSlotsCount={previewClosedSlotsCount}
+                highlightNewestLineId={highlightNewestLineId}
+                newestLineRef={newestLineRef}
               />
 
               {/* CONSIGNE */}
