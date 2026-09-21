@@ -2,8 +2,8 @@
 #     OUTILS PRODUCTION GORON-GTS (helpers)
 # ===============================================
 # Conteneur : goron-pg18. Aucun secret affiche. Pas de creation de conteneur.
-# Premiere utilisation : mot de passe administrateur, puis responsable.
-# Mode Dev : non propose en production (saisie cachee DEV + mot de passe admin).
+# Premiere utilisation : mot de passe administrateur (aussi code Admin Goron GTS),
+# puis responsable. Mode Dev : saisie cachee DEV + mot de passe admin.
 
 $script:ProdContainerName = "goron-pg18"
 $script:ProdPgPort = 5432
@@ -15,7 +15,10 @@ $script:ProdDailyKeep = 14
 $script:ProdMonthlyKeep = 12
 $script:ProdDumpExt = ".dump"
 $script:ProdGateFileName = "gts-prod-gate.json"
+$script:ProdAdminEnvFileName = "acces_admin.env"
+$script:ProdAdminEncFileName = "gts-admin.enc"
 $script:ProdPasswordMinLength = 6
+$script:ProdGtsAdminCodeMinLength = 8
 $script:ProdPbkdf2Iterations = 100000
 $script:ProdOutilsDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
@@ -38,6 +41,39 @@ function Get-ProdBackupConfigPath {
 
 function Get-ProdGatePath {
     return (Join-Path (Get-ProdUserDataDir) $script:ProdGateFileName)
+}
+
+function Get-ProdGoronGtsAdminEnvPath {
+    return (Join-Path (Get-ProdUserDataDir) "data\$script:ProdAdminEnvFileName")
+}
+
+function Get-ProdGoronGtsAdminEncPath {
+    return (Join-Path (Get-ProdUserDataDir) $script:ProdAdminEncFileName)
+}
+
+# Ecrit le code Admin Goron GTS dans AppData (meme secret que l'acces admin console).
+# Retire gts-admin.enc s'il existe, sinon le fichier chiffre resterait prioritaire.
+function Save-ProdGoronGtsAdminCode {
+    param([Parameter(Mandatory = $true)][string]$Password)
+    $envPath = Get-ProdGoronGtsAdminEnvPath
+    $dataDir = Split-Path -Parent $envPath
+    try {
+        if (-not (Test-Path -LiteralPath $dataDir)) {
+            New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+        }
+        $utf8 = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($envPath, "GTS_ADMIN_MASTER_CODE=$Password`r`n", $utf8)
+        $encPath = Get-ProdGoronGtsAdminEncPath
+        if (Test-Path -LiteralPath $encPath) {
+            Remove-Item -LiteralPath $encPath -Force
+            Write-Host "Ancien code Admin chiffre de l'application remplace." -ForegroundColor DarkGray
+        }
+        Write-Host "Code Admin Goron GTS enregistre (AppData)." -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[ERREUR] Impossible d'enregistrer le code Admin Goron GTS." -ForegroundColor Red
+        return $false
+    }
 }
 
 function Read-ProdSecret {
@@ -212,19 +248,28 @@ function Test-ProdRolePassword {
 function Register-ProdRolePassword {
     param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
     $label = Get-ProdRoleLabel -Role $Role
+    $minLength = if ($Role -eq "admin") { $script:ProdGtsAdminCodeMinLength } else { $script:ProdPasswordMinLength }
     Write-Host ""
     Write-Host "Definissez le mot de passe $label." -ForegroundColor Cyan
+    if ($Role -eq "admin") {
+        Write-Host "Il sert aussi a connecter le compte Admin dans Goron GTS." -ForegroundColor DarkGray
+    }
     Write-Host "Il sera demande sur ce poste uniquement. Il n'est jamais reaffiche." -ForegroundColor DarkGray
     Write-Host ""
     $first = Read-ProdSecret -Prompt "Nouveau mot de passe $label"
-    if ($first.Length -lt $script:ProdPasswordMinLength) {
-        Write-Host "[ERREUR] Mot de passe trop court (minimum $($script:ProdPasswordMinLength) caracteres)." -ForegroundColor Red
+    if ($first.Length -lt $minLength) {
+        Write-Host "[ERREUR] Mot de passe trop court (minimum $minLength caracteres)." -ForegroundColor Red
         return $false
     }
     $second = Read-ProdSecret -Prompt "Confirmation"
     if ($first -cne $second) {
         Write-Host "[ERREUR] Les deux saisies ne correspondent pas." -ForegroundColor Red
         return $false
+    }
+    if ($Role -eq "admin") {
+        if (-not (Save-ProdGoronGtsAdminCode -Password $first)) {
+            return $false
+        }
     }
     Save-ProdRolePassword -Role $Role -Password $first
     Write-Host "Acces $label enregistre." -ForegroundColor Green
@@ -265,7 +310,7 @@ function Show-ProdFirstUseMenu {
     Write-Host "Goron GTS - console production" -ForegroundColor Cyan
     Write-Host "Premiere utilisation" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Creez d'abord l'acces administrateur, puis l'acces responsable." -ForegroundColor DarkGray
+    Write-Host "Creez d'abord l'acces administrateur (meme code que le compte Admin Goron GTS), puis l'acces responsable." -ForegroundColor DarkGray
     Write-Host ""
     $adminOk = Test-ProdRolePasswordSet -Role "admin"
     $respOk = Test-ProdRolePasswordSet -Role "responsable"
