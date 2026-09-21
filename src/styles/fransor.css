@@ -19,7 +19,6 @@
   border-color: rgba(112, 64, 184, 0.34);
 }
 
-
 /* Page Fransor — suivi quotidien, calendrier, périodes exceptionnelles */
 
 .fransor-site-copy-btn {
@@ -212,10 +211,6 @@
 
   .fransor-main-row-actions {
     min-width: 0;
-  }
-
-  .fransor-switch-right {
-    margin-left: 0;
   }
 
   .fransor-today-row {

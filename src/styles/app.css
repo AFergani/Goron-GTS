@@ -261,8 +261,7 @@
 }
 
 .pending-ref-inline-form-column .mc-form-grid,
-.pending-ref-inline-form-column .mc-form-grid-main,
-.pending-ref-inline-grid {
+.pending-ref-inline-form-column .mc-form-grid-main{
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -270,14 +269,12 @@
   align-items: start;
 }
 
-.pending-ref-inline-form-column .mc-field,
-.pending-ref-inline-grid .mc-field {
+.pending-ref-inline-form-column .mc-field{
   min-width: 0;
   margin: 0;
 }
 
-.pending-ref-inline-form-column .mc-field input:not([type="date"]):not([type="time"]),
-.pending-ref-inline-grid .mc-field input:not([type="date"]):not([type="time"]) {
+.pending-ref-inline-form-column .mc-field input:not([type="date"]):not([type="time"]){
   width: 100%;
 }
 
@@ -1257,7 +1254,6 @@ th {
   border-color: rgba(158, 197, 255, 0.45);
 }
 
-
 .audit-page-badge--data {
   color: #8fe4cc;
   background: rgba(27, 148, 104, 0.25);
@@ -1407,13 +1403,6 @@ th {
   }
 }
 
-.data-form-row {
-  margin: 10px 0 12px;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(120px, 1fr) minmax(220px, 2fr) minmax(160px, 1fr) auto;
-}
-
 .data-actions-bar {
   margin: 12px 0;
   display: flex;
@@ -1519,7 +1508,6 @@ th {
   background: rgba(48, 105, 210, 0.16);
   border-color: rgba(32, 89, 194, 0.36);
 }
-
 
 [data-theme="light"] .audit-page-badge--data {
   color: #136648;
@@ -1716,10 +1704,6 @@ th {
   width: 35%;
 }
 
-.data-table-fixed col.data-col-code {
-  width: 25%;
-}
-
 .data-table-fixed col.data-col-name {
   width: 25%;
 }
@@ -1744,7 +1728,6 @@ th {
 .data-table-fixed col.data-col-single {
   width: 90%;
 }
-
 
 .main-log-stats-block {
   display: grid;
@@ -1939,15 +1922,6 @@ th {
 
 .mc-status-badge__label {
   letter-spacing: 0.01em;
-}
-
-.mc-status-badge__queued {
-  margin-left: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 1px 6px;
 }
 
 .mc-status-badge--en-attente {
@@ -2149,9 +2123,7 @@ th {
 .main-courante-table.ronde-table col.ronde-col-site {
   width: 13%;
 }
-.main-courante-table.ronde-table col.ronde-col-motif {
-  width: 20%;
-}
+
 .main-courante-table.ronde-table col.ronde-col-origin {
   width: 11%;
 }
@@ -2297,9 +2269,7 @@ th {
 .main-courante-table.mc-entries-table th.mc-col-status-actions,
 .main-courante-table.mc-entries-table td.mc-col-status-actions,
 .main-courante-table.mc-entries-table th.mc-col-status,
-.main-courante-table.mc-entries-table td.mc-col-status,
-.main-courante-table.mc-entries-table th.mc-col-actions,
-.main-courante-table.mc-entries-table td.mc-col-actions {
+.main-courante-table.mc-entries-table td.mc-col-status{
   width: auto;
   min-width: 0;
 }
@@ -2355,13 +2325,6 @@ th {
   white-space: normal;
 }
 
-.main-courante-table th.mc-col-manager,
-.main-courante-table td.mc-col-manager {
-  width: 130px;
-  min-width: 130px;
-  white-space: normal;
-}
-
 .main-courante-table th.mc-col-site,
 .main-courante-table td.mc-col-site {
   width: 220px;
@@ -2398,14 +2361,6 @@ th {
   width: 180px;
   min-width: 160px;
   white-space: normal;
-}
-
-.main-courante-table th.mc-col-actions,
-.main-courante-table td.mc-col-actions {
-  width: 130px;
-  min-width: 130px;
-  text-align: right;
-  vertical-align: middle;
 }
 
 .main-courante-table td.mc-cell-wrap {
@@ -2563,10 +2518,6 @@ th {
 .table-action-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.table-action-btn-wrap {
-  display: inline-flex;
 }
 
 .table-action-btn--validate:hover:not(:disabled) {
@@ -3015,8 +2966,7 @@ th {
 .ronde-planned-rule-modal .mc-label-row,
 .ronde-planned-rule-modal .create-form-section-title,
 .ronde-planned-rule-modal .ronde-planned-profile-modal__schedule-field span,
-.ronde-planned-rule-modal .ronde-planned-profile-modal__schedule-field__label,
-.ronde-planned-rule-modal .ronde-planned-profile-modal__validity-label {
+.ronde-planned-rule-modal .ronde-planned-profile-modal__validity-label{
   color: var(--text);
 }
 
@@ -3269,19 +3219,6 @@ th {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-
-.mc-modal-footer.mc-modal-footer-stack {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.mc-modal-footer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .mc-modal-footer-hints {
@@ -3540,26 +3477,7 @@ th {
   margin-top: 8px;
 }
 
-.ronde-planned-rule-modal__site-field {
-  min-width: 0;
-  width: 100%;
-}
-
-.ronde-planned-rule-modal__site-field .mc-site-field-wrap {
-  width: 100%;
-  min-width: 0;
-}
-
-.ronde-planned-rule-modal__site-field .mc-field {
-  min-width: 0;
-}
-
-.ronde-planned-rule-modal__site-field .mc-site-input-inner {
-  max-width: 100%;
-}
-
-.ronde-planned-rule-modal .form > label,
-.ronde-planned-rule-modal fieldset.ronde-planned-weekdays {
+.ronde-planned-rule-modal .form > label{
   min-width: 0;
 }
 
@@ -3583,20 +3501,6 @@ th {
   min-width: 0;
   text-align: left;
   overflow-wrap: anywhere;
-}
-
-.ronde-planned-rule-modal__footer.modal-actions {
-  justify-content: space-between;
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.ronde-planned-weekday-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  margin-top: 6px;
 }
 
 /* Grille aplatie pour la modale RondeRequestModal (labels tous au même niveau) */
@@ -3768,21 +3672,6 @@ th {
   width: 100%;
 }
 
-.ronde-planned-profile-line__random-period {
-  margin-top: 8px;
-}
-
-.ronde-planned-profile-line__random-period-toggles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px 10px;
-  margin-top: 6px;
-}
-
-.ronde-planned-profile-line__random-period-toggles .toggle-switch {
-  width: 100%;
-}
-
 .ronde-planned-profile-modal__schedule-row {
   display: grid;
   grid-template-columns: minmax(12rem, 1.1fr) minmax(12rem, 1.4fr) auto;
@@ -3807,8 +3696,7 @@ th {
   min-width: 0;
 }
 
-.ronde-planned-profile-modal__schedule-field span,
-.ronde-planned-profile-modal__schedule-field__label {
+.ronde-planned-profile-modal__schedule-field span{
   font-size: 12px;
   color: var(--text);
 }
@@ -3886,108 +3774,6 @@ th {
   white-space: nowrap;
 }
 
-@media (max-width: 520px) {
-  .ronde-planned-profile-modal__date-range-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.ronde-planned-weekday-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
-fieldset.ronde-planned-weekdays {
-  margin: 0;
-  padding: 0;
-  border: none;
-  min-width: 0;
-}
-
-.ronde-planned-profile-modal__help-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.ronde-planned-profile-modal__site-prest-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-@media (max-width: 640px) {
-  .ronde-planned-profile-modal__site-prest-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.ronde-planned-profile-modal__site-prest-cell {
-  min-width: 0;
-}
-
-.ronde-planned-profile-modal__toggles-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 20px;
-  align-items: end;
-}
-
-@media (max-width: 560px) {
-  .ronde-planned-profile-modal__toggles-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.ronde-planned-profile-modal__word-template-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 16px;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-}
-
-.ronde-planned-profile-modal__word-template-row-label {
-  font-weight: 600;
-  font-size: 14px;
-  flex: 0 0 auto;
-}
-
-.ronde-planned-profile-modal__var-details {
-  margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--card);
-}
-
-.ronde-planned-profile-modal__var-details summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 13px;
-  list-style-position: outside;
-  padding: 4px 0;
-}
-
-.ronde-planned-profile-modal__var-details .ronde-planned-profile-modal__template-vars {
-  margin-top: 10px;
-  margin-bottom: 4px;
-}
-
-.ronde-planned-profile-help-modal__lead {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .ronde-planned-profile-modal__lines-header {
   display: flex;
   align-items: center;
@@ -4027,56 +3813,6 @@ fieldset.ronde-planned-weekdays {
   }
 }
 
-.ronde-planned-profile-line__section {
-  min-width: 0;
-}
-
-.ronde-planned-profile-line__section-title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
-.ronde-planned-profile-line__section--cadence {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.ronde-planned-profile-line__grid-schedule {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  align-items: end;
-}
-
-.ronde-planned-profile-line__random-period,
-.ronde-planned-profile-line__random-window,
-.ronde-planned-profile-line__recurrence-hint {
-  grid-column: 1 / -1;
-}
-
-.ronde-planned-profile-line__random-window {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.ronde-planned-profile-line__weekdays-block {
-  margin-bottom: 12px;
-}
-
-.ronde-planned-profile-line__inline-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.ronde-planned-profile-line__month-day {
-  margin-bottom: 12px;
-}
-
 .ronde-planned-profile-line__legend {
   display: flex;
   align-items: center;
@@ -4091,82 +3827,12 @@ fieldset.ronde-planned-weekdays {
   flex: 0 0 auto;
 }
 
-.ronde-planned-profile-line__legend-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.ronde-planned-profile-modal__hint {
-  display: block;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-/* Fréquence : surcharge la règle .ronde-planned-rule-modal input { width:100% } (spécificité plus forte avec input/select typés). */
-.ronde-planned-rule-modal.ronde-planned-profile-modal .ronde-planned-profile-modal__freq-field {
-  margin-top: 4px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.ronde-planned-rule-modal.ronde-planned-profile-modal .ronde-planned-profile-modal__freq-inline {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-  width: fit-content;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.ronde-planned-rule-modal.ronde-planned-profile-modal
-  .ronde-planned-profile-modal__freq-inline
-  input[type="number"].ronde-planned-profile-modal__freq-num {
-  width: 5rem;
-  min-width: 5rem;
-  max-width: 5rem;
-  flex: 0 0 5rem;
-  box-sizing: border-box;
-}
-
-.ronde-planned-rule-modal.ronde-planned-profile-modal
-  .ronde-planned-profile-modal__freq-inline
-  select.ronde-planned-profile-modal__freq-unit {
-  width: auto;
-  min-width: 7.5rem;
-  max-width: 12rem;
-  flex: 0 1 auto;
-  box-sizing: border-box;
-}
-
 .ronde-planned-day-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 20px;
   margin-bottom: 14px;
-}
-
-.ronde-planned-day-date input[type="date"] {
-  margin-left: 8px;
-}
-
-.ronde-planned-day-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: center;
-}
-
-.ronde-planned-day-action-cell {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 
 .ronde-planned-day-passages-grid {
@@ -4185,28 +3851,6 @@ fieldset.ronde-planned-weekdays {
 
 .ronde-planned-day-table td {
   vertical-align: top;
-}
-
-.ronde-planned-day-status {
-  font-size: 12px;
-}
-
-.ronde-planned-day-table__col-actions {
-  width: 96px;
-  text-align: center;
-}
-
-.ronde-planned-day-table__actions {
-  text-align: center;
-  vertical-align: middle;
-}
-
-/* Modales Profils / Demandes d'arrêt (rondes contractuelles) */
-.ronde-planned-cancellation-queue-modal {
-  width: min(720px, 96vw);
-  max-height: min(86vh, 900px);
-  display: flex;
-  flex-direction: column;
 }
 
 /* Même gabarit largeur/hauteur que les formulaires de ronde ; hauteur fixe + scroll interne. */
@@ -4380,8 +4024,7 @@ fieldset.ronde-planned-weekdays {
   box-sizing: border-box;
 }
 
-.ronde-cancellation-queue-btn,
-.data-pending-submissions-btn {
+.data-pending-submissions-btn{
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -4422,107 +4065,6 @@ fieldset.ronde-planned-weekdays {
   .ronde-closure-fields-grid .mc-field-span-2 {
     grid-column: auto;
   }
-}
-
-.ronde-planned-profile-modal__prestataire-field {
-  margin-top: 4px;
-}
-
-.ronde-planned-profile-modal__prestataire-hint {
-  margin: 0 0 10px;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.ronde-planned-profile-modal__closure-block {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-}
-
-.ronde-planned-profile-modal__closure-hint {
-  margin-top: 6px;
-}
-
-.ronde-planned-profile-modal__word-template-install {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-  display: grid;
-  gap: 10px;
-}
-
-.ronde-planned-profile-modal__word-template-install-text {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.ronde-planned-profile-modal__word-template-install-text code {
-  font-size: 12px;
-}
-
-.ronde-planned-profile-modal__word-template-install-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  justify-self: start;
-}
-
-.ronde-planned-profile-modal__vars-intro {
-  margin: 8px 0 4px;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.ronde-planned-profile-modal__template-vars {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-  margin: 8px 0 12px;
-  width: 100%;
-  min-width: 0;
-}
-
-.ronde-planned-profile-modal__var-chip {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: auto;
-  height: auto;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 10px;
-  justify-content: flex-start;
-  text-align: left;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.ronde-planned-profile-modal__var-chip-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ronde-planned-profile-modal__var-token {
-  font-size: 12px;
-  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
-  line-height: 1.35;
-}
-
-.ronde-planned-profile-modal__var-label {
-  font-size: 11px;
-  opacity: 0.85;
-}
-
-.ronde-planned-profile-modal__var-chip--field-key {
-  border-style: dashed;
-  border-color: var(--accent-hi);
 }
 
 .templates-management-panel {
@@ -4698,18 +4240,6 @@ fieldset.ronde-planned-weekdays {
   width: 52px;
 }
 
-.templates-management-panel__variable-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.templates-management-panel__copy-token {
-  flex-shrink: 0;
-}
-
 .table-row-actions {
   flex-wrap: nowrap;
   gap: 6px;
@@ -4717,7 +4247,6 @@ fieldset.ronde-planned-weekdays {
   justify-content: flex-end;
   margin-left: auto;
 }
-
 
 .data-type-label-with-color {
   display: inline-flex;
@@ -4749,12 +4278,6 @@ fieldset.ronde-planned-weekdays {
   min-width: 44px;
   height: 32px;
   padding: 2px;
-}
-
-@media (max-width: 1200px) {
-  .data-form-row {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
 }
 
 @media (max-width: 1080px) {
@@ -4931,11 +4454,6 @@ fieldset.ronde-planned-weekdays {
   margin-left: 2px;
 }
 
-.gardiennage-jours-cell {
-  font-size: 0.82em;
-  color: var(--text-2);
-}
-
 .gardiennage-periode {
   font-variant-numeric: tabular-nums;
   font-size: 0.87em;
@@ -5072,10 +4590,6 @@ fieldset.ronde-planned-weekdays {
 .gardiennage-planning-line__remove {
   flex-shrink: 0;
   margin-left: auto;
-}
-
-.gardiennage-planning-lines-hint {
-  margin: 10px 0 0;
 }
 
 /* Lignes planification — jours L à D / JF (comme ronde planifiée) */
@@ -5253,10 +4767,6 @@ fieldset.ronde-planned-weekdays {
   border-bottom: 1px solid var(--border);
 }
 
-.gard-panel-head--list {
-  justify-content: flex-end;
-}
-
 .gard-panel-head .gard-date-nav {
   flex: 1 1 280px;
   min-width: 0;
@@ -5268,10 +4778,6 @@ fieldset.ronde-planned-weekdays {
   padding-bottom: 0;
   border-bottom: none;
   flex: 0 1 auto;
-}
-
-.gard-panel-head--list .gard-panel-head__toolbar {
-  flex: 1 1 100%;
 }
 
 .gard-date-nav {
@@ -5296,7 +4802,6 @@ fieldset.ronde-planned-weekdays {
   text-transform: capitalize;
   margin-left: 4px;
 }
-
 
 /* ── Sélecteur de taille de page ─────────────────────────── */
 .pagination-page-size {
@@ -5405,13 +4910,6 @@ fieldset.ronde-planned-weekdays {
 
 /* Consultation / édition d’un lot : largeur via .fransor-help-modal + .ronde-planned-rule-modal sur la section */
 
-.ronde-demand-consult__readonly {
-  border: 1px solid var(--border);
-}
-.ronde-demand-consult__table-title {
-  margin: 0 0 6px;
-  font-size: 0.95rem;
-}
 .ronde-demand-consult__table {
   width: 100%;
   border-collapse: collapse;
