@@ -1,14 +1,12 @@
 import type { HolidayRef } from "../../../types";
+import { getLocalDateIso } from "../../common/utils/localDateIso";
 
 /**
  * Helpers calendrier en date/heure locales (Éviter toISOString() pour la partie date :
  * avant l’aube en Europe la date UTC peut être la veille, ce qui désaligne l’UI sur la sidebar).
  */
 export function formatLocalDateIso(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return getLocalDateIso(d);
 }
 
 export function formatLocalTimeHm(d: Date): string {

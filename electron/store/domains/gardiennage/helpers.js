@@ -7,7 +7,7 @@
  * @module electron/store/domains/gardiennage/helpers
  */
 
-const { addDaysIso, normalizeDateIso, normalizeTimeHm } = require("../../core/isoDate");
+const { addDaysIso, normalizeDateIso, normalizeTimeHm, todayDateIso } = require("../../core/isoDate");
 const {
   buildHolidayMatchers,
   collectActiveDatesForLine
@@ -20,24 +20,6 @@ const GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS = 90;
 /** Statuts encore ouverts (clôture auto / horizon glissant). */
 const OPEN_STATUSES_SQL = "status IN ('PLANIFIE', 'ACTIF')";
 const MS_PER_DAY = 86400000;
-
-/**
- * @param {number} value
- * @returns {string}
- */
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
-
-/**
- * Date calendaire locale `AAAA-MM-JJ` (évite le décalage UTC de `toISOString`).
- *
- * @param {Date} [date]
- * @returns {string}
- */
-function localDateIso(date = new Date()) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
 
 /**
  * Acteur des jobs de fond (clôture auto, horizon H24).
@@ -69,7 +51,7 @@ function toIsoTime(value) {
  * @returns {string}
  */
 function computeOpenEndedHorizonEndDate(validFromDate, referenceDateIso) {
-  const reference = normalizeDateIso(referenceDateIso) || localDateIso();
+  const reference = normalizeDateIso(referenceDateIso) || todayDateIso();
   const from = normalizeDateIso(validFromDate) || reference;
   const fromHorizon = addDaysIso(from, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
   const referenceHorizon = addDaysIso(reference, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);

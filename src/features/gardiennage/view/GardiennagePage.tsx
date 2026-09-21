@@ -28,6 +28,7 @@ import { GardiennageCloseModal } from "../components/GardiennageCloseModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { DateInput } from "../../common/components/DateInput";
+import { addDaysLocalIso, formatLongDateFr, getLocalDateIso } from "../../common/utils/localDateIso";
 import { exportGardiennageToExcel } from "../export/gardiennageExcelExport";
 import { ListExportButtons } from "../../common/components/ExportFileButtons";
 import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
@@ -45,28 +46,6 @@ type GardiennagePageProps = {
   focusGardiennageId?: string | null;
   onFocusGardiennageConsumed?: () => void;
 };
-
-/** Retourne la date locale au format YYYY-MM-DD (sans décalage UTC). */
-function getTodayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** Décale une date ISO locale de `delta` jours. */
-function shiftDate(iso: string, delta: number): string {
-  const [y, m, day] = iso.split("-").map(Number);
-  const d = new Date(y, m - 1, day);
-  d.setDate(d.getDate() + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateLong(iso: string): string {
-  if (!iso) return "";
-  const [y, m, day] = iso.split("-").map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString("fr-FR", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric"
-  });
-}
 
 export function GardiennagePage({
   requesterRole,
@@ -89,8 +68,8 @@ export function GardiennagePage({
   });
 
   /* ── Onglet Du jour ── */
-  const [selectedDate, setSelectedDate] = useState(getTodayIso);
-  const isSelectedToday = selectedDate === getTodayIso();
+  const [selectedDate, setSelectedDate] = useState(getLocalDateIso);
+  const isSelectedToday = selectedDate === getLocalDateIso();
 
   /* ── Onglet Planification — filtres (affichage liste) ── */
   const planifFilters = useTableFilters();
@@ -271,7 +250,7 @@ export function GardiennagePage({
                 className="action-icon-btn"
                 title="Jour précédent"
                 aria-label="Jour précédent"
-                onClick={() => setSelectedDate((d) => shiftDate(d, -1))}
+                onClick={() => setSelectedDate((d) => addDaysLocalIso(d, -1))}
               >
                 <ChevronLeft size={18} />
               </button>
@@ -286,7 +265,7 @@ export function GardiennagePage({
                 className="action-icon-btn"
                 title="Jour suivant"
                 aria-label="Jour suivant"
-                onClick={() => setSelectedDate((d) => shiftDate(d, 1))}
+                onClick={() => setSelectedDate((d) => addDaysLocalIso(d, 1))}
               >
                 <ChevronRight size={18} />
               </button>
@@ -296,12 +275,12 @@ export function GardiennagePage({
                   className="action-icon-btn"
                   title="Revenir à aujourd'hui"
                   aria-label="Aujourd'hui"
-                  onClick={() => setSelectedDate(getTodayIso())}
+                  onClick={() => setSelectedDate(getLocalDateIso())}
                 >
                   <RotateCcw size={15} />
                 </button>
               ) : null}
-              <span className="gard-date-nav-label">{formatDateLong(selectedDate)}</span>
+              <span className="gard-date-nav-label">{formatLongDateFr(selectedDate)}</span>
               {isSelectedToday ? <span className="gard-today-badge">Aujourd'hui</span> : null}
             </div>
 

@@ -8,6 +8,7 @@
  */
 
 import type { GardiennagePlanningLineV1 } from "./gardiennage.types";
+import { addDaysLocalIso } from "../../common/utils/localDateIso";
 
 /** Bits alignés sur Date.getDay() : dim=1, lun=2, … sam=64 */
 export const GARDIENNAGE_WEEKDAY_BITS = [
@@ -33,10 +34,9 @@ export function dayBitFromIsoDate(isoDate: string): number {
   return 1 << day;
 }
 
+/** Décale une date calendaire locale (sans `toISOString`, qui décalle en UTC+). */
 export function shiftIsoDate(isoDate: string, amount: number): string {
-  const d = new Date(`${isoDate}T12:00:00`);
-  d.setDate(d.getDate() + amount);
-  return d.toISOString().slice(0, 10);
+  return addDaysLocalIso(isoDate, amount);
 }
 
 export function isIsoDate(value: string | undefined): value is string {

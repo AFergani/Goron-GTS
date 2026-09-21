@@ -31,14 +31,14 @@ import {
   isValidPlanningTime,
   resolvePlanningFormMode,
   resolvePonctuelValidToDate,
-  shiftIsoDate,
   type GardiennagePlanningFormMode
 } from "../model/gardiennagePlanningForm";
 import {
   buildHolidayMatchers,
   collectActiveDatesForLine,
   GARDIENNAGE_WEEKDAYS_ALL_MASK,
-  isIsoDate as isPlanningIsoDate
+  isIsoDate as isPlanningIsoDate,
+  shiftIsoDate
 } from "../model/gardiennagePlanningCalendar";
 import {
   gardiennagePlanningLineDisplayNumber,

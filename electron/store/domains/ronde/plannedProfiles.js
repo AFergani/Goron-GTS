@@ -5,6 +5,7 @@
  */
 
 const { generateEntityId } = require("../../core/ids");
+const { todayDateIso } = require("../../core/isoDate");
 const { requireRondePersistence } = require("./persistence");
 const { RONDE_PLANNED_PROFILE_SELECT } = require("./mapping");
 const { assertOptimisticLock } = require("../data/optimisticLock");
@@ -208,7 +209,7 @@ function mapLineRow(row) {
 
 /** @param {object} profile @param {object[]} lines @returns {object} */
 function mapProfileRow(profile, lines) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayDateIso();
   const from = profile.planning_valid_from || null;
   const to = profile.planning_valid_to || null;
   return {

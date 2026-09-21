@@ -18,6 +18,7 @@ import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useModalEscape } from "../../common/hooks/useModalEscape";
 import type { FransorClosure, Role } from "../../../types";
+import { getLocalDateIso } from "../../common/utils/localDateIso";
 
 /** Libellé fixe du bouton de copie site (code métier entre parenthèses, hors référentiel). */
 const FRANSOR_SITE_COPY_LABEL = "FRANSOR INDUSTRIE (FRANSOR)";
@@ -116,13 +117,6 @@ function getYearMonthKeys(year: number) {
   });
 }
 
-function getLocalIsoDate(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function formatClosureModeLabel(mode: "CLOSED" | "OPEN") {
   return mode === "OPEN" ? "Ouvert" : "Fermer";
 }
@@ -137,7 +131,7 @@ export function FransorPage({
   onToast?: (message: string, variant?: "success" | "warning" | "error") => void;
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
-  const [entryDate, setEntryDate] = useState(getLocalIsoDate);
+  const [entryDate, setEntryDate] = useState(getLocalDateIso);
   const [entryOuvertureResponsableId, setEntryOuvertureResponsableId] = useState("");
   const [entryFermetureResponsableId, setEntryFermetureResponsableId] = useState("");
   const [entryOuvertureDone, setEntryOuvertureDone] = useState(false);
@@ -170,7 +164,7 @@ export function FransorPage({
   }, []);
 
   /* --- Dérivés calendrier : exceptions, fériés, jour courant, jours à compléter --- */
-  const todayIso = getLocalIsoDate();
+  const todayIso = getLocalDateIso();
   const days = useMemo(() => getDaysInMonth(presenter.month), [presenter.month]);
   const exceptionByDate = useMemo(() => {
     const map = new Map<string, { id: string; label: string; mode: "CLOSED" | "OPEN"; updatedAt: string }>();
@@ -369,7 +363,7 @@ export function FransorPage({
   };
 
   const resetClosureModalToCurrentMonth = () => {
-    const currentMonth = getLocalIsoDate().slice(0, 7);
+    const currentMonth = getLocalDateIso().slice(0, 7);
     const currentYear = Number(currentMonth.slice(0, 4));
     setClosureModalYear(Number.isFinite(currentYear) ? currentYear : new Date().getFullYear());
     setClosureModalSelectedMonth(currentMonth);
@@ -465,13 +459,13 @@ export function FransorPage({
     prefilledOpeningResponsableId = "",
     prefilledClosingResponsableId = ""
   ) => {
-    setEntryDate(prefilledDate || getLocalIsoDate());
+    setEntryDate(prefilledDate || getLocalDateIso());
     setEntryOuvertureResponsableId(prefilledOpeningResponsableId);
     setEntryFermetureResponsableId(prefilledClosingResponsableId);
     setEntryOuvertureDone(defaultOuverture);
     setEntryFermetureDone(defaultFermeture);
     addBaselineRef.current = JSON.stringify({
-      date: prefilledDate || getLocalIsoDate(),
+      date: prefilledDate || getLocalDateIso(),
       ouv: defaultOuverture,
       ferm: defaultFermeture,
       ouvId: prefilledOpeningResponsableId,
@@ -600,7 +594,7 @@ export function FransorPage({
                 className="btn-light action-icon-btn"
                 title="Revenir au mois en cours"
                 aria-label="Revenir au mois en cours"
-                onClick={() => presenter.setMonth(getLocalIsoDate().slice(0, 7))}
+                onClick={() => presenter.setMonth(getLocalDateIso().slice(0, 7))}
               >
                 <RotateCcw size={14} />
               </button>

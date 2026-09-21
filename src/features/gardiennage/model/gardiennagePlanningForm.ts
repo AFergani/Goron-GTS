@@ -8,7 +8,8 @@
  */
 
 import type { GardiennagePlanningLineV1, GardiennagePlanningSnapshotV1 } from "./gardiennage.types";
-import { GARDIENNAGE_WEEKDAYS_ALL_MASK } from "./gardiennagePlanningCalendar";
+import { GARDIENNAGE_WEEKDAYS_ALL_MASK, shiftIsoDate } from "./gardiennagePlanningCalendar";
+import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { isValidTime } from "../../common/utils/timeInput";
 
 export type GardiennagePlanningFormMode = "ponctuel" | "h24" | "recurring";
@@ -24,7 +25,7 @@ export function computeOpenEndedHorizonEndDate(
   validFromDate: string,
   referenceDateIso?: string
 ): string {
-  const ref = referenceDateIso?.trim() || new Date().toISOString().slice(0, 10);
+  const ref = referenceDateIso?.trim() || getLocalDateIso();
   const from = validFromDate?.trim() || ref;
   const fromHorizon = shiftIsoDate(from, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
   const refHorizon = shiftIsoDate(ref, GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS);
@@ -47,12 +48,6 @@ export function resolvePlanningFormMode(isPonctuel: boolean, isContinuous: boole
   if (isContinuous) return "h24";
   if (isPonctuel) return "ponctuel";
   return "recurring";
-}
-
-export function shiftIsoDate(isoDate: string, amount: number): string {
-  const d = new Date(`${isoDate}T12:00:00`);
-  d.setDate(d.getDate() + amount);
-  return d.toISOString().slice(0, 10);
 }
 
 /** Fin de validité pour une journée unique (passage minuit si fin ≤ début). */

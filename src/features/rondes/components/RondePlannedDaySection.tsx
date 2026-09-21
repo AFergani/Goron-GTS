@@ -17,25 +17,10 @@ import {
 import type { NotifyToast } from "../../common/model/toast.types";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { DateInput } from "../../common/components/DateInput";
-import { getLocalDateIso } from "../../common/utils/localDateIso";
+import { addDaysLocalIso, formatLongDateFr, getLocalDateIso } from "../../common/utils/localDateIso";
 import { findPlannedEntryForSlot, hhmmToMinutes } from "../utils/rondeDateTime";
 import { extractRondeRequestedTimeHm } from "../utils/rondePassageRules";
 import { rondePassageKindLabel } from "../utils/rondePassageKindLabel";
-
-function shiftDateRonde(iso: string, delta: number): string {
-  const [y, m, day] = iso.split("-").map(Number);
-  const d = new Date(y, m - 1, day);
-  d.setDate(d.getDate() + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateLongRonde(iso: string): string {
-  if (!iso) return "";
-  const [y, m, day] = iso.split("-").map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString("fr-FR", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric"
-  });
-}
 
 function compareEntriesByRequestedTime(a: RondeEntry, b: RondeEntry): number {
   const am = hhmmToMinutes(extractRondeRequestedTimeHm(a));
@@ -148,7 +133,7 @@ export function RondePlannedDaySection({
             className="action-icon-btn"
             title="Jour précédent"
             aria-label="Jour précédent"
-            onClick={() => setDayIso((d) => shiftDateRonde(d, -1))}
+            onClick={() => setDayIso((d) => addDaysLocalIso(d, -1))}
           >
             <ChevronLeft size={18} />
           </button>
@@ -163,7 +148,7 @@ export function RondePlannedDaySection({
             className="action-icon-btn"
             title="Jour suivant"
             aria-label="Jour suivant"
-            onClick={() => setDayIso((d) => shiftDateRonde(d, 1))}
+            onClick={() => setDayIso((d) => addDaysLocalIso(d, 1))}
           >
             <ChevronRight size={18} />
           </button>
@@ -178,7 +163,7 @@ export function RondePlannedDaySection({
               <RotateCcw size={15} />
             </button>
           )}
-          <span className="gard-date-nav-label">{formatDateLongRonde(dayIso)}</span>
+          <span className="gard-date-nav-label">{formatLongDateFr(dayIso)}</span>
           {isToday && <span className="gard-today-badge">Aujourd&apos;hui</span>}
         </div>
         <span className="muted" style={{ marginTop: 4 }}>

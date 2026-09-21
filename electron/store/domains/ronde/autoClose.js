@@ -8,6 +8,7 @@
  * @module electron/store/domains/ronde/autoClose
  */
 
+const { addDaysIso, normalizeDateIso, todayDateIso } = require("../../core/isoDate");
 const { requireRondePersistence } = require("./persistence");
 const { RONDE_ENTRY_SELECT } = require("./mapping");
 const { GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS } = require("../gardiennage/helpers");
@@ -17,27 +18,6 @@ const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 const RONDE_AUTO_CLOSE_ACTOR = "system:ronde-exceptional-auto-close";
 /** Délai en jours après la date de passage avant clôture auto (aligné gardiennage). */
 const EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS = GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS;
-
-/**
- * @param {unknown} value
- * @returns {string}
- */
-function toIsoDate(value) {
-  const raw = String(value || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  return "";
-}
-
-/**
- * @param {string} isoDate
- * @param {number} amount
- * @returns {string}
- */
-function shiftIsoDate(isoDate, amount) {
-  const d = new Date(`${isoDate}T12:00:00`);
-  d.setDate(d.getDate() + amount);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * @param {string} source - `PLANIFIE` exclu de l'auto-clôture.
@@ -56,9 +36,9 @@ function isExceptionalRondeSource(source) {
  * @returns {boolean}
  */
 function isPassagePastAutoCloseDelay(requestDateIso, todayIso, delayDays) {
-  const passageDate = toIsoDate(requestDateIso);
-  if (!passageDate || !toIsoDate(todayIso)) return false;
-  const cutoffIso = shiftIsoDate(passageDate, delayDays);
+  const passageDate = normalizeDateIso(requestDateIso);
+  if (!passageDate || !normalizeDateIso(todayIso)) return false;
+  const cutoffIso = addDaysIso(passageDate, delayDays);
   return todayIso >= cutoffIso;
 }
 
@@ -72,7 +52,7 @@ function isPassagePastAutoCloseDelay(requestDateIso, todayIso, delayDays) {
  */
 async function autoCloseExpiredExceptionalRondes(store, { requesterUsername = RONDE_AUTO_CLOSE_ACTOR } = {}) {
   const db = requireRondePersistence(store, "ronde:autoClose");
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayDateIso();
   const nowIso = new Date().toISOString();
 
   const candidates = await db.all(

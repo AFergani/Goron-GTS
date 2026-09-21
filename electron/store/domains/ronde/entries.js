@@ -15,6 +15,7 @@ const { requireRondePersistence } = require("./persistence");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { generateEntityId } = require("../../core/ids");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
+const { normalizeDateIso, normalizeTimeHm } = require("../../core/isoDate");
 const {
   isPassagePast,
   hasKnownTerrainData,
@@ -36,18 +37,6 @@ const INSERT_SQL = `INSERT INTO ronde_entries (
   closure_custom_values_json, planned_profile_id, planned_round_kind, planned_slot_key,
   request_planning_snapshot_json, request_batch_id, status, cancellation_reason, closed_at, daily_code
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-/** @param {unknown} value @returns {string} */
-function toIsoDate(value) {
-  const raw = String(value || "").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
-}
-
-/** @param {unknown} value @returns {string} */
-function toIsoTime(value) {
-  const raw = String(value || "").trim();
-  return TIME_RE.test(raw) ? raw : "";
-}
 
 /** @param {string} dateIso @param {string} timeIso @returns {number|null} */
 function parseDateTimeMs(dateIso, timeIso) {
@@ -87,7 +76,7 @@ function normalizeClosureCustomValues(input) {
  * @returns {Promise<object>}
  */
 async function normalizeRondeBody(store, db, payload) {
-  const requestDate = toIsoDate(payload.requestDate);
+  const requestDate = normalizeDateIso(payload.requestDate);
   const siteDisplay = String(payload.siteDisplay || "").trim();
   const intervenantName = String(payload.intervenantName || "").trim();
   if (!requestDate) store.fail("ronde:validate", "La date de la demande est obligatoire.", "RONDE_REQUEST_DATE_REQUIRED");
@@ -110,8 +99,8 @@ async function normalizeRondeBody(store, db, payload) {
   if (originKind === "CLIENT" && !originDetail) {
     store.fail("ronde:validate", "Nom du client obligatoire lorsque l'origine est « Client ».", "RONDE_ORIGIN_CLIENT_REQUIRED");
   }
-  const arrivalTime = toIsoTime(payload.arrivalTime);
-  const departureTime = toIsoTime(payload.departureTime);
+  const arrivalTime = normalizeTimeHm(payload.arrivalTime);
+  const departureTime = normalizeTimeHm(payload.departureTime);
   return {
     siteId: payload.siteId || null,
     siteDisplay,

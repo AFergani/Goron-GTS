@@ -51,6 +51,11 @@ function parseMonthRange(month) {
   return { from, to };
 }
 
+/** @param {number} value @returns {string} */
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
 /**
  * Ajoute des jours à une date calendaire réelle (midi local, évite le décalage UTC).
  *
@@ -63,7 +68,16 @@ function addDaysIso(isoDate, amount) {
   if (!start) return "";
   const date = new Date(`${start}T12:00:00`);
   date.setDate(date.getDate() + Number(amount || 0));
-  const pad2 = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+/**
+ * Date calendaire locale `AAAA-MM-JJ` (évite le décalage UTC de `toISOString`).
+ *
+ * @param {Date} [date]
+ * @returns {string}
+ */
+function todayDateIso(date = new Date()) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
@@ -82,5 +96,6 @@ module.exports = {
   addDaysIso,
   normalizeDateIso,
   normalizeTimeHm,
-  parseMonthRange
+  parseMonthRange,
+  todayDateIso
 };
