@@ -1,9 +1,10 @@
 /**
  * Panneau gestion des données : onglets référentiels, import Excel, pending sites/intervenants.
+ *
+ * L’import Excel (lecture classeur + lot) vit dans `dataExcelImport.ts`.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import type { AnomalyTypeRef, FransorResponsableRef, HolidayRef, IntervenantRef, SiteRef } from "../../../types";
 import type { RondeMotifTypeRef } from "../../rondes/model/ronde.types";
 import type { DataRefreshTarget, DataTab } from "../model/settings.types";
@@ -22,6 +23,7 @@ import { FormModal } from "../../common/components/FormModal";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import { handleDataExcelImportSelection } from "../model/dataExcelImport";
 import { ReferenceInlineField } from "./shared/ReferenceInlineField";
 import { compareTextFr } from "./dataTabs/common";
 import "./DataManagementPanel.css";
@@ -85,108 +87,6 @@ const EMPTY_SEARCH_BY_TAB: Record<DataTab, string> = {
   fransorResponsables: ""
 };
 
-function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function getCell(row: Record<string, unknown>, aliases: string[]) {
-  const keys = Object.keys(row);
-  for (const alias of aliases) {
-    const expected = normalizeHeader(alias);
-    const matchedKey = keys.find((key) => normalizeHeader(key) === expected);
-    if (!matchedKey) continue;
-    const raw = row[matchedKey];
-    if (raw == null) return "";
-    return String(raw).trim();
-  }
-  return "";
-}
-
-/** Adresse complète : rue + colonne « CP/Ville » (export logiciel tiers), séparés par une virgule si les deux sont présents. */
-function mergeSiteAddressFromRow(row: Record<string, unknown>): string {
-  const street = getCell(row, ["adresse", "adresse site", "address", "adresse_site"]);
-  const cpVille = getCell(row, ["cp/ville", "cp ville", "cp-ville", "code postal / ville", "cp et ville"]);
-  if (street && cpVille) {
-    return `${street}, ${cpVille}`.trim();
-  }
-  return street || cpVille || "";
-}
-
-const IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024;
-const IMPORT_MAX_ROWS = 20000;
-const DANGEROUS_IMPORT_KEYS = new Set(["__proto__", "prototype", "constructor"]);
-const INTERVENANT_IMPORT_ALIASES = [
-  "name",
-  "nom",
-  "intervenant",
-  "intervenants",
-  "societe",
-  "société",
-  "prestataire",
-  "entreprise",
-  "raison sociale",
-  "raison_sociale"
-];
-
-function sanitizeImportedRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
-  return rows.map((row) => {
-    // Objet sans prototype pour éviter toute pollution du prototype chain.
-    const safeRow: Record<string, unknown> = Object.create(null);
-    for (const [key, value] of Object.entries(row)) {
-      const normalizedKey = String(key || "").trim();
-      if (!normalizedKey) continue;
-      if (DANGEROUS_IMPORT_KEYS.has(normalizedKey)) continue;
-      safeRow[normalizedKey] = value;
-    }
-    return safeRow;
-  });
-}
-
-/** Retire le bruit IPC Electron pour cause lisible (toast + Import_error.txt). */
-function humanizeImportError(error: unknown): string {
-  return extractUserFacingErrorMessage(error, "Erreur inconnue");
-}
-
-function parseRows(file: File): Promise<Record<string, unknown>[]> {
-  return new Promise((resolve, reject) => {
-    if (file.size > IMPORT_MAX_FILE_BYTES) {
-      reject(new Error("Fichier trop volumineux (max 10 Mo)."));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = event.target?.result;
-        if (!data || !(data instanceof ArrayBuffer)) {
-          reject(new Error("Lecture du fichier impossible."));
-          return;
-        }
-        const workbook = XLSX.read(data, { type: "array", dense: true, cellFormula: false });
-        const firstSheet = workbook.SheetNames[0];
-        if (!firstSheet) {
-          reject(new Error("Le classeur est vide (aucune feuille). Formats pris en charge : XLS, XLSX."));
-          return;
-        }
-        const sheet = workbook.Sheets[firstSheet];
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false, blankrows: false });
-        if (rows.length > IMPORT_MAX_ROWS) {
-          reject(new Error("Le fichier contient trop de lignes (max 20 000)."));
-          return;
-        }
-        resolve(sanitizeImportedRows(rows));
-      } catch (err) {
-        reject(
-          new Error(
-            "Impossible de lire ce fichier. Utilisez un classeur XLS ou XLSX (première feuille = données avec ligne d'en-têtes)."
-          )
-        );
-      }
-    };
-    reader.onerror = () => reject(new Error("Lecture du fichier impossible."));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
 export function DataManagementPanel(props: DataManagementPanelProps) {
   const [siteCode, setSiteCode] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -247,109 +147,19 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
     }));
   };
 
-  type SingleImportOutcome =
-    | { ok: true; fileName: string; success: number; failed: number; total: number }
-    | { ok: false; fileName: string; message: string };
-
-  const runSingleFileImport = async (file: File, target: DataTab): Promise<SingleImportOutcome> => {
-    try {
-      const rows = await parseRows(file);
-      if (!rows.length) {
-        return { ok: false, fileName: file.name, message: "Aucune ligne détectée dans le fichier." };
-      }
-      let success = 0;
-      let failed = 0;
-      const errorEntries: Array<{ rowIndex: number; message: string; row: Record<string, unknown> }> = [];
-
-      for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index];
-        try {
-          if (target === "sites") {
-            const code = getCell(row, ["code site", "code", "code_site"]);
-            const name = getCell(row, ["site", "nom site", "name", "nom", "site name"]);
-            const address = mergeSiteAddressFromRow(row);
-            const parc = getCell(row, ["parc"]);
-            const famille = getCell(row, ["famille", "family"]);
-            if (!code || !name) {
-              throw new Error("Colonnes requises : « Code site » et « Site » (ou équivalents nom / nom site).");
-            }
-            await props.onImportSiteRow({ code, name, address, parc, famille });
-          } else if (target === "intervenants") {
-            const name = getCell(row, INTERVENANT_IMPORT_ALIASES);
-            if (!name) {
-              throw new Error(
-                "Colonne requise: nom (alias acceptés: intervenant, intervenants, société, prestataire, entreprise)."
-              );
-            }
-            await props.onImportIntervenantRow(name);
-          } else if (target === "types") {
-            const label = getCell(row, ["label", "libelle", "type", "type anomalie"]);
-            if (!label) {
-              throw new Error("Colonne requise: libelle.");
-            }
-            await props.onImportTypeRow(label);
-          } else {
-            throw new Error("Import non disponible pour ce sous-onglet.");
-          }
-          success += 1;
-        } catch (error) {
-          failed += 1;
-          errorEntries.push({
-            rowIndex: index + 1,
-            message: humanizeImportError(error),
-            row
-          });
-        }
-      }
-
-      await props.onLogImportSummary({
-        target: target as "sites" | "intervenants" | "types",
-        fileName: file.name,
-        total: rows.length,
-        success,
-        failed,
-        errorEntries
-      });
-      return { ok: true, fileName: file.name, success, failed, total: rows.length };
-    } catch (error) {
-      return {
-        ok: false,
-        fileName: file.name,
-        message: humanizeImportError(error)
-      };
-    }
-  };
-
   const handleImportSelection = async (files: FileList | null, target: DataTab) => {
-    if (!files?.length) {
-      return;
-    }
-    const list = Array.from(files);
-    setIsImporting(true);
-    let successRows = 0;
-    let failedRows = 0;
-    let filesFailed = 0;
-    try {
-      for (let i = 0; i < list.length; i += 1) {
-        setImportBatchProgress({ current: i + 1, total: list.length });
-        const result = await runSingleFileImport(list[i], target);
-        if (result.ok) {
-          successRows += result.success;
-          failedRows += result.failed;
-        } else {
-          filesFailed += 1;
-        }
-      }
-      await props.onRefreshImportedData(target);
-      const errorCount = failedRows + filesFailed;
-      const filePart = list.length > 1 ? ` (${list.length} fichiers)` : "";
-      const summary = `Import terminé${filePart} — ${successRows} succès, ${errorCount} erreur${errorCount > 1 ? "s" : ""}.`;
-      const variant = errorCount === 0 ? "success" : successRows > 0 ? "warning" : "error";
-      props.onNotify(summary, variant);
-    } finally {
-      setIsImporting(false);
-      setImportBatchProgress(null);
-    }
+    await handleDataExcelImportSelection(files, target, {
+      handlers: {
+        onImportSiteRow: props.onImportSiteRow,
+        onImportIntervenantRow: props.onImportIntervenantRow,
+        onImportTypeRow: props.onImportTypeRow,
+        onLogImportSummary: props.onLogImportSummary
+      },
+      onRefreshImportedData: props.onRefreshImportedData,
+      onNotify: props.onNotify,
+      setIsImporting,
+      setImportBatchProgress
+    });
   };
 
   const importColumnsHint =
