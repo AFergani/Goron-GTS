@@ -10,7 +10,7 @@ import type { Role, SiteRef } from "../../../types";
 import type { GardiennageClosePayload, GardiennageEntry } from "../model/gardiennage.types";
 import { TimeInput } from "../../common/components/TimeInput";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 
@@ -252,13 +252,8 @@ export function GardiennageCloseModal({
         </div>
       </section>
     </div>
-    <ConfirmModal
+    <DiscardConfirmModal
       isOpen={showDiscardConfirm}
-      title="Abandonner la saisie ?"
-      message="Les informations saisies seront perdues."
-      cancelLabel="Rester"
-      confirmLabel="Abandonner"
-      confirmClassName="btn-danger"
       onCancel={cancelDiscard}
       onConfirm={confirmDiscardAndClose}
     />

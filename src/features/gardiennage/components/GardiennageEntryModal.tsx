@@ -52,6 +52,7 @@ import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { TimeInput } from "../../common/components/TimeInput";
 import { DateInput } from "../../common/components/DateInput";
 import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
@@ -1257,12 +1258,9 @@ export function GardiennageEntryModal({
       </div>
 
       {/* Confirmation abandon de saisie */}
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={showDiscardConfirm}
-        title="Abandonner la saisie ?"
-        message="Les modifications non enregistrées seront perdues."
-        confirmLabel="Abandonner"
-        confirmClassName="btn-danger"
+        kind={isCreateMode ? "create" : "edit"}
         onCancel={cancelDiscard}
         onConfirm={confirmDiscardAndClose}
       />

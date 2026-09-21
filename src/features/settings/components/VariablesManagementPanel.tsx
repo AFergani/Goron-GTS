@@ -20,6 +20,7 @@ import {
 } from "../model/formVariables.types";
 import { WORD_TEMPLATE_FIELD_TYPES, labelToFieldKey, wordTemplateFieldTypeLabel } from "../model/wordTemplateFieldTypes";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 
 type VariablesManagementPanelProps = {
@@ -609,13 +610,8 @@ export function VariablesManagementPanel({
           </section>
         </div>
       ) : null}
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={showDiscardConfirm}
-        title="Abandonner la saisie ?"
-        message="Les informations saisies seront perdues."
-        cancelLabel="Rester"
-        confirmLabel="Abandonner"
-        confirmClassName="btn-danger"
         onCancel={cancelDiscard}
         onConfirm={confirmDiscardAndClose}
       />

@@ -1,16 +1,15 @@
 /**
- * Dialogs annulation / quitter sans créer — fiche ronde.
+ * Dialogs annulation / abandon de saisie — fiche ronde.
  */
 
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal, type DiscardConfirmKind } from "../../common/components/DiscardConfirmModal";
 
 type RondeEntryReasonDialogsProps = {
   showDiscardConfirm: boolean;
   onCancelDiscard: () => void;
   onConfirmDiscard: () => void;
-  /** Texte de confirmation (création vs édition) */
-  discardMessage?: string;
-  discardConfirmLabel?: string;
+  discardKind?: DiscardConfirmKind;
   showCancelReasonDialog: boolean;
   cancelIsNonEffectuee: boolean;
   cancelReasonInput: string;
@@ -23,8 +22,7 @@ export function RondeEntryReasonDialogs({
   showDiscardConfirm,
   onCancelDiscard,
   onConfirmDiscard,
-  discardMessage = "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues.",
-  discardConfirmLabel = "Quitter sans créer",
+  discardKind = "create",
   showCancelReasonDialog,
   cancelIsNonEffectuee,
   cancelReasonInput,
@@ -34,13 +32,9 @@ export function RondeEntryReasonDialogs({
 }: RondeEntryReasonDialogsProps) {
   return (
     <>
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={showDiscardConfirm}
-        title="Quitter la saisie ?"
-        message={discardMessage}
-        cancelLabel="Rester"
-        confirmLabel={discardConfirmLabel}
-        confirmClassName="btn-danger"
+        kind={discardKind}
         onCancel={onCancelDiscard}
         onConfirm={onConfirmDiscard}
       />

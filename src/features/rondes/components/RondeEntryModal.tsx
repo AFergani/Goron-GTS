@@ -772,12 +772,7 @@ export function RondeEntryModal({
         showDiscardConfirm={createCloseGuard.showDiscardConfirm}
         onCancelDiscard={createCloseGuard.cancelDiscard}
         onConfirmDiscard={createCloseGuard.confirmDiscardAndClose}
-        discardMessage={
-          isCreateMode
-            ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
-            : "Les modifications non enregistrées seront perdues."
-        }
-        discardConfirmLabel={isCreateMode ? "Quitter sans créer" : "Abandonner"}
+        discardKind={isCreateMode ? "create" : "edit"}
         showCancelReasonDialog={showCancelReasonDialog}
         cancelIsNonEffectuee={cancelIsNonEffectuee}
         cancelReasonInput={cancelReasonInput}

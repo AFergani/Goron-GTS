@@ -12,7 +12,7 @@ import type { NotifyToast } from "../../common/model/toast.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import { CreateEntryModalFooter, CreateEntryModalHeader } from "../../common/components/CreateEntryModalChrome";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
 import { validatePassageDateTimes } from "../utils/interventionPassageDates";
 import { getMissingInterventionClosureFields } from "../utils/getMissingInterventionClosureFields";
@@ -437,17 +437,9 @@ export function InterventionEntryModal({
           </div>
         </section>
       </div>
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={form.createCloseGuard.showDiscardConfirm}
-        title="Quitter la saisie ?"
-        message={
-          form.isCreateMode
-            ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
-            : "Les modifications non enregistrées seront perdues."
-        }
-        cancelLabel="Rester"
-        confirmLabel={form.isCreateMode ? "Quitter sans créer" : "Abandonner"}
-        confirmClassName="btn-danger"
+        kind={form.isCreateMode ? "create" : "edit"}
         onCancel={form.createCloseGuard.cancelDiscard}
         onConfirm={form.createCloseGuard.confirmDiscardAndClose}
       />

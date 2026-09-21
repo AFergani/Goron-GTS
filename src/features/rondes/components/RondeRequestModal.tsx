@@ -20,7 +20,7 @@ import { buildRondePlanningSnapshotFromDrafts } from "../utils/buildRondePlannin
 import { validateRondeRequestLines } from "../utils/validateRondeRequestLines";
 import { normalizeRondeHmOr } from "../utils/rondeDateTime";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { RondeRequestMetaSection } from "./RondeRequestMetaSection";
 import { RondeRequestValiditySection } from "./RondeRequestValiditySection";
 import { RondeRequestLineEditor } from "./RondeRequestLineEditor";
@@ -611,13 +611,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
         />
       </section>
     </div>
-    <ConfirmModal
+    <DiscardConfirmModal
       isOpen={closeGuard.showDiscardConfirm}
-      title="Abandonner la saisie ?"
-      message="Les informations saisies seront perdues."
-      cancelLabel="Rester"
-      confirmLabel="Abandonner"
-      confirmClassName="btn-danger"
       onCancel={closeGuard.cancelDiscard}
       onConfirm={closeGuard.confirmDiscardAndClose}
     />

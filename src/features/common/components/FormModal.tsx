@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ConfirmModal } from "./ConfirmModal";
+import { DiscardConfirmModal } from "./DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../hooks/useCreateModalCloseGuard";
 
 type FormModalProps = {
@@ -151,13 +151,8 @@ export function FormModal({
           </div>
         </section>
       </div>
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={showDiscardConfirm}
-        title="Abandonner la saisie ?"
-        message="Les informations saisies seront perdues."
-        cancelLabel="Rester"
-        confirmLabel="Abandonner"
-        confirmClassName="btn-danger"
         onCancel={cancelDiscard}
         onConfirm={confirmDiscardAndClose}
       />

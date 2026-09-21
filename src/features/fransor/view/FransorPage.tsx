@@ -14,7 +14,7 @@ import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useModalEscape } from "../../common/hooks/useModalEscape";
 import type { FransorClosure, Role } from "../../../types";
@@ -1145,23 +1145,13 @@ export function FransorPage({
           </div>
         </div>
       )}
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={addCloseGuard.showDiscardConfirm}
-        title="Abandonner la saisie ?"
-        message="Les informations saisies seront perdues."
-        cancelLabel="Rester"
-        confirmLabel="Abandonner"
-        confirmClassName="btn-danger"
         onCancel={addCloseGuard.cancelDiscard}
         onConfirm={addCloseGuard.confirmDiscardAndClose}
       />
-      <ConfirmModal
+      <DiscardConfirmModal
         isOpen={closureCloseGuard.showDiscardConfirm}
-        title="Abandonner la saisie ?"
-        message="Les informations saisies seront perdues."
-        cancelLabel="Rester"
-        confirmLabel="Abandonner"
-        confirmClassName="btn-danger"
         onCancel={closureCloseGuard.cancelDiscard}
         onConfirm={closureCloseGuard.confirmDiscardAndClose}
       />

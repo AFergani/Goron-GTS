@@ -6,7 +6,7 @@
 import { useEffect, useState, Fragment } from "react";
 import { ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
@@ -416,13 +416,8 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
         </div>
       </section>
     </div>
-    <ConfirmModal
+    <DiscardConfirmModal
       isOpen={showDiscardConfirm}
-      title="Abandonner la saisie ?"
-      message="Les informations saisies seront perdues."
-      cancelLabel="Rester"
-      confirmLabel="Abandonner"
-      confirmClassName="btn-danger"
       onCancel={cancelDiscard}
       onConfirm={confirmDiscardAndClose}
     />

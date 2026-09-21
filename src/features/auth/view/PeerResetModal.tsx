@@ -11,7 +11,7 @@ import type { PeerResetFormState } from "../model/auth.types";
 import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
 import { PasswordInput } from "../../common/components/PasswordInput";
 import { AuthLogo } from "../components/AuthLogo";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 
 type PeerResetModalProps = {
@@ -116,13 +116,8 @@ export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, o
         </form>
       </section>
     </div>
-    <ConfirmModal
+    <DiscardConfirmModal
       isOpen={showDiscardConfirm}
-      title="Abandonner la saisie ?"
-      message="Les informations saisies seront perdues."
-      cancelLabel="Rester"
-      confirmLabel="Abandonner"
-      confirmClassName="btn-danger"
       onCancel={cancelDiscard}
       onConfirm={confirmDiscardAndClose}
     />

@@ -18,7 +18,7 @@ import { RequestDateTimeField } from "../../common/components/RequestDateTimeFie
 import { WordExportRowButtons } from "../../common/components/ExportFileButtons";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { splitIsoToLocalDateTime } from "../../common/utils/localDateIso";
@@ -362,17 +362,9 @@ export function MainCouranteEntryModal({
 
   const submitLabel = mode === "create" ? "Créer" : "Enregistrer";
   const discardConfirm = (
-    <ConfirmModal
+    <DiscardConfirmModal
       isOpen={createCloseGuard.showDiscardConfirm}
-      title="Quitter la saisie ?"
-      message={
-        mode === "create"
-          ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
-          : "Les modifications non enregistrées seront perdues."
-      }
-      cancelLabel="Rester"
-      confirmLabel={mode === "create" ? "Quitter sans créer" : "Abandonner"}
-      confirmClassName="btn-danger"
+      kind={mode === "create" ? "create" : "edit"}
       onCancel={createCloseGuard.cancelDiscard}
       onConfirm={createCloseGuard.confirmDiscardAndClose}
     />
