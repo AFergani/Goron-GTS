@@ -2,15 +2,17 @@
  * Recherche site par code ou nom (autocomplete, min. 3 caractères).
  *
  * Site facultatif (`optional`). Copie du code site si sélection catalogue.
+ * Navigation clavier : flèches haut/bas dans la liste, Entrée pour valider.
  * Utilisé par : main courante, interventions, rondes, Paramètres, SearchEntry.
  */
 
 import { Copy, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { SiteRef } from "../../../types";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
 import { copySiteDisplayCode } from "../utils/siteDisplayCopy";
+import { useSuggestListKeyboard } from "../hooks/useSuggestListKeyboard";
 import { filterSitesByCodeOrName, formatSiteSelectedLabel } from "../model/siteSearch";
 
 type SiteSearchInputProps = {
@@ -89,11 +91,24 @@ export function SiteSearchInput({
     }
   };
 
-  const pick = (site: SiteRef) => {
-    onSelectedSiteChange(site);
-    setQuery(formatSiteSelectedLabel(site));
-    setOpen(false);
-  };
+  const pick = useCallback(
+    (site: SiteRef) => {
+      onSelectedSiteChange(site);
+      setQuery(formatSiteSelectedLabel(site));
+      setOpen(false);
+    },
+    [onSelectedSiteChange]
+  );
+
+  const listIsOpen = showList && filtered.length > 0;
+  const { highlightedIndex, setHighlightedIndex, listboxId, getOptionId, activeDescendantId, listRef, onInputKeyDown } =
+    useSuggestListKeyboard({
+      items: filtered,
+      isOpen: listIsOpen,
+      onPick: pick,
+      onDismiss: () => setOpen(false),
+      resetKey: query
+    });
 
   return (
     <div className="mc-site-field-wrap">
@@ -104,18 +119,22 @@ export function SiteSearchInput({
             <input
               ref={inputRef}
               type="text"
+              role="combobox"
               value={query}
               onChange={(e) => handleInputChange(e.target.value)}
               onFocus={() => setOpen(true)}
               onBlur={() => {
                 window.setTimeout(() => setOpen(false), 180);
               }}
+              onKeyDown={onInputKeyDown}
               placeholder="Code site — 3 caractères minimum"
-              title="Saisissez au moins 3 caractères pour rechercher parmi les codes et les noms de site."
+              title="Saisissez au moins 3 caractères pour rechercher parmi les codes et les noms de site, puis utilisez les flèches et Entrée pour choisir."
               disabled={disabled}
               autoComplete="off"
               aria-autocomplete="list"
-              aria-expanded={showList && filtered.length > 0}
+              aria-expanded={listIsOpen}
+              aria-controls={listboxId}
+              aria-activedescendant={activeDescendantId}
               className="mc-site-code-input"
             />
             {showClear ? (
@@ -142,14 +161,28 @@ export function SiteSearchInput({
                 <Copy size={16} aria-hidden />
               </button>
             ) : null}
-            {showList && filtered.length > 0 ? (
-              <ul className="mc-site-suggest app-scrollbar" role="listbox">
-                {filtered.map((s) => (
-                  <li key={s.id} role="option">
+            {listIsOpen ? (
+              <ul
+                ref={listRef}
+                id={listboxId}
+                className="mc-site-suggest app-scrollbar"
+                role="listbox"
+                data-suggest-open="true"
+              >
+                {filtered.map((s, index) => (
+                  <li
+                    key={s.id}
+                    id={getOptionId(index)}
+                    role="option"
+                    aria-selected={index === highlightedIndex}
+                    data-suggest-index={index}
+                  >
                     <button
                       type="button"
-                      className="mc-site-suggest-item"
+                      className={`mc-site-suggest-item${index === highlightedIndex ? " is-active" : ""}`}
+                      tabIndex={-1}
                       onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setHighlightedIndex(index)}
                       onClick={() => pick(s)}
                     >
                       <span className="mc-site-suggest-code">{s.code}</span>

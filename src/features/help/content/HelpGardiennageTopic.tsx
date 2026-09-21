@@ -1,219 +1,49 @@
-/**
- * Rubrique centre d’aide — module Gardiennage (planification, clôture, exports).
- */
+import { HelpTopicLayout } from "../components/HelpTopicLayout";
 
-import { HelpDayListDisplaySection } from "./HelpDayListDisplaySection";
-
+/** Rubrique centre d’aide — module Gardiennage. */
 export function HelpGardiennageTopic() {
   return (
-    <article className="help-center-article">
-      <h2 className="help-center-content-title">🛡️ Le module Gardiennage</h2>
-      <p className="help-center-lead">
-        Le module <strong>Gardiennage</strong> permet de planifier et de suivre une présence physique sur un site (ponctuelle,
-        sur plusieurs jours ou récurrente).
-      </p>
-      <p className="help-center-lead">
-        Chaque créneau planifié génère une <strong>fiche journalière</strong>. Pour assurer la traçabilité des prestations sur le
-        terrain, chaque fiche doit idéalement être clôturée en fin de mission.
-        En vue journée comme en liste, un <strong>badge de type</strong> (H24, récurrente nuit/jour, ponctuel nuit/jour)
-        s&apos;affiche avec la <strong>date de création</strong>.
-      </p>
-
-      <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">➕ Créer un gardiennage : par où commencer ?</h3>
-        <ol className="muted help-center-list help-center-list--ordered">
-          <li>
-            <strong>Initialisation :</strong> cliquez sur <strong>Nouveau gardiennage</strong>. Renseignez au minimum le{" "}
-            <strong>Site</strong> et le <strong>Prestataire</strong>.
-            <ul className="help-center-list help-center-list--nested">
-              <li>
-                <em>Astuce :</em> si la demande découle d&apos;une intervention ou d&apos;une ronde, créez le gardiennage directement depuis
-                cette fiche pour pré-remplir ces informations.
-              </li>
-            </ul>
-          </li>
-          <li>
-            <strong>Consignes :</strong> utilisez le champ <strong>Consigne</strong> pour transmettre les informations essentielles à
-            l&apos;agent (accès, contacts sur place, particularités du site).
-          </li>
-          <li>
-            <strong>Vérification :</strong> avant d&apos;enregistrer, consultez l&apos;<strong>Aperçu des créneaux</strong>. Il liste
-            l&apos;ensemble des fiches jours/horaires qui vont être générées. Ajustez vos critères si le résultat ne correspond pas aux besoins.
-          </li>
-        </ol>
-      </div>
-
-      <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">🎯 Choisir le bon mode de planification</h3>
-        <div className="help-center-callout help-center-callout--warn" role="note">
-          <strong>Important :</strong> un seul mode de planification doit être actif par demande.
-        </div>
-        <div className="help-center-table-wrap">
-          <table className="help-center-table">
-            <thead>
-              <tr>
-                <th scope="col">Mode</th>
-                <th scope="col">Utilisation idéale</th>
-                <th scope="col">Exemples</th>
-                <th scope="col">Spécificités techniques</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>Journée unique</strong>
-                </td>
-                <td>Prestation isolée sur une seule date.</td>
-                <td>
-                  Garde le samedi de 08:00 à 18:00.
-                  <br />
-                  Astreinte un jour férié.
-                </td>
-                <td>
-                  Si l&apos;heure de fin est inférieure à l&apos;heure de début (ex. 20:00 → 08:00), l&apos;application bascule
-                  automatiquement la fin au <strong>lendemain</strong>.
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>H24</strong>
-                </td>
-                <td>
-                  Présence continue et ininterrompue sur une période donnée. Sans date de fin : prestation jusqu&apos;à nouvel ordre avec
-                  horizon glissant (90 jours renouvelés automatiquement tant que la demande reste planifiée ou active).
-                  Pour clôturer, indiquez d&apos;abord une date de fin dans la demande, enregistrez, puis clôturez après cette fin.
-                </td>
-                <td>Surveillance non-stop du lundi 08:00 au vendredi 20:00, ou H24 sans date de fin (prolongation auto).</td>
-                <td>
-                  <strong>Ne pas utiliser</strong> pour des nuits récurrentes (ex. 20:00 à 08:00 chaque soir). Privilégiez le mode{" "}
-                  <strong>Planification libre</strong>.
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Planification libre</strong>
-                </td>
-                <td>Rythme récurrent qui se répète sur une période (semaines / mois).</td>
-                <td>Nuits du lundi au vendredi sur 3 mois.</td>
-                <td>
-                  Définissez la période globale (<strong>Du / Au</strong>), puis détaillez les horaires dans le tableau des lignes.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">📋 Zoom sur la planification libre (gestion des lignes)</h3>
-        <p className="muted">
-          Chaque ligne du tableau représente un créneau horaire associé à des jours précis :
-        </p>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>Horaires obligatoires :</strong> renseignez une heure de début et une heure de fin (ex. 20:00 et 08:00 pour une nuit).
-          </li>
-          <li>
-            <strong>Sélection des jours :</strong> cochez les jours concernés (Lun à Dim).
-            <ul className="help-center-list help-center-list--nested">
-              <li>
-                <em>Cas classique :</em> pour des nuits en semaine, cochez de Lun à Ven.
-              </li>
-            </ul>
-          </li>
-          <li>
-            <strong>Jours fériés (JF) :</strong> cochez cette case si le créneau doit également s&apos;appliquer les jours fériés de la
-            période.
-          </li>
-          <li>
-            <strong>Multi-lignes :</strong> ajoutez plusieurs lignes si le besoin varie (ex. ligne 1 pour les nuits en semaine, ligne 2 pour
-            les journées du week-end).
-            <br />
-            <span className="help-center-inline-warn">
-              Les horaires de deux lignes ne doivent pas se chevaucher sur un même jour, sous peine de refus d&apos;enregistrement.
-            </span>
-          </li>
-          <li>
-            <strong>Date optionnelle (exception) :</strong> renseigner une date précise sur une ligne fait s&apos;appliquer ce créneau{" "}
-            <strong>uniquement ce jour-là</strong> (la sélection Lun–Dim est ignorée pour cette ligne). Ce n&apos;est pas un remplacement
-            automatique des autres lignes : si une ligne récurrente couvre aussi ce jour, les horaires doivent rester compatibles (pas de
-            chevauchement). Utile pour un renfort ou une exception ponctuelle dans la période.
-          </li>
-        </ul>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">✅ Clôture des fiches (suivi terrain)</h3>
-        <p className="muted">
-          La validation d&apos;une planification génère autant de fiches indépendantes que de jours de présence prévus.
-        </p>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>Clôture manuelle :</strong> après la <strong>fin prévue</strong> de la prestation (H24) ou de la nuit (récurrent).
-            Avant cette heure, la coche est désactivée. Depuis la liste ou la vue journée, utilisez la coche rapide,
-            ou ouvrez la fiche. Dans la planification du lot, une coche marque chaque créneau déjà clôturé.
-          </li>
-          <li>
-            <strong>H24 jusqu&apos;à nouvel ordre :</strong> ouvrez la demande, saisissez une{" "}
-            <strong>date de fin</strong>, enregistrez, puis clôturez après cette fin. Tant que la date de fin est vide,
-            la coche reste désactivée et il n&apos;y a pas de clôture automatique.
-          </li>
-          <li>
-            <strong>Clôture automatique :</strong> si la fiche n&apos;est pas clôturée manuellement, le système la clôture{" "}
-            <strong>3 jours après la fin prévue</strong>, avec la mention <strong>Clôture automatique par système</strong>
-            (sans heures effectives ni rapport). Les demandes H24 sans date de fin ne sont pas concernées tant que la fin n&apos;est pas posée.
-          </li>
-          <li>
-            <strong>Correction / enrichissement :</strong> si une fiche a été clôturée automatiquement mais nécessite un suivi, cliquez sur{" "}
-            <strong>Rouvrir</strong>. Vous pourrez alors y injecter les données terrain : heures réelles, numéro de bon ou compte rendu
-            (facultatifs).
-          </li>
-        </ul>
-        <div className="help-center-callout help-center-callout--tip" role="note">
-          <strong>Modifications en lot :</strong> si une prestation est annulée, vous pouvez supprimer les fiches créées en lot. Seules les
-          fiches <strong>non clôturées</strong> seront supprimées.
-        </div>
-      </div>
-
-      <HelpDayListDisplaySection />
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">Horaires en vue journée (prestation multi-jours)</h3>
-        <p className="muted">
-          En <strong>affichage journée</strong>, les horaires d&apos;une prestation qui couvre plusieurs jours sont ceux{" "}
-          <strong>de la date affichée</strong> (ex. 15:30→23:59 le premier jour, 00:00→23:59 les jours du milieu, 00:00→heure de fin le dernier jour).
-          L&apos;affichage liste conserve la période et les horaires de la prestation entière.
-        </p>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">💡 Exemples pratiques</h3>
-        <ul className="muted help-center-list help-center-list--examples">
-          <li>
-            <strong>Besoin :</strong> une garde le samedi de 08:00 à 18:00.
-            <br />
-            <strong>→ Mode :</strong> <em>Journée unique</em> — renseigner la date, 08:00 et 18:00.
-          </li>
-          <li>
-            <strong>Besoin :</strong> des nuits du lundi au vendredi (20:00 à 08:00) pendant deux mois.
-            <br />
-            <strong>→ Mode :</strong> <em>Planification libre</em> — période sur 2 mois ; 1 ligne : 20:00–08:00 ; cocher Lun à Ven.
-          </li>
-          <li>
-            <strong>Besoin :</strong> une surveillance non-stop du 1er au 15 du mois.
-            <br />
-            <strong>→ Mode :</strong> <em>H24</em> — date de début le 1er (ex. 08:00) ; date de fin le 15 (ex. 20:00).
-          </li>
-          <li>
-            <strong>Besoin :</strong> un renfort exceptionnel un mercredi de 14:00 à 18:00 au milieu d&apos;un planning mensuel déjà couvert
-            par d&apos;autres lignes.
-            <br />
-            <strong>→ Mode :</strong> <em>Planification libre</em> — ajouter une <strong>ligne supplémentaire</strong> avec la{" "}
-            <strong>date optionnelle</strong> de ce mercredi et les horaires 14:00–18:00 (vérifier qu&apos;il n&apos;y a pas de chevauchement
-            avec les créneaux déjà prévus ce jour-là).
-          </li>
-        </ul>
-      </div>
-    </article>
+    <HelpTopicLayout
+      title="🛡️ Gardiennage"
+      purpose="Ce module planifie et suit une présence physique sur un site, ponctuelle ou récurrente."
+    >
+      <ul className="muted help-center-list">
+        <li>
+          Cliquez sur <strong>Nouveau gardiennage</strong> et renseignez le site, le prestataire et la planification.
+          Une seule création couvre toute la prestation, quelle que soit sa durée.
+        </li>
+        <li>
+          Trois modes de planification (<strong>un seul actif</strong> par demande) :
+          <ul className="muted help-center-list">
+            <li>
+              <strong>Journée unique</strong> : prestation isolée sur une seule date.
+            </li>
+            <li>
+              <strong>H24</strong> : présence continue sur une période donnée (avec ou sans date de fin).
+            </li>
+            <li>
+              <strong>Planification libre</strong> : rythme récurrent sur plusieurs semaines/mois, défini par lignes
+              d&apos;horaires et de jours.
+            </li>
+          </ul>
+        </li>
+        <li>
+          Utilisez le champ <strong>Consigne</strong> pour transmettre les infos utiles à l&apos;agent (accès, contacts,
+          particularités du site).
+        </li>
+        <li>
+          🔗 Depuis une intervention ou une ronde en cours, créez un <strong>gardiennage lié</strong> pour reprendre
+          automatiquement le site et le contexte.
+        </li>
+        <li>
+          Une fiche ne peut être clôturée qu&apos;une fois sa <strong>date/heure de fin</strong> passée. Sans clôture
+          manuelle, elle se clôture automatiquement <strong>3 jours</strong> après la fin prévue.
+        </li>
+        <li>
+          Utilisez <strong>Rouvrir</strong> sur une fiche clôturée pour y ajouter des informations terrain (heures
+          réelles, n° de bon, compte-rendu).
+        </li>
+      </ul>
+    </HelpTopicLayout>
   );
 }

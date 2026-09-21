@@ -9,6 +9,7 @@ import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { helpIdToFormTargets, resolveDocumentTemplateHelpBlock } from "./documentTemplateHelpContent";
 import type { FormVariableDef } from "../model/formVariables.types";
 import type { FormTarget } from "../model/formVariables.types";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 
 type DocumentTemplateHelpModalProps = {
   helpId: string | null;
@@ -71,6 +72,8 @@ export function DocumentTemplateHelpModal({
     if (!block) return [];
     return [...block.variables, ...templateCustomRows];
   }, [block, templateCustomRows]);
+
+  useModalEscape(Boolean(helpId), onClose);
 
   if (!helpId || !block) return null;
 

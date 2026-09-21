@@ -152,7 +152,9 @@ function mapRondeRow(row) {
     batchDeleteRequestedAt: pendingApplies ? row.batch_delete_requested_at || null : null,
     batchDeleteRequestedBy: pendingApplies ? row.batch_delete_requested_by || null : null,
     batchDeleteReason: pendingApplies ? row.batch_delete_reason || "" : "",
-    dailyCode: row.daily_code || ""
+    dailyCode: row.daily_code || "",
+    // Overlay liste : premier gardiennage lié (colonne absente de ronde_entries).
+    linkedGardiennageId: row.linked_gardiennage_id || null
   };
 }
 

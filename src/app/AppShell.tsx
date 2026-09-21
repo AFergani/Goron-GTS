@@ -45,6 +45,7 @@ import {
 } from "../infrastructure/api/gtsApiClient";
 import { HelpCenterModal } from "../features/help/components/HelpCenterModal";
 import type { HelpTopicId } from "../features/help/model/helpTopics";
+import { OFFLINE_CONNECTION_HELP_ACCESS } from "../features/help/model/helpAccess";
 import { DATA_REFRESH_POLL_MS } from "../features/common/constants/dataRefreshPoll";
 import "../styles/app.css";
 import "../styles/fransor.css";
@@ -190,6 +191,12 @@ export function AppShell() {
     setHelpCenterInitialTopic(topicId ?? null);
     setHelpCenterOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!session && !pgBootstrap.showBootstrap) {
+      setHelpCenterOpen(false);
+    }
+  }, [session, pgBootstrap.showBootstrap]);
 
   const helpAccess = useMemo(
     () => ({
@@ -373,12 +380,16 @@ export function AppShell() {
             busyPhase={pgBootstrap.busyPhase}
             error={bootstrapError}
             isRecoveryMode={pgBootstrap.isRecoveryMode}
-            isRestoreMode={pgBootstrap.isRestoreMode}
             recoveryRestored={pgBootstrap.recoveryRestored}
             recoveryRestoredMessage={pgBootstrap.recoveryRestoredMessage}
-            onCancelRecovery={pgBootstrap.isRestoreMode ? pgBootstrap.closeRestoreSetup : pgBootstrap.closeRecoverySetup}
-            onRestored={pgBootstrap.closeRestoreSetup}
-            onNotify={notifyToast}
+            onCancelRecovery={pgBootstrap.closeRecoverySetup}
+            onOpenHelp={() => openHelpCenter("settings-connection")}
+          />
+          <HelpCenterModal
+            isOpen={helpCenterOpen}
+            onClose={() => setHelpCenterOpen(false)}
+            access={OFFLINE_CONNECTION_HELP_ACCESS}
+            initialTopicId="settings-connection"
           />
           {exitChoiceModal}
           <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -399,7 +410,6 @@ export function AppShell() {
           onOpenPeerReset={auth.onOpenPeerReset}
           showDbRecoveryLink={pgBootstrap.showDbRecoveryLink}
           onOpenDbRecovery={pgBootstrap.openRecoverySetup}
-          onOpenDbRestore={pgBootstrap.openRestoreSetup}
         />
         <PeerResetModal
           isOpen={auth.showPeerResetModal}
@@ -615,6 +625,18 @@ export function AppShell() {
                     )
                 : undefined
             }
+            onNavigateToLinkedGardiennage={
+              userPageAccess.gardiennage
+                ? (id) =>
+                    navigateToLinkedPage(
+                      "gardiennage",
+                      id,
+                      setFocusGardiennageIdFromIntervention,
+                      "Accès à la page Gardiennage non autorisé."
+                    )
+                : undefined
+            }
+            canAccessGardiennage={Boolean(userPageAccess.gardiennage)}
             focusRondeId={focusRondeIdFromIntervention}
             onFocusRondeConsumed={() => setFocusRondeIdFromIntervention(null)}
             onUpsertRondePlannedProfile={(payload) => settings.onUpsertRondePlannedProfile(payload)}

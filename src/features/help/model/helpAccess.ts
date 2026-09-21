@@ -5,7 +5,27 @@
  * (opérateurs, données, audit). Utilisé par `HelpCenterModal` et `renderHelpTopicBody`.
  */
 
-import type { HelpAccessContext, HelpPageAccess, HelpTopicId } from "./helpTopics";
+import {
+  OFFLINE_CONNECTION_HELP_TOPIC_ID,
+  type HelpAccessContext,
+  type HelpPageAccess,
+  type HelpTopicId
+} from "./helpTopics";
+
+/** Contexte d'aide hors session : seule la rubrique connexion PostgreSQL est consultable. */
+export const OFFLINE_CONNECTION_HELP_ACCESS: HelpAccessContext = {
+  pageAccess: {
+    intervention: false,
+    rondes: false,
+    gardiennage: false,
+    mainCourante: false,
+    fransor: false,
+    settings: false
+  },
+  canManageUsers: false,
+  canManageData: false,
+  connectionOnly: true
+};
 
 /** Accès aux onglets Gestion des données / modèles et variables. */
 export function canAccessSettingsDataHelp(access?: HelpAccessContext): boolean {
@@ -31,6 +51,9 @@ function canAccessPageHelp(access: HelpAccessContext | undefined, page: keyof He
 
 /** Vérifie si la rubrique d'aide est autorisée pour le profil connecté. */
 export function isHelpTopicAllowed(topicId: HelpTopicId, access?: HelpAccessContext): boolean {
+  if (access?.connectionOnly) {
+    return topicId === OFFLINE_CONNECTION_HELP_TOPIC_ID;
+  }
   if (!access) return topicId === "welcome";
   switch (topicId) {
     case "welcome":

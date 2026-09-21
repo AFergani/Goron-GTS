@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { formatRondePlannedLineSummary } from "../model/rondePlannedSummary";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 
 type StatusFilter = "active" | "ended" | "all";
 
@@ -40,6 +41,8 @@ export function RondePlannedProfilesListModal({
       })
       .sort((a, b) => (a.label || "").localeCompare(b.label || "", "fr", { sensitivity: "base" }));
   }, [profiles, statusFilter, search]);
+
+  useModalEscape(isOpen, onClose);
 
   if (!isOpen) return null;
 

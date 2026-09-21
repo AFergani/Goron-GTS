@@ -6,6 +6,8 @@
 import { useEffect, useState, Fragment } from "react";
 import { ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useTableSort } from "../../common/hooks/useTableSort";
 import type { PendingIntervenant, PendingSite } from "../../common/model/pendingRefs.types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -95,6 +97,18 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
   };
   const sortLabel = (key: PendingSortKey) => tableSortArrow(sortKey, key, sortDirection);
 
+  const isDirty = isSites
+    ? Object.values(siteDrafts).some((draft) => Boolean(draft.parc.trim() || draft.famille.trim()))
+    : props.pendingIntervenants.some((item) => {
+        const draftName = (intervenantDrafts[item.id]?.name ?? item.name).trim();
+        return draftName !== item.name.trim();
+      });
+  const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
+    enabled: !isSubmitting,
+    isDirty,
+    onClose: props.onClose
+  });
+
   const toggleExpand = (id: string) => {
     setExpandedId((current) => (current === id ? null : id));
   };
@@ -141,7 +155,8 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
   };
 
   return (
-    <div className="modal-overlay" onClick={props.onClose} role="presentation">
+    <>
+    <div className="modal-overlay" onClick={requestClose} role="presentation">
       <section
         className="modal fransor-help-modal data-pending-submissions-modal"
         onClick={(e) => e.stopPropagation()}
@@ -158,7 +173,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
               </span>
             ) : null}
           </h3>
-          <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={props.onClose}>
+          <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={requestClose}>
             <X size={16} />
           </button>
         </header>
@@ -395,11 +410,22 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
           </table>
         </div>
         <div className="row-actions modal-actions">
-          <button type="button" className="btn-light" onClick={props.onClose}>
+          <button type="button" className="btn-light" onClick={requestClose}>
             Fermer
           </button>
         </div>
       </section>
     </div>
+    <ConfirmModal
+      isOpen={showDiscardConfirm}
+      title="Abandonner la saisie ?"
+      message="Les informations saisies seront perdues."
+      cancelLabel="Rester"
+      confirmLabel="Abandonner"
+      confirmClassName="btn-danger"
+      onCancel={cancelDiscard}
+      onConfirm={confirmDiscardAndClose}
+    />
+    </>
   );
 }

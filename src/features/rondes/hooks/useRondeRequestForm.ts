@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import type { RondeEntry, RondeMotifTypeRef } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
@@ -55,6 +56,7 @@ export type UseRondeRequestFormParams = {
   onSaveLinkedBatch?: unknown;
   onCreatePendingSite?: unknown;
   onCreatePendingIntervenant?: unknown;
+  onClose: () => void;
 };
 
 export function useRondeRequestForm(props: UseRondeRequestFormParams) {
@@ -81,6 +83,8 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
   const [pendingIntervenantName, setPendingIntervenantName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [hydrateTick, setHydrateTick] = useState(0);
+  const [baselineSignature, setBaselineSignature] = useState("");
   /** Clé du dernier auto-alignement Jour unique (évite d’écraser les saisies manuelles). */
   const singleDayAutoKeyRef = useRef<string | null>(null);
 
@@ -215,6 +219,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
       setShowPendingIntervenantForm(false);
       setPendingIntervenantName("");
     }
+    setHydrateTick((tick) => tick + 1);
   }, [
     props.isOpen,
     props.editProfile?.id,
@@ -471,6 +476,46 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     );
   };
 
+  const formSignature = JSON.stringify({
+    requestDate,
+    requestTime,
+    siteId,
+    intervenantId,
+    motifTypeId,
+    origin,
+    clientName,
+    consigne,
+    motifDetail,
+    validFrom,
+    validFromTime,
+    validTo,
+    validToTime,
+    isSingleDay,
+    lines,
+    pendingCode,
+    pendingName,
+    pendingIntervenantName,
+    showPendingSiteForm,
+    showPendingIntervenantForm
+  });
+
+  useEffect(() => {
+    if (!props.isOpen) {
+      setBaselineSignature("");
+      return;
+    }
+    setBaselineSignature(formSignature);
+    // Capture uniquement après hydratation, pas à chaque frappe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.isOpen, hydrateTick]);
+
+  const isDirty = Boolean(baselineSignature) && formSignature !== baselineSignature;
+  const closeGuard = useCreateModalCloseGuard({
+    enabled: props.isOpen && !submitting,
+    isDirty,
+    onClose: props.onClose
+  });
+
   return {
     requestDate,
     setRequestDate: onRequestDateChange,
@@ -533,6 +578,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     lockWeekdaysFromValidityRange,
     requestExtraDefs: extras.requestDefs,
     extraValues: extras.values,
-    setExtraValues: extras.setValues
+    setExtraValues: extras.setValues,
+    closeGuard
   };
 }

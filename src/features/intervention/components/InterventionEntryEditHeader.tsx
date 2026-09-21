@@ -9,6 +9,8 @@ type InterventionEntryEditHeaderProps = {
   onNavigateToLinkedRonde?: (rondeId: string) => void;
   onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
   onClose: () => void;
+  /** Fermeture croix (Échap / confirmation d’abandon). Défaut : `onClose`. */
+  onCloseRequest?: () => void;
 };
 
 export function InterventionEntryEditHeader({
@@ -17,8 +19,10 @@ export function InterventionEntryEditHeader({
   linkedGardiennageId,
   onNavigateToLinkedRonde,
   onNavigateToLinkedGardiennage,
-  onClose
+  onClose,
+  onCloseRequest
 }: InterventionEntryEditHeaderProps) {
+  const closeRequest = onCloseRequest ?? onClose;
   return (
     <header className="mc-modal-head mc-modal-head-compact">
       <h3 className="mc-modal-title">{title}</h3>
@@ -51,7 +55,7 @@ export function InterventionEntryEditHeader({
             Gardiennage lié
           </button>
         ) : null}
-        <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
+        <button type="button" className="mc-modal-close" onClick={closeRequest} aria-label="Fermer">
           ×
         </button>
       </div>

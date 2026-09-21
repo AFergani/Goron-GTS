@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useModalEscape } from "../hooks/useModalEscape";
 
 type ConfirmModalProps = {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export function ConfirmModal({
   onConfirm
 }: ConfirmModalProps) {
   const [isConfirming, setIsConfirming] = useState(false);
+  useModalEscape(isOpen && !isConfirming, onCancel);
   if (!isOpen) return null;
 
   const handleConfirm = async () => {

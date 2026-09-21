@@ -1,5 +1,6 @@
 /**
  * Meta demande : date/heure, motif, origine, site, prestataire, consigne.
+ * Le nom du client n’est affiché que hors ronde contractuelle (champ optionnel et inutilisé au contrat).
  */
 
 import type { ReactNode } from "react";
@@ -143,7 +144,11 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
         )}
       </div>
 
-      <div className="ronde-planned-profile-modal__schedule-row">
+      <div
+        className={`ronde-planned-profile-modal__schedule-row${
+          props.isContract ? " ronde-planned-profile-modal__schedule-row--no-client" : ""
+        }`}
+      >
         <label className="mc-field ronde-planned-profile-modal__schedule-field--motif">
           <span>Motif de la demande</span>
           <select
@@ -158,17 +163,19 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
             ))}
           </select>
         </label>
-        <label className="mc-field">
-          <span>{props.origin === "APPEL_CLIENT" ? "Nom du client (obligatoire)" : "Nom du client"}</span>
-          <input
-            type="text"
-            value={props.clientName}
-            disabled={locked}
-            onChange={(e) => props.onClientNameChange(e.target.value)}
-            aria-label="Nom du client"
-            placeholder="Ex. nom du contact ou de la société"
-          />
-        </label>
+        {!props.isContract ? (
+          <label className="mc-field">
+            <span>{props.origin === "APPEL_CLIENT" ? "Nom du client (obligatoire)" : "Nom du client"}</span>
+            <input
+              type="text"
+              value={props.clientName}
+              disabled={locked}
+              onChange={(e) => props.onClientNameChange(e.target.value)}
+              aria-label="Nom du client"
+              placeholder="Ex. nom du contact ou de la société"
+            />
+          </label>
+        ) : null}
         <label className="mc-field ronde-planned-profile-modal__schedule-field--origin">
           <span>Origine</span>
           {props.isOriginFixed || locked ? (

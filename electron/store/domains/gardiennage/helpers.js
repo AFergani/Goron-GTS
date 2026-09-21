@@ -13,7 +13,7 @@ const {
   collectActiveDatesForLine
 } = require("./plannerEngine");
 
-/** Nombre de jours après la fin prévue avant clôture automatique. */
+/** Nombre de jours après la fin prévue avant clôture automatique (rondes exceptionnelles : même délai). */
 const GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS = 3;
 /** Horizon de génération / glissement pour H24 sans date de fin. */
 const GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS = 90;

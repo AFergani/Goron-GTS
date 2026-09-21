@@ -175,7 +175,7 @@ export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProp
       </label>
       {formLockedClosed && entry?.source !== "PLANIFIE" && isRondeAutoClosureReport(report) ? (
         <p className="muted mc-ref-hint" style={{ marginTop: 0 }}>
-          Clôture automatique (plus de 5 jours après la date de passage). Utilisez <strong>Rouvrir</strong> puis
+          Clôture automatique (plus de 3 jours après la date de passage). Utilisez <strong>Rouvrir</strong> puis
           reclôturez pour saisir les heures effectives, le n° de bon ou un compte rendu terrain.
         </p>
       ) : null}

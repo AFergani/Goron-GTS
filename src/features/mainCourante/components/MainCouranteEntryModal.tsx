@@ -307,21 +307,37 @@ export function MainCouranteEntryModal({
 
   const defaultAnomalyTypeId = useMemo(() => getDefaultSystemRefId(anomalyTypes), [anomalyTypes]);
 
-  const isMainCouranteCreateDirty = useMemo(() => {
-    if (mode !== "create") return false;
-    const typeChangedFromDefault = Boolean(anomalyTypeId && defaultAnomalyTypeId && anomalyTypeId !== defaultAnomalyTypeId);
-    const extrasFilled = Object.values(extras.values).some((value) => String(value || "").trim());
-    return Boolean(
-      information.trim() ||
-        typeChangedFromDefault ||
-        selectedSite ||
-        pendingCode.trim() ||
-        pendingName.trim() ||
-        showPendingSiteForm ||
-        extrasFilled
-    );
+  const extrasFilled = Object.values(extras.values).some((value) => String(value || "").trim());
+
+  const isMainCouranteDirty = useMemo(() => {
+    if (mode === "view") return false;
+    if (mode === "manager") return managerObservation.trim().length > 0;
+    if (mode === "create") {
+      const typeChangedFromDefault = Boolean(anomalyTypeId && defaultAnomalyTypeId && anomalyTypeId !== defaultAnomalyTypeId);
+      return Boolean(
+        information.trim() ||
+          typeChangedFromDefault ||
+          selectedSite ||
+          pendingCode.trim() ||
+          pendingName.trim() ||
+          showPendingSiteForm ||
+          extrasFilled
+      );
+    }
+    if (mode === "edit" && entry) {
+      const extrasChanged = Object.keys({ ...extras.values, ...(entry.exportExtraValues || {}) }).some(
+        (key) => String(extras.values[key] || "").trim() !== String((entry.exportExtraValues || {})[key] || "").trim()
+      );
+      return Boolean(
+        information !== (entry.information || "") ||
+          anomalyTypeId !== (entry.anomalyTypeId || "") ||
+          extrasChanged
+      );
+    }
+    return false;
   }, [
     mode,
+    managerObservation,
     information,
     anomalyTypeId,
     defaultAnomalyTypeId,
@@ -329,12 +345,14 @@ export function MainCouranteEntryModal({
     pendingCode,
     pendingName,
     showPendingSiteForm,
-    extras.values
+    extrasFilled,
+    extras.values,
+    entry
   ]);
 
   const createCloseGuard = useCreateModalCloseGuard({
-    enabled: mode === "create",
-    isDirty: isMainCouranteCreateDirty,
+    enabled: isOpen,
+    isDirty: isMainCouranteDirty,
     onClose
   });
 
@@ -343,6 +361,22 @@ export function MainCouranteEntryModal({
   }
 
   const submitLabel = mode === "create" ? "Créer" : "Enregistrer";
+  const discardConfirm = (
+    <ConfirmModal
+      isOpen={createCloseGuard.showDiscardConfirm}
+      title="Quitter la saisie ?"
+      message={
+        mode === "create"
+          ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
+          : "Les modifications non enregistrées seront perdues."
+      }
+      cancelLabel="Rester"
+      confirmLabel={mode === "create" ? "Quitter sans créer" : "Abandonner"}
+      confirmClassName="btn-danger"
+      onCancel={createCloseGuard.cancelDiscard}
+      onConfirm={createCloseGuard.confirmDiscardAndClose}
+    />
+  );
 
   if (mode === "manager" || mode === "view") {
     if (!entry || (mode === "manager" && entry.status === "CLOTURE")) return null;
@@ -350,11 +384,12 @@ export function MainCouranteEntryModal({
     const priseParts = splitIsoToLocalDateTime(priseEnCompteIso);
     const clotureParts = splitIsoToLocalDateTime(entry.closedAt);
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <>
+      <div className="modal-overlay" onClick={createCloseGuard.requestClose}>
         <section className="modal main-log-modal main-courante-entry-modal main-courante-manager-modal" onClick={(ev) => ev.stopPropagation()}>
           <header className="mc-modal-head mc-modal-head-compact">
             <h3 className="mc-modal-title">{title}</h3>
-            <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={onClose}>
+            <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={createCloseGuard.requestClose}>
               ×
             </button>
           </header>
@@ -463,7 +498,7 @@ export function MainCouranteEntryModal({
 
                 <div className="mc-modal-footer mc-modal-footer-split mc-modal-footer-manager">
                   <div className="mc-modal-footer-start">
-                    <button type="button" className="btn-ghost" onClick={onClose}>
+                    <button type="button" className="btn-ghost" onClick={createCloseGuard.requestClose}>
                       Fermer
                     </button>
                   </div>
@@ -507,19 +542,21 @@ export function MainCouranteEntryModal({
           </div>
         </section>
       </div>
+      {discardConfirm}
+      </>
     );
   }
 
   return (
     <>
-      <div className="modal-overlay" onClick={mode === "create" ? createCloseGuard.requestClose : onClose}>
+      <div className="modal-overlay" onClick={createCloseGuard.requestClose}>
         <section className="modal main-log-modal main-courante-entry-modal" onClick={(e) => e.stopPropagation()}>
           {mode === "create" ? (
             <CreateEntryModalHeader kind="mainCourante" onCloseRequest={createCloseGuard.requestClose} />
           ) : (
             <header className="mc-modal-head mc-modal-head-compact">
               <h3 className="mc-modal-title">{title}</h3>
-              <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={onClose}>
+              <button type="button" className="mc-modal-close" aria-label="Fermer" onClick={createCloseGuard.requestClose}>
                 ×
               </button>
             </header>
@@ -656,7 +693,7 @@ export function MainCouranteEntryModal({
             ) : (
               <div className="mc-modal-footer mc-modal-footer-split">
                 <div className="mc-modal-footer-start">
-                  <button type="button" className="btn-ghost" onClick={onClose}>
+                  <button type="button" className="btn-ghost" onClick={createCloseGuard.requestClose}>
                     Fermer
                   </button>
                 </div>
@@ -672,16 +709,7 @@ export function MainCouranteEntryModal({
         </div>
       </section>
     </div>
-      <ConfirmModal
-        isOpen={createCloseGuard.showDiscardConfirm}
-        title="Quitter la saisie ?"
-        message="Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
-        cancelLabel="Rester"
-        confirmLabel="Quitter sans créer"
-        confirmClassName="btn-danger"
-        onCancel={createCloseGuard.cancelDiscard}
-        onConfirm={createCloseGuard.confirmDiscardAndClose}
-      />
+      {discardConfirm}
     </>
   );
 }

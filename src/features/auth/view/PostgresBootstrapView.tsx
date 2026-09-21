@@ -6,13 +6,13 @@
  * Réutilise `PostgresConnectionPanel` en variante bootstrap.
  */
 
+import { CircleHelp } from "lucide-react";
 import { AuthLogo } from "../components/AuthLogo";
 import {
   PostgresConnectionPanel,
   type PostgresBusyPhase,
   type PostgresConfigDraft
 } from "../../settings/components/PostgresConnectionPanel";
-import { PostgresBackupPanel } from "../../settings/components/PostgresBackupPanel";
 import type { PublicPostgresConfig, PostgresTestResult } from "../../../infrastructure/api/gtsApiClient";
 
 type PostgresBootstrapViewProps = {
@@ -26,19 +26,18 @@ type PostgresBootstrapViewProps = {
   error: string;
   /** Récupération depuis l'écran login (config déjà connue mais injoignable). */
   isRecoveryMode?: boolean;
-  /** Restauration d'un dump depuis l'écran login. */
-  isRestoreMode?: boolean;
   /** Config actuelle redevenue joignable (ex. Docker relancé). */
   recoveryRestored?: boolean;
   recoveryRestoredMessage?: string;
   onCancelRecovery?: () => void;
-  onRestored?: () => void;
-  onNotify?: (message: string, tone?: "success" | "error" | "warning") => void;
+  /** Ouvre le centre d'aide sur la rubrique connexion PostgreSQL. */
+  onOpenHelp?: () => void;
 };
 
 /**
  * Vue contrôlée : logo + panneau connexion serveur PostgreSQL.
- * En restauration, le panneau s'élargit pour le tableau des dumps.
+ *
+ * @param props - Formulaire bootstrap / récupération et actions associées.
  */
 export function PostgresBootstrapView({
   config,
@@ -50,25 +49,31 @@ export function PostgresBootstrapView({
   busyPhase,
   error,
   isRecoveryMode = false,
-  isRestoreMode = false,
   recoveryRestored = false,
   recoveryRestoredMessage = "",
   onCancelRecovery,
-  onRestored,
-  onNotify
+  onOpenHelp
 }: PostgresBootstrapViewProps) {
   const isBusy = busyPhase !== "idle";
 
   return (
     <main className="auth-page">
-      <section
-        className={`panel login-panel postgres-bootstrap-panel${isRestoreMode ? " postgres-bootstrap-panel--restore" : ""}`}
-        aria-busy={isBusy}
-      >
-        <AuthLogo compact={isRestoreMode} />
-        <h1>
-          {isRestoreMode ? "Restaurer une sauvegarde" : isRecoveryMode ? "Connexion base de données" : "Initialisation GTS"}
-        </h1>
+      <section className="panel login-panel postgres-bootstrap-panel" aria-busy={isBusy}>
+        <AuthLogo />
+        <div className="postgres-bootstrap-title-row">
+          <h1>{isRecoveryMode ? "Connexion base de données" : "Initialisation GTS"}</h1>
+          {onOpenHelp ? (
+            <button
+              type="button"
+              className="btn-light action-icon-btn"
+              title="Aide — connexion PostgreSQL"
+              aria-label="Aide — connexion PostgreSQL"
+              onClick={onOpenHelp}
+            >
+              <CircleHelp size={14} />
+            </button>
+          ) : null}
+        </div>
 
         {isRecoveryMode && recoveryRestored ? (
           <>
@@ -82,35 +87,11 @@ export function PostgresBootstrapView({
               </button>
             ) : null}
           </>
-        ) : isRestoreMode ? (
-          <>
-            <PostgresBackupPanel variant="recovery" onNotify={onNotify} onRestored={onRestored} />
-            {onCancelRecovery ? (
-              <div className="login-links">
-                <button type="button" className="link-btn" onClick={onCancelRecovery} disabled={isBusy}>
-                  Retour à la connexion
-                </button>
-              </div>
-            ) : null}
-            {error && !isBusy ? <p className="error">{error}</p> : null}
-          </>
         ) : (
           <>
-            <p className="muted">
-              {isRecoveryMode ? (
-                <>
-                  Le serveur PostgreSQL configuré sur ce poste est inaccessible. Vérifiez l&apos;adresse IP (ex. après
-                  changement de réseau), le port et Docker, puis testez avant d&apos;enregistrer.
-                </>
-              ) : (
-                <>
-                  Avant la première connexion, indiquez le serveur PostgreSQL de la station. Sur un 2e poste, utilisez
-                  l&apos;adresse LAN du PC qui héberge Docker (ex. 192.168.x.x), pas localhost.
-                </>
-              )}
-            </p>
             <PostgresConnectionPanel
               variant="bootstrap"
+              isRecoveryMode={isRecoveryMode}
               config={config}
               draft={draft}
               onDraftChange={onDraftChange}
@@ -119,8 +100,6 @@ export function PostgresBootstrapView({
               testResult={testResult}
               busyPhase={busyPhase}
             />
-            <h4>Restaurer une sauvegarde</h4>
-            <PostgresBackupPanel variant="recovery" onNotify={onNotify} onRestored={onRestored} />
             {isRecoveryMode && onCancelRecovery ? (
               <div className="login-links">
                 <button type="button" className="link-btn" onClick={onCancelRecovery} disabled={isBusy}>

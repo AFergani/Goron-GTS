@@ -217,9 +217,50 @@ export function useInterventionEntryForm({
     requestDate
   ]);
 
+  const isInterventionEditDirty = useMemo(() => {
+    if (isCreateMode || !entry) return false;
+    const requestDateIso = isIsoDate(entry.requestDate) ? entry.requestDate : getLocalDateIso();
+    const workOrder =
+      !entry.workOrderNumber || entry.workOrderNumber === INTERVENTION_NO_WORK_ORDER_LABEL
+        ? ""
+        : entry.workOrderNumber;
+    const extrasChanged = Object.keys({ ...exportExtraValues, ...(entry.exportExtraValues || {}) }).some(
+      (key) => String(exportExtraValues[key] || "").trim() !== String((entry.exportExtraValues || {})[key] || "").trim()
+    );
+    return Boolean(
+      siteId !== (entry.siteId || "") ||
+        requestReason !== (entry.requestReason || "") ||
+        requestDate !== requestDateIso ||
+        requestTime !== (entry.requestTime || "") ||
+        arrivalDate !== (inferArrivalDateFromEntry(entry) || requestDateIso) ||
+        arrivalTime !== (entry.arrivalTime || "") ||
+        departureDate !== (inferDepartureDateFromEntry(entry) || requestDateIso) ||
+        departureTime !== (entry.departureTime || "") ||
+        workOrderNumber !== workOrder ||
+        report !== (entry.report || "") ||
+        intervenantId !== (entry.intervenantId || "") ||
+        extrasChanged
+    );
+  }, [
+    isCreateMode,
+    entry,
+    siteId,
+    requestReason,
+    requestDate,
+    requestTime,
+    arrivalDate,
+    arrivalTime,
+    departureDate,
+    departureTime,
+    workOrderNumber,
+    report,
+    intervenantId,
+    exportExtraValues
+  ]);
+
   const createCloseGuard = useCreateModalCloseGuard({
-    enabled: isCreateMode && !showCancelReasonDialog,
-    isDirty: isInterventionCreateDirty,
+    enabled: isOpen && !showCancelReasonDialog,
+    isDirty: isCreateMode ? isInterventionCreateDirty : isInterventionEditDirty,
     onClose
   });
 

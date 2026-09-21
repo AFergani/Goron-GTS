@@ -8,6 +8,7 @@ import type { RondeBatchDeleteRequestRef } from "../model/ronde.types";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { RondeConfirmReasonField } from "./RondeConfirmReasonField";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 
 type StatusFilter = "pending" | "cancelled" | "all";
 
@@ -69,6 +70,8 @@ export function RondeBatchDeleteQueueModal({
       })
       .sort((a, b) => (a.requestedAt || "").localeCompare(b.requestedAt || ""));
   }, [requests, statusFilter, search]);
+
+  useModalEscape(isOpen, onClose);
 
   if (!isOpen) return null;
 

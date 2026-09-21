@@ -11,6 +11,8 @@ import type { PeerResetFormState } from "../model/auth.types";
 import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
 import { PasswordInput } from "../../common/components/PasswordInput";
 import { AuthLogo } from "../components/AuthLogo";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 
 type PeerResetModalProps = {
   isOpen: boolean;
@@ -23,6 +25,17 @@ type PeerResetModalProps = {
 };
 
 export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, onSubmit }: PeerResetModalProps) {
+  const isDirty = Boolean(
+    form.fullName.trim() ||
+      form.validatorFullName.trim() ||
+      form.validatorPassword ||
+      form.reason.trim()
+  );
+  const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
+    enabled: isOpen && !busy,
+    isDirty,
+    onClose
+  });
   if (!isOpen) return null;
 
   const canSubmit =
@@ -32,7 +45,8 @@ export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, o
     isAuditReasonValid(form.reason);
 
   return (
-    <div className="modal-overlay" onClick={busy ? undefined : onClose}>
+    <>
+    <div className="modal-overlay" onClick={busy ? undefined : requestClose}>
       <section className="modal" onClick={(e) => e.stopPropagation()}>
         <AuthLogo compact />
         <h3>Mot de passe oublié</h3>
@@ -92,7 +106,7 @@ export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, o
           </label>
           {error ? <p className="error">{error}</p> : null}
           <div className="row-actions modal-actions">
-            <button type="button" className="btn-light" onClick={onClose} disabled={busy}>
+            <button type="button" className="btn-light" onClick={requestClose} disabled={busy}>
               Annuler
             </button>
             <button type="submit" disabled={busy || !canSubmit}>
@@ -102,5 +116,16 @@ export function PeerResetModal({ isOpen, form, error, busy, onChange, onClose, o
         </form>
       </section>
     </div>
+    <ConfirmModal
+      isOpen={showDiscardConfirm}
+      title="Abandonner la saisie ?"
+      message="Les informations saisies seront perdues."
+      cancelLabel="Rester"
+      confirmLabel="Abandonner"
+      confirmClassName="btn-danger"
+      onCancel={cancelDiscard}
+      onConfirm={confirmDiscardAndClose}
+    />
+    </>
   );
 }

@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from "react";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 
 export type RondePendingRequestQueueRow = {
   id: string;
@@ -59,6 +60,8 @@ export function RondePendingRequestsQueueModal({
       return hay.includes(q);
     });
   }, [rows, search]);
+
+  useModalEscape(isOpen, onClose);
 
   if (!isOpen) return null;
 

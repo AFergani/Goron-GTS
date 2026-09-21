@@ -1,7 +1,8 @@
 /**
  * Clôture automatique PostgreSQL des rondes exceptionnelles expirées.
  *
- * Délai : 5 jours après `request_date` pour les sources hors `PLANIFIE`.
+ * Délai : 3 jours après `request_date` pour les sources hors `PLANIFIE`
+ * (même grâce que le gardiennage).
  * Branché via `electron/main.js` et la façade `ronde/index.js`.
  *
  * @module electron/store/domains/ronde/autoClose
@@ -9,12 +10,13 @@
 
 const { requireRondePersistence } = require("./persistence");
 const { RONDE_ENTRY_SELECT } = require("./mapping");
+const { GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS } = require("../gardiennage/helpers");
 
 /** Libellé enregistré en compte rendu (homogène avec gardiennage). */
 const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 const RONDE_AUTO_CLOSE_ACTOR = "system:ronde-exceptional-auto-close";
-/** Délai en jours après la date de passage avant clôture auto. */
-const EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS = 5;
+/** Délai en jours après la date de passage avant clôture auto (aligné gardiennage). */
+const EXCEPTIONAL_AUTO_CLOSE_DELAY_DAYS = GARDIENNAGE_AUTO_CLOSE_GRACE_DAYS;
 
 /**
  * @param {unknown} value

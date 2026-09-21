@@ -37,6 +37,11 @@ export type HelpAccessContext = {
   canAccessOperatorsTab?: boolean;
   /** Session connectée : onglets données / modèles et variables / base */
   canManageData: boolean;
+  /**
+   * Hors session (base injoignable) : la sidebar affiche toutes les rubriques,
+   * mais seule « Connexion PostgreSQL » reste sélectionnable.
+   */
+  connectionOnly?: boolean;
 };
 
 export type HelpNavItem = {
@@ -44,6 +49,25 @@ export type HelpNavItem = {
   label: string;
   emoji: string;
 };
+
+/** Catalogue complet des rubriques (ordre de la sidebar du centre d'aide). */
+export const HELP_NAV_CATALOG: HelpNavItem[] = [
+  { id: "settings-connection", label: "Connexion PostgreSQL", emoji: "🔌" },
+  { id: "welcome", label: "Navigation", emoji: "🧭" },
+  { id: "interventions", label: "Interventions", emoji: "📋" },
+  { id: "rondes", label: "Rondes", emoji: "🔄" },
+  { id: "gardiennage", label: "Gardiennage", emoji: "🛡️" },
+  { id: "main-courante", label: "Main courante", emoji: "📒" },
+  { id: "fransor", label: "Fransor", emoji: "📅" },
+  { id: "settings-operators", label: "Gestion opérateur", emoji: "👤" },
+  { id: "settings-data", label: "Gestion des données", emoji: "🗂️" },
+  { id: "settings-templates", label: "Modèles et variables", emoji: "📄" },
+  { id: "settings-database", label: "Gestion base de données", emoji: "💾" },
+  { id: "settings-audit", label: "Journal des actions", emoji: "📜" }
+];
+
+/** Rubrique unique consultable lorsque PostgreSQL est injoignable. */
+export const OFFLINE_CONNECTION_HELP_TOPIC_ID: HelpTopicId = "settings-connection";
 
 /** Anciennes rubriques données fusionnées dans settings-data (liens profonds éventuels). */
 const LEGACY_SETTINGS_DATA_TOPIC_IDS = new Set<string>([
@@ -66,41 +90,52 @@ export function resolveHelpTopicId(requested: HelpTopicId | string | null | unde
   return requested as HelpTopicId;
 }
 
+/**
+ * Construit la sidebar du centre d'aide selon les droits, ou le catalogue complet
+ * (rubriques métier grisées) lorsque `connectionOnly` est actif.
+ *
+ * @param ctx - Droits du profil, éventuellement hors session.
+ * @returns Rubriques à afficher dans la navigation.
+ */
 export function buildHelpNavigation(ctx: HelpAccessContext): HelpNavItem[] {
-  const items: HelpNavItem[] = [{ id: "welcome", label: "Sidebar et accessibilité", emoji: "🧭" }];
+  if (ctx.connectionOnly) {
+    return HELP_NAV_CATALOG;
+  }
+  return HELP_NAV_CATALOG.filter((item) => isHelpNavItemVisible(item.id, ctx));
+}
 
-  if (ctx.pageAccess.intervention) {
-    items.push({ id: "interventions", label: "Interventions", emoji: "📋" });
+/**
+ * Visibilité d'une rubrique dans la sidebar (hors mode connexion seule).
+ *
+ * @param id - Identifiant de rubrique.
+ * @param ctx - Droits du profil.
+ * @returns Vrai si la rubrique doit apparaître.
+ */
+function isHelpNavItemVisible(id: HelpTopicId, ctx: HelpAccessContext): boolean {
+  switch (id) {
+    case "settings-connection":
+      return Boolean(ctx.pageAccess.settings && ctx.canManageUsers);
+    case "welcome":
+      return true;
+    case "interventions":
+      return Boolean(ctx.pageAccess.intervention);
+    case "rondes":
+      return Boolean(ctx.pageAccess.rondes);
+    case "gardiennage":
+      return Boolean(ctx.pageAccess.gardiennage);
+    case "main-courante":
+      return Boolean(ctx.pageAccess.mainCourante);
+    case "fransor":
+      return Boolean(ctx.pageAccess.fransor);
+    case "settings-operators":
+      return Boolean(ctx.pageAccess.settings && (ctx.canManageUsers || ctx.canAccessOperatorsTab));
+    case "settings-data":
+    case "settings-templates":
+      return Boolean(ctx.pageAccess.settings && ctx.canManageData);
+    case "settings-database":
+    case "settings-audit":
+      return Boolean(ctx.pageAccess.settings && ctx.canManageUsers);
+    default:
+      return false;
   }
-  if (ctx.pageAccess.rondes) {
-    items.push({ id: "rondes", label: "Rondes", emoji: "🔄" });
-  }
-  if (ctx.pageAccess.gardiennage) {
-    items.push({ id: "gardiennage", label: "Gardiennage", emoji: "🛡️" });
-  }
-  if (ctx.pageAccess.mainCourante) {
-    items.push({ id: "main-courante", label: "Main courante", emoji: "📒" });
-  }
-  if (ctx.pageAccess.fransor) {
-    items.push({ id: "fransor", label: "Fransor", emoji: "📅" });
-  }
-
-  if (ctx.pageAccess.settings) {
-    if (ctx.canManageUsers || ctx.canAccessOperatorsTab) {
-      items.push({ id: "settings-operators", label: "Gestion opérateur", emoji: "👤" });
-    }
-
-    if (ctx.canManageData) {
-      items.push({ id: "settings-data", label: "Gestion des données", emoji: "🗂️" });
-      items.push({ id: "settings-templates", label: "Modèles et variables", emoji: "📄" });
-    }
-
-    if (ctx.canManageUsers) {
-      items.push({ id: "settings-database", label: "Gestion base de données", emoji: "💾" });
-      items.push({ id: "settings-connection", label: "Connexion PostgreSQL", emoji: "🔌" });
-      items.push({ id: "settings-audit", label: "Journal des actions", emoji: "📜" });
-    }
-  }
-
-  return items;
 }

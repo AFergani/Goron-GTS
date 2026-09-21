@@ -14,6 +14,9 @@ import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import { useFransorPresenter } from "../presenter/useFransorPresenter";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 import type { FransorClosure, Role } from "../../../types";
 
 /** Libellé fixe du bouton de copie site (code métier entre parenthèses, hors référentiel). */
@@ -152,6 +155,7 @@ export function FransorPage({
   const [closuresByMonth, setClosuresByMonth] = useState<Record<string, FransorClosure[]>>({});
   const [closureYearLoading, setClosureYearLoading] = useState(false);
   const closureYearLoadGen = useRef(0);
+  const addBaselineRef = useRef("");
 
   const [compactDayLabels, setCompactDayLabels] = useState(false);
   const presenter = useFransorPresenter({ requesterRole, requesterUsername, onToast });
@@ -426,28 +430,32 @@ export function FransorPage({
     }
   };
 
-  /* --- Échap : fermer modales ouverte (saisie, exceptions, suppression) --- */
-  useEffect(() => {
-    const hasOpenModal = showAddModal || showClosureModal || Boolean(deleteClosureId);
-    if (!hasOpenModal) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (deleteClosureId) {
-        setDeleteClosureId(null);
-        setDeleteClosureReason("");
-        return;
-      }
-      if (showAddModal) {
-        setShowAddModal(false);
-        return;
-      }
-      if (showClosureModal) {
-        setShowClosureModal(false);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteClosureId, showAddModal, showClosureModal]);
+  /* --- Échap : fermer la modale du dessus ; confirmation si saisie commencée --- */
+  const closeAddModal = useCallback(() => setShowAddModal(false), []);
+  const addDirty =
+    JSON.stringify({
+      date: entryDate,
+      ouv: entryOuvertureDone,
+      ferm: entryFermetureDone,
+      ouvId: entryOuvertureResponsableId,
+      fermId: entryFermetureResponsableId
+    }) !== addBaselineRef.current;
+  const addCloseGuard = useCreateModalCloseGuard({
+    enabled: showAddModal,
+    isDirty: addDirty,
+    onClose: closeAddModal
+  });
+  const closeClosureModal = useCallback(() => setShowClosureModal(false), []);
+  const closureDirty = Boolean(closureStartDate || closureEndDate || closureLabel.trim() || editingClosureId);
+  const closureCloseGuard = useCreateModalCloseGuard({
+    enabled: showClosureModal && !deleteClosureId,
+    isDirty: closureDirty,
+    onClose: closeClosureModal
+  });
+  useModalEscape(Boolean(deleteClosureId), () => {
+    setDeleteClosureId(null);
+    setDeleteClosureReason("");
+  });
 
   /** Ouvre la modale de saisie (jour courant ou date calendrier, états préremplis) */
   const openEntryModal = (
@@ -462,6 +470,13 @@ export function FransorPage({
     setEntryFermetureResponsableId(prefilledClosingResponsableId);
     setEntryOuvertureDone(defaultOuverture);
     setEntryFermetureDone(defaultFermeture);
+    addBaselineRef.current = JSON.stringify({
+      date: prefilledDate || getLocalIsoDate(),
+      ouv: defaultOuverture,
+      ferm: defaultFermeture,
+      ouvId: prefilledOpeningResponsableId,
+      fermId: prefilledClosingResponsableId
+    });
     setShowAddModal(true);
   };
 
@@ -772,8 +787,8 @@ export function FransorPage({
       </section>
 
       {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal-overlay" onClick={addCloseGuard.requestClose}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Ajouter une saisie Fransor</h3>
             <div className="form">
               <label>
@@ -842,7 +857,7 @@ export function FransorPage({
               </label>
             </div>
             <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setShowAddModal(false)}>
+              <button type="button" className="btn-light" onClick={addCloseGuard.requestClose}>
                 Annuler
               </button>
               <button type="button" onClick={() => void submitQuickEntry()}>
@@ -853,8 +868,8 @@ export function FransorPage({
         </div>
       )}
       {showClosureModal && (
-        <div className="modal-overlay">
-          <div className="modal fransor-help-modal fransor-closure-modal">
+        <div className="modal-overlay" onClick={closureCloseGuard.requestClose}>
+          <div className="modal fransor-help-modal fransor-closure-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="fransor-closure-modal-title">Périodes exceptionnelles (ouvertures et fermetures)</h3>
 
             <div className="fransor-closure-modal-sections">
@@ -1076,7 +1091,7 @@ export function FransorPage({
               </section>
             </div>
             <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setShowClosureModal(false)}>
+              <button type="button" className="btn-light" onClick={closureCloseGuard.requestClose}>
                 Fermer
               </button>
             </div>
@@ -1085,7 +1100,7 @@ export function FransorPage({
       )}
       {deleteClosureId && (
         <div className="modal-overlay">
-          <div className="modal">
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Supprimer l'exception</h3>
             <div className="form">
               <label>
@@ -1130,6 +1145,26 @@ export function FransorPage({
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={addCloseGuard.showDiscardConfirm}
+        title="Abandonner la saisie ?"
+        message="Les informations saisies seront perdues."
+        cancelLabel="Rester"
+        confirmLabel="Abandonner"
+        confirmClassName="btn-danger"
+        onCancel={addCloseGuard.cancelDiscard}
+        onConfirm={addCloseGuard.confirmDiscardAndClose}
+      />
+      <ConfirmModal
+        isOpen={closureCloseGuard.showDiscardConfirm}
+        title="Abandonner la saisie ?"
+        message="Les informations saisies seront perdues."
+        cancelLabel="Rester"
+        confirmLabel="Abandonner"
+        confirmClassName="btn-danger"
+        onCancel={closureCloseGuard.cancelDiscard}
+        onConfirm={closureCloseGuard.confirmDiscardAndClose}
+      />
     </>
   );
 }

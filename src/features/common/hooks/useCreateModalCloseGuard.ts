@@ -1,23 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
+import { useModalEscape } from "./useModalEscape";
 
 /**
  * Garde de fermeture pour modales de saisie avec risque de perte de brouillon.
  *
  * Expose `requestClose` à brancher sur overlay, Annuler, croix et Échap : si `enabled`
  * et `isDirty`, ouvre une confirmation (`showDiscardConfirm`) au lieu de fermer tout de suite.
- * Si `enabled` est faux, `requestClose` appelle `onClose` directement (mode édition ou
- * sous-dialogue actif).
+ * Si `enabled` est faux (sous-dialogue ouvert), `requestClose` ne fait rien.
  *
- * Échap en phase capture : fermeture ou abandon de la confirmation selon l’état.
- * La modale `ConfirmModal` « Abandonner la saisie ? » est câblée par le parent via
- * `confirmDiscardAndClose` / `cancelDiscard`.
+ * Échap : fermeture ou confirmation ; pendant la confirmation, `ConfirmModal` reprend Échap
+ * (annuler l’abandon) grâce à la pile de `useModalEscape`.
  *
  * Utilisé par : MainCouranteEntryModal, InterventionEntryModal, RondeEntryModal,
- * GardiennageEntryModal.
+ * GardiennageEntryModal, GardiennageCloseModal, et d’autres formulaires longs.
  */
 
 type UseCreateModalCloseGuardParams = {
-  /** Active la confirmation si saisie modifiée (souvent mode création uniquement) */
+  /** Modale visible et éligible à Échap / confirmation (souvent `isOpen` hors sous-dialogue). */
   enabled: boolean;
   isDirty: boolean;
   onClose: () => void;
@@ -31,10 +30,7 @@ export function useCreateModalCloseGuard({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const attemptClose = useCallback(() => {
-    if (!enabled) {
-      onClose();
-      return;
-    }
+    if (!enabled) return;
     if (isDirty) setShowDiscardConfirm(true);
     else onClose();
   }, [enabled, isDirty, onClose]);
@@ -46,31 +42,11 @@ export function useCreateModalCloseGuard({
 
   const cancelDiscard = useCallback(() => setShowDiscardConfirm(false), []);
 
-  /* Échap : tenter de fermer la modale de création */
   useEffect(() => {
-    if (!enabled || showDiscardConfirm) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      attemptClose();
-    };
-    window.addEventListener("keydown", handleKey, true);
-    return () => window.removeEventListener("keydown", handleKey, true);
-  }, [enabled, showDiscardConfirm, attemptClose]);
+    if (!enabled) setShowDiscardConfirm(false);
+  }, [enabled]);
 
-  /* Échap pendant la confirmation : revenir à la saisie */
-  useEffect(() => {
-    if (!enabled || !showDiscardConfirm) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      cancelDiscard();
-    };
-    window.addEventListener("keydown", handleKey, true);
-    return () => window.removeEventListener("keydown", handleKey, true);
-  }, [enabled, showDiscardConfirm, cancelDiscard]);
+  useModalEscape(enabled && !showDiscardConfirm, attemptClose);
 
   return {
     requestClose: attemptClose,

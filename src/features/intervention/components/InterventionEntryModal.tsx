@@ -293,7 +293,7 @@ export function InterventionEntryModal({
 
   return (
     <>
-      <div className="modal-overlay" onClick={form.isCreateMode ? form.createCloseGuard.requestClose : onClose}>
+      <div className="modal-overlay" onClick={form.createCloseGuard.requestClose}>
         <section
           className="modal main-log-modal main-courante-entry-modal intervention-entry-modal"
           onClick={(e) => e.stopPropagation()}
@@ -313,6 +313,7 @@ export function InterventionEntryModal({
               onNavigateToLinkedRonde={onNavigateToLinkedRonde}
               onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
               onClose={onClose}
+              onCloseRequest={form.createCloseGuard.requestClose}
             />
           )}
           <div className="mc-field-section mc-field-section-tight">
@@ -416,7 +417,7 @@ export function InterventionEntryModal({
                   isActionSubmitting={form.isActionSubmitting}
                   canOpenLinkedRonde={canOpenLinkedRonde}
                   canOpenLinkedGardiennage={canOpenLinkedGardiennage}
-                  onClose={onClose}
+                  onClose={form.createCloseGuard.requestClose}
                   onOpenLinkedRonde={onOpenLinkedRonde}
                   onOpenLinkedGardiennage={onOpenLinkedGardiennage}
                   onRequestCancel={() => {
@@ -439,9 +440,13 @@ export function InterventionEntryModal({
       <ConfirmModal
         isOpen={form.createCloseGuard.showDiscardConfirm}
         title="Quitter la saisie ?"
-        message="Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
+        message={
+          form.isCreateMode
+            ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
+            : "Les modifications non enregistrées seront perdues."
+        }
         cancelLabel="Rester"
-        confirmLabel="Quitter sans créer"
+        confirmLabel={form.isCreateMode ? "Quitter sans créer" : "Abandonner"}
         confirmClassName="btn-danger"
         onCancel={form.createCloseGuard.cancelDiscard}
         onConfirm={form.createCloseGuard.confirmDiscardAndClose}

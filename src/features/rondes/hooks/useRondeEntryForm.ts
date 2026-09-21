@@ -332,9 +332,98 @@ export function useRondeEntryForm({
     defaultMotifTypeId
   ]);
 
+  const isRondeEditDirty = useMemo(() => {
+    if (isCreateMode || !entry) return false;
+    const extrasChanged = Object.keys({ ...extras.values, ...(entry.closureCustomValues || {}) }).some(
+      (key) => String(extras.values[key] || "").trim() !== String((entry.closureCustomValues || {})[key] || "").trim()
+    );
+    return Boolean(
+      requestDate !== (entry.requestDate || formatNowDate()) ||
+        siteId !== (entry.siteId || "") ||
+        motifTypeId !== (entry.motifTypeId || "") ||
+        motifDetail !== (entry.motifDetail || "") ||
+        horairesDemandeObs !== (entry.horairesDemandeObs || "") ||
+        originKind !== (entry.originKind || "TELESURVEILLANCE") ||
+        originDetail !== (entry.originDetail || "") ||
+        intervenantId !== (entry.intervenantId || "") ||
+        arrivalTime !== (entry.arrivalTime || "") ||
+        departureTime !== (entry.departureTime || "") ||
+        workOrderNumber !== (entry.workOrderNumber || "") ||
+        report !== (entry.report || "") ||
+        extrasChanged ||
+        Object.keys({ ...closureCustomValues, ...(entry.closureCustomValues || {}) }).some(
+          (key) =>
+            String(closureCustomValues[key] || "").trim() !==
+            String((entry.closureCustomValues || {})[key] || "").trim()
+        )
+    );
+  }, [
+    isCreateMode,
+    entry,
+    requestDate,
+    siteId,
+    motifTypeId,
+    motifDetail,
+    horairesDemandeObs,
+    originKind,
+    originDetail,
+    intervenantId,
+    arrivalTime,
+    departureTime,
+    workOrderNumber,
+    report,
+    extras.values,
+    closureCustomValues
+  ]);
+
+  const isRondePlannedCreateDirty = useMemo(() => {
+    if (!isPlannedCreatePreset || !createPreset) return false;
+    return Boolean(
+      requestDate !== (createPreset.requestDate || formatNowDate()) ||
+        siteId !== (createPreset.siteId || "") ||
+        motifDetail.trim() ||
+        horairesDemandeObs !== (createPreset.planningHint || "") ||
+        originKind !== "TELESURVEILLANCE" ||
+        originDetail.trim() ||
+        intervenantId !== (createPreset.intervenantId || "") ||
+        arrivalTime.trim() ||
+        departureTime.trim() ||
+        workOrderNumber.trim() ||
+        report.trim() ||
+        pendingCode.trim() ||
+        pendingName.trim() ||
+        pendingIntervenantName.trim() ||
+        showPendingSiteForm ||
+        showPendingIntervenantForm
+    );
+  }, [
+    isPlannedCreatePreset,
+    createPreset,
+    requestDate,
+    siteId,
+    motifDetail,
+    horairesDemandeObs,
+    originKind,
+    originDetail,
+    intervenantId,
+    arrivalTime,
+    departureTime,
+    workOrderNumber,
+    report,
+    pendingCode,
+    pendingName,
+    pendingIntervenantName,
+    showPendingSiteForm,
+    showPendingIntervenantForm
+  ]);
+
   const createCloseGuard = useCreateModalCloseGuard({
-    enabled: isPureCreateMode && !showCancelReasonDialog,
-    isDirty: isRondeCreateDirty,
+    enabled: isOpen && !showCancelReasonDialog,
+    isDirty: isPureCreateMode
+      ? isRondeCreateDirty
+      : isPlannedCreatePreset
+        ? isRondePlannedCreateDirty
+        : isRondeEditDirty,
     onClose
   });
 

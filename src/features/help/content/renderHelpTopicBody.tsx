@@ -17,21 +17,13 @@ import { HelpSettingsAuditTopic } from "./HelpSettingsAuditTopic";
 import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
 import { HelpSettingsConnectionTopic } from "./HelpSettingsConnectionTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
-import { HelpSettingsVariablesTopic } from "./HelpSettingsVariablesTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
-function welcomeTopic() {
-  return <HelpWelcomeTopic />;
-}
-
 export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessContext) {
-  if (!isHelpTopicAllowed(topicId, access)) {
-    return welcomeTopic();
+  if (!isHelpTopicAllowed(topicId, access) || topicId === "welcome") {
+    return <HelpWelcomeTopic />;
   }
 
-  if (topicId === "welcome") {
-    return welcomeTopic();
-  }
   if (topicId === "interventions") {
     return <HelpInterventionsTopic />;
   }
@@ -63,12 +55,7 @@ export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessCon
     return <HelpSettingsAuditTopic />;
   }
   if (topicId === "settings-templates" || topicId === "settings-variables") {
-    return (
-      <>
-        <HelpSettingsTemplatesTopic />
-        <HelpSettingsVariablesTopic />
-      </>
-    );
+    return <HelpSettingsTemplatesTopic />;
   }
-  return welcomeTopic();
+  return <HelpWelcomeTopic />;
 }

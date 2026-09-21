@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 import type { LoginFormState } from "../model/auth.types";
 import { PasswordInput } from "../../common/components/PasswordInput";
 import { AuthLogo } from "../components/AuthLogo";
+import { useModalEscape } from "../../common/hooks/useModalEscape";
 
 type LoginViewProps = {
   loginForm: LoginFormState;
@@ -27,8 +28,6 @@ type LoginViewProps = {
   showDbRecoveryLink?: boolean;
   /** Ouvre l'écran de reconfiguration de la connexion DB. */
   onOpenDbRecovery?: () => void;
-  /** Ouvre l'écran de restauration d'une sauvegarde PostgreSQL. */
-  onOpenDbRestore?: () => void;
 };
 
 export function LoginView({
@@ -41,9 +40,9 @@ export function LoginView({
   onChange,
   onOpenPeerReset,
   showDbRecoveryLink = false,
-  onOpenDbRecovery,
-  onOpenDbRestore
+  onOpenDbRecovery
 }: LoginViewProps) {
+  useModalEscape(showLockedDialog, onCloseLockedDialog);
   return (
     <main className="auth-page">
       {showLockedDialog && (
@@ -111,11 +110,6 @@ export function LoginView({
           {showDbRecoveryLink && onOpenDbRecovery ? (
             <button type="button" className="link-btn" onClick={onOpenDbRecovery} disabled={isLoggingIn}>
               Base de données inaccessible ?
-            </button>
-          ) : null}
-          {onOpenDbRestore ? (
-            <button type="button" className="link-btn" onClick={onOpenDbRestore} disabled={isLoggingIn}>
-              Restaurer une sauvegarde
             </button>
           ) : null}
         </div>

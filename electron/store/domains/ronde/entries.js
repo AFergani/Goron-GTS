@@ -211,6 +211,33 @@ async function ensurePlannedMeta(store, db, source, profileId, roundKind) {
 }
 
 /**
+ * Premier gardiennage lié à chaque ronde (`gardiennage_entries.linked_ronde_id`).
+ *
+ * @param {import('../../persistence/persistenceContract').PersistenceAdapter} db
+ * @param {object[]} entries
+ * @returns {Promise<object[]>}
+ */
+async function attachLinkedGardiennageIds(db, entries) {
+  const ids = entries.map((entry) => String(entry.id || "").trim()).filter(Boolean);
+  if (ids.length === 0) return entries;
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = await db.all(
+    `SELECT id, linked_ronde_id FROM gardiennage_entries
+     WHERE linked_ronde_id IN (${placeholders}) ORDER BY created_at ASC`,
+    ids
+  );
+  const firstByRonde = new Map();
+  for (const row of rows) {
+    const rondeId = String(row.linked_ronde_id || "").trim();
+    if (rondeId && !firstByRonde.has(rondeId)) firstByRonde.set(rondeId, row.id);
+  }
+  return entries.map((entry) => ({
+    ...entry,
+    linkedGardiennageId: firstByRonde.get(entry.id) || null
+  }));
+}
+
+/**
  * Liste les rondes après clôture automatique.
  *
  * @param {import('../../../userStore')} store
@@ -236,10 +263,11 @@ async function listRondes(store, { requesterRole }) {
     []
   );
   const mapped = rows.map(mapRondeRow);
+  const withLinks = await attachLinkedGardiennageIds(db, mapped);
   if (!isRondeManagerRole(requesterRole)) {
-    return mapped.filter((entry) => !entry.batchDeleteRequestedAt);
+    return withLinks.filter((entry) => !entry.batchDeleteRequestedAt);
   }
-  return mapped;
+  return withLinks;
 }
 
 /** Clause SQL : ronde contractuelle / planifiée (alignée onglet « Ronde contractuelle »). */

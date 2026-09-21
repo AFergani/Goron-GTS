@@ -43,12 +43,18 @@ import { useRondeDisplayMode } from "../hooks/useRondeDisplayMode";
 import { filterAndSortRondeListEntries } from "../utils/filterAndSortRondeListEntries";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
+import { GardiennageEntryModal } from "../../gardiennage/components/GardiennageEntryModal";
+import type { GardiennageSavePayload } from "../../gardiennage/model/gardiennage.types";
+import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 
 type RondePageProps = {
   requesterRole: Role;
   requesterUsername: string;
   onToast?: NotifyToast;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
+  onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
+  /** Aligné sur la permission d'accès à la page Gardiennage (bouton gardiennage lié). */
+  canAccessGardiennage?: boolean;
   /** Id ronde à ouvrir (navigation depuis une intervention liée). */
   focusRondeId?: string | null;
   onFocusRondeConsumed?: () => void;
@@ -69,6 +75,8 @@ export function RondePage({
   requesterUsername,
   onToast,
   onNavigateToLinkedIntervention,
+  onNavigateToLinkedGardiennage,
+  canAccessGardiennage = false,
   focusRondeId,
   onFocusRondeConsumed,
   onUpsertRondePlannedProfile,
@@ -124,6 +132,8 @@ export function RondePage({
   const [linkedDemandOrigin, setLinkedDemandOrigin] = useState<"ronde-report" | "batch-delete-queue" | null>(
     null
   );
+  const [linkedGardiennageOpen, setLinkedGardiennageOpen] = useState(false);
+  const [linkedRondeForGardiennage, setLinkedRondeForGardiennage] = useState<RondeEntry | null>(null);
 
   const ronde = useRondePresenter({ requesterRole, requesterUsername, onToast });
   const references = useRondeReferenceData(requesterRole, requesterUsername, onToast);
@@ -429,6 +439,27 @@ export function RondePage({
     if (!activeEntry) return null;
     return ronde.entries.find((entry) => entry.id === activeEntry.id) || activeEntry;
   }, [activeEntry, ronde.entries]);
+
+  const createLinkedGardiennage = async (payload: GardiennageSavePayload) => {
+    try {
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `gard-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      await gtsApiClient.createGardiennage({
+        requesterRole,
+        requesterUsername,
+        id,
+        ...payload
+      });
+      onToast?.("Gardiennage créé.");
+      void ronde.loadEntries(true);
+      return true;
+    } catch (error) {
+      onToast?.(error instanceof Error ? error.message : "Création de gardiennage impossible.", "error");
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (filters.currentPage > totalPages) filters.setCurrentPage(totalPages);
@@ -740,6 +771,18 @@ export function RondePage({
         onCreatePendingSite={references.createPendingSite}
         onCreatePendingIntervenant={references.createPendingIntervenant}
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
+        onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
+        canOpenLinkedGardiennage={Boolean(
+          canAccessGardiennage &&
+            liveActiveEntry &&
+            liveActiveEntry.status === "EN_COURS" &&
+            !liveActiveEntry.id.startsWith("virtual-planned-")
+        )}
+        onOpenLinkedGardiennage={() => {
+          if (!liveActiveEntry) return;
+          setLinkedRondeForGardiennage(liveActiveEntry);
+          setLinkedGardiennageOpen(true);
+        }}
         onOpenLinkedRequest={openLinkedDemand}
         requesterRole={requesterRole}
         onSaveWord={
@@ -758,6 +801,36 @@ export function RondePage({
         lastWordFilePath={
           liveActiveEntry ? workstationExports.getLastPath(wordExportKey("ronde", liveActiveEntry.id)) : null
         }
+      />
+      <GardiennageEntryModal
+        isOpen={linkedGardiennageOpen}
+        mode="create"
+        entry={null}
+        sites={references.sites}
+        intervenants={references.intervenants}
+        holidays={references.holidays}
+        requesterRole={requesterRole}
+        createPreset={
+          linkedRondeForGardiennage
+            ? {
+                siteId: linkedRondeForGardiennage.siteId,
+                siteDisplay: linkedRondeForGardiennage.siteDisplay,
+                intervenantId: linkedRondeForGardiennage.intervenantId,
+                intervenantName: linkedRondeForGardiennage.intervenantName,
+                linkedInterventionId: linkedRondeForGardiennage.originInterventionId ?? null,
+                linkedRondeId: linkedRondeForGardiennage.id
+              }
+            : null
+        }
+        onClose={() => {
+          setLinkedGardiennageOpen(false);
+          setLinkedRondeForGardiennage(null);
+        }}
+        onCreate={createLinkedGardiennage}
+        onUpdate={async () => null}
+        onCreatePendingSite={references.createPendingSite}
+        onCreatePendingIntervenant={references.createPendingIntervenant}
+        onNotify={onToast}
       />
       <RondeRequestModal
         isOpen={requestModalOpen}

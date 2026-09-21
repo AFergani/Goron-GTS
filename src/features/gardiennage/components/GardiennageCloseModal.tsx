@@ -10,6 +10,8 @@ import type { Role, SiteRef } from "../../../types";
 import type { GardiennageClosePayload, GardiennageEntry } from "../model/gardiennage.types";
 import { TimeInput } from "../../common/components/TimeInput";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 
 type GardiennageCloseModalProps = {
@@ -70,6 +72,18 @@ export function GardiennageCloseModal({
     setIsSaving(false);
   }, [isOpen, entry?.id]);
 
+  const extrasFilled = Object.values(extras.values).some((value) => String(value || "").trim());
+  const seedExtras = entry?.exportExtraValues || {};
+  const extrasChanged = Object.keys({ ...extras.values, ...seedExtras }).some(
+    (key) => String(extras.values[key] || "").trim() !== String(seedExtras[key] || "").trim()
+  );
+  const isDirty = JSON.stringify(form) !== JSON.stringify(EMPTY) || extrasChanged;
+  const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
+    enabled: isOpen && !isSaving,
+    isDirty,
+    onClose
+  });
+
   if (!isOpen || !entry) return null;
 
   const canNavigateIntervention = Boolean(entry.linkedInterventionId) && Boolean(onNavigateToLinkedIntervention);
@@ -94,7 +108,8 @@ export function GardiennageCloseModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <>
+    <div className="modal-overlay" onClick={requestClose}>
       <section
         className="modal main-log-modal main-courante-entry-modal"
         onClick={(e) => e.stopPropagation()}
@@ -136,7 +151,7 @@ export function GardiennageCloseModal({
                 Intervention liée
               </button>
             )}
-            <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
+            <button type="button" className="mc-modal-close" onClick={requestClose} aria-label="Fermer">
               ×
             </button>
           </div>
@@ -220,7 +235,7 @@ export function GardiennageCloseModal({
         {/* FOOTER */}
         <div className="mc-modal-footer mc-modal-footer-split" style={{ padding: "10px 12px" }}>
           <div className="mc-modal-footer-start">
-            <button type="button" className="btn-ghost" onClick={onClose} disabled={isSaving}>
+            <button type="button" className="btn-ghost" onClick={requestClose} disabled={isSaving}>
               Annuler
             </button>
           </div>
@@ -237,5 +252,16 @@ export function GardiennageCloseModal({
         </div>
       </section>
     </div>
+    <ConfirmModal
+      isOpen={showDiscardConfirm}
+      title="Abandonner la saisie ?"
+      message="Les informations saisies seront perdues."
+      cancelLabel="Rester"
+      confirmLabel="Abandonner"
+      confirmClassName="btn-danger"
+      onCancel={cancelDiscard}
+      onConfirm={confirmDiscardAndClose}
+    />
+    </>
   );
 }

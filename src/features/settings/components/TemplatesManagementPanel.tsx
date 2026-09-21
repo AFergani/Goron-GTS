@@ -14,6 +14,7 @@ import {
 } from "./documentTemplateHelpContent";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 
 type TemplatesManagementPanelProps = {
   requesterRole: Role;
@@ -53,6 +54,8 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const [assignFamille, setAssignFamille] = useState("");
   const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
   const [deleteCustomFileName, setDeleteCustomFileName] = useState<string | null>(null);
+  const [assignOpenTick, setAssignOpenTick] = useState(0);
+  const [assignBaseline, setAssignBaseline] = useState("");
 
   const refreshTemplates = useCallback(async () => {
     setLoadingList(true);
@@ -121,6 +124,26 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
 
   const assignFlowHelpId = helpIdFromFlowKind(assignFlowKind);
   const assignFlowHelp = resolveDocumentTemplateHelpBlock(assignFlowHelpId);
+  const assignSignature = JSON.stringify({
+    assignFlowKind,
+    assignScopeKind,
+    siteId: assignSite?.id ?? "",
+    assignFamille
+  });
+  useEffect(() => {
+    if (!assignModalOpen) {
+      setAssignBaseline("");
+      return;
+    }
+    setAssignBaseline(assignSignature);
+    // Capture après ouverture, pas à chaque changement de champ.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignModalOpen, assignOpenTick]);
+  const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
+    enabled: assignModalOpen && !helpId,
+    isDirty: Boolean(assignBaseline) && assignSignature !== assignBaseline,
+    onClose: () => setAssignModalOpen(false)
+  });
 
   const flowKindLabel = (flowKind: string) => {
     if (flowKind === "INTERVENTION") return "Intervention";
@@ -233,7 +256,14 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
               type="button"
               className="mc-btn-primary"
               title="Ajouter un modèle personnalisé"
-              onClick={() => setAssignModalOpen(true)}
+              onClick={() => {
+                setAssignFlowKind("INTERVENTION");
+                setAssignScopeKind("SITE");
+                setAssignSite(null);
+                setAssignFamille("");
+                setAssignModalOpen(true);
+                setAssignOpenTick((tick) => tick + 1);
+              }}
             >
               <Plus size={16} aria-hidden />
               Nouvelle attribution
@@ -399,7 +429,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
         <div
           className="modal-overlay"
           onClick={() => {
-            if (!helpId) setAssignModalOpen(false);
+            if (!helpId) requestClose();
           }}
         >
           <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
@@ -475,7 +505,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
               )}
             </div>
             <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setAssignModalOpen(false)}>
+              <button type="button" className="btn-light" onClick={requestClose}>
                 Annuler
               </button>
               <button type="button" onClick={() => void submitAssignment()}>
@@ -490,6 +520,16 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
         onClose={() => setHelpId(null)}
         onNotify={onNotify}
         requesterRole={requesterRole}
+      />
+      <ConfirmModal
+        isOpen={showDiscardConfirm}
+        title="Abandonner la saisie ?"
+        message="Les informations saisies seront perdues."
+        cancelLabel="Rester"
+        confirmLabel="Abandonner"
+        confirmClassName="btn-danger"
+        onCancel={cancelDiscard}
+        onConfirm={confirmDiscardAndClose}
       />
       <ConfirmModal
         isOpen={Boolean(deleteAssignmentId)}

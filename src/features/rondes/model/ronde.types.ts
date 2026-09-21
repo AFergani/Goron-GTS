@@ -91,6 +91,8 @@ export type RondeEntry = {
   batchDeleteReason: string;
   /** Numéro métier `JJMMAAAA-XX` ; vide pour un créneau planifié virtuel. */
   dailyCode: string;
+  /** ID du gardiennage lié (lookup inversé depuis `gardiennage_entries.linked_ronde_id`). */
+  linkedGardiennageId?: string | null;
 };
 
 export type RondeSavePayload = {
@@ -111,7 +113,7 @@ export type RondeSavePayload = {
   closureCustomValues?: Record<string, string>;
 };
 
-/** Libellé posé par la clôture automatique des rondes exceptionnelles échues (J+5). */
+/** Libellé posé par la clôture automatique des rondes exceptionnelles échues (J+3). */
 export const RONDE_AUTO_CLOSURE_REPORT = "Clôture automatique par système";
 
 export function isRondeAutoClosureReport(report: string): boolean {

@@ -39,6 +39,8 @@ type PostgresConnectionPanelProps = {
   busyPhase?: PostgresBusyPhase;
   /** `bootstrap` = premier paramétrage avant login (sans reconnexion manuelle). */
   variant?: "admin" | "bootstrap";
+  /** Récupération depuis le login : la config existe déjà mais PostgreSQL ne répond pas. */
+  isRecoveryMode?: boolean;
   /** Bouton d'aide (admin uniquement), aligné sur le texte d'intro. */
   onHelpClick?: () => void;
 };
@@ -56,11 +58,18 @@ export function PostgresConnectionPanel({
   testResult,
   busyPhase,
   variant = "admin",
+  isRecoveryMode = false,
   onHelpClick
 }: PostgresConnectionPanelProps) {
   const isBootstrap = variant === "bootstrap";
   const phase: PostgresBusyPhase = busyPhase ?? "idle";
   const isBusy = phase !== "idle";
+
+  const technicalSecretLead =
+    "Le compte technique et le mot de passe sont fournis uniquement par le responsable ou le directeur de station. Ils sont stockés chiffrés sur ce poste uniquement.";
+  const bootstrapLead = isRecoveryMode
+    ? `Le serveur PostgreSQL configuré sur ce poste est inaccessible. Vérifiez l'adresse IP (hôte LAN, ex. après changement de réseau), le port et Docker, puis testez avant d'enregistrer. ${technicalSecretLead}`
+    : `Indiquez le serveur PostgreSQL de la station (hôte LAN). Sur un 2e poste, utilisez l'adresse LAN du PC qui héberge Docker, pas localhost. ${technicalSecretLead}`;
 
   const sourceLabel =
     config?.source === "env"
@@ -101,7 +110,7 @@ export function PostgresConnectionPanel({
       <div className="postgres-config-lead-row">
         <p className="muted postgres-config-lead">
           {isBootstrap
-            ? "Indiquez le serveur PostgreSQL de la station (hôte LAN ou localhost). Le compte technique et le mot de passe sont stockés chiffrés sur ce poste uniquement."
+            ? bootstrapLead
             : "Compte technique unique pour l'application. Le mot de passe est stocké chiffré sur ce poste et n'est jamais réaffiché."}
         </p>
         {!isBootstrap && onHelpClick ? (

@@ -4,6 +4,8 @@
  * Affichée depuis `AppShell` (bouton Power sidebar ou croix de fenêtre via preload).
  */
 
+import { useModalEscape } from "../features/common/hooks/useModalEscape";
+
 type AppExitChoiceModalProps = {
   isOpen: boolean;
   hasSession: boolean;
@@ -24,6 +26,7 @@ export function AppExitChoiceModal({
   onMinimize,
   onQuit
 }: AppExitChoiceModalProps) {
+  useModalEscape(isOpen, onCancel);
   if (!isOpen) return null;
 
   return (

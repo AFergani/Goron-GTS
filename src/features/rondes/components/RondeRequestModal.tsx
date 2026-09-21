@@ -20,6 +20,7 @@ import { buildRondePlanningSnapshotFromDrafts } from "../utils/buildRondePlannin
 import { validateRondeRequestLines } from "../utils/validateRondeRequestLines";
 import { normalizeRondeHmOr } from "../utils/rondeDateTime";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { RondeRequestMetaSection } from "./RondeRequestMetaSection";
 import { RondeRequestValiditySection } from "./RondeRequestValiditySection";
 import { RondeRequestLineEditor } from "./RondeRequestLineEditor";
@@ -215,7 +216,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     lockWeekdaysFromValidityRange,
     requestExtraDefs,
     extraValues,
-    setExtraValues
+    setExtraValues,
+    closeGuard
   } = form;
 
   if (!props.isOpen) return null;
@@ -414,7 +416,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
   };
 
   return (
-    <div className="modal-overlay" onClick={props.onClose}>
+    <>
+    <div className="modal-overlay" onClick={closeGuard.requestClose}>
       <section className="modal fransor-help-modal ronde-planned-rule-modal" onClick={(e) => e.stopPropagation()}>
         <header className="mc-modal-head mc-modal-head-compact">
           <h3 className="mc-modal-title">
@@ -455,7 +458,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
                 Intervention liée
               </button>
             ) : null}
-            <button type="button" className="mc-modal-close" onClick={props.onClose} aria-label="Fermer">
+            <button type="button" className="mc-modal-close" onClick={closeGuard.requestClose} aria-label="Fermer">
               ×
             </button>
           </div>
@@ -600,7 +603,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           isEdit={isEdit}
           isLinkedExistingBatch={isLinkedExistingBatch}
           hideSubmit={isProgrammingReadOnly}
-          onClose={props.onClose}
+          onClose={closeGuard.requestClose}
           onSubmit={() => void onSubmit()}
           onStopProfile={props.onStopProfile}
           onRequestStopProfile={props.onRequestStopProfile}
@@ -608,5 +611,16 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
         />
       </section>
     </div>
+    <ConfirmModal
+      isOpen={closeGuard.showDiscardConfirm}
+      title="Abandonner la saisie ?"
+      message="Les informations saisies seront perdues."
+      cancelLabel="Rester"
+      confirmLabel="Abandonner"
+      confirmClassName="btn-danger"
+      onCancel={closeGuard.cancelDiscard}
+      onConfirm={closeGuard.confirmDiscardAndClose}
+    />
+    </>
   );
 }

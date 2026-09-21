@@ -20,6 +20,7 @@ import {
 } from "../model/formVariables.types";
 import { WORD_TEMPLATE_FIELD_TYPES, labelToFieldKey, wordTemplateFieldTypeLabel } from "../model/wordTemplateFieldTypes";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 
 type VariablesManagementPanelProps = {
   requesterRole: Role;
@@ -60,6 +61,8 @@ export function VariablesManagementPanel({
   const [draftScopeFamille, setDraftScopeFamille] = useState("");
   const [draftEntryStage, setDraftEntryStage] = useState<FormVariableEntryStage>("CLOSURE");
   const [deleteFieldKey, setDeleteFieldKey] = useState<string | null>(null);
+  const [draftOpenTick, setDraftOpenTick] = useState(0);
+  const [draftBaseline, setDraftBaseline] = useState("");
   const canEdit = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
   const loadData = useCallback(async () => {
@@ -127,6 +130,7 @@ export function VariablesManagementPanel({
     setDraftScopeFamille("");
     setDraftEntryStage("CLOSURE");
     setModalOpen(true);
+    setDraftOpenTick((tick) => tick + 1);
   };
 
   const openEditModal = (row: FormVariableDef) => {
@@ -157,10 +161,37 @@ export function VariablesManagementPanel({
     }
     setDraftEntryStage(normalizeFormVariableEntryStage(row.entryStage));
     setModalOpen(true);
+    setDraftOpenTick((tick) => tick + 1);
   };
 
   const draftFieldKey = editKey ? editKey : labelToFieldKey(draftLabel);
   const draftCanSubmit = Boolean(draftLabel.trim() && draftFieldKey && draftForms.length >= 1);
+  const draftSignature = JSON.stringify({
+    draftLabel,
+    draftPlaceholder,
+    draftType,
+    draftOptions,
+    draftForms,
+    draftProfileIds,
+    draftScopeKind,
+    siteId: draftScopeSite?.id ?? "",
+    draftScopeFamille,
+    draftEntryStage
+  });
+  useEffect(() => {
+    if (!modalOpen) {
+      setDraftBaseline("");
+      return;
+    }
+    setDraftBaseline(draftSignature);
+    // Capture après ouverture / préremplissage, pas à chaque frappe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, draftOpenTick]);
+  const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
+    enabled: modalOpen && !saving,
+    isDirty: Boolean(draftBaseline) && draftSignature !== draftBaseline,
+    onClose: () => setModalOpen(false)
+  });
   const familles = useMemo(
     () =>
       Array.from(
@@ -409,7 +440,7 @@ export function VariablesManagementPanel({
         </table>
       </div>
       {modalOpen ? (
-        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
+        <div className="modal-overlay" onClick={requestClose}>
           <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editKey ? "Modifier un champ personnalisé" : "Ajouter un champ personnalisé"}</h3>
             <p className="muted">
@@ -563,7 +594,7 @@ export function VariablesManagementPanel({
               </label>
             </div>
             <div className="row-actions modal-actions">
-              <button type="button" className="btn-light" onClick={() => setModalOpen(false)}>
+              <button type="button" className="btn-light" onClick={requestClose}>
                 Annuler
               </button>
               <button type="button" onClick={() => void saveDraftIntoRows()} disabled={saving}>
@@ -578,6 +609,16 @@ export function VariablesManagementPanel({
           </section>
         </div>
       ) : null}
+      <ConfirmModal
+        isOpen={showDiscardConfirm}
+        title="Abandonner la saisie ?"
+        message="Les informations saisies seront perdues."
+        cancelLabel="Rester"
+        confirmLabel="Abandonner"
+        confirmClassName="btn-danger"
+        onCancel={cancelDiscard}
+        onConfirm={confirmDiscardAndClose}
+      />
       <ConfirmModal
         isOpen={Boolean(deleteFieldKey)}
         title="Supprimer cette variable ?"

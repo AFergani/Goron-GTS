@@ -3,12 +3,14 @@
  *
  * Réutilisé via SearchEntry et les modales intervention / rondes.
  * Affiche le nom, pas d’identifiant technique.
+ * Navigation clavier : flèches haut/bas dans la liste, Entrée pour valider.
  */
 
 import { X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
+import { useSuggestListKeyboard } from "../hooks/useSuggestListKeyboard";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
 
 function filterIntervenantsByName(intervenants: IntervenantRef[], query: string, limit = 50): IntervenantRef[] {
@@ -77,11 +79,24 @@ export function IntervenantSearchInput({
     }
   };
 
-  const pick = (item: IntervenantRef) => {
-    onSelectedIntervenantChange(item);
-    setQuery(item.name);
-    setOpen(false);
-  };
+  const pick = useCallback(
+    (item: IntervenantRef) => {
+      onSelectedIntervenantChange(item);
+      setQuery(item.name);
+      setOpen(false);
+    },
+    [onSelectedIntervenantChange]
+  );
+
+  const listIsOpen = showList && filtered.length > 0;
+  const { highlightedIndex, setHighlightedIndex, listboxId, getOptionId, activeDescendantId, listRef, onInputKeyDown } =
+    useSuggestListKeyboard({
+      items: filtered,
+      isOpen: listIsOpen,
+      onPick: pick,
+      onDismiss: () => setOpen(false),
+      resetKey: query
+    });
 
   return (
     <div className="mc-site-field-wrap">
@@ -92,18 +107,22 @@ export function IntervenantSearchInput({
             <input
               ref={inputRef}
               type="text"
+              role="combobox"
               value={query}
               onChange={(e) => onInputChange(e.target.value)}
               onFocus={() => setOpen(true)}
               onBlur={() => {
                 window.setTimeout(() => setOpen(false), 180);
               }}
+              onKeyDown={onInputKeyDown}
               placeholder="Prestataire — 3 caractères minimum"
-              title="Saisissez au moins 3 caractères pour rechercher un prestataire."
+              title="Saisissez au moins 3 caractères pour rechercher un prestataire, puis utilisez les flèches et Entrée pour choisir."
               disabled={disabled}
               autoComplete="off"
               aria-autocomplete="list"
-              aria-expanded={showList && filtered.length > 0}
+              aria-expanded={listIsOpen}
+              aria-controls={listboxId}
+              aria-activedescendant={activeDescendantId}
               className="mc-site-code-input"
             />
             {showClear ? (
@@ -118,14 +137,28 @@ export function IntervenantSearchInput({
                 <X size={16} aria-hidden />
               </button>
             ) : null}
-            {showList && filtered.length > 0 ? (
-              <ul className="mc-site-suggest app-scrollbar" role="listbox">
-                {filtered.map((item) => (
-                  <li key={item.id} role="option">
+            {listIsOpen ? (
+              <ul
+                ref={listRef}
+                id={listboxId}
+                className="mc-site-suggest app-scrollbar"
+                role="listbox"
+                data-suggest-open="true"
+              >
+                {filtered.map((item, index) => (
+                  <li
+                    key={item.id}
+                    id={getOptionId(index)}
+                    role="option"
+                    aria-selected={index === highlightedIndex}
+                    data-suggest-index={index}
+                  >
                     <button
                       type="button"
-                      className="mc-site-suggest-item"
+                      className={`mc-site-suggest-item${index === highlightedIndex ? " is-active" : ""}`}
+                      tabIndex={-1}
                       onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setHighlightedIndex(index)}
                       onClick={() => pick(item)}
                     >
                       <span className="mc-site-suggest-name">{item.name}</span>

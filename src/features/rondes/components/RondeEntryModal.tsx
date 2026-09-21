@@ -5,6 +5,7 @@
  */
 
 import { type FormEvent } from "react";
+import { Link2 } from "lucide-react";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 import type { SiteRef, IntervenantRef, Role } from "../../../types";
 import {
@@ -77,6 +78,10 @@ type RondeEntryModalProps = {
   onNotify?: NotifyToast;
   /** Ouvre la page Intervention sur la fiche liée (traçabilité interne, sans afficher d’id technique). */
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
+  /** Ouvre la page Gardiennage sur la fiche liée. */
+  onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
+  canOpenLinkedGardiennage?: boolean;
+  onOpenLinkedGardiennage?: () => void;
   onOpenLinkedRequest?: (payload: {
     source: RondeSource;
     plannedProfileId?: string | null;
@@ -116,6 +121,9 @@ export function RondeEntryModal({
   onCreatePendingIntervenant,
   onNotify,
   onNavigateToLinkedIntervention,
+  onNavigateToLinkedGardiennage,
+  canOpenLinkedGardiennage,
+  onOpenLinkedGardiennage,
   onOpenLinkedRequest,
   createPreset,
   requesterRole,
@@ -554,7 +562,7 @@ export function RondeEntryModal({
       ) : (
         <div className="mc-modal-footer mc-modal-footer-split">
           <div className="mc-modal-footer-start">
-            <button type="button" className="btn-ghost" onClick={onClose}>
+            <button type="button" className="btn-ghost" onClick={createCloseGuard.requestClose}>
               Fermer
             </button>
           </div>
@@ -570,6 +578,14 @@ export function RondeEntryModal({
                 canOpenReport={canOpenWord}
                 lastFilePath={lastWordFilePath}
               />
+            ) : null}
+            {canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
+              <button type="button" className="btn-light" disabled={lockActions} onClick={onOpenLinkedGardiennage}>
+                <span className="mc-footer-btn-with-icon">
+                  <Link2 size={16} aria-hidden />
+                  Créer un gardiennage
+                </span>
+              </button>
             ) : null}
             {canShowCancelAction ? (
               <button
@@ -659,7 +675,7 @@ export function RondeEntryModal({
 
   return (
     <>
-      <div className="modal-overlay" onClick={isPureCreateMode ? createCloseGuard.requestClose : onClose}>
+      <div className="modal-overlay" onClick={createCloseGuard.requestClose}>
       <section
         className={`modal main-log-modal main-courante-entry-modal ronde-entry-modal ${splitLinkedLayout ? "linked-ronde-split-modal" : ""}`}
         onClick={(e) => e.stopPropagation()}
@@ -720,7 +736,21 @@ export function RondeEntryModal({
               >
                 Intervention liée
               </button>
-              <button type="button" className="mc-modal-close" onClick={onClose} aria-label="Fermer">
+              {entry?.linkedGardiennageId && onNavigateToLinkedGardiennage ? (
+                <button
+                  type="button"
+                  className="btn-light"
+                  title="Ouvrir le gardiennage lié"
+                  aria-label="Gardiennage lié"
+                  onClick={() => {
+                    onNavigateToLinkedGardiennage(entry.linkedGardiennageId!);
+                    onClose();
+                  }}
+                >
+                  Gardiennage lié
+                </button>
+              ) : null}
+              <button type="button" className="mc-modal-close" onClick={createCloseGuard.requestClose} aria-label="Fermer">
                 ×
               </button>
             </div>
@@ -739,9 +769,15 @@ export function RondeEntryModal({
       </section>
     </div>
       <RondeEntryReasonDialogs
-        showDiscardConfirm={isPureCreateMode ? createCloseGuard.showDiscardConfirm : false}
+        showDiscardConfirm={createCloseGuard.showDiscardConfirm}
         onCancelDiscard={createCloseGuard.cancelDiscard}
         onConfirmDiscard={createCloseGuard.confirmDiscardAndClose}
+        discardMessage={
+          isCreateMode
+            ? "Êtes-vous sûr de vouloir quitter sans créer l'entrée ? Les données saisies seront perdues."
+            : "Les modifications non enregistrées seront perdues."
+        }
+        discardConfirmLabel={isCreateMode ? "Quitter sans créer" : "Abandonner"}
         showCancelReasonDialog={showCancelReasonDialog}
         cancelIsNonEffectuee={cancelIsNonEffectuee}
         cancelReasonInput={cancelReasonInput}

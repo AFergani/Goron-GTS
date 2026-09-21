@@ -2,6 +2,8 @@
 #     OUTILS PRODUCTION GORON-GTS (helpers)
 # ===============================================
 # Conteneur : goron-pg18. Aucun secret affiche. Pas de creation de conteneur.
+# Premiere utilisation : mot de passe administrateur, puis responsable.
+# Mode Dev : non propose en production (saisie cachee DEV + mot de passe admin).
 
 $script:ProdContainerName = "goron-pg18"
 $script:ProdPgPort = 5432
@@ -39,7 +41,7 @@ function Get-ProdGatePath {
 }
 
 function Read-ProdSecret {
-    param([string]$Prompt = "Mot de passe responsable")
+    param([string]$Prompt = "Mot de passe")
     $secure = Read-Host $Prompt -AsSecureString
     if (-not $secure -or $secure.Length -eq 0) {
         return ""
@@ -80,28 +82,82 @@ function Get-ProdPasswordHashBytes {
     }
 }
 
+function Test-ProdGateHashPresent {
+    param($Record)
+    return [bool]($Record -and $Record.salt -and $Record.hash)
+}
+
+function ConvertTo-ProdGateV2 {
+    param($Raw)
+    if ($null -eq $Raw) {
+        return [pscustomobject]@{
+            version      = 2
+            admin        = $null
+            responsable  = $null
+        }
+    }
+    if ([int]$Raw.version -ge 2) {
+        return [pscustomobject]@{
+            version     = 2
+            admin       = $Raw.admin
+            responsable = $Raw.responsable
+        }
+    }
+    $legacy = $null
+    if (Test-ProdGateHashPresent $Raw) {
+        $legacy = [pscustomobject]@{
+            iterations = $Raw.iterations
+            salt       = $Raw.salt
+            hash       = $Raw.hash
+        }
+    }
+    return [pscustomobject]@{
+        version     = 2
+        admin       = $null
+        responsable = $legacy
+    }
+}
+
 function Get-ProdGateRecord {
     $path = Get-ProdGatePath
     if (-not (Test-Path -LiteralPath $path)) {
-        return $null
+        return (ConvertTo-ProdGateV2 $null)
     }
     try {
         $raw = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (-not $raw.salt -or -not $raw.hash) {
-            return $null
-        }
-        return $raw
+        return (ConvertTo-ProdGateV2 $raw)
     } catch {
-        return $null
+        return (ConvertTo-ProdGateV2 $null)
     }
 }
 
-function Test-ProdResponsablePasswordSet {
-    return $null -ne (Get-ProdGateRecord)
+function Get-ProdRoleLabel {
+    param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
+    if ($Role -eq "admin") { return "administrateur" }
+    return "responsable"
 }
 
-function Save-ProdResponsablePassword {
-    param([Parameter(Mandatory = $true)][string]$Password)
+function Get-ProdRoleRecord {
+    param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
+    $gate = Get-ProdGateRecord
+    if ($Role -eq "admin") { return $gate.admin }
+    return $gate.responsable
+}
+
+function Test-ProdRolePasswordSet {
+    param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
+    return (Test-ProdGateHashPresent (Get-ProdRoleRecord -Role $Role))
+}
+
+function Test-ProdFirstUseComplete {
+    return ((Test-ProdRolePasswordSet -Role "admin") -and (Test-ProdRolePasswordSet -Role "responsable"))
+}
+
+function Save-ProdRolePassword {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
     $dir = Get-ProdUserDataDir
     if (-not (Test-Path -LiteralPath $dir)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -114,20 +170,29 @@ function Save-ProdResponsablePassword {
         $rng.Dispose()
     }
     $hash = Get-ProdPasswordHashBytes -Password $Password -Salt $salt
-    $payload = [pscustomobject]@{
-        version    = 1
+    $entry = [pscustomobject]@{
         iterations = $script:ProdPbkdf2Iterations
         salt       = [Convert]::ToBase64String($salt)
         hash       = [Convert]::ToBase64String($hash)
     }
-    $json = $payload | ConvertTo-Json -Compress
+    $gate = Get-ProdGateRecord
+    if ($Role -eq "admin") {
+        $gate.admin = $entry
+    } else {
+        $gate.responsable = $entry
+    }
+    $gate.version = 2
+    $json = $gate | ConvertTo-Json -Compress -Depth 6
     Set-Content -LiteralPath (Get-ProdGatePath) -Value $json -Encoding UTF8
 }
 
-function Test-ProdResponsablePassword {
-    param([Parameter(Mandatory = $true)][string]$Password)
-    $record = Get-ProdGateRecord
-    if (-not $record) {
+function Test-ProdRolePassword {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+    $record = Get-ProdRoleRecord -Role $Role
+    if (-not (Test-ProdGateHashPresent $record)) {
         return $false
     }
     try {
@@ -144,12 +209,14 @@ function Test-ProdResponsablePassword {
     }
 }
 
-function Register-ProdResponsablePassword {
+function Register-ProdRolePassword {
+    param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
+    $label = Get-ProdRoleLabel -Role $Role
     Write-Host ""
-    Write-Host "Premiere connexion : definissez le mot de passe responsable." -ForegroundColor Cyan
-    Write-Host "Il sera demande a chaque acces responsable sur ce poste." -ForegroundColor DarkGray
+    Write-Host "Definissez le mot de passe $label." -ForegroundColor Cyan
+    Write-Host "Il sera demande sur ce poste uniquement. Il n'est jamais reaffiche." -ForegroundColor DarkGray
     Write-Host ""
-    $first = Read-ProdSecret -Prompt "Nouveau mot de passe"
+    $first = Read-ProdSecret -Prompt "Nouveau mot de passe $label"
     if ($first.Length -lt $script:ProdPasswordMinLength) {
         Write-Host "[ERREUR] Mot de passe trop court (minimum $($script:ProdPasswordMinLength) caracteres)." -ForegroundColor Red
         return $false
@@ -159,27 +226,106 @@ function Register-ProdResponsablePassword {
         Write-Host "[ERREUR] Les deux saisies ne correspondent pas." -ForegroundColor Red
         return $false
     }
-    Save-ProdResponsablePassword -Password $first
-    Write-Host "Mot de passe responsable enregistre." -ForegroundColor Green
+    Save-ProdRolePassword -Role $Role -Password $first
+    Write-Host "Acces $label enregistre." -ForegroundColor Green
     return $true
 }
 
-function Unlock-ProdResponsableAccess {
-    if (-not (Test-ProdResponsablePasswordSet)) {
-        return (Register-ProdResponsablePassword)
+function Unlock-ProdRoleAccess {
+    param([Parameter(Mandatory = $true)][ValidateSet("admin", "responsable")][string]$Role)
+    $label = Get-ProdRoleLabel -Role $Role
+    if (-not (Test-ProdRolePasswordSet -Role $Role)) {
+        Write-Host "[ERREUR] Acces $label non configure." -ForegroundColor Red
+        return $false
     }
     Write-Host ""
-    $attempt = Read-ProdSecret -Prompt "Mot de passe responsable"
+    $attempt = Read-ProdSecret -Prompt "Mot de passe $label"
     if (-not $attempt) {
         Write-Host "[ERREUR] Mot de passe incorrect." -ForegroundColor Red
         return $false
     }
-    if (Test-ProdResponsablePassword -Password $attempt) {
-        Write-Host "Acces responsable active." -ForegroundColor Green
+    if (Test-ProdRolePassword -Role $Role -Password $attempt) {
+        Write-Host "Acces $label active." -ForegroundColor Green
         return $true
     }
     Write-Host "[ERREUR] Mot de passe incorrect." -ForegroundColor Red
     return $false
+}
+
+function Test-ProdResponsablePasswordSet {
+    return (Test-ProdRolePasswordSet -Role "responsable")
+}
+
+function Unlock-ProdResponsableAccess {
+    return (Unlock-ProdRoleAccess -Role "responsable")
+}
+
+function Show-ProdFirstUseMenu {
+    Clear-Host
+    Write-Host "Goron GTS - console production" -ForegroundColor Cyan
+    Write-Host "Premiere utilisation" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Creez d'abord l'acces administrateur, puis l'acces responsable." -ForegroundColor DarkGray
+    Write-Host ""
+    $adminOk = Test-ProdRolePasswordSet -Role "admin"
+    $respOk = Test-ProdRolePasswordSet -Role "responsable"
+    if ($adminOk) {
+        Write-Host " [1] Creer l'acces administrateur - OK" -ForegroundColor Green
+    } else {
+        Write-Host " [1] Creer l'acces administrateur"
+    }
+    if ($respOk) {
+        Write-Host " [2] Creer l'acces responsable - OK" -ForegroundColor Green
+    } else {
+        Write-Host " [2] Creer l'acces responsable"
+    }
+    Write-Host " [Q] Quitter"
+    Write-Host ""
+}
+
+function Invoke-ProdFirstUseChoice {
+    param([string]$Key)
+    switch ($Key) {
+        "1" {
+            if (Test-ProdRolePasswordSet -Role "admin") {
+                Write-Host "Acces administrateur deja cree." -ForegroundColor Green
+                Wait-ProdKey
+                return
+            }
+            [void](Register-ProdRolePassword -Role "admin")
+            Wait-ProdKey
+        }
+        "2" {
+            if (-not (Test-ProdRolePasswordSet -Role "admin")) {
+                Write-Host "[ERREUR] Creez d'abord l'acces administrateur." -ForegroundColor Red
+                Wait-ProdKey
+                return
+            }
+            if (Test-ProdRolePasswordSet -Role "responsable") {
+                Write-Host "Acces responsable deja cree." -ForegroundColor Green
+                Wait-ProdKey
+                return
+            }
+            if (Register-ProdRolePassword -Role "responsable") {
+                Write-Host ""
+                Write-Host "Premiere utilisation terminee." -ForegroundColor Green
+            }
+            Wait-ProdKey
+        }
+        default {
+            Write-Host "Option invalide." -ForegroundColor Red
+            Wait-ProdKey
+        }
+    }
+}
+
+function Reset-ProdResponsablePassword {
+    if (-not (Unlock-ProdRoleAccess -Role "admin")) {
+        return $false
+    }
+    Write-Host ""
+    Write-Host "Vous allez remplacer le mot de passe responsable." -ForegroundColor Yellow
+    return (Register-ProdRolePassword -Role "responsable")
 }
 
 function Test-ProdDockerReady {
@@ -277,6 +423,119 @@ function Restart-ProdContainer {
     }
     Write-Host "Conteneur redemarre." -ForegroundColor Green
     return $true
+}
+
+function Stop-ProdContainer {
+    if (-not (Test-ProdDockerReady)) {
+        Write-Host "[ERREUR] Docker est inaccessible." -ForegroundColor Red
+        return $false
+    }
+    if (-not (Test-ProdContainerExists)) {
+        Write-Host "[ERREUR] Conteneur $($script:ProdContainerName) introuvable." -ForegroundColor Red
+        return $false
+    }
+    if (-not (Test-ProdContainerRunning)) {
+        Write-Host "Le conteneur est deja arrete." -ForegroundColor Green
+        return $true
+    }
+    docker stop $script:ProdContainerName 1>$null 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERREUR] Arret du conteneur impossible." -ForegroundColor Red
+        return $false
+    }
+    Write-Host "Conteneur arrete." -ForegroundColor Green
+    return $true
+}
+
+function Get-ProdContainerRestartPolicy {
+    if (-not (Test-ProdContainerExists)) { return "" }
+    $name = docker inspect -f "{{.HostConfig.RestartPolicy.Name}}" $script:ProdContainerName 2>$null
+    if (-not $name) { return "no" }
+    return [string]$name
+}
+
+function Set-ProdContainerAutoRestart {
+    if (-not (Start-ProdDockerDesktopIfNeeded)) {
+        return $false
+    }
+    if (-not (Test-ProdContainerExists)) {
+        Write-Host "[ERREUR] Conteneur $($script:ProdContainerName) introuvable." -ForegroundColor Red
+        return $false
+    }
+    $current = Get-ProdContainerRestartPolicy
+    Write-Host "Politique actuelle : $current" -ForegroundColor DarkGray
+    $alreadyOn = ($current -eq "unless-stopped" -or $current -eq "always")
+    if ($alreadyOn) {
+        $confirm = Read-Host "Desactiver l'auto-restart ? (o/N)"
+        if ($confirm -ne "O" -and $confirm -ne "o") {
+            Write-Host "Inchange." -ForegroundColor Gray
+            return $true
+        }
+        docker update --restart no $script:ProdContainerName 1>$null 2>$null
+    } else {
+        $confirm = Read-Host "Activer l'auto-restart (unless-stopped) ? (O/n)"
+        if ($confirm -eq "N" -or $confirm -eq "n") {
+            Write-Host "Annule." -ForegroundColor Gray
+            return $true
+        }
+        docker update --restart unless-stopped $script:ProdContainerName 1>$null 2>$null
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERREUR] Mise a jour de la politique impossible." -ForegroundColor Red
+        return $false
+    }
+    Write-Host "Politique : $(Get-ProdContainerRestartPolicy)" -ForegroundColor Green
+    return $true
+}
+
+function Open-ProdAppDataFolder {
+    $dir = Get-ProdUserDataDir
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    Start-Process explorer.exe -ArgumentList $dir | Out-Null
+    Write-Host "Dossier ouvert : $dir" -ForegroundColor Green
+    return $true
+}
+
+function Show-ProdDockerLogsLive {
+    if (-not (Test-ProdDockerReady)) {
+        Write-Host "[ERREUR] Docker est inaccessible." -ForegroundColor Red
+        return $false
+    }
+    if (-not (Test-ProdContainerExists)) {
+        Write-Host "[ERREUR] Conteneur $($script:ProdContainerName) introuvable." -ForegroundColor Red
+        return $false
+    }
+    $cmd = "chcp 65001 > `$null; docker logs -f --tail 100 $($script:ProdContainerName)"
+    Start-Process -FilePath "powershell.exe" -ArgumentList @(
+        "-NoExit",
+        "-ExecutionPolicy", "Bypass",
+        "-Command", $cmd
+    ) | Out-Null
+    Write-Host "Logs ouverts dans une autre fenetre. Fermez-la pour arreter le suivi." -ForegroundColor Green
+    return $true
+}
+
+function Write-ProdDockerPgState {
+    $dockerOk = Test-ProdDockerReady
+    if ($dockerOk) {
+        Write-Host "Docker Desktop : OK" -ForegroundColor Green
+    } else {
+        Write-Host "Docker Desktop : inaccessible" -ForegroundColor Red
+        return
+    }
+    if (-not (Test-ProdContainerExists)) {
+        Write-Host "Conteneur $($script:ProdContainerName) : introuvable" -ForegroundColor Red
+        return
+    }
+    if (Test-ProdContainerRunning) {
+        Write-Host "Conteneur $($script:ProdContainerName) : en cours" -ForegroundColor Green
+    } else {
+        Write-Host "Conteneur $($script:ProdContainerName) : arrete" -ForegroundColor Yellow
+    }
+    Write-Host "Politique restart : $(Get-ProdContainerRestartPolicy)"
+    Write-ProdPgStatus
 }
 
 function Test-ProdPostgresReachable {
@@ -453,6 +712,14 @@ function Invoke-ProdBackupManual {
     $path = Join-Path $dir $name
     Invoke-ProdPostgresDump -DestinationFile $path
     Write-Host "Sauvegarde manuelle : $name" -ForegroundColor Green
+    if (-not (Test-ProdBackupTaskExists)) {
+        try {
+            [void](Register-ProdDailyBackupTask)
+            Write-Host "Tache Windows quotidienne a 03:00 enregistree." -ForegroundColor Green
+        } catch {
+            Write-Host "Tache 03:00 non enregistree : $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
 }
 
 function Get-ProdBackupTaskName {

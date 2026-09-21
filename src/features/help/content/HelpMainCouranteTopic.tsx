@@ -1,198 +1,39 @@
-/** Rubrique centre d’aide — main courante (signalement, suivi, clôture). */
+import { HelpTopicLayout } from "../components/HelpTopicLayout";
+
+/** Rubrique centre d’aide — module Main courante. */
 export function HelpMainCouranteTopic() {
   return (
-    <article className="help-center-article">
-      <h2 className="help-center-content-title">📒 Le module Main courante</h2>
-      <p className="help-center-lead">
-        La <strong>main courante</strong> est le journal d&apos;exploitation de votre activité. Contrairement aux missions planifiées (rondes,
-        interventions), elle sert à consigner des <strong>informations</strong>, des <strong>événements</strong> ou des <strong>incidents</strong> au
-        fil de l&apos;eau (client mécontent, site résilié, anomalie signalée, etc.).
-      </p>
-      <p className="help-center-lead">
-        Chaque entrée suit un flux précis : elle est <strong>signalée</strong> par un opérateur, puis <strong>analysée</strong> et{" "}
-        <strong>clôturée</strong> par un responsable. Ce n&apos;est pas un canal de consignes opérateur ↔ responsable, mais un outil de traçabilité
-        des faits utiles à l&apos;exploitation.
-      </p>
-
-      <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">➕ Créer une entrée : par où commencer ?</h3>
-        <ol className="muted help-center-list help-center-list--ordered">
-          <li>
-            <strong>Initialisation :</strong> cliquez sur <strong>Nouvelle entrée</strong>. Votre nom affiché, l&apos;horodatage de
-            création et un <strong>numéro de fiche</strong> <strong>JJMMAAAA-XX</strong> sont générés automatiquement.
-          </li>
-          <li>
-            <strong>Saisie obligatoire :</strong> un <strong>type d&apos;anomalie</strong> est toujours proposé (défaut{" "}
-            <strong>Voir Observation</strong> si vous n&apos;en avez pas créé d&apos;autre) ; décrivez le fait dans le champ{" "}
-            <strong>Observation</strong> (ce qui s&apos;est passé, qui a contacté, impact sur le site, etc.).
-          </li>
-          <li>
-            <strong>Identification du site :</strong>
-            <ul className="help-center-list help-center-list--nested">
-              <li>associez un site si l&apos;information concerne un lieu précis ;</li>
-              <li>laissez le champ vide pour un fait général ou multi-sites ;</li>
-              <li>
-                utilisez <strong>Site introuvable</strong> si le site n&apos;existe pas encore dans votre base.
-              </li>
-            </ul>
-          </li>
-          <li>
-            <strong>Validation :</strong> une fois enregistrée, l&apos;entrée passe au statut <strong>En attente</strong>.
-            <ul className="help-center-list help-center-list--nested">
-              <li>
-                <em>Note :</em> tant qu&apos;elle est en attente, vous pouvez modifier votre saisie. Dès qu&apos;un responsable la prend en compte,
-                elle devient non modifiable pour l&apos;opérateur.
-              </li>
-            </ul>
-          </li>
-        </ol>
-        <div className="help-center-callout help-center-callout--tip" role="note">
-          Les types d&apos;anomalie sont configurés dans <strong>Paramètres → Gestion des données → Types d&apos;anomalie</strong>. Le type{" "}
-          <strong>Voir Observation</strong> est toujours présent et ne peut pas être supprimé.
-        </div>
-      </div>
-
-      <div className="help-center-card help-center-card--accent">
-        <h3 className="help-center-card-title">🎯 Rôles et workflow : opérateur vs responsable</h3>
-        <p className="muted">
-          Le module repose sur une séparation des actions pour garantir la traçabilité des informations remontées :
-        </p>
-        <div className="help-center-table-wrap">
-          <table className="help-center-table">
-            <thead>
-              <tr>
-                <th scope="col">Rôle</th>
-                <th scope="col">Action principale</th>
-                <th scope="col">Impact sur le statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>Opérateur</strong>
-                </td>
-                <td>Signalement d&apos;un fait, d&apos;un incident ou d&apos;une information terrain.</td>
-                <td>
-                  Crée l&apos;entrée (<strong>En attente</strong>).
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <strong>Responsable</strong>
-                </td>
-                <td>Analyse, décision et suivi du dossier.</td>
-                <td>
-                  Valide (<strong>En cours</strong>) ou <strong>clôture</strong> l&apos;entrée.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">🔄 Cycle de vie des statuts</h3>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>En attente :</strong> entrée créée par l&apos;opérateur, en attente de lecture par un responsable.
-          </li>
-          <li>
-            <strong>En cours :</strong> le responsable a pris en compte l&apos;événement (action <strong>À suivre</strong>). Le dossier reste ouvert
-            pour des compléments ou le suivi de résolution.
-          </li>
-          <li>
-            <strong>Clôturé :</strong> le traitement est terminé. La fiche est figée et consultable en historique.
-          </li>
-        </ul>
-        <div className="help-center-callout help-center-callout--warn" role="note">
-          Si le badge <strong>DB</strong> indique une base inaccessible, l&apos;enregistrement est refusé jusqu&apos;au retour de PostgreSQL : la saisie
-          à l&apos;écran n&apos;est pas effacée automatiquement.
-        </div>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">✅ Traiter une entrée (action responsable)</h3>
-        <p className="muted">
-          La clôture d&apos;une main courante est une action <strong>manuelle</strong>. Chaque intervention du responsable nécessite une{" "}
-          <strong>observation responsable</strong> (retour d&apos;analyse, décision prise, suite donnée au dossier).
-        </p>
-
-        <h4 className="help-center-subsection-title">Depuis une entrée « En attente »</h4>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>À suivre :</strong> le dossier passe <strong>en cours</strong>. L&apos;observation est horodatée.
-          </li>
-          <li>
-            <strong>Clôturer :</strong> l&apos;entrée est classée immédiatement si aucune action supplémentaire n&apos;est requise.
-          </li>
-        </ul>
-
-        <h4 className="help-center-subsection-title">Depuis une entrée « En cours »</h4>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>À suivre :</strong> permet d&apos;ajouter une nouvelle note de suivi. Les observations successives se cumulent pour former
-            l&apos;historique du dossier.
-          </li>
-          <li>
-            <strong>Clôturer :</strong> ferme définitivement le dossier.
-          </li>
-          <li>
-            <strong>Rouvrir :</strong> si un dossier clôturé nécessite un nouveau suivi, le responsable peut le repasser en cours.
-          </li>
-        </ul>
-        <div className="help-center-callout help-center-callout--warn" role="note">
-          Les données opérateur (type, site, information) restent en <strong>lecture seule</strong> lors du traitement responsable : seule
-          l&apos;observation responsable est saisie à chaque action.
-        </div>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">📤 Consultation et exports</h3>
-        <ul className="muted help-center-list">
-          <li>
-            <strong>Filtres :</strong> affinez votre liste par période, type d&apos;anomalie, auteur (opérateur) ou responsable de traitement.
-          </li>
-          <li>
-            <strong>Exporter données :</strong> enregistre en Excel le résultat actuellement filtré de la liste (dialogue
-            « Enregistrer sous », le dernier dossier est mémorisé sur ce poste).
-          </li>
-          <li>
-            <strong>Ouvrir la fiche :</strong> affiche l&apos;entrée dans Goron-GTS (consultation ou traitement).
-          </li>
-          <li>
-            <strong>Enregistrer Word</strong> et <strong>Ouvrir le Word :</strong> disponibles dans la fiche ouverte (pied de
-            fenêtre). Le premier génère le fichier Word, le second relance Word sur le dernier fichier enregistré sur ce
-            poste pour cette entrée.
-          </li>
-          <li>
-            <strong>Ouvrir l&apos;Excel :</strong> relance le dernier classeur Excel de la liste, enregistré sur ce poste.
-          </li>
-        </ul>
-      </div>
-
-      <div className="help-center-card">
-        <h3 className="help-center-card-title">💡 Exemples pratiques</h3>
-        <ul className="muted help-center-list help-center-list--examples">
-          <li>
-            <strong>Client mécontent :</strong> appel reçu sur un site précis, plainte à tracer.
-            <br />
-            <strong>→</strong> créer l&apos;entrée avec le site et le type adapté ; le responsable prend en compte, suit les échanges puis clôture une
-            fois le dossier traité.
-          </li>
-          <li>
-            <strong>Site résilié :</strong> information reçue sans lieu unique ou concernant plusieurs sites.
-            <br />
-            <strong>→</strong> laisser le site vide si besoin, décrire le fait dans l&apos;observation ; le responsable clôture lorsque l&apos;information
-            est traitée en interne.
-          </li>
-          <li>
-            <strong>Dossier complexe :</strong> un incident nécessite plusieurs jours de résolution.
-            <br />
-            <strong>→</strong> le responsable utilise l&apos;action <strong>À suivre</strong> à chaque étape (appel assurance, passage expert, etc.)
-            pour centraliser tout l&apos;historique avant la clôture finale.
-          </li>
-        </ul>
-      </div>
-    </article>
+    <HelpTopicLayout
+      title="📒 Main courante"
+      purpose="Ce module sert à consigner au fil de l'eau des faits, événements ou incidents (client mécontent, anomalie signalée, etc.), en dehors des missions planifiées."
+    >
+      <ul className="muted help-center-list">
+        <li>
+          Cliquez sur <strong>Nouvelle entrée</strong>, choisissez un type d&apos;anomalie et décrivez le fait dans{" "}
+          <strong>Observation</strong>. Associez un site si l&apos;info le concerne, ou laissez vide pour un fait
+          général.
+        </li>
+        <li>
+          Une fois créée, l&apos;entrée est <strong>En attente</strong> ; vous pouvez encore la modifier tant qu&apos;un
+          responsable ne l&apos;a pas traitée.
+        </li>
+        <li>
+          Le responsable traite ensuite l&apos;entrée :
+          <ul className="muted help-center-list">
+            <li>
+              <strong>À suivre</strong> : passe l&apos;entrée en <strong>En cours</strong> et ajoute une note (les notes
+              s&apos;accumulent pour former l&apos;historique).
+            </li>
+            <li>
+              <strong>Clôturer</strong> : ferme le dossier (nécessite toujours une observation responsable).
+            </li>
+          </ul>
+        </li>
+        <li>
+          Une entrée clôturée est figée ; utilisez <strong>Rouvrir</strong> pour la repasser en cours si un nouveau
+          suivi est nécessaire.
+        </li>
+      </ul>
+    </HelpTopicLayout>
   );
 }

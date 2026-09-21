@@ -6,6 +6,7 @@
  */
 
 import { CredentialShareCard } from "./CredentialShareCard";
+import { useModalEscape } from "../hooks/useModalEscape";
 
 type CredentialShareModalProps = {
   isOpen: boolean;
@@ -16,6 +17,7 @@ type CredentialShareModalProps = {
 };
 
 export function CredentialShareModal({ isOpen, username, temporaryPassword, onClose }: CredentialShareModalProps) {
+  useModalEscape(isOpen, onClose);
   if (!isOpen) return null;
 
   return (
