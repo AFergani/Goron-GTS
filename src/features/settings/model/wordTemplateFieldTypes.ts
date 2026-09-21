@@ -18,12 +18,6 @@ export function wordTemplateFieldTypeLabel(t: RondeClosureFieldType): string {
   return WORD_TEMPLATE_FIELD_TYPES.find((o) => o.value === t)?.label ?? t;
 }
 
-export function normalizeWordTemplateFieldType(raw: unknown): RondeClosureFieldType {
-  const s = String(raw || "").trim().toLowerCase();
-  const ok = WORD_TEMPLATE_FIELD_TYPES.some((t) => t.value === s);
-  return ok ? (s as RondeClosureFieldType) : "text";
-}
-
 /** Dérive le nom de variable BDD / Word depuis le libellé (espaces → _, accents retirés, etc.). */
 export function labelToFieldKey(raw: string): string {
   const trimmed = String(raw ?? "").trim();

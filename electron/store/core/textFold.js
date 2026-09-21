@@ -14,22 +14,6 @@ const FOLD_FROM =
 const FOLD_TO = "AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNnYyYy";
 
 /**
- * Repli côté JavaScript (NFC/NFD, ligatures, trim, minuscules).
- *
- * @param {unknown} value
- * @returns {string}
- */
-function foldForCompare(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/œ/gi, "oe")
-    .replace(/æ/gi, "ae")
-    .trim()
-    .toLowerCase();
-}
-
-/**
  * Expression SQL PostgreSQL équivalente (trim + accents + ligatures + minuscules).
  *
  * @param {string} sqlExpr - Identifiant ou placeholder (`code`, `trim(label)`, `?`).
@@ -44,6 +28,5 @@ function sqlFoldExpr(sqlExpr) {
 }
 
 module.exports = {
-  foldForCompare,
   sqlFoldExpr
 };
