@@ -29,6 +29,7 @@ import {
   inferPlanningModeFromSnapshot,
   isPlanningFormValid,
   isValidPlanningTime,
+  parseTimeToMin,
   resolvePlanningFormMode,
   resolvePonctuelValidToDate,
   type GardiennagePlanningFormMode
@@ -48,6 +49,8 @@ import {
 import { resolveGardiennageValidityWeekdayLock } from "../utils/resolveGardiennageValidityWeekdayLock";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
+import { PendingIntervenantInlineField, PendingSiteInlineFields } from "../../common/components/PendingRefInlineFields";
+import { getLocalDateIso, getLocalTimeHm, splitIsoToLocalDateTime } from "../../common/utils/localDateIso";
 import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
@@ -193,30 +196,6 @@ function withValidFromDateTime(form: FormState, date: string, time: string): For
   );
 }
 
-function formatNowDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-function formatNowTime() {
-  const now = new Date();
-  return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-}
-
-function dateTimeFromIso(iso: string): { date: string; time: string } {
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) {
-    return { date: formatNowDate(), time: formatNowTime() };
-  }
-  return {
-    date: `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`,
-    time: `${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}`
-  };
-}
-
 function formatDurationMinutes(totalMin: number): string {
   if (!Number.isFinite(totalMin) || totalMin <= 0) return "0h00";
   const h = Math.floor(totalMin / 60);
@@ -224,10 +203,10 @@ function formatDurationMinutes(totalMin: number): string {
   return `${h}h${String(m).padStart(2, "0")}`;
 }
 
-function parseTimeToMin(hhmm: string): number {
-  if (!isValidPlanningTime(hhmm)) return -1;
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
+function dateTimeFromIso(iso: string): { date: string; time: string } {
+  const split = splitIsoToLocalDateTime(iso);
+  if (!split.date) return { date: getLocalDateIso(), time: getLocalTimeHm() };
+  return split;
 }
 
 export function GardiennageEntryModal({
@@ -288,12 +267,12 @@ export function GardiennageEntryModal({
     if (!isOpen || !isCreateMode) return;
     const init: FormState = {
       ...EMPTY_FORM,
-      recurrenceStartDate: formatNowDate(),
-      validFromDate: formatNowDate(),
+      recurrenceStartDate: getLocalDateIso(),
+      validFromDate: getLocalDateIso(),
       validToDate: "",
       planningLines: [createDefaultLine()],
-      requestDate: formatNowDate(),
-      requestTime: formatNowTime(),
+      requestDate: getLocalDateIso(),
+      requestTime: getLocalTimeHm(),
       ...(createPreset ? {
         siteId: createPreset.siteId,
         siteDisplay: createPreset.siteDisplay,
@@ -494,7 +473,7 @@ export function GardiennageEntryModal({
         isPonctuel: form.isPonctuel,
         isContinuous: form.isContinuous,
         planningLines: form.planningLines,
-        fallbackDate: formatNowDate()
+        fallbackDate: getLocalDateIso()
       }),
       requestDate: form.requestDate,
       requestTime: form.requestTime
@@ -827,24 +806,19 @@ export function GardiennageEntryModal({
                 onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
                 onTogglePendingIntervenant={() => setShowPendingIntervenantForm((current) => !current)}
                 pendingSiteForm={(
-                  <div className="mc-form-grid mc-form-grid-main">
-                    <label className="mc-field">
-                      <span>Nouveau code site</span>
-                      <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                    </label>
-                    <label className="mc-field">
-                      <span>Nouveau nom de site</span>
-                      <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                    </label>
-                  </div>
+                  <PendingSiteInlineFields
+                    code={pendingCode}
+                    name={pendingName}
+                    onCodeChange={setPendingCode}
+                    onNameChange={setPendingName}
+                  />
                 )}
                 pendingIntervenantForm={(
-                  <div className="mc-form-grid mc-form-grid-main">
-                    <label className="mc-field mc-field-full">
-                      <span>Nouvel intervenant</span>
-                      <input value={pendingIntervenantName} onChange={(e) => setPendingIntervenantName(e.target.value)} />
-                    </label>
-                  </div>
+                  <PendingIntervenantInlineField
+                    name={pendingIntervenantName}
+                    onNameChange={setPendingIntervenantName}
+                    label="Nouvel intervenant"
+                  />
                 )}
                 onNotify={onNotify}
                 showSiteAction={canCreatePendingRefs ? !form.siteId : false}

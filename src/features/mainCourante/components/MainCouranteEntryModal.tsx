@@ -8,6 +8,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SiteDisplayCopyButton } from "../../common/components/SiteDisplayCopyButton";
 import { SearchEntry } from "../../common/components/SearchEntry";
+import { PendingSiteInlineFields } from "../../common/components/PendingRefInlineFields";
 import type { MainCouranteCreatePayload, MainCouranteEntry, MainCouranteSavePayload } from "../model/mainCourante.types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { AnomalyTypeRef, Role, SiteRef } from "../../../types";
@@ -589,16 +590,12 @@ export function MainCouranteEntryModal({
                   showPendingSiteForm={showPendingSiteForm}
                   onTogglePendingSite={() => setShowPendingSiteForm((current) => !current)}
                   pendingSiteForm={(
-                    <div className="mc-form-grid mc-form-grid-main">
-                      <label className="mc-field">
-                        <span>Nouveau code site</span>
-                        <input value={pendingCode} onChange={(e) => setPendingCode(e.target.value)} />
-                      </label>
-                      <label className="mc-field">
-                        <span>Nouveau nom de site</span>
-                        <input value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
-                      </label>
-                    </div>
+                    <PendingSiteInlineFields
+                      code={pendingCode}
+                      name={pendingName}
+                      onCodeChange={setPendingCode}
+                      onNameChange={setPendingName}
+                    />
                   )}
                   showIntervenantField={false}
                   onNotify={onNotify}

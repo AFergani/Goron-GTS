@@ -1,5 +1,5 @@
 import type { HolidayRef } from "../../../types";
-import { getLocalDateIso } from "../../common/utils/localDateIso";
+import { getLocalDateIso, getLocalTimeHm } from "../../common/utils/localDateIso";
 
 /**
  * Helpers calendrier en date/heure locales (Éviter toISOString() pour la partie date :
@@ -10,9 +10,7 @@ export function formatLocalDateIso(d: Date): string {
 }
 
 export function formatLocalTimeHm(d: Date): string {
-  const h = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${min}`;
+  return getLocalTimeHm(d);
 }
 
 /**

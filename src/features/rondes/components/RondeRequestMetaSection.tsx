@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { IntervenantSearchInput } from "../../common/components/IntervenantSearchInput";
+import { PendingIntervenantInlineField, PendingSiteInlineFields } from "../../common/components/PendingRefInlineFields";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -91,27 +92,19 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
             onTogglePendingSite={props.onTogglePendingSite}
             onTogglePendingIntervenant={props.onTogglePendingIntervenant}
             pendingSiteForm={(
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field">
-                  <span>Nouveau code site</span>
-                  <input value={props.pendingCode} onChange={(e) => props.onPendingCodeChange(e.target.value)} />
-                </label>
-                <label className="mc-field">
-                  <span>Nouveau nom de site</span>
-                  <input value={props.pendingName} onChange={(e) => props.onPendingNameChange(e.target.value)} />
-                </label>
-              </div>
+              <PendingSiteInlineFields
+                code={props.pendingCode}
+                name={props.pendingName}
+                onCodeChange={props.onPendingCodeChange}
+                onNameChange={props.onPendingNameChange}
+              />
             )}
             pendingIntervenantForm={(
-              <div className="mc-form-grid mc-form-grid-main">
-                <label className="mc-field mc-field-full">
-                  <span>Nouvel intervenant</span>
-                  <input
-                    value={props.pendingIntervenantName}
-                    onChange={(e) => props.onPendingIntervenantNameChange(e.target.value)}
-                  />
-                </label>
-              </div>
+              <PendingIntervenantInlineField
+                name={props.pendingIntervenantName}
+                onNameChange={props.onPendingIntervenantNameChange}
+                label="Nouvel intervenant"
+              />
             )}
             onNotify={props.onNotify}
             showSiteAction={!props.selectedSite}

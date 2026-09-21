@@ -47,7 +47,13 @@ export function formatLongDateFr(iso: string): string {
   });
 }
 
-function getLocalTimeHm(date: Date): string {
+/**
+ * Heure locale `HH:mm`.
+ *
+ * @param date - Instant à formater (défaut : maintenant)
+ * @returns Heure locale
+ */
+export function getLocalTimeHm(date: Date = new Date()): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 

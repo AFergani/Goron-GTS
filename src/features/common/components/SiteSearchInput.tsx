@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { SiteRef } from "../../../types";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
+import { PendingSiteInlineFields } from "./PendingRefInlineFields";
 import { copySiteDisplayCode } from "../utils/siteDisplayCopy";
 import { useSuggestListKeyboard } from "../hooks/useSuggestListKeyboard";
 import { filterSitesByCodeOrName, formatSiteSelectedLabel } from "../model/siteSearch";
@@ -210,16 +211,7 @@ export function SiteSearchInput({
         <div className="pending-ref-inline-form-layout pending-ref-inline-form-layout--full">
           <div className="pending-ref-inline-form-column pending-ref-inline-form-column--full">
             {pendingSiteForm ?? (
-              <div className="pending-ref-inline-grid">
-                <label className="mc-field">
-                  <span>Nouveau code site</span>
-                  <input value="" onChange={() => {}} />
-                </label>
-                <label className="mc-field">
-                  <span>Nouveau nom de site</span>
-                  <input value="" onChange={() => {}} />
-                </label>
-              </div>
+              <PendingSiteInlineFields code="" name="" onCodeChange={() => {}} onNameChange={() => {}} />
             )}
           </div>
         </div>

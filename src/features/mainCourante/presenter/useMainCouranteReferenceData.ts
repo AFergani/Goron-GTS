@@ -10,6 +10,7 @@ import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { AnomalyTypeRef, Role, SiteRef } from "../../../types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { useCreatePendingRefs } from "../../common/hooks/useCreatePendingRefs";
 
 export function useMainCouranteReferenceData(
   requesterRole: Role | undefined,
@@ -52,30 +53,12 @@ export function useMainCouranteReferenceData(
     return () => clearInterval(timer);
   }, [load, requesterRole]);
 
-  const createPendingSite = useCallback(
-    async (code: string, name: string) => {
-      if (!requesterRole) return false;
-      try {
-        const response = await gtsApiClient.createPendingSite({
-          requesterRole,
-          requesterUsername,
-          code,
-          name
-        });
-        await load();
-        if (response.alreadyExists) {
-          onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
-        } else {
-          onToast?.("Site ajouté en attente de validation.");
-        }
-        return true;
-      } catch (error) {
-        onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
-        return false;
-      }
-    },
-    [load, onToast, requesterRole, requesterUsername]
-  );
+  const { createPendingSite } = useCreatePendingRefs({
+    requesterRole,
+    requesterUsername,
+    onToast,
+    reload: load
+  });
 
   return { sites, anomalyTypes, loading, error, createPendingSite };
 }

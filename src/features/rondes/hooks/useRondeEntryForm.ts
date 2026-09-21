@@ -13,7 +13,7 @@ import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import type { InterventionEntry } from "../../intervention/model/intervention.types";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
-import { formatLocalDateIso } from "../model/rondeCalendarLocal";
+import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { computeRondeLogicalDate } from "../utils/logicalDate";
 import { computeDurationMinutes, isIsoDate } from "../utils/rondeEntryFormHelpers";
 import { resolvePlannedLineRequestedTime } from "../utils/plannedHeureDemandee";
@@ -31,10 +31,6 @@ export type RondeEntryCreatePreset = {
   planningHint?: string;
   motifTypeId?: string | null;
 };
-
-function formatNowDate() {
-  return formatLocalDateIso(new Date());
-}
 
 type UseRondeEntryFormParams = {
   isOpen: boolean;
@@ -63,7 +59,7 @@ export function useRondeEntryForm({
   requesterRole,
   onClose
 }: UseRondeEntryFormParams) {
-  const [requestDate, setRequestDate] = useState(formatNowDate());
+  const [requestDate, setRequestDate] = useState(getLocalDateIso());
   const [siteId, setSiteId] = useState("");
   const [motifTypeId, setMotifTypeId] = useState("");
   const [motifDetail, setMotifDetail] = useState("");
@@ -200,7 +196,7 @@ export function useRondeEntryForm({
     setPendingIntervenantName("");
 
     if (createPreset?.source === "PLANIFIE") {
-      setRequestDate(createPreset.requestDate || formatNowDate());
+      setRequestDate(createPreset.requestDate || getLocalDateIso());
       setSiteId(createPreset.siteId || "");
       setMotifTypeId(createPreset.motifTypeId || "");
       setMotifDetail("");
@@ -218,7 +214,7 @@ export function useRondeEntryForm({
     }
 
     if (linkedInterventionEntry?.id) {
-      setRequestDate(formatNowDate());
+      setRequestDate(getLocalDateIso());
       setSiteId(linkedInterventionEntry.siteId || "");
       setMotifTypeId("");
       setMotifDetail("");
@@ -235,7 +231,7 @@ export function useRondeEntryForm({
       return;
     }
 
-    setRequestDate(formatNowDate());
+    setRequestDate(getLocalDateIso());
     setSiteId("");
     setMotifTypeId("");
     setMotifDetail("");
@@ -267,7 +263,7 @@ export function useRondeEntryForm({
     setPendingCode("");
     setPendingName("");
     setPendingIntervenantName("");
-    setRequestDate(entry.requestDate || formatNowDate());
+    setRequestDate(entry.requestDate || getLocalDateIso());
     setSiteId(entry.siteId || "");
     setMotifTypeId(entry.motifTypeId || "");
     setMotifDetail(entry.motifDetail || "");
@@ -306,7 +302,7 @@ export function useRondeEntryForm({
         horairesDemandeObs.trim() ||
         originDetail.trim() ||
         originKind !== "TELESURVEILLANCE" ||
-        requestDate !== formatNowDate() ||
+        requestDate !== getLocalDateIso() ||
         siteChangedFromLinked ||
         siteOrIvStandalone ||
         motifChangedFromDefault
@@ -338,7 +334,7 @@ export function useRondeEntryForm({
       (key) => String(extras.values[key] || "").trim() !== String((entry.closureCustomValues || {})[key] || "").trim()
     );
     return Boolean(
-      requestDate !== (entry.requestDate || formatNowDate()) ||
+      requestDate !== (entry.requestDate || getLocalDateIso()) ||
         siteId !== (entry.siteId || "") ||
         motifTypeId !== (entry.motifTypeId || "") ||
         motifDetail !== (entry.motifDetail || "") ||
@@ -379,7 +375,7 @@ export function useRondeEntryForm({
   const isRondePlannedCreateDirty = useMemo(() => {
     if (!isPlannedCreatePreset || !createPreset) return false;
     return Boolean(
-      requestDate !== (createPreset.requestDate || formatNowDate()) ||
+      requestDate !== (createPreset.requestDate || getLocalDateIso()) ||
         siteId !== (createPreset.siteId || "") ||
         motifDetail.trim() ||
         horairesDemandeObs !== (createPreset.planningHint || "") ||

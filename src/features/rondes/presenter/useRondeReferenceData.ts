@@ -13,6 +13,7 @@ import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { mergeWithFrenchFixedHolidays } from "../model/rondeCalendarLocal";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { useCreatePendingRefs } from "../../common/hooks/useCreatePendingRefs";
 
 export function useRondeReferenceData(requesterRole: Role, requesterUsername: string, onToast?: NotifyToast) {
   const [sites, setSites] = useState<SiteRef[]>([]);
@@ -54,46 +55,12 @@ export function useRondeReferenceData(requesterRole: Role, requesterUsername: st
     void load();
   }, [load]);
 
-  const createPendingSite = async (code: string, name: string) => {
-    try {
-      const response = await gtsApiClient.createPendingSite({
-        requesterRole,
-        requesterUsername,
-        code,
-        name
-      });
-      await load();
-      if (response.alreadyExists) {
-        onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
-      } else {
-        onToast?.("Site ajouté en attente de validation.");
-      }
-      return true;
-    } catch (error) {
-      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter le site en attente."), "error");
-      return false;
-    }
-  };
-
-  const createPendingIntervenant = async (name: string) => {
-    try {
-      const response = await gtsApiClient.createPendingIntervenant({
-        requesterRole,
-        requesterUsername,
-        name
-      });
-      await load();
-      if (response.alreadyExists) {
-        onToast?.("Cet intervenant existe déjà ou est déjà en attente de validation.", "warning");
-      } else {
-        onToast?.("Intervenant ajouté en attente de validation.");
-      }
-      return true;
-    } catch (error) {
-      onToast?.(extractUserFacingErrorMessage(error, "Impossible d'ajouter l'intervenant en attente."), "error");
-      return false;
-    }
-  };
+  const { createPendingSite, createPendingIntervenant } = useCreatePendingRefs({
+    requesterRole,
+    requesterUsername,
+    onToast,
+    reload: load
+  });
 
   return {
     sites,

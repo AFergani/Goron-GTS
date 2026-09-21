@@ -60,7 +60,8 @@ export function resolvePonctuelValidToDate(validFromDate: string, startTime: str
   return validFromDate;
 }
 
-function parseTimeToMin(hhmm: string): number {
+/** Minutes depuis minuit, ou -1 si l’horaire est invalide. */
+export function parseTimeToMin(hhmm: string): number {
   if (!isValidPlanningTime(hhmm)) return -1;
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
@@ -134,7 +135,7 @@ export type BuildPlanningSnapshotInput = {
 
 /** Construit le snapshot envoyé au moteur / backend selon le mode actif. */
 export function buildEffectivePlanningSnapshot(input: BuildPlanningSnapshotInput): GardiennagePlanningSnapshotV1 {
-  const fallback = input.fallbackDate || new Date().toISOString().slice(0, 10);
+  const fallback = input.fallbackDate || getLocalDateIso();
   const fromDate = input.validFromDate || fallback;
   const mode = resolvePlanningFormMode(input.isPonctuel, input.isContinuous);
 
