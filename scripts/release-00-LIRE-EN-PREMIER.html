@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Goron GTS — Déploiement labo</title>
+  <style>
+    :root {
+      --bg: #070f22;
+      --surf: #0b1730;
+      --card: #0e1e3d;
+      --hover: #12264d;
+      --ink: #e7f0fb;
+      --muted: #a8c1df;
+      --line: #2b4774;
+      --line-hi: #3f6ba6;
+      --ok: #1fb68b;
+      --accent: #1f5fcf;
+      --accent-hi: #1a4fae;
+      --focus: #5b9bff;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; color-scheme: dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: linear-gradient(180deg, #0d2347 0%, #0a1a35 100%);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 20px 12px;
+    }
+    header h1 { margin: 0 0 4px; font-size: 1.2rem; }
+    header p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 18px 16px 48px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+    h2 { margin: 0 0 8px; font-size: 1.12rem; }
+    p { margin: 0 0 10px; }
+    p:last-child { margin-bottom: 0; }
+    ul { margin: 8px 0 0; padding-left: 1.2rem; }
+    li { margin: 4px 0; }
+    a { color: #8bb4ff; }
+    .hint { color: var(--muted); font-size: .92rem; }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; }
+    .toc a {
+      text-decoration: none;
+      background: var(--surf);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: .85rem;
+      color: var(--ink);
+    }
+    .toc a:hover { border-color: var(--line-hi); background: var(--hover); }
+    .copy-block {
+      position: relative;
+      background: var(--surf);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 10px 0;
+      padding: 10px 12px 10px 12px;
+    }
+    .copy-block pre {
+      margin: 0;
+      padding-right: 88px;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: .86rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .copy-btn {
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+      border: 1px solid var(--line-hi);
+      background: var(--accent);
+      color: #fff;
+      padding: 5px 10px;
+      font-size: .82rem;
+      font-weight: 600;
+    }
+    .copy-btn:hover { background: var(--accent-hi); }
+    .copy-btn.copied { background: #167e60; border-color: #167e60; }
+    .copy-block .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 140px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      background: var(--surf);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 6px 0;
+    }
+    .kv .k { color: var(--muted); font-size: .88rem; }
+    .kv code {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: .9rem;
+    }
+    .steps { margin: 8px 0 0; padding-left: 1.2rem; }
+    .warn {
+      border-left: 3px solid #e06262;
+      padding-left: 10px;
+      color: var(--muted);
+    }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    @media (max-width: 640px) {
+      .kv { grid-template-columns: 1fr auto; }
+      .kv .k { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Goron GTS — Déploiement labo (A à Z)</h1>
+    <p>Version {{VERSION}} · PC Windows de test · identifiants laboratoire uniquement</p>
+  </header>
+  <div class="wrap">
+    <section class="card">
+      <h2>Objectif</h2>
+      <p>Installer dans l’ordre : WSL, Docker, PostgreSQL 18 vierge, Goron GTS, code Admin (console production), première connexion.</p>
+      <p class="hint">On ne récupère pas une base existante. Le métier tourne dans Docker (conteneur <code>goron-pg18</code>). Copier ce dossier en local (jamais depuis un partage réseau).</p>
+    </section>
+
+    <section class="card">
+      <h2>Contenu de ce pack</h2>
+      <ul>
+        <li><code>00-LIRE-EN-PREMIER.html</code> — ce guide</li>
+        <li><code>installer\</code> — installateur Windows (voie conseillée)</li>
+        <li><code>folder\</code> — Goron GTS.exe + resources</li>
+        <li><code>portable\</code> — exe unique + data\templates (modèles Word)</li>
+        <li><code>outils_labo\</code> — menu labo (démarrer PG, logs, reset, dump) + schema.sql</li>
+        <li><code>outils_prod\</code> — console production (code Admin, relance PG, dumps)</li>
+      </ul>
+    </section>
+
+    <nav class="card toc" aria-label="Étapes">
+      <a href="#s1">1. Windows</a>
+      <a href="#s2">2. WSL 2</a>
+      <a href="#s3">3. Docker</a>
+      <a href="#s4">4. Code Admin</a>
+      <a href="#s5">5. PostgreSQL</a>
+      <a href="#s6">6. Installer</a>
+      <a href="#s7">7. Initialisation</a>
+      <a href="#s8">8. Connexion</a>
+      <a href="#s9">9. Courant</a>
+      <a href="#s10">10. À zéro</a>
+      <a href="#s11">11. Dépannage</a>
+    </nav>
+
+    <section class="card" id="s1">
+      <h2>1. Windows</h2>
+      <p>Windows 10/11 à jour. Compte autorisé à installer des programmes.</p>
+      <p>Le port 5432 doit être libre (pas d’autre PostgreSQL Windows déjà lancé).</p>
+    </section>
+
+    <section class="card" id="s2">
+      <h2>2. Installer WSL 2</h2>
+      <p>Ouvrir PowerShell <strong>en administrateur</strong>, coller :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>wsl --install</pre>
+      </div>
+      <p>Redémarrer Windows si Windows le demande. Après reboot, terminer l’éventuelle installation Ubuntu (compte Linux proposé par WSL : on peut l’ignorer ensuite, Docker s’en sert).</p>
+      <p>Vérifier (PowerShell normal) :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>wsl --status</pre>
+      </div>
+      <p>Doit indiquer WSL 2. Si <code>wsl.exe</code> est introuvable, relancer <code>wsl --install</code> en administrateur.</p>
+    </section>
+
+    <section class="card" id="s3">
+      <h2>3. Installer Docker Desktop</h2>
+      <p>Télécharger : <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com/products/docker-desktop</a></p>
+      <p>Installer en cochant l’option <strong>Use WSL 2 instead of Hyper-V</strong>. Redémarrer si l’installateur le demande.</p>
+      <p>Lancer Docker Desktop. Attendre en bas à gauche : <strong>Engine running</strong> (30 à 90 secondes au premier lancement).</p>
+      <p>Vérifier (PowerShell) :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>docker version</pre>
+      </div>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>docker info</pre>
+      </div>
+      <p>Si « docker n’est pas reconnu » : fermer le terminal, en ouvrir un nouveau, ou redémarrer la session Windows.</p>
+    </section>
+
+    <section class="card" id="s4">
+      <h2>4. Code Admin (obligatoire)</h2>
+      <p>Double-clic sur :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>outils_prod\Lancer-Menu-Prod.bat</pre>
+      </div>
+      <p>Première utilisation de la console :</p>
+      <ul class="steps">
+        <li><strong>[1] Créer l’accès administrateur</strong> — 8 caractères minimum, confirmation. C’est AUSSI le mot de passe de connexion « Admin » dans Goron GTS.</li>
+        <li><strong>[2] Créer l’accès responsable</strong> — console uniquement, pas le compte Admin de l’application.</li>
+      </ul>
+      <p>Noter le code Admin : il n’est jamais réaffiché.</p>
+      <p class="hint">La console l’enregistre toute seule dans AppData et remplace un ancien code chiffré s’il existait. Si l’écran « Première utilisation » n’apparaît pas, les accès sont déjà posés sur ce poste : réutiliser le même code.</p>
+    </section>
+
+    <section class="card" id="s5">
+      <h2>5. Créer PostgreSQL labo (une seule fois)</h2>
+      <p>Docker Desktop doit afficher Engine running. PowerShell :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>docker run -d --name goron-pg18 --restart unless-stopped `
+  -e POSTGRES_DB=goron_gts `
+  -e POSTGRES_USER=goron_gts_app `
+  -e POSTGRES_PASSWORD=dev_app_secret `
+  -e TZ=Europe/Paris `
+  -p 5432:5432 `
+  -v goron_gts:/var/lib/postgresql `
+  postgres:18</pre>
+      </div>
+      <p>La première fois, l’image postgres:18 se télécharge (plusieurs minutes). Contrôle :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>docker ps --filter name=goron-pg18</pre>
+      </div>
+      <p>Le conteneur doit être Up. Si le nom <code>goron-pg18</code> existe déjà, passer à l’étape 6 (ou section « Repartir à zéro »).</p>
+      <p>Au quotidien ensuite (pas besoin du <code>docker run</code>) :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>outils_labo\Lancer-Menu-Labo.bat</pre>
+      </div>
+      <ul>
+        <li>touche 1 = démarrer Docker + conteneur</li>
+        <li>touche 5 = état</li>
+        <li>touche 9 = tester la connexion</li>
+      </ul>
+    </section>
+
+    <section class="card" id="s6">
+      <h2>6. Installer Goron GTS</h2>
+      <p>Double-clic sur l’exe dans <code>installer\</code> (options par défaut). Lancer l’application via le raccourci Windows.</p>
+      <p>Autres voies du pack (copie locale obligatoire) :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>folder\Goron GTS.exe</pre>
+      </div>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>portable\Goron GTS {{VERSION}}.exe</pre>
+      </div>
+    </section>
+
+    <section class="card" id="s7">
+      <h2>7. Écran « Initialisation GTS »</h2>
+      <p>Si l’écran n’apparaît pas, PostgreSQL est déjà configuré sur ce poste (Paramètres → Gestion Base de données).</p>
+      <p>Saisir exactement :</p>
+      <div class="kv">
+        <span class="k">Hôte</span>
+        <code>127.0.0.1</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <div class="kv">
+        <span class="k">Port</span>
+        <code>5432</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <div class="kv">
+        <span class="k">Base</span>
+        <code>goron_gts</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <div class="kv">
+        <span class="k">Utilisateur</span>
+        <code>goron_gts_app</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <div class="kv">
+        <span class="k">Mot de passe</span>
+        <code>dev_app_secret</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <p>Tester la connexion, puis Enregistrer.</p>
+    </section>
+
+    <section class="card" id="s8">
+      <h2>8. Première connexion</h2>
+      <div class="kv">
+        <span class="k">Nom affiché</span>
+        <code>Admin</code>
+        <button type="button" class="copy-btn">Copier</button>
+      </div>
+      <p>Mot de passe : le code administrateur défini à l’étape 4 ([1] de la console).</p>
+      <p class="hint">Admin n’utilise pas un mot de passe « changé dans une modale » : c’est toujours le code créé par la console production.</p>
+      <p>Badge base vert = environnement prêt.</p>
+    </section>
+
+    <section class="card" id="s9">
+      <h2>9. Exploitation courante</h2>
+      <ul>
+        <li>Démarrer PG — <code>outils_labo\Lancer-Menu-Labo.bat</code> → 1</li>
+        <li>Arrêter PG — même menu → 4</li>
+        <li>Logs Docker — même menu → 6</li>
+        <li>Journal appli — menu → 7 / 8</li>
+        <li>Dump labo — même menu → 12 (fichier .dump)</li>
+      </ul>
+      <p>Journal appli :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>%APPDATA%\goron-gts\gts-pg-events.log</pre>
+      </div>
+      <p>Sauvegardes applicatives (Paramètres) :</p>
+      <ul>
+        <li><code>goron_gts_journaliere_AAAA-MM-JJ.dump</code></li>
+        <li><code>goron_gts_mensuelle_AAAA-MM.dump</code></li>
+        <li><code>goron_gts_manuelle_AAAA-MM-JJ_HH-mm.dump</code></li>
+      </ul>
+      <p class="hint">La comparaison dump / base se fait dans l’application.</p>
+      <p>Pare-feu : le labo local n’a pas besoin d’ouvrir 5432 vers le réseau. Sur un vrai poste serveur LAN, ouvrir TCP 5432 uniquement vers les stations.</p>
+    </section>
+
+    <section class="card" id="s10">
+      <h2>10. Repartir à zéro</h2>
+      <p>Vider les tables (conteneur conservé) : menu labo → touche 11 → taper <strong>RESET</strong>, puis relancer Goron GTS (ré-init si demandée).</p>
+      <p>Recréer un PostgreSQL 100 % neuf :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>docker rm -f goron-pg18
+docker volume rm goron_gts</pre>
+      </div>
+      <p>puis refaire l’étape 5, puis 7 et 8. Le compte Admin reprend le code de l’étape 4 (inchangé : il n’est pas dans Docker).</p>
+    </section>
+
+    <section class="card" id="s11">
+      <h2>11. Dépannage</h2>
+      <p><strong>wsl --install refuse</strong> — PowerShell bien en administrateur, Windows à jour, reboot.</p>
+      <p><strong>Docker Desktop bloqué sur « starting »</strong> — WSL 2 installé, reboot, relancer Docker Desktop.</p>
+      <p><strong>docker n’est pas reconnu</strong> — nouveau terminal après installation, ou relogin Windows.</p>
+      <p><strong>Port 5432 occupé</strong></p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>Get-NetTCPConnection -LocalPort 5432</pre>
+      </div>
+      <p>puis arrêter l’autre PostgreSQL Windows.</p>
+      <p><strong>Badge « Base inaccessible »</strong> — Docker Engine running, menu labo touche 1 puis 9.</p>
+      <p><strong>Conteneur introuvable</strong> (menu touche 1) — refaire le <code>docker run</code> de l’étape 5.</p>
+      <p><strong>Mot de passe invalide (Admin)</strong> — même code que [1] de la console production (étape 4), puis FERMER et relancer Goron GTS (le code n’est lu qu’au démarrage).</p>
+      <p>Pour recréer les accès console + le code Admin, supprimer :</p>
+      <div class="copy-block">
+        <button type="button" class="copy-btn">Copier</button>
+        <pre>%APPDATA%\goron-gts\gts-prod-gate.json</pre>
+      </div>
+      <p>puis relancer <code>outils_prod\Lancer-Menu-Prod.bat</code> (touches 1 puis 2).</p>
+      <p><strong>Nom affiché inconnu</strong> — saisir exactement <code>Admin</code>.</p>
+      <p class="warn">Ne pas utiliser ce pack comme procédure de production SI.</p>
+    </section>
+  </div>
+  <script>
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand("copy");
+          resolve();
+        } catch (err) {
+          reject(err);
+        } finally {
+          document.body.removeChild(ta);
+        }
+      });
+    }
+
+    function markCopied(btn) {
+      var previous = btn.textContent;
+      btn.textContent = "Copié";
+      btn.classList.add("copied");
+      setTimeout(function () {
+        btn.textContent = previous;
+        btn.classList.remove("copied");
+      }, 1400);
+    }
+
+    document.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var kv = btn.closest(".kv");
+        var block = btn.closest(".copy-block");
+        var source = kv ? kv.querySelector("code") : block ? block.querySelector("pre") : null;
+        if (!source) return;
+        copyText(source.textContent.replace(/\r\n/g, "\n").replace(/\n$/, "")).then(function () {
+          markCopied(btn);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

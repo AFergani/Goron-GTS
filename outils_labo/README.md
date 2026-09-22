@@ -4,7 +4,7 @@ Menu interactif pour piloter le conteneur labo et lire les journaux hors appli.
 
 Ce dossier est **versionné** : même menu labo sur tous les PC après `git pull`. La release copie ce dossier tel quel (plus `schema.sql` à côté, pour un pack sans le dépôt).
 
-Le mot de passe ci-dessous est le secret **labo** uniquement (identique au guide `00-LIRE-EN-PREMIER.txt`).
+Le mot de passe ci-dessous est le secret **labo** uniquement (identique au guide `00-LIRE-EN-PREMIER.html`).
 
 ## Ou se trouvent les elements (ce poste)
 

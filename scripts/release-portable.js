@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Génération du pack de release Windows (portable, installateur, dossier,
- * outils labo/prod, guide `00-LIRE-EN-PREMIER.txt`).
+ * outils labo/prod, guide `00-LIRE-EN-PREMIER.html`).
  *
  * Contrôle les fichiers réellement produits : icône, modèles Word embarqués,
  * schema.sql, bundles Electron. Les dumps applicatifs sont des `.dump` ;
@@ -571,18 +571,19 @@ function prepareProdToolsBundle(releaseRootDir) {
 }
 
 /**
- * Guide unique de création d’environnement labo (sans recopier Demo_Travail).
+ * Copie le guide HTML de déploiement labo (`00-LIRE-EN-PREMIER.html`)
+ * en substituant la version de release.
  *
  * @param {string} version - Version semver de la release.
  * @param {string} releaseRootDir - `Release_Goron-GTS-x.y.z`
  */
 function prepareLaboEnvironmentGuide(version, releaseRootDir) {
-  const templatePath = path.join(rootDir, "scripts", "release-00-LIRE-EN-PREMIER.txt");
+  const templatePath = path.join(rootDir, "scripts", "release-00-LIRE-EN-PREMIER.html");
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Guide labo introuvable: ${templatePath}`);
   }
   const body = fs.readFileSync(templatePath, "utf8").split("{{VERSION}}").join(version);
-  const targetPath = path.join(releaseRootDir, "00-LIRE-EN-PREMIER.txt");
+  const targetPath = path.join(releaseRootDir, "00-LIRE-EN-PREMIER.html");
   fs.writeFileSync(targetPath, body, "utf8");
   console.log(`📦 Guide environnement labo: ${path.basename(targetPath)}`);
 }
@@ -642,7 +643,7 @@ function main() {
   console.log("   - Dossier exe+resources: folder/");
   console.log("   - Outils labo + schema.sql: outils_labo/");
   console.log("   - Outils production: outils_prod/");
-  console.log("   - Guide labo: 00-LIRE-EN-PREMIER.txt");
+  console.log("   - Guide labo: 00-LIRE-EN-PREMIER.html");
 }
 
 main();
