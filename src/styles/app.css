@@ -63,6 +63,11 @@
   max-width: 420px;
 }
 
+.login-panel form :is(input, button):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .postgres-bootstrap-panel.login-panel {
   max-width: min(40rem, calc(100vw - 48px));
   max-height: calc(100vh - 48px);

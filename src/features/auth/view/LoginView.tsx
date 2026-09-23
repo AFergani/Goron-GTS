@@ -24,7 +24,10 @@ type LoginViewProps = {
   onChange: (next: LoginFormState) => void;
   /** Ouvre la réinitialisation validée par un collègue présent. */
   onOpenPeerReset: () => void;
-  /** Affiche le lien de récupération si PostgreSQL est injoignable. */
+  /**
+   * Vrai quand PostgreSQL est injoignable : lien de récupération visible,
+   * saisie et « Mot de passe oublié » bloqués.
+   */
   showDbRecoveryLink?: boolean;
   /** Ouvre l'écran de reconfiguration de la connexion DB. */
   onOpenDbRecovery?: () => void;
@@ -43,6 +46,8 @@ export function LoginView({
   onOpenDbRecovery
 }: LoginViewProps) {
   useModalEscape(showLockedDialog, onCloseLockedDialog);
+  const dbUnreachable = showDbRecoveryLink;
+  const fieldsDisabled = isLoggingIn || dbUnreachable;
   return (
     <main className="auth-page">
       {showLockedDialog && (
@@ -53,16 +58,19 @@ export function LoginView({
               Votre compte a été bloqué après trop de tentatives de connexion échouées.
             </p>
             <p className="muted">
-              Le blocage se lève automatiquement au bout de 15 minutes. Si vous avez oublié votre mot de passe,
-              faites-le réinitialiser par votre responsable, ou par un collègue présent via « Mot de passe oublié ».
+              {dbUnreachable
+                ? "Le blocage se lève automatiquement au bout de 15 minutes. La réinitialisation redevient possible quand la base répond à nouveau."
+                : "Le blocage se lève automatiquement au bout de 15 minutes. Si vous avez oublié votre mot de passe, faites-le réinitialiser par votre responsable, ou par un collègue présent via « Mot de passe oublié »."}
             </p>
             <div className="row-actions modal-actions">
               <button type="button" className="btn-light" onClick={onCloseLockedDialog}>
                 Fermer
               </button>
-              <button type="button" onClick={onOpenPeerReset}>
-                Mot de passe oublié
-              </button>
+              {dbUnreachable ? null : (
+                <button type="button" onClick={onOpenPeerReset}>
+                  Mot de passe oublié
+                </button>
+              )}
             </div>
           </section>
         </div>
@@ -77,7 +85,7 @@ export function LoginView({
               value={loginForm.username}
               onChange={(e) => onChange({ ...loginForm, username: e.target.value })}
               required
-              disabled={isLoggingIn}
+              disabled={fieldsDisabled}
               autoComplete="username"
             />
           </label>
@@ -87,12 +95,12 @@ export function LoginView({
               value={loginForm.password}
               onChange={(password) => onChange({ ...loginForm, password })}
               required
-              disabled={isLoggingIn}
+              disabled={fieldsDisabled}
               autoComplete="current-password"
               aria-label="Mot de passe"
             />
           </label>
-          <button type="submit" disabled={isLoggingIn} aria-busy={isLoggingIn}>
+          <button type="submit" disabled={fieldsDisabled} aria-busy={isLoggingIn}>
             {isLoggingIn ? (
               <span className="login-submit-busy">
                 <Loader2 size={16} className="login-spinner" aria-hidden />
@@ -104,10 +112,12 @@ export function LoginView({
           </button>
         </form>
         <div className="login-links">
-          <button type="button" className="link-btn" onClick={onOpenPeerReset} disabled={isLoggingIn}>
-            Mot de passe oublié ?
-          </button>
-          {showDbRecoveryLink && onOpenDbRecovery ? (
+          {dbUnreachable ? null : (
+            <button type="button" className="link-btn" onClick={onOpenPeerReset} disabled={isLoggingIn}>
+              Mot de passe oublié ?
+            </button>
+          )}
+          {dbUnreachable && onOpenDbRecovery ? (
             <button type="button" className="link-btn" onClick={onOpenDbRecovery} disabled={isLoggingIn}>
               Base de données inaccessible ?
             </button>
@@ -116,6 +126,11 @@ export function LoginView({
         {isLoggingIn ? (
           <p className="muted login-status" role="status">
             Vérification de l&apos;identité et accès à la base…
+          </p>
+        ) : null}
+        {dbUnreachable && !isLoggingIn ? (
+          <p className="muted login-status" role="status">
+            La saisie est suspendue tant que la base ne répond pas.
           </p>
         ) : null}
         {error && !isLoggingIn ? <p className="error">{error}</p> : null}

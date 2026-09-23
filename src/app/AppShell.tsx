@@ -152,6 +152,11 @@ export function AppShell() {
     onClearLoginError: () => setError("")
   });
 
+  useEffect(() => {
+    if (!pgBootstrap.showDbRecoveryLink || !auth.showPeerResetModal) return;
+    auth.onClosePeerReset();
+  }, [auth, pgBootstrap.showDbRecoveryLink]);
+
   const settings = useSettingsPresenter({
     session,
     onError: notifyError,

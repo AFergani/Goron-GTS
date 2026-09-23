@@ -29,9 +29,9 @@ export function HelpSettingsOperatorsTopic() {
         </li>
         <li>
           💡 En l&apos;absence d&apos;un responsable (nuit, week-end), un agent peut débloquer son accès via{" "}
-          <strong>Mot de passe oublié</strong> sur l&apos;écran de connexion : un collègue présent s&apos;identifie et
-          valide, à condition d&apos;être d&apos;un niveau égal ou supérieur. Les deux noms et le motif sont enregistrés
-          dans le journal.
+          <strong>Mot de passe oublié</strong> sur l&apos;écran de connexion, lorsque la base répond : un collègue
+          présent s&apos;identifie et valide, à condition d&apos;être d&apos;un niveau égal ou supérieur. Les deux noms
+          et le motif sont enregistrés dans le journal.
         </li>
       </ul>
     </HelpTopicLayout>

@@ -16,8 +16,9 @@ export function HelpSettingsConnectionTopic() {
         </li>
         <li>
           Si la base devient injoignable plus tard, utilisez <strong>Base de données inaccessible ?</strong> sur
-          l&apos;écran de connexion pour corriger l&apos;hôte, le port ou le mot de passe technique. Ce réglage est
-          propre à <strong>ce poste</strong> (un autre PC ne l&apos;hérite pas).
+          l&apos;écran de connexion pour corriger l&apos;hôte, le port ou le mot de passe technique. Le nom, le mot de
+          passe et <strong>Mot de passe oublié</strong> restent alors indisponibles. Ce réglage est propre à{" "}
+          <strong>ce poste</strong> (un autre PC ne l&apos;hérite pas).
         </li>
         <li>
           🔒 Le <strong>compte technique</strong> et son mot de passe ne sont pas diffusés : rapprochez-vous d&apos;un
