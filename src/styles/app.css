@@ -309,6 +309,18 @@
   margin-right: auto;
 }
 
+/* Le bouton d’envoi doit se distinguer quand il est bloqué, et s’éclairer au survol quand il est actif. */
+.modal-actions > button:not(.btn-light):disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modal-actions > button:not(.btn-light):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 70%, white);
+  border-color: color-mix(in srgb, var(--accent) 50%, white);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 .sidebar {
   background: #122a4f;
   border-right: 1px solid #274774;
@@ -2382,6 +2394,15 @@ th {
   min-width: 0;
 }
 
+.mc-site-static {
+  display: block;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .mc-site-copy-btn {
   width: 100%;
   display: block;
@@ -3077,9 +3098,38 @@ th {
   min-width: 0;
 }
 
+.mc-site-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.mc-site-input-row .mc-site-input-inner {
+  flex: 1 1 auto;
+}
+
+.mc-site-input-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.mc-site-input-actions .mc-site-clear-icon-btn,
+.mc-site-input-actions .mc-site-copy-icon-btn {
+  position: static;
+  top: auto;
+  right: auto;
+  transform: none;
+}
+
 .mc-site-input-inner {
   position: relative;
   width: 100%;
+  min-width: 0;
+  contain: inline-size;
 }
 
 .mc-site-input-inner--with-clear .mc-site-code-input {
@@ -3119,17 +3169,16 @@ th {
 }
 
 .mc-site-suggest {
-  --site-suggest-min-width: 32rem;
   position: absolute;
   left: 0;
-  right: auto;
+  right: 0;
   top: calc(100% + 4px);
   z-index: 80;
   box-sizing: border-box;
-  /* Même gabarit dans toutes les modales, même si le champ de recherche est plus étroit. */
-  width: max(100%, var(--site-suggest-min-width));
-  min-width: min(var(--site-suggest-min-width), calc(100vw - 48px));
-  max-width: min(40rem, calc(100vw - 32px));
+  /* Largeur du champ : une liste plus large étirait la modale vers la droite. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   /* Au moins 3 sites visibles, jusqu’à 5 avant le défilement. */
   max-height: calc((2.6rem * 5) + 8px);
   overflow-y: auto;
@@ -3164,6 +3213,20 @@ th {
 .mc-site-suggest-item:hover,
 .mc-site-suggest-item.is-active {
   background: var(--hover);
+}
+
+[data-theme="light"] .mc-site-suggest-item:hover {
+  background: #d3e4fb;
+}
+
+[data-theme="light"] .mc-site-suggest-item.is-active {
+  background: #1f5fcf;
+  color: #fff;
+}
+
+[data-theme="light"] .mc-site-suggest-item.is-active .mc-site-suggest-name,
+[data-theme="light"] .mc-site-suggest-item.is-active .mc-site-suggest-code {
+  color: #fff;
 }
 
 .mc-site-suggest-code {
@@ -4188,12 +4251,22 @@ th {
   vertical-align: middle;
 }
 
+/* Trois boutons (Variable, Remplacer, Rétablir) sur une seule ligne. */
+.templates-management-panel__table--files .templates-management-panel__col-actions {
+  width: 27rem;
+  min-width: 27rem;
+}
+
 .templates-management-panel__row-actions {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   justify-content: flex-start;
+}
+
+.templates-management-panel__table--files .templates-management-panel__row-actions {
+  flex-wrap: nowrap;
 }
 
 .templates-management-panel__row-actions > button {
@@ -4335,6 +4408,44 @@ th {
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
+}
+
+.gardiennage-planning-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.gardiennage-link-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #ffd59a;
+  background: rgba(191, 113, 23, 0.28);
+  border: 1px solid rgba(255, 213, 154, 0.45);
+}
+
+.gardiennage-link-badge--ronde {
+  color: #c9b5ff;
+  background: rgba(106, 65, 186, 0.28);
+  border-color: rgba(201, 181, 255, 0.45);
+}
+
+[data-theme="light"] .gardiennage-link-badge {
+  color: #8a4b00;
+  background: #fff1dc;
+  border-color: #e2b56a;
+}
+
+[data-theme="light"] .gardiennage-link-badge--ronde {
+  color: #4c2d86;
+  background: #efe7ff;
+  border-color: #b9a3e6;
 }
 
 .gardiennage-kind-badge {

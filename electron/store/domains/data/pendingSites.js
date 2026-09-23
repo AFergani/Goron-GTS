@@ -126,16 +126,17 @@ async function createPendingSite(store, { requesterRole, requesterUsername, code
  * Parc obligatoire ; famille optionnelle. Un site déjà au référentiel n'est pas écrasé.
  *
  * @param {import('../../../userStore')} store
- * @param {{ requesterRole: string, requesterUsername?: string, pendingId?: unknown, parc?: unknown, famille?: unknown }} payload
+ * @param {{ requesterRole: string, requesterUsername?: string, pendingId?: unknown, parc?: unknown, famille?: unknown, address?: unknown }} payload
  * @returns {Promise<{ success: true, siteId: string, alreadyExists: boolean, propagation: object }>}
  */
-async function resolvePendingSite(store, { requesterRole, requesterUsername, pendingId, parc, famille }) {
+async function resolvePendingSite(store, { requesterRole, requesterUsername, pendingId, parc, famille, address }) {
   store.ensureDataReaderRole(requesterRole);
   const actor = actorName(requesterUsername);
   const db = requireDataPersistence(store, "data:pendingSite:resolve");
   const id = requirePendingId(store, pendingId, "data:pendingSite:resolve");
   const cleanParc = String(parc || "").trim().toUpperCase();
   const cleanFamille = String(famille || "").trim().toUpperCase();
+  const cleanAddress = String(address || "").trim().toUpperCase();
   if (!cleanParc) {
     store.fail("data:pendingSite:resolve", "Le parc est obligatoire.", "DATA_PENDING_SITE_PARC_REQUIRED");
   }
@@ -152,14 +153,20 @@ async function resolvePendingSite(store, { requesterRole, requesterUsername, pen
       );
     }
     const existing = await tx.get(
-      `SELECT id, code, name FROM data_sites WHERE ${FOLD_CODE} LIMIT 1`,
+      `SELECT id, code, name, address FROM data_sites WHERE ${FOLD_CODE} LIMIT 1`,
       [pending.code]
     );
     const siteId = existing ? existing.id : generateEntityId();
+    const now = new Date().toISOString();
     if (!existing) {
       await tx.run(
-        "INSERT INTO data_sites (id, code, name, parc, famille, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        [siteId, pending.code, pending.name, cleanParc, cleanFamille, new Date().toISOString()]
+        "INSERT INTO data_sites (id, code, name, address, parc, famille, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [siteId, pending.code, pending.name, cleanAddress || null, cleanParc, cleanFamille, now]
+      );
+    } else if (cleanAddress && !String(existing.address || "").trim()) {
+      await tx.run(
+        "UPDATE data_sites SET address = ?, updated_at = ? WHERE id = ?",
+        [cleanAddress, now, existing.id]
       );
     }
     await tx.run("DELETE FROM data_site_pending WHERE id = ?", [pending.id]);
@@ -202,7 +209,7 @@ async function resolvePendingSite(store, { requesterRole, requesterUsername, pen
       snapshot: {
         code: resolved.officialCode,
         name: resolved.officialName,
-        address: "",
+        address: cleanAddress,
         parc: resolved.parc,
         famille: resolved.famille
       }

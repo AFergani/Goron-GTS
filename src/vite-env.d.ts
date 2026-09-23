@@ -197,6 +197,7 @@ declare global {
         pendingId: string;
         parc: string;
         famille: string;
+        address?: string;
       }) => Promise<{
         success: boolean;
         siteId: string;

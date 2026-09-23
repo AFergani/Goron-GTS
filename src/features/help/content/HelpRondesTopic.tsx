@@ -20,7 +20,9 @@ export function HelpRondesTopic() {
         <li>
           <strong>Contractuelle</strong> : cliquez sur <strong>Nouvelle planification</strong> pour définir une règle
           récurrente (site, prestataire, horaires, jours). Les fiches du jour sont ensuite matérialisées depuis la vue
-          journée. Le <strong>compte-rendu est obligatoire</strong> pour clôturer ; aucune clôture automatique.
+          journée. Le <strong>compte-rendu</strong> et les <strong>heures d'arrivée et de départ</strong> sont
+          obligatoires pour clôturer, et seulement une fois l'heure de passage prévue dépassée. Aucune clôture
+          automatique.
         </li>
         <li>
           <strong>Exceptionnelle</strong> : cliquez sur <strong>Nouvelle ronde</strong>, renseignez la période{" "}
@@ -33,7 +35,7 @@ export function HelpRondesTopic() {
           automatiquement le site et le contexte.
         </li>
         <li>
-          Utilisez <strong>Rouvrir</strong> sur une fiche clôturée pour la modifier à nouveau.
+          Utilisez <strong>Rouvrir</strong> sur une fiche clôturée pour la modifier à nouveau. La fiche reste ouverte.
         </li>
       </ul>
     </HelpTopicLayout>

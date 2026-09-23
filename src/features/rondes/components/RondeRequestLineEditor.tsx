@@ -16,7 +16,6 @@ import {
 type RondeRequestLineEditorProps = {
   lines: LineDraft[];
   isSingleDay: boolean;
-  lockWeekdaysFromValidityRange: boolean;
   /** Consultation seule : pas d’ajout / suppression / modification. */
   readOnly?: boolean;
   onAddLine: () => void;
@@ -28,7 +27,6 @@ type RondeRequestLineEditorProps = {
 export function RondeRequestLineEditor({
   lines,
   isSingleDay,
-  lockWeekdaysFromValidityRange,
   readOnly = false,
   onAddLine,
   onRemoveLine,
@@ -68,7 +66,7 @@ export function RondeRequestLineEditor({
         const displayNumber = rondeRequestLineDisplayNumber(index, lines.length);
         const isNewest = index === 0;
         const typeChosen = Boolean(line.roundKind);
-        const daysDisabled = readOnly || !typeChosen || lockWeekdaysFromValidityRange;
+        const daysDisabled = readOnly || !typeChosen;
         const unsetTypeTooltip = typeChosen ? undefined : "Choisissez d’abord un type de ronde";
         return (
           <fieldset

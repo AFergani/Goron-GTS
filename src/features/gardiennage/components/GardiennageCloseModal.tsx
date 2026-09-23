@@ -1,8 +1,8 @@
 /**
  * Modale de clôture d’un gardiennage (horaires effectifs, n° bon, compte rendu).
  *
- * Liens optionnels vers intervention / ronde liées. Réinitialise le formulaire à l’ouverture
- * (`[isOpen, entry?.id]`). Soumission via callback parent (audit côté API).
+ * Liens optionnels vers intervention / ronde liées. Reprend le compte-rendu déjà saisi
+ * à l’ouverture. Soumission via callback parent (audit côté API).
  */
 
 import { useState, useEffect, useMemo } from "react";
@@ -52,6 +52,7 @@ export function GardiennageCloseModal({
   onNavigateToLinkedRonde
 }: GardiennageCloseModalProps) {
   const [form, setForm] = useState<CloseForm>(EMPTY);
+  const [baseline, setBaseline] = useState<CloseForm>(EMPTY);
   const [isSaving, setIsSaving] = useState(false);
   const selectedSite = useMemo(
     () => (entry?.siteId ? sites.find((site) => site.id === entry.siteId) ?? null : null),
@@ -67,17 +68,32 @@ export function GardiennageCloseModal({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
-    setForm(EMPTY);
+    if (!isOpen || !entry) return;
+    const seeded: CloseForm = {
+      actualStartTime: entry.actualStartTime || "",
+      actualEndTime: entry.actualEndTime || "",
+      workOrderNumber: entry.workOrderNumber || "",
+      closureReport: entry.closureReport || ""
+    };
+    setForm(seeded);
+    setBaseline(seeded);
     setIsSaving(false);
-  }, [isOpen, entry?.id]);
+  }, [
+    isOpen,
+    entry?.id,
+    entry?.updatedAt,
+    entry?.actualStartTime,
+    entry?.actualEndTime,
+    entry?.workOrderNumber,
+    entry?.closureReport
+  ]);
 
   const extrasFilled = Object.values(extras.values).some((value) => String(value || "").trim());
   const seedExtras = entry?.exportExtraValues || {};
   const extrasChanged = Object.keys({ ...extras.values, ...seedExtras }).some(
     (key) => String(extras.values[key] || "").trim() !== String(seedExtras[key] || "").trim()
   );
-  const isDirty = JSON.stringify(form) !== JSON.stringify(EMPTY) || extrasChanged;
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline) || extrasChanged;
   const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
     enabled: isOpen && !isSaving,
     isDirty,

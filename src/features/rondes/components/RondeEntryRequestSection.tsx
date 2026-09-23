@@ -227,7 +227,8 @@ export function RondeEntryRequestSection(props: RondeEntryRequestSectionProps) {
             <span>Origine de la demande</span>
             <select
               value={originKind}
-              disabled={lockDemandeFields}
+              disabled={lockDemandeFields || !isCreateMode}
+              title={isCreateMode ? undefined : "Origine déduite du contexte, non modifiable"}
               onChange={(e) => props.onOriginKindChange(e.target.value as RondeOriginKind)}
             >
               <option value="TELESURVEILLANCE">Télésurveillance</option>

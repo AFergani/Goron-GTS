@@ -15,7 +15,6 @@ type RondeRequestLinesRecapProps = {
   isEdit: boolean;
   isContract: boolean;
   isSingleDay: boolean;
-  lockWeekdaysFromValidityRange: boolean;
   validFrom: string;
   validFromTime: string;
   validTo: string;
@@ -31,7 +30,6 @@ export function RondeRequestLinesRecap({
   isEdit,
   isContract,
   isSingleDay,
-  lockWeekdaysFromValidityRange,
   validFrom,
   validFromTime,
   validTo,
@@ -52,7 +50,7 @@ export function RondeRequestLinesRecap({
           <div key={`recap-line-${line.id || index}`} className="muted ronde-request-recap__line">
             Ligne {rondeRequestLineDisplayNumber(index, lines.length)}:{" "}
             {formatLineDraftSummary(line, {
-              omitWeekdayRecurrence: isSingleDay || lockWeekdaysFromValidityRange
+              omitWeekdayRecurrence: isSingleDay
             })}
             {!isEdit ? (
               <>

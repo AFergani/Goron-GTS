@@ -49,6 +49,8 @@ function ActionButton({
 
 type UsersTableProps = {
   users: User[];
+  /** Annuaire complet, y compris les comptes hors filtre, pour résoudre le nom affiché. */
+  directoryUsers?: User[];
   activeUsernames: string[];
   onDeactivateUser: (user: User) => void;
   onReactivateUser: (user: User) => void;
@@ -60,6 +62,7 @@ type UsersTableProps = {
 
 export function UsersTable({
   users,
+  directoryUsers,
   activeUsernames,
   onDeactivateUser,
   onReactivateUser,
@@ -70,6 +73,17 @@ export function UsersTable({
 }: UsersTableProps) {
   const activeSet = new Set(activeUsernames.map((n) => n.toLowerCase()));
   const currentUsername = String(session?.user.username || "").toLowerCase();
+  const displayNameByUsername = new Map(
+    (directoryUsers ?? users).map((user) => [String(user.username || "").toLowerCase(), user.fullName])
+  );
+
+  /** Nom affiché de l’auteur. Le code technique stocké en base ne sort pas dans la liste. */
+  function formatUpdatedBy(username: string): string | null {
+    const fromDirectory = displayNameByUsername.get(username.toLowerCase());
+    if (fromDirectory) return fromDirectory;
+    if (username.toLowerCase() === currentUsername && session?.user.fullName) return session.user.fullName;
+    return null;
+  }
 
   function formatRole(value: User["role"]) {
     if (value === "DEV") return "Admin";
@@ -139,6 +153,7 @@ export function UsersTable({
           const canAct = canActOnUser(u);
           // Auto-réinitialisation et auto-désactivation interdites : risque de se verrouiller hors de l'application.
           const isSelf = String(u.username || "").toLowerCase() === currentUsername;
+          const updatedByName = u.updatedBy ? formatUpdatedBy(u.updatedBy) : null;
           return (
             <tr key={u.id}>
               <td className="users-table__col-presence">
@@ -160,7 +175,7 @@ export function UsersTable({
                 {u.updatedAt ? (
                   <>
                     {formatDateTime(u.updatedAt)}
-                    {u.updatedBy ? <span className="muted"> ({u.updatedBy})</span> : null}
+                    {updatedByName ? <span className="muted"> ({updatedByName})</span> : null}
                   </>
                 ) : (
                   "-"

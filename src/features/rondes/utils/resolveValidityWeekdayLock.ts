@@ -1,5 +1,6 @@
 /**
- * Masque jours de semaine imposé par la plage de validité (jour unique ou ≤ 7 jours).
+ * Masque jours suggéré par une plage de validité courte (2–7 jours).
+ * Sert de valeur initiale pour une nouvelle ligne. Les toggles restent modifiables.
  */
 
 import {
@@ -28,7 +29,11 @@ export function resolveValidityWeekdayLock(opts: {
   return mask > 0 ? mask : null;
 }
 
-/** Masque effectif à appliquer aux lignes au submit (0 = inchangé côté lignes). */
+/**
+ * Masque imposé au submit.
+ * Jour unique : le jour de la date de début.
+ * Sinon 0 : les toggles saisis sont conservés (0 = tous les jours de la plage).
+ */
 export function resolveSubmitWeekdayMask(opts: {
   isSingleDay: boolean;
   validFrom: string;
@@ -36,11 +41,5 @@ export function resolveSubmitWeekdayMask(opts: {
 }): number {
   const from = opts.validFrom.trim();
   if (opts.isSingleDay && from) return dateIsoToWeekdayMask(from);
-  return (
-    resolveValidityWeekdayLock({
-      isSingleDay: false,
-      validFrom: from,
-      validTo: opts.effectiveValidTo
-    }) ?? 0
-  );
+  return 0;
 }

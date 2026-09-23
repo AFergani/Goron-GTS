@@ -13,5 +13,7 @@ export type DocumentTemplateListItem = {
   helpId: string;
   resolvedPath: string | null;
   exists: boolean;
+  /** Copie locale qui masque le modèle embarqué. */
+  overridden?: boolean;
   targetInstallPath: string | null;
 };

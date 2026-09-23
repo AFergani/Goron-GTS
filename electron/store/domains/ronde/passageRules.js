@@ -75,11 +75,61 @@ function isRondeManagerRole(requesterRole) {
   return requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 }
 
+/**
+ * Date ISO `AAAA-MM-JJ` en `JJ/MM/AAAA` pour les messages de clôture.
+ *
+ * @param {unknown} iso
+ * @returns {string}
+ */
+function formatPassageDateFr(iso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "").trim());
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+}
+
+/**
+ * Refuse la clôture d'une ronde contractuelle trop tôt ou incomplète.
+ *
+ * Le compte-rendu et les heures d'arrivée / départ sont exigés, et seulement
+ * une fois l'heure de passage prévue dépassée.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} source - Canal d'erreur (`ronde:create` ou `ronde:status`).
+ * @param {object} row
+ * @returns {void}
+ */
+function assertPlannedClosureAllowed(store, source, row) {
+  const kind = String(row.source || "").trim().toUpperCase();
+  if (kind !== "PLANIFIE") return;
+  if (!isPassagePast(row)) {
+    const when = formatPassageDateFr(row.request_date || row.requestDate);
+    store.fail(
+      source,
+      when
+        ? `Cette ronde est prévue le ${when}. La clôture n'est possible qu'une fois l'heure de passage passée.`
+        : "La clôture n'est possible qu'une fois l'heure de passage passée.",
+      "RONDE_CLOSE_TOO_EARLY"
+    );
+  }
+  if (!String(row.report || "").trim()) {
+    store.fail(source, "Le compte rendu est obligatoire avant clôture.", "RONDE_CLOSE_REPORT_REQUIRED");
+  }
+  const arrival = String(row.arrival_time || row.arrivalTime || "").trim();
+  const departure = String(row.departure_time || row.departureTime || "").trim();
+  if (!arrival || !departure) {
+    store.fail(
+      source,
+      "Les heures d'arrivée et de départ sont obligatoires avant clôture.",
+      "RONDE_CLOSE_TIMES_REQUIRED"
+    );
+  }
+}
+
 module.exports = {
   TIME_RE,
   extractRequestedTimeHm,
   isPassagePast,
   hasKnownTerrainData,
   isBatchFullyPast,
-  isRondeManagerRole
+  isRondeManagerRole,
+  assertPlannedClosureAllowed
 };

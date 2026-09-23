@@ -15,7 +15,8 @@ const { generateEntityId } = require("../../core/ids");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const {
   isPassagePast,
-  isRondeManagerRole
+  isRondeManagerRole,
+  assertPlannedClosureAllowed
 } = require("./passageRules");
 const {
   INSERT_SQL,
@@ -138,6 +139,17 @@ async function createRonde(store, payload) {
     ? String(payload.requestBatchId || "").trim().slice(0, 48) || null
     : null;
   const snapshotJson = normalizePlanningSnapshot(payload.requestPlanningSnapshotJson, source, store);
+  if (status === "CLOTURE" && source === "PLANIFIE") {
+    assertPlannedClosureAllowed(store, "ronde:create", {
+      source,
+      request_date: normalized.requestDate,
+      horaires_demande_obs: normalized.horairesDemandeObs,
+      request_planning_snapshot_json: snapshotJson,
+      report: normalized.report,
+      arrival_time: normalized.arrivalTime,
+      departure_time: normalized.departureTime
+    });
+  }
   const insertParams = [
     entryId, null, null, source, originInterventionId, normalized.siteId,
     normalized.siteDisplay, normalized.requestDate, normalized.motifTypeId,
@@ -296,6 +308,9 @@ async function setRondeStatus(store, payload) {
       [entryId]
     );
     if (!locked) store.fail("ronde:status", "Ronde introuvable.", "RONDE_NOT_FOUND");
+    if (status === "CLOTURE") {
+      assertPlannedClosureAllowed(store, "ronde:status", locked);
+    }
     assertOptimisticLock(
       store,
       "ronde:status",

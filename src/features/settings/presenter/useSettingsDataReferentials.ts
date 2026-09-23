@@ -568,7 +568,7 @@ export function useSettingsDataReferentials({
     await loadAnomalyTypes();
   };
 
-  const onResolvePendingSite = async (payload: { pendingId: string; parc: string; famille: string }) => {
+  const onResolvePendingSite = async (payload: { pendingId: string; parc: string; famille: string; address: string }) => {
     if (!session) return;
     onError("");
     try {
@@ -577,7 +577,8 @@ export function useSettingsDataReferentials({
         requesterUsername: session.user.username,
         pendingId: payload.pendingId,
         parc: payload.parc,
-        famille: payload.famille
+        famille: payload.famille,
+        address: payload.address
       });
       const p = result?.propagation;
       const totalPropagated = p

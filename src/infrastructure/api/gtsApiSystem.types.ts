@@ -24,6 +24,8 @@ export interface GtsApiSystemChannels {
           helpId: string;
           resolvedPath: string | null;
           exists: boolean;
+          /** Vrai si une copie dans le dossier du poste masque le modèle embarqué. */
+          overridden?: boolean;
           targetInstallPath: string | null;
         }>;
         writableTemplatesDir: string | null;
@@ -44,6 +46,12 @@ export interface GtsApiSystemChannels {
         requesterUsername: string;
         targetFileName: string;
       }) => Promise<{ success: boolean; fileName: string }>;
+      restoreBuiltinDocumentTemplate: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        targetFileName: string;
+      }) => Promise<{ success: boolean; fileName: string; resolvedPath: string | null }>;
       listTemplateAssignments: (payload: { sessionToken: string; requesterRole: Role }) => Promise<
         Array<{
           id: string;

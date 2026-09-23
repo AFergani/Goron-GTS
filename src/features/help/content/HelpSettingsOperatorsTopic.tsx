@@ -15,7 +15,8 @@ export function HelpSettingsOperatorsTopic() {
         </li>
         <li>
           🔒 Vous ne pouvez gérer que des comptes de niveau <strong>inférieur ou égal</strong> au vôtre, et jamais
-          attribuer un niveau supérieur au vôtre.
+          attribuer un niveau supérieur au vôtre. Un <strong>superviseur</strong> ne peut pas changer le rôle ni le
+          profil : seul un responsable de station ou un directeur peut modifier le niveau hiérarchique.
         </li>
         <li>
           Depuis la liste, chaque compte propose selon vos droits : <strong>Modifier</strong>,{" "}

@@ -5,7 +5,7 @@
  * Échap sur la confirmation de suppression est géré ici via `useModalEscape`.
  */
 
-import { ChevronDown, ChevronUp, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { useModalEscape } from "../../common/hooks/useModalEscape";
 import type { FransorClosure } from "../../../types";
@@ -111,11 +111,11 @@ export function FransorClosureExceptionsModal({
                     et un motif, puis cliquer sur <strong>Enregistrer exception</strong>.
                   </li>
                   <li>
-                    <strong>Modifier :</strong> utiliser l&apos;icône crayon dans le tableau, ajuster les valeurs, puis
+                    <strong>Modifier :</strong> utiliser le bouton Modifier dans le tableau, ajuster les valeurs, puis
                     réenregistrer.
                   </li>
                   <li>
-                    <strong>Supprimer :</strong> utiliser l&apos;icône suppression, puis saisir un motif obligatoire.
+                    <strong>Supprimer :</strong> utiliser le bouton Supprimer, puis saisir un motif obligatoire.
                   </li>
                 </ol>
               </section>
@@ -200,7 +200,7 @@ export function FransorClosureExceptionsModal({
               </section>
 
               <section className="fransor-closure-form-section" aria-label="Ajout ou modification d'une période">
-                <div className="row fransor-closure-create">
+                <div className="fransor-closure-create">
                   <label>
                     Date début
                     <input type="date" value={closureStartDate} onChange={(e) => setClosureStartDate(e.target.value)} />
@@ -223,28 +223,28 @@ export function FransorClosureExceptionsModal({
                     <option value="OPEN">Ouvert</option>
                   </select>
                   <input value={closureLabel} onChange={(e) => setClosureLabel(e.target.value)} placeholder="Ex. Motif exemple" />
-                </div>
-                <div className="fransor-closure-actions">
-                  {editingClosureId && (
-                    <button
-                      type="button"
-                      className="btn-light action-icon-btn"
-                      title="Annuler la modification"
-                      aria-label="Annuler la modification"
-                      onClick={() => {
-                        setEditingClosureId(null);
-                        setClosureStartDate("");
-                        setClosureEndDate("");
-                        setClosureLabel("");
-                        setClosureMode("CLOSED");
-                      }}
-                    >
-                      <RotateCcw size={14} />
+                  <div className="fransor-closure-create-actions">
+                    {editingClosureId && (
+                      <button
+                        type="button"
+                        className="btn-light action-icon-btn"
+                        title="Annuler la modification"
+                        aria-label="Annuler la modification"
+                        onClick={() => {
+                          setEditingClosureId(null);
+                          setClosureStartDate("");
+                          setClosureEndDate("");
+                          setClosureLabel("");
+                          setClosureMode("CLOSED");
+                        }}
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                    )}
+                    <button type="button" onClick={onSubmitException}>
+                      {editingClosureId ? "Mettre à jour exception" : "Enregistrer exception"}
                     </button>
-                  )}
-                  <button type="button" onClick={onSubmitException}>
-                    {editingClosureId ? "Mettre à jour exception" : "Enregistrer exception"}
-                  </button>
+                  </div>
                 </div>
               </section>
 
@@ -270,10 +270,10 @@ export function FransorClosureExceptionsModal({
                           <td>{formatDateFr(closure.endDate)}</td>
                           <td>{formatClosureModeLabel(closure.mode)}</td>
                           <td>{closure.label}</td>
-                          <td>
+                          <td className="fransor-closure-actions-cell">
                             <button
                               type="button"
-                              className="btn-light action-icon-btn"
+                              className="table-action-btn table-action-btn--text"
                               title="Modifier l'exception"
                               aria-label="Modifier l'exception"
                               onClick={() => {
@@ -284,11 +284,11 @@ export function FransorClosureExceptionsModal({
                                 setClosureMode(closure.mode);
                               }}
                             >
-                              <Pencil size={14} />
+                              Modifier
                             </button>
                             <button
                               type="button"
-                              className="btn-danger action-icon-btn"
+                              className="table-action-btn table-action-btn--text table-action-btn--danger"
                               title="Supprimer l'exception"
                               aria-label="Supprimer l'exception"
                               onClick={() => {
@@ -296,7 +296,7 @@ export function FransorClosureExceptionsModal({
                                 setDeleteClosureReason("");
                               }}
                             >
-                              <Trash2 size={14} />
+                              Supprimer
                             </button>
                           </td>
                         </tr>

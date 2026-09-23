@@ -16,7 +16,8 @@ export function HelpSettingsTemplatesTopic() {
           <ul className="muted help-center-list">
             <li>
               Cliquez sur <strong>Remplacer</strong> sur la ligne du flux concerné pour changer le modèle par défaut
-              (main courante, intervention, ronde contractuelle) par votre propre fichier .docx.
+              (main courante, intervention, ronde contractuelle) par votre propre fichier .docx.{" "}
+              <strong>Rétablir</strong> retire cette copie et revient au modèle embarqué.
             </li>
             <li>
               Utilisez <strong>Nouvelle attribution</strong> pour attribuer un modèle spécifique à un site ou une

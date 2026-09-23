@@ -24,6 +24,8 @@ type FormModalProps = {
   busy?: boolean;
   error?: string;
   submitDisabled?: boolean;
+  /** Infobulle du bouton d’envoi, utile quand il est désactivé. */
+  submitTitle?: string;
 };
 
 /**
@@ -70,7 +72,8 @@ export function FormModal({
   hideCancel = false,
   busy = false,
   error,
-  submitDisabled = false
+  submitDisabled = false,
+  submitTitle
 }: FormModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -144,7 +147,12 @@ export function FormModal({
               </button>
             ) : null}
             {onSubmit ? (
-              <button type="button" onClick={() => void handleSubmit()} disabled={disabled || submitDisabled}>
+              <button
+                type="button"
+                title={submitTitle}
+                onClick={() => void handleSubmit()}
+                disabled={disabled || submitDisabled}
+              >
                 {disabled ? "Enregistrement…" : submitLabel}
               </button>
             ) : null}

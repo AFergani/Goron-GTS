@@ -8,7 +8,7 @@
  */
 
 const crypto = require("crypto");
-const { hashPassword, needsPasswordMigration, isPasswordRecentlyUsed, pushPasswordHistory } = require("../../core/password");
+const { hashPassword, verifyPassword, needsPasswordMigration, isPasswordRecentlyUsed, pushPasswordHistory } = require("../../core/password");
 const { generateEntityId } = require("../../core/ids");
 const { normalizePageAccess, sanitizeUser, toUserAuditSnapshot, USERS_SELECT } = require("./userMapping");
 const { assertOptimisticLock } = require("../data/optimisticLock");
@@ -25,6 +25,7 @@ const {
   hasRelatedDataForUserDeletion,
   ensureStationAdminAccess,
   isStationAdminRequester,
+  isSuperviseurRequester,
   assertCanActOnUser,
   assertCanAssignRank,
   assertNotSelfTarget,
@@ -583,6 +584,17 @@ async function updateUserProfile(
   }
   const nextManagerProfile = newRole === role.RESPONSABLE ? managerProfile : null;
   assertCanAssignRank(store, requester, newRole, nextManagerProfile, role, "users:updateProfile");
+  // Le superviseur gère les comptes de rang inférieur, sans pouvoir les promouvoir.
+  if (
+    isSuperviseurRequester(requester, role) &&
+    (newRole !== before.role || String(nextManagerProfile || "") !== String(before.managerProfile || ""))
+  ) {
+    store.fail(
+      "users:updateProfile",
+      "Seul un responsable de station ou un directeur peut modifier le niveau hiérarchique.",
+      "AUTH_FORBIDDEN"
+    );
+  }
   // Son propre niveau hiérarchique n'est jamais modifiable par soi-même : cela couvre la promotion
   // comme la rétrogradation accidentelle, qui ferait perdre l'accès à cet écran.
   if (

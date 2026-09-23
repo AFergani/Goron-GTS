@@ -55,6 +55,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const [assignFamille, setAssignFamille] = useState("");
   const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
   const [deleteCustomFileName, setDeleteCustomFileName] = useState<string | null>(null);
+  const [restoreBuiltinFileName, setRestoreBuiltinFileName] = useState<string | null>(null);
   const [assignOpenTick, setAssignOpenTick] = useState(0);
   const [assignBaseline, setAssignBaseline] = useState("");
 
@@ -217,6 +218,22 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
     }
   };
 
+  const confirmRestoreBuiltin = async () => {
+    if (!restoreBuiltinFileName) return;
+    try {
+      await gtsApiClient.restoreBuiltinDocumentTemplate({
+        requesterRole,
+        requesterUsername,
+        targetFileName: restoreBuiltinFileName
+      });
+      setRestoreBuiltinFileName(null);
+      onNotify?.("Modèle embarqué rétabli.");
+      await refreshTemplates();
+    } catch (err) {
+      onNotify?.(err instanceof Error ? err.message : "Impossible de rétablir le modèle embarqué.");
+    }
+  };
+
   return (
     <>
       <div className="templates-management-panel">
@@ -338,6 +355,19 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                           <FileUp size={16} aria-hidden />
                           Remplacer
                         </button>
+                        {row.kind === "builtin" && row.overridden ? (
+                          <button
+                            type="button"
+                            className="btn-light"
+                            title="Retirer le fichier personnalisé et revenir au modèle embarqué"
+                            aria-label={`Rétablir le modèle embarqué ${row.fileName}`}
+                            disabled={!writableDir}
+                            onClick={() => setRestoreBuiltinFileName(row.fileName)}
+                          >
+                            <RotateCcw size={16} aria-hidden />
+                            Rétablir
+                          </button>
+                        ) : null}
                         {row.kind === "custom" ? (
                           <button
                             type="button"
@@ -544,6 +574,14 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
         confirmClassName="btn-danger"
         onCancel={() => setDeleteCustomFileName(null)}
         onConfirm={() => void confirmDeleteCustomFile()}
+      />
+      <ConfirmModal
+        isOpen={Boolean(restoreBuiltinFileName)}
+        title="Revenir au modèle embarqué ?"
+        message="Le fichier personnalisé de ce poste sera retiré. Les prochains exports utiliseront le modèle livré avec l’application."
+        confirmLabel="Rétablir"
+        onCancel={() => setRestoreBuiltinFileName(null)}
+        onConfirm={() => void confirmRestoreBuiltin()}
       />
     </>
   );

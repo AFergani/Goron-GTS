@@ -238,7 +238,19 @@ export function GardiennageTable({
 
                 <td className="gardiennage-planning-cell">
                   <div className="gardiennage-planning-cell__inner">
-                    <GardiennageKindBadge entry={entry} />
+                    <span className="gardiennage-planning-badges">
+                      <GardiennageKindBadge entry={entry} />
+                      {entry.linkedInterventionId ? (
+                        <span className="gardiennage-link-badge" title="Gardiennage créé depuis une intervention">
+                          Suite inter
+                        </span>
+                      ) : null}
+                      {entry.linkedRondeId ? (
+                        <span className="gardiennage-link-badge gardiennage-link-badge--ronde" title="Gardiennage créé depuis une ronde">
+                          Suite ronde
+                        </span>
+                      ) : null}
+                    </span>
                     {showPeriode ? (
                       <span className="gardiennage-periode">
                         {formatDateFr(entry.recurrenceStartDate)}

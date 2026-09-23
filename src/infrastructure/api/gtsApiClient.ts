@@ -102,6 +102,9 @@ export const gtsApiClient = {
   deleteCustomDocumentTemplate(payload: { requesterRole: Role; requesterUsername: string; targetFileName: string }) {
     return sessionCall(window.gtsApi.deleteCustomDocumentTemplate, payload);
   },
+  restoreBuiltinDocumentTemplate(payload: { requesterRole: Role; requesterUsername: string; targetFileName: string }) {
+    return sessionCall(window.gtsApi.restoreBuiltinDocumentTemplate, payload);
+  },
   listTemplateAssignments(payload: { requesterRole: Role }): Promise<TemplateAssignmentRow[]> {
     return sessionCall(window.gtsApi.listTemplateAssignments, payload);
   },
@@ -437,6 +440,7 @@ export const gtsApiClient = {
     pendingId: string;
     parc: string;
     famille: string;
+    address?: string;
   }) {
     return sessionCall(window.gtsApi.resolvePendingSite, payload);
   },

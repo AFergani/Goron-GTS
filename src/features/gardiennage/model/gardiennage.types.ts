@@ -41,8 +41,18 @@ export type GardiennagePlanningSnapshotV1 = {
   /** Date/heure d'émission de la demande (hors moteur de créneaux). */
   requestDate?: string;
   requestTime?: string;
+  /** Nom du client demandeur. Vide = demande télésurveillance. */
+  clientName?: string;
   lines: GardiennagePlanningLineV1[];
 };
+
+/**
+ * Libellé de la demande : le client s'il est renseigné, sinon la télésurveillance.
+ */
+export function gardiennageDemandLabel(clientName: string | null | undefined): string {
+  const name = String(clientName || "").trim();
+  return name ? `Demande de ${name}` : "Demande Télésurveillance";
+}
 
 /** Entrée liste / modale (libellés site et prestataire, pas d’UUID en UI export utilisateur). */
 export type GardiennageEntry = {

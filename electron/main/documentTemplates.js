@@ -302,11 +302,14 @@ function createDocumentTemplatesService(deps) {
     for (const b of builtins) {
       seen.add(b.fileName);
       const resolvedPath = findFirstExistingTemplatePath(b.fileName);
+      const writableCopy = writableDir ? path.join(writableDir, b.fileName) : null;
+      const overridden = Boolean(writableCopy && fs.existsSync(writableCopy));
       templates.push({
         ...b,
         resolvedPath,
         exists: Boolean(resolvedPath),
-        targetInstallPath: writableDir ? path.join(writableDir, b.fileName) : null
+        overridden,
+        targetInstallPath: writableCopy
       });
     }
     for (const root of getDataRootCandidates()) {
@@ -459,6 +462,39 @@ function createDocumentTemplatesService(deps) {
   }
 
   /**
+   * Retire la copie locale d'un modèle embarqué remplacé. Le fichier du pack reste en place.
+   *
+   * RBAC : `ensureDataManagerRole`. Audit : `DATA_DOCUMENT_TEMPLATE_RESTORE`.
+   *
+   * @param {object} payload
+   * @param {string} payload.requesterRole
+   * @param {string} payload.requesterUsername
+   * @param {string} payload.targetFileName
+   * @returns {Promise<{ success: true, fileName: string, resolvedPath: string|null }>}
+   */
+  async function restoreBuiltinDocumentTemplate(payload) {
+    ensureStore();
+    const userStore = getUserStore();
+    const { requesterRole, requesterUsername, targetFileName } = payload || {};
+    userStore.ensureDataManagerRole(requesterRole);
+    const safeName = path.basename(String(targetFileName || "").trim());
+    if (!BUILTIN_TEMPLATE_FILE_NAMES.has(safeName)) {
+      throw new Error("Seul un modèle par défaut remplacé peut être rétabli.");
+    }
+    const destPath = unlinkCustomTemplateInWritableDir(safeName);
+    userStore.logAudit({
+      actorUsername: requesterUsername || "unknown",
+      action: "DATA_DOCUMENT_TEMPLATE_RESTORE",
+      details: { fileName: safeName, destPath }
+    });
+    return {
+      success: true,
+      fileName: safeName,
+      resolvedPath: findFirstExistingTemplatePath(safeName)
+    };
+  }
+
+  /**
    * Si plus aucune attribution n'utilise ce fichier, le retire du dossier writable.
    *
    * @param {object} payload
@@ -491,6 +527,7 @@ function createDocumentTemplatesService(deps) {
     installDocumentTemplateCopy,
     upsertScopedDocumentTemplate,
     deleteCustomDocumentTemplate,
+    restoreBuiltinDocumentTemplate,
     deleteCustomTemplateFileIfUnreferenced,
     resolveWritableTemplatesDirectory
   };

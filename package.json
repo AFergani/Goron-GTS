@@ -1,6 +1,6 @@
 {
   "name": "goron-gts",
-  "version": "1.0.76",
+  "version": "1.0.89",
   "description": "Application de gestion des tableurs GTS",
   "main": "electron/main.js",
   "scripts": {
@@ -73,6 +73,10 @@
     ],
     "directories": {
       "output": "release-build"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "win": {
       "icon": "electron/app-icon.ico",

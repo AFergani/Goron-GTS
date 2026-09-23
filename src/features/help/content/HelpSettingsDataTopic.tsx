@@ -25,7 +25,8 @@ export function HelpSettingsDataTopic() {
         <li>
           Sur <strong>Sites</strong> et <strong>Intervenants</strong>, un bouton <strong>Importer</strong> permet
           d&apos;ajouter en masse via un fichier Excel ; les saisies inconnues faites par le terrain apparaissent aussi
-          en bannière pour validation ou rejet avec motif.
+          en bannière pour validation ou rejet avec motif. La validation d&apos;un site demande aussi l&apos;adresse :
+          une saisie en minuscules est enregistrée et affichée en majuscules.
         </li>
         <li>
           Sur <strong>Jours fériés</strong>, seules les dates locales/spécifiques s&apos;ajoutent ici (les jours fériés

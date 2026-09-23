@@ -56,7 +56,7 @@ function toSiteSnapshot(row) {
   return {
     code: String(row.code || ""),
     name: String(row.name || ""),
-    address: String(row.address || ""),
+    address: normalizeUpperText(row.address),
     parc: String(row.parc || ""),
     famille: String(row.famille || "")
   };
@@ -70,7 +70,7 @@ function normalizeSiteInput(input) {
   return {
     code: String(input.code || "").trim(),
     name: String(input.name || "").trim(),
-    address: String(input.address || "").trim(),
+    address: normalizeUpperText(input.address),
     parc: normalizeUpperText(input.parc),
     famille: normalizeUpperText(input.famille)
   };

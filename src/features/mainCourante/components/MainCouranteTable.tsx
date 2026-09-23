@@ -254,7 +254,12 @@ export function MainCouranteTable({
             <td className="col-daily-code">{entry.dailyCode || "—"}</td>
             <td className="mc-col-date">{formatMainCouranteDate(entry.createdAt)}</td>
             <td className="mc-col-site mc-site-wrap">
-              <SiteDisplayCopyButton variant="table" siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
+              <SiteDisplayCopyButton
+                variant="table"
+                siteLabel={entry.siteDisplay || ""}
+                emptyLabel="Fait général"
+                onNotify={onNotify}
+              />
             </td>
             <td className="mc-col-operator">{entry.operatorName}</td>
             <td className="mc-col-type">

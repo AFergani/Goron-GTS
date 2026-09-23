@@ -7,7 +7,7 @@
 
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
-import type { GardiennageEntry } from "../model/gardiennage.types";
+import { gardiennageDemandLabel, type GardiennageEntry } from "../model/gardiennage.types";
 import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
@@ -18,6 +18,7 @@ const HEADERS = [
   "Période",
   "Horaires",
   "Prestataire",
+  "Demande",
   "Statut",
   "Notes",
   "Compte-rendu",
@@ -54,6 +55,7 @@ export async function exportGardiennageToExcel(entries: GardiennageEntry[]) {
       formatPeriod(entry),
       formatSchedule(entry),
       entry.intervenantName || "",
+      gardiennageDemandLabel(entry.planningSnapshot?.clientName),
       statusLabelFr(entry.status),
       entry.notes || "",
       entry.closureReport || "",
@@ -77,6 +79,7 @@ export async function exportGardiennageToExcel(entries: GardiennageEntry[]) {
     { wch: 30 },
     { wch: 20 },
     { wch: 24 },
+    { wch: 28 },
     { wch: 14 },
     { wch: 42 },
     { wch: 42 },

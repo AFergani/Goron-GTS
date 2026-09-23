@@ -302,6 +302,7 @@ async function closeGardiennage(store, payload) {
 
 /**
  * Rouvre un gardiennage clôturé ou annulé.
+ * Le compte-rendu et les horaires effectifs déjà saisis sont conservés.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -323,8 +324,7 @@ async function reopenGardiennage(store, payload) {
     }
     const result = await tx.run(
       `UPDATE gardiennage_entries
-       SET status = 'PLANIFIE', closure_report = '', actual_start_time = '', actual_end_time = '',
-           work_order_number = '', cancellation_reason = '', updated_at = ?
+       SET status = 'PLANIFIE', cancellation_reason = '', updated_at = ?
        WHERE id = ? AND updated_at = ?`,
       [new Date().toISOString(), entryId, payload.expectedUpdatedAt]
     );

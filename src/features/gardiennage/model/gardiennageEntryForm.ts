@@ -35,6 +35,7 @@ export type GardiennageEntryFormState = {
   planningLines: GardiennagePlanningLineV1[];
   requestDate: string;
   requestTime: string;
+  clientName: string;
 };
 
 export const EMPTY_GARDIENNAGE_ENTRY_FORM: GardiennageEntryFormState = {
@@ -57,7 +58,8 @@ export const EMPTY_GARDIENNAGE_ENTRY_FORM: GardiennageEntryFormState = {
   isContinuous: false,
   planningLines: [],
   requestDate: "",
-  requestTime: ""
+  requestTime: "",
+  clientName: ""
 };
 
 /**

@@ -157,14 +157,15 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
   };
 
   /**
-   * Le mot de passe temporaire obtenu pré-remplit le formulaire de connexion :
-   * la connexion qui suit déclenche la modale de définition du mot de passe personnel.
+   * Après validation du collègue, la connexion avec le mot de passe temporaire
+   * ouvre directement la fenêtre de choix du mot de passe personnel.
    */
   const onSubmitPeerReset = async (e: FormEvent) => {
     e.preventDefault();
     if (isPeerResetting) return;
     setPeerResetError("");
     setIsPeerResetting(true);
+    let handedToLogin = false;
     try {
       const result = await gtsApiClient.resetPasswordWithPeer({
         fullName: peerResetForm.fullName,
@@ -172,11 +173,26 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
         validatorPassword: peerResetForm.validatorPassword,
         reason: peerResetForm.reason
       });
-      setLoginForm({ username: result.fullName, password: result.temporaryPassword });
       onClosePeerReset();
-      onToast("Accès débloqué. Cliquez sur Connexion pour définir votre nouveau mot de passe.");
+      handedToLogin = true;
+      const session = await gtsApiClient.login({
+        username: result.fullName,
+        password: result.temporaryPassword
+      });
+      if (session.user.mustChangePassword) {
+        setPendingFirstLogin({ displayName: result.fullName, temporaryPassword: result.temporaryPassword });
+        setPasswordUpdateError("");
+        setPasswordUpdateForm({ newPassword: "", confirmPassword: "" });
+        setShowPasswordUpdateModal(true);
+        setLoginForm({ username: "", password: "" });
+        return;
+      }
+      onSessionCreated(session);
+      setLoginForm({ username: "", password: "" });
     } catch (err) {
-      setPeerResetError(extractUserFacingErrorMessage(err, "Erreur lors du déblocage de l'accès."));
+      const message = extractUserFacingErrorMessage(err, "Erreur lors du déblocage de l'accès.");
+      if (handedToLogin) onError(message);
+      else setPeerResetError(message);
     } finally {
       setIsPeerResetting(false);
     }

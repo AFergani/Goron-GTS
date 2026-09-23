@@ -7,6 +7,13 @@
   overflow: auto;
 }
 
+/* Écrase .modal (520px) : la saisie date / type / motif / enregistrement tient sur une ligne. */
+.modal.fransor-help-modal.fransor-closure-modal {
+  width: min(1180px, 96vw);
+  max-width: min(1180px, 96vw);
+  box-sizing: border-box;
+}
+
 /* Même gabarit que les autres modales Gestion des données (modal + fransor-help-modal) ; évite le défilement horizontal */
 .ronde-planned-rule-modal.fransor-help-modal {
   overflow-x: hidden;

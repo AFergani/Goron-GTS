@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
   listTemplateAssignments: (payload) => ipcRenderer.invoke("system:listTemplateAssignments", payload),
   upsertScopedDocumentTemplate: (payload) => ipcRenderer.invoke("system:upsertScopedDocumentTemplate", payload),
   deleteCustomDocumentTemplate: (payload) => ipcRenderer.invoke("system:deleteCustomDocumentTemplate", payload),
+  restoreBuiltinDocumentTemplate: (payload) => ipcRenderer.invoke("system:restoreBuiltinDocumentTemplate", payload),
   deleteTemplateAssignment: (payload) => ipcRenderer.invoke("system:deleteTemplateAssignment", payload),
   resolveTemplateFileForContext: (payload) => ipcRenderer.invoke("system:resolveTemplateFileForContext", payload),
   openTemplatesFolder: (payload) => ipcRenderer.invoke("system:openTemplatesFolder", payload),

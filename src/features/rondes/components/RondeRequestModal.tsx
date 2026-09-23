@@ -213,7 +213,6 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     updateLine,
     addLine,
     exceptionalPreview,
-    lockWeekdaysFromValidityRange,
     requestExtraDefs,
     extraValues,
     setExtraValues,
@@ -404,10 +403,8 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           ...(!isEdit && isManager ? { autoValidate: true } : {})
         })
       );
-      if (!isEdit) {
-        props.onNotify?.("Profil de programmation enregistré.");
-        props.onClose();
-      }
+      if (!isEdit) props.onNotify?.("Profil de programmation enregistré.");
+      props.onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
@@ -477,7 +474,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             motifTypeId={motifTypeId}
             origin={origin}
             originLabel={originLabel}
-            isOriginFixed={isOriginFixed}
+            isOriginFixed={isOriginFixed || isEdit}
             isEdit={isEdit}
             isLinkedExistingBatch={isLinkedExistingBatch}
             isContract={isContract}
@@ -556,7 +553,6 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           <RondeRequestLineEditor
             lines={lines}
             isSingleDay={isSingleDay}
-            lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
             readOnly={isProgrammingReadOnly}
             onAddLine={addLine}
             onRemoveLine={(index) => setLines((prev) => prev.filter((_, i) => i !== index))}
@@ -569,7 +565,6 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
               isEdit={isEdit}
               isContract={isContract}
               isSingleDay={isSingleDay}
-              lockWeekdaysFromValidityRange={lockWeekdaysFromValidityRange}
               validFrom={validFrom}
               validFromTime={validFromTime}
               validTo={validTo}

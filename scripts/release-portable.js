@@ -604,6 +604,7 @@ function main() {
     run("npm ci", "Réinstallation propre des dépendances");
   }
 
+  // NSIS assisté (package.json) : le dossier d'installation se choisit. Les données restent dans %APPDATA%\goron-gts.
   run("npm run dist:win:all", "Build Electron Windows (portable + nsis + dossier)");
   assertRequiredWordTemplates("dist/templates", "vite-dist");
   const buildOutputDir = path.join(rootDir, "release-build");

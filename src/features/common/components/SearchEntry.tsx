@@ -34,6 +34,8 @@ type SearchEntryProps = {
   intervenantLabel?: string | null;
   /** Classes du conteneur (ex. `request-head-row__refs` pour une ligne partagée). */
   className?: string;
+  /** Bloque la recherche site et prestataire. */
+  disabled?: boolean;
 };
 
 export function SearchEntry({
@@ -58,7 +60,8 @@ export function SearchEntry({
   showIntervenantField = true,
   siteLabel = "Site",
   intervenantLabel = "Prestataire",
-  className
+  className,
+  disabled = false
 }: SearchEntryProps) {
   return (
     <div className={["mc-form-grid", "mc-form-grid-main", className].filter(Boolean).join(" ")}>
@@ -66,6 +69,7 @@ export function SearchEntry({
         <div className="mc-field-with-inline-action">
           <SiteSearchInput
             sites={sites}
+            disabled={disabled}
             selectedSite={selectedSite}
             onSelectedSiteChange={onSelectedSiteChange}
             copyNotify={onNotify}
@@ -83,6 +87,7 @@ export function SearchEntry({
         <div className="mc-field-with-inline-action">
           <IntervenantSearchInput
             intervenants={intervenants}
+            disabled={disabled}
             selectedIntervenant={selectedIntervenant}
             onSelectedIntervenantChange={onSelectedIntervenantChange ?? (() => {})}
             selectedSite={selectedSite}

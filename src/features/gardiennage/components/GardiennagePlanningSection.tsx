@@ -389,6 +389,7 @@ export function GardiennagePlanningSection({
         closedSlotsCount={previewClosedSlotsCount}
         openEnded={planningMode === "h24" && !form.validToDate.trim()}
         openEndedHorizonDays={GARDIENNAGE_OPEN_ENDED_HORIZON_DAYS}
+        clientName={form.clientName}
       />
     </>
   );

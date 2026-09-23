@@ -207,6 +207,7 @@ export function GardiennageEntryModal({
       isContinuous,
       requestDate: String(snap?.requestDate || "").trim() || created.date,
       requestTime: String(snap?.requestTime || "").trim() || created.time,
+      clientName: String(snap?.clientName || "").trim(),
       planningLines: isContinuous || isPonctuel
         ? []
         : (snap?.lines?.length
@@ -317,6 +318,9 @@ export function GardiennageEntryModal({
   /** Restriction rôle uniquement hors création (la création reste ouverte à tous). */
   const isOperatorMode = requesterRole === "OPERATEUR";
   const isReadOnlyByRole = !isCreateMode && isOperatorMode;
+  /** Fiche clôturée ou annulée : consultation, jusqu’à une réouverture. */
+  const isConsultation = isCloture || isAnnule;
+  const fieldsLocked = isSaving || isConsultation || isReadOnlyByRole;
   const canCreatePendingRefs = isCreateMode;
 
   const canReopen = !isCreateMode && (isCloture || isAnnule) && Boolean(onReopenEntry) && Boolean(entry) && !isReadOnlyByRole;
@@ -374,7 +378,7 @@ export function GardiennageEntryModal({
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (isSubmitDisabled || isAnnule) return;
+    if (isSubmitDisabled || isConsultation) return;
     setIsSaving(true);
     try {
       let ok = false;
@@ -523,12 +527,13 @@ export function GardiennageEntryModal({
                 <RequestDateTimeField
                   date={form.requestDate}
                   time={form.requestTime}
-                  disabled={isSaving || isAnnule || isReadOnlyByRole}
+                  disabled={fieldsLocked}
                   onDateChange={(value) => setForm((f) => withRequestDateTime(f, value, f.requestTime))}
                   onTimeChange={(value) => setForm((f) => withRequestDateTime(f, f.requestDate, value))}
                 />
                 <SearchEntry
                   className="request-head-row__refs"
+                  disabled={fieldsLocked}
                   sites={sites}
                 intervenants={intervenants}
                 selectedSite={selectedSite}
@@ -585,7 +590,7 @@ export function GardiennageEntryModal({
                 form={form}
                 setForm={setForm}
                 planningMode={planningMode}
-                locked={isSaving || isAnnule || isReadOnlyByRole}
+                locked={fieldsLocked}
                 isCreateMode={isCreateMode}
                 isCloture={isCloture}
                 isAnnule={isAnnule}
@@ -602,6 +607,20 @@ export function GardiennageEntryModal({
               />
 
               {/* CONSIGNE */}
+              <CreateFormSection title="Demande">
+                <label className="mc-field mc-field-full">
+                  <span>Nom du client</span>
+                  <input
+                    type="text"
+                    value={form.clientName}
+                    disabled={fieldsLocked}
+                    maxLength={200}
+                    placeholder="Vide : demande télésurveillance"
+                    aria-label="Nom du client"
+                    onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
+                  />
+                </label>
+              </CreateFormSection>
               <CreateFormSection title="Consigne">
                 <div
                   className={
@@ -614,7 +633,7 @@ export function GardiennageEntryModal({
                     <textarea
                       rows={3}
                       value={form.notes}
-                      disabled={isSaving || isAnnule || isReadOnlyByRole}
+                      disabled={fieldsLocked}
                       maxLength={2000}
                       placeholder="Consignes particulières, observations…"
                       className="mc-textarea"
@@ -626,7 +645,7 @@ export function GardiennageEntryModal({
                       defs={extras.requestDefs}
                       values={extras.values}
                       onValuesChange={extras.setValues}
-                      disabled={isSaving || isAnnule || isCloture || isReadOnlyByRole}
+                      disabled={fieldsLocked}
                       compact
                     />
                   ) : null}
@@ -636,7 +655,7 @@ export function GardiennageEntryModal({
                     defs={extras.requestDefs}
                     values={extras.values}
                     onValuesChange={extras.setValues}
-                    disabled={isSaving || isAnnule || isCloture || isReadOnlyByRole}
+                    disabled={fieldsLocked}
                     title="Champs de la demande"
                   />
                 ) : null}
@@ -685,12 +704,12 @@ export function GardiennageEntryModal({
                   {canReopen && (
                     <button
                       type="button"
-                      className="btn-light"
+                      className="mc-btn-primary"
                       disabled={isSaving}
                       title="Rouvrir ce gardiennage pour modification"
                       onClick={() => void handleReopenGardiennage()}
                     >
-                      Rouvrir
+                      {isSaving ? "Réouverture…" : "Rouvrir"}
                     </button>
                   )}
                   {canCancel && (
@@ -703,7 +722,7 @@ export function GardiennageEntryModal({
                       Annuler le gardiennage
                     </button>
                   )}
-                  {!isAnnule && !isReadOnlyByRole && (
+                  {!isConsultation && !isReadOnlyByRole && (
                     <button type="submit" className="mc-btn-primary" disabled={isSubmitDisabled}>
                       {isSaving ? "Enregistrement…" : isCreateMode ? "Créer" : "Enregistrer"}
                     </button>

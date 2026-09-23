@@ -21,6 +21,8 @@ type SiteDisplayCopyButtonProps = {
   /** Champ type formulaire (modales) ou cellule tableau */
   variant?: "field" | "table";
   className?: string;
+  /** Texte affiché quand le libellé est vide (pas de copie). */
+  emptyLabel?: string;
 };
 
 export function SiteDisplayCopyButton({
@@ -28,11 +30,17 @@ export function SiteDisplayCopyButton({
   copySource,
   onNotify,
   variant = "field",
-  className
+  className,
+  emptyLabel = "—"
 }: SiteDisplayCopyButtonProps) {
-  const display = siteLabel.trim() || "—";
+  const display = siteLabel.trim() || emptyLabel;
   const siteCode = splitSiteDisplayParts(copySource ?? siteLabel).codePart;
-  const copyHint = siteCode ? `Copier le code site (${siteCode})` : "Copier le code site";
+  if (!siteCode) {
+    const staticClass =
+      className ?? (variant === "table" ? "mc-site-static" : "mc-input-readonly");
+    return <span className={staticClass}>{display}</span>;
+  }
+  const copyHint = `Copier le code site (${siteCode})`;
   const cls =
     className ?? (variant === "table" ? "mc-site-copy-btn" : "mc-input-readonly mc-site-copy-field");
 

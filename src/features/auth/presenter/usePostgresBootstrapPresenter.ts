@@ -264,9 +264,8 @@ export function usePostgresBootstrapPresenter({
       setPostgresTestResult(result);
       if (result.reachable) {
         onToast("Test PostgreSQL réussi.");
-      } else {
-        onError(result.error || "Connexion PostgreSQL impossible.");
       }
+      // L'échec est déjà affiché dans le panneau (« Échec — … »). Pas de second message en dessous.
     } catch (err) {
       if (isBootstrapBlockedBecauseReachable(err)) {
         markRecoveryRestored();

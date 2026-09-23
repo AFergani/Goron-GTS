@@ -51,7 +51,8 @@ export function useGardiennagePlanningPreview({
         fallbackDate: getLocalDateIso()
       }),
       requestDate: form.requestDate,
-      requestTime: form.requestTime
+      requestTime: form.requestTime,
+      clientName: String(form.clientName || "").trim()
     }),
     [form, planningMode]
   );

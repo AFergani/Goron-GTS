@@ -18,7 +18,7 @@ type PendingSubmissionsModalProps = {
   pendingSites: PendingSite[];
   pendingIntervenants: PendingIntervenant[];
   onClose: () => void;
-  onResolveSite: (payload: { pendingId: string; parc: string; famille: string }) => SyncOrAsync;
+  onResolveSite: (payload: { pendingId: string; parc: string; famille: string; address: string }) => SyncOrAsync;
   onResolveIntervenant: (payload: { pendingId: string; name: string }) => SyncOrAsync;
   onDeleteSiteSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
   onDeleteIntervenantSubmission: (payload: { pendingId: string; reason: string }) => SyncOrAsync;
@@ -28,7 +28,7 @@ type PendingSubmissionsModalProps = {
 
 type PendingSortKey = "label" | "createdBy" | "createdAt";
 
-type SiteDraft = { parc: string; famille: string };
+type SiteDraft = { parc: string; famille: string; address: string };
 type IntervenantDraft = { name: string };
 
 export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
@@ -46,7 +46,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
     setSiteDrafts((previous) => {
       const next: Record<string, SiteDraft> = {};
       for (const site of props.pendingSites) {
-        next[site.id] = previous[site.id] ?? { parc: "", famille: "" };
+        next[site.id] = previous[site.id] ?? { parc: "", famille: "", address: "" };
       }
       return next;
     });
@@ -98,7 +98,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
   const sortLabel = (key: PendingSortKey) => tableSortArrow(sortKey, key, sortDirection);
 
   const isDirty = isSites
-    ? Object.values(siteDrafts).some((draft) => Boolean(draft.parc.trim() || draft.famille.trim()))
+    ? Object.values(siteDrafts).some((draft) => Boolean(draft.parc.trim() || draft.famille.trim() || draft.address.trim()))
     : props.pendingIntervenants.some((item) => {
         const draftName = (intervenantDrafts[item.id]?.name ?? item.name).trim();
         return draftName !== item.name.trim();
@@ -114,7 +114,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
   };
 
   const submitSite = async (site: PendingSite) => {
-    const draft = siteDrafts[site.id] ?? { parc: "", famille: "" };
+    const draft = siteDrafts[site.id] ?? { parc: "", famille: "", address: "" };
     if (!draft.parc.trim() || !draft.famille.trim()) {
       props.onNotify?.("Parc et famille sont obligatoires pour valider le site.", "warning");
       return;
@@ -125,7 +125,8 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
         props.onResolveSite({
           pendingId: site.id,
           parc: draft.parc.trim(),
-          famille: draft.famille.trim()
+          famille: draft.famille.trim(),
+          address: draft.address.trim()
         })
       );
       setExpandedId(null);
@@ -179,7 +180,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
         </header>
         <p className="muted data-pending-submissions-hint">
           {isSites
-            ? "Étendez une ligne pour renseigner parc et famille. Le code et le nom sont déjà connus."
+            ? "Étendez une ligne pour renseigner l’adresse, le parc et la famille. Le code et le nom sont déjà connus. Une adresse en minuscules est enregistrée en majuscules."
             : "Étendez une ligne pour confirmer ou ajuster le nom avant validation."}
         </p>
         <div className="table-scroll-x">
@@ -210,7 +211,7 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
               {isSites
                 ? (sortedEntries as PendingSite[]).map((site) => {
                     const expanded = expandedId === site.id;
-                    const draft = siteDrafts[site.id] ?? { parc: "", famille: "" };
+                    const draft = siteDrafts[site.id] ?? { parc: "", famille: "", address: "" };
                     return (
                       <Fragment key={site.id}>
                         <tr>
@@ -263,6 +264,19 @@ export function PendingSubmissionsModal(props: PendingSubmissionsModalProps) {
                                 <label className="data-pending-expand-field">
                                   <span>Nom du site</span>
                                   <input value={site.name} readOnly aria-readonly="true" />
+                                </label>
+                                <label className="data-pending-expand-field data-pending-expand-field--wide">
+                                  <span>Adresse du site</span>
+                                  <input
+                                    value={draft.address}
+                                    placeholder="Ex. 1 rue Exemple"
+                                    onChange={(e) =>
+                                      setSiteDrafts((prev) => ({
+                                        ...prev,
+                                        [site.id]: { ...draft, address: e.target.value }
+                                      }))
+                                    }
+                                  />
                                 </label>
                                 <label className="data-pending-expand-field">
                                   <span>

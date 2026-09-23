@@ -6,7 +6,7 @@
  */
 
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import type { GardiennagePlanningLineV1 } from "../model/gardiennage.types";
+import { gardiennageDemandLabel, type GardiennagePlanningLineV1 } from "../model/gardiennage.types";
 import {
   isValidPlanningTime,
   resolvePonctuelValidToDate,
@@ -31,6 +31,7 @@ type GardiennagePlanningLinesRecapProps = {
   closedSlotsCount?: number;
   openEnded?: boolean;
   openEndedHorizonDays?: number;
+  clientName?: string;
 };
 
 function formatHm(value: string): string {
@@ -52,7 +53,8 @@ export function GardiennagePlanningLinesRecap({
   totalMinutesLabel,
   closedSlotsCount = 0,
   openEnded = false,
-  openEndedHorizonDays
+  openEndedHorizonDays,
+  clientName = ""
 }: GardiennagePlanningLinesRecapProps) {
   const fromDate = validFromDate.trim();
   const fromHm = formatHm(validFromTime);
@@ -111,17 +113,22 @@ export function GardiennagePlanningLinesRecap({
         )
       ) : null}
 
+      <div style={{ marginTop: 6 }} className="muted">
+        {gardiennageDemandLabel(clientName)}
+      </div>
       {fromDate ? (
         <div style={{ marginTop: 6 }} className="muted">
           Validité : du {fromFr}
           {mode === "ponctuel" || mode === "h24" ? (fromHm ? ` ${fromHm}` : "") : ""}
-          {" au "}
-          {mode === "ponctuel"
-            ? toFr
-            : openEnded
-              ? "nouvel ordre"
-              : toFr}
-          {mode === "ponctuel" || mode === "h24" ? (toHm ? ` ${toHm}` : "") : ""}
+          {openEnded ? (
+            " jusqu'à nouvel ordre"
+          ) : (
+            <>
+              {" au "}
+              {toFr}
+              {mode === "ponctuel" || mode === "h24" ? (toHm ? ` ${toHm}` : "") : ""}
+            </>
+          )}
           {mode === "ponctuel" ? " · Journée unique" : ""}
           {ponctuelCrossesMidnight ? " · Passage minuit" : ""}
           {mode === "h24" && openEnded && openEndedHorizonDays

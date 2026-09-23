@@ -41,9 +41,23 @@ export function CreateUserModal({
   const canAssignProfile = (profile: ManagerProfile) =>
     Boolean(session && canSessionAssignRank(session, "RESPONSABLE", profile));
   const reasonMissing = mode === "edit" && !isAuditReasonValid(form.reason);
+  const nameMissing = !String(form.username || "").trim();
   // On ne modifie pas son propre niveau hiérarchique : les sélecteurs restent en lecture seule.
   const isEditingSelf = mode === "edit" && Boolean(session) && editingTechnicalUsername === session?.user.username;
-  const rankLockTitle = isEditingSelf ? "Votre propre niveau hiérarchique n'est pas modifiable" : undefined;
+  // Promouvoir un compte est réservé au responsable de station, au directeur et à l’Admin.
+  const isSupervisor =
+    session?.user.role === "RESPONSABLE" && session.user.managerProfile === "SUPERVISEUR";
+  const rankLocked = isEditingSelf || isSupervisor;
+  const rankLockTitle = isEditingSelf
+    ? "Votre propre niveau hiérarchique n'est pas modifiable"
+    : isSupervisor
+      ? "Seul un responsable de station ou un directeur peut modifier le niveau hiérarchique"
+      : undefined;
+  const submitTitle = reasonMissing
+    ? `Saisissez un motif d’au moins ${MIN_AUDIT_REASON_LENGTH} caractères pour débloquer l’enregistrement.`
+    : nameMissing
+      ? "Le nom affiché est obligatoire."
+      : undefined;
 
   return (
     <FormModal
@@ -52,12 +66,10 @@ export function CreateUserModal({
       onClose={onClose}
       onSubmit={onSubmit}
       submitLabel={mode === "create" ? "Créer l'utilisateur" : "Enregistrer les modifications"}
-      submitDisabled={reasonMissing || !String(form.username || "").trim()}
+      submitDisabled={reasonMissing || nameMissing}
+      submitTitle={submitTitle}
     >
       <div className="form">
-        {mode === "edit" && (
-          <p className="muted">Identifiant technique: {editingTechnicalUsername || "-"}</p>
-        )}
         <label>
           <span>
             Nom affiché
@@ -81,7 +93,7 @@ export function CreateUserModal({
           Rôle technique
           <select
             value={form.role}
-            disabled={isEditingSelf}
+            disabled={rankLocked}
             title={rankLockTitle}
             onChange={(e) => {
               const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
@@ -100,7 +112,7 @@ export function CreateUserModal({
           Profil métier
           <select
             value={form.managerProfile}
-            disabled={isEditingSelf || form.role !== "RESPONSABLE"}
+            disabled={rankLocked || form.role !== "RESPONSABLE"}
             title={rankLockTitle ?? (form.role === "RESPONSABLE" ? undefined : "Réservé aux comptes responsables")}
             onChange={(e) =>
               onChange({

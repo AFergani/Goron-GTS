@@ -117,7 +117,7 @@ type SettingsPageProps = {
     errorEntries: Array<{ rowIndex: number; message: string; row: Record<string, unknown> }>;
   }) => Promise<void>;
   onRefreshImportedData: (target: DataRefreshTarget) => Promise<void>;
-  onResolvePendingSite: (payload: { pendingId: string; parc: string; famille: string }) => void | Promise<void>;
+  onResolvePendingSite: (payload: { pendingId: string; parc: string; famille: string; address: string }) => void | Promise<void>;
   onResolvePendingIntervenant: (payload: { pendingId: string; name: string }) => void | Promise<void>;
   onDeletePendingSiteSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
   onDeletePendingIntervenantSubmission: (payload: { pendingId: string; reason: string }) => void | Promise<void>;
@@ -333,6 +333,7 @@ export function SettingsPage(props: SettingsPageProps) {
           <UsersTable
             session={props.session}
             users={filteredUsers}
+            directoryUsers={props.users}
             activeUsernames={props.activeUsernames}
             onDeactivateUser={props.onDeactivateUser}
             onReactivateUser={props.onReactivateUser}

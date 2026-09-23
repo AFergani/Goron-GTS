@@ -340,29 +340,6 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     requestTime
   ]);
 
-  const lockWeekdaysFromValidityRange = validityRangeWeekdayLock != null;
-
-  useEffect(() => {
-    if (validityRangeWeekdayLock == null) return;
-    setLines((prev) => {
-      let changed = false;
-      const next = prev.map((line) => {
-        let draft = line;
-        if (draft.weekdaysMask !== validityRangeWeekdayLock) {
-          draft = { ...draft, weekdaysMask: validityRangeWeekdayLock };
-          changed = true;
-        }
-        /* Plage déjà bornée : fériés / veilles n’ajoutent rien d’utile. */
-        if (draft.includeHolidays || draft.includeHolidayEves) {
-          draft = { ...draft, includeHolidays: false, includeHolidayEves: false };
-          changed = true;
-        }
-        return draft;
-      });
-      return changed ? next : prev;
-    });
-  }, [validityRangeWeekdayLock]);
-
   useEffect(() => {
     if (!isSingleDay) {
       singleDayAutoKeyRef.current = null;
@@ -575,7 +552,6 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
     updateLine,
     addLine,
     exceptionalPreview: generationPreview,
-    lockWeekdaysFromValidityRange,
     requestExtraDefs: extras.requestDefs,
     extraValues: extras.values,
     setExtraValues: extras.setValues,

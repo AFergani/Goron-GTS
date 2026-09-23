@@ -72,6 +72,7 @@ function registerSystemIpcHandlers(deps) {
   handleIpcAuth("system:listTemplateAssignments", (payload) => getUserStore().listTemplateAssignments(payload));
   handleIpcAuth("system:upsertScopedDocumentTemplate", (payload) => documentTemplates.upsertScopedDocumentTemplate(payload));
   handleIpcAuth("system:deleteCustomDocumentTemplate", (payload) => documentTemplates.deleteCustomDocumentTemplate(payload));
+  handleIpcAuth("system:restoreBuiltinDocumentTemplate", (payload) => documentTemplates.restoreBuiltinDocumentTemplate(payload));
   handleIpcAuth("system:deleteTemplateAssignment", async (payload) => {
     const result = await getUserStore().deleteTemplateAssignment(payload);
     const fileName = String(result?.templateFileName || "").trim();

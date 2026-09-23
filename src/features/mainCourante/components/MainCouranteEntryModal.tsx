@@ -403,7 +403,7 @@ export function MainCouranteEntryModal({
                 </label>
                 <label className="mc-field">
                   <span>Site</span>
-                  <SiteDisplayCopyButton siteLabel={entry.siteDisplay || ""} onNotify={onNotify} />
+                  <SiteDisplayCopyButton siteLabel={entry.siteDisplay || ""} emptyLabel="Fait général" onNotify={onNotify} />
                 </label>
               </div>
               <div className="mc-form-grid mc-form-grid-main">
@@ -607,6 +607,7 @@ export function MainCouranteEntryModal({
                     <span>Site</span>
                     <SiteDisplayCopyButton
                       siteLabel={selectedSite ? formatSiteSelectedLabel(selectedSite) : entry?.siteDisplay || ""}
+                      emptyLabel="Fait général"
                       onNotify={onNotify}
                     />
                   </label>

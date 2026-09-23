@@ -14,7 +14,7 @@ import { resolveRondeClosureLabelTemplate } from "../utils/closureLabelTemplate"
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import type { RondeEntry, RondeSavePayload, RondeSource } from "../model/ronde.types";
-import { isRondeManagerRole, isRondePassagePast } from "../utils/rondePassageRules";
+import { isRondeManagerRole, isRondePassagePast, plannedContractualClosureRefusal } from "../utils/rondePassageRules";
 import { buildRondeEntrySavePayload } from "../model/rondeEntrySavePayload";
 import type { RondeEntryCreatePreset, useRondeEntryForm } from "../hooks/useRondeEntryForm";
 
@@ -280,8 +280,17 @@ export function useRondeEntryModalActions({
     if (statusActionBusy) return;
     setFieldError("");
     const isPlannedClosure = Boolean(isPlannedCreatePreset || entry?.source === "PLANIFIE");
-    if (isPlannedClosure && !report.trim()) {
-      setFieldError("Le compte rendu est obligatoire avant clôture.");
+    const closureRefusal = plannedContractualClosureRefusal({
+      source: isPlannedClosure ? "PLANIFIE" : entry?.source,
+      requestDate,
+      horairesDemandeObs,
+      requestPlanningSnapshot: entry?.requestPlanningSnapshot,
+      report,
+      arrivalTime,
+      departureTime
+    });
+    if (closureRefusal) {
+      setFieldError(closureRefusal);
       return;
     }
     const payload = buildPayload();
@@ -321,7 +330,7 @@ export function useRondeEntryModalActions({
     setStatusActionBusy("reopen");
     const ok = await onSetStatus(entry.id, entry.updatedAt, "EN_COURS");
     setStatusActionBusy(null);
-    if (ok) onClose();
+    if (ok) setFieldError("");
   };
 
   const isManagerRole = isRondeManagerRole(requesterRole);

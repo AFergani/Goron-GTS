@@ -66,16 +66,6 @@ export function SiteSearchInput({
   const showNoResultsHint = !selectedSite && canSearch && filtered.length === 0 && !disabled;
   const showCopyCode = Boolean(selectedSite);
   const showClear = !disabled && Boolean(query.trim() || selectedSite);
-  const innerClassName = [
-    "mc-site-input-inner",
-    showCopyCode && showClear
-      ? "mc-site-input-inner--with-clear-and-copy"
-      : showCopyCode
-        ? "mc-site-input-inner--with-copy"
-        : showClear
-          ? "mc-site-input-inner--with-clear"
-          : ""
-  ].filter(Boolean).join(" ");
 
   const clearField = () => {
     setQuery("");
@@ -116,7 +106,8 @@ export function SiteSearchInput({
       <div className="mc-field-with-inline-action">
         <label className="mc-field">
           {labelText !== null && labelText !== undefined ? <span>{labelText ?? (optional ? "Site (facultatif)" : "Site")}</span> : null}
-          <div className={innerClassName}>
+          <div className="mc-site-input-row">
+          <div className="mc-site-input-inner">
             <input
               ref={inputRef}
               type="text"
@@ -138,30 +129,6 @@ export function SiteSearchInput({
               aria-activedescendant={activeDescendantId}
               className="mc-site-code-input"
             />
-            {showClear ? (
-              <button
-                type="button"
-                className={`mc-site-clear-icon-btn action-icon-btn${showCopyCode ? " mc-site-clear-icon-btn--before-copy" : ""}`}
-                title="Effacer la recherche site"
-                aria-label="Effacer la recherche site"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={clearField}
-              >
-                <X size={16} aria-hidden />
-              </button>
-            ) : null}
-            {showCopyCode ? (
-              <button
-                type="button"
-                className="mc-site-copy-icon-btn action-icon-btn"
-                title="Copier le code site"
-                aria-label="Copier le code site"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => void copySiteDisplayCode(formatSiteSelectedLabel(selectedSite!), copyNotify)}
-              >
-                <Copy size={16} aria-hidden />
-              </button>
-            ) : null}
             {listIsOpen ? (
               <ul
                 ref={listRef}
@@ -193,6 +160,35 @@ export function SiteSearchInput({
                 ))}
               </ul>
             ) : null}
+          </div>
+          {showClear || showCopyCode ? (
+            <div className="mc-site-input-actions">
+              {showClear ? (
+                <button
+                  type="button"
+                  className="mc-site-clear-icon-btn action-icon-btn"
+                  title="Effacer la recherche site"
+                  aria-label="Effacer la recherche site"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={clearField}
+                >
+                  <X size={16} aria-hidden />
+                </button>
+              ) : null}
+              {showCopyCode ? (
+                <button
+                  type="button"
+                  className="mc-site-copy-icon-btn action-icon-btn"
+                  title="Copier le code site"
+                  aria-label="Copier le code site"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void copySiteDisplayCode(formatSiteSelectedLabel(selectedSite!), copyNotify)}
+                >
+                  <Copy size={16} aria-hidden />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           </div>
         </label>
         {onTogglePendingSite ? (

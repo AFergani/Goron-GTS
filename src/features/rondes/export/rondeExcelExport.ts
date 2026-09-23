@@ -8,6 +8,7 @@ import type { RondeEntry } from "../model/ronde.types";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { rondeOriginLabelFr, rondeStatusLabelFr } from "./rondeExportFormat";
+import { resolveKnownRondePassageKind } from "../utils/rondePassageKindLabel";
 
 const HEADERS = [
   "N°",
@@ -16,13 +17,26 @@ const HEADERS = [
   "Origine",
   "Prestataire",
   "Statut",
-  "Horaires demandés / observation",
+  "Type / horaires demandés / observation",
   "H arrivée",
   "H départ",
   "Durée (min)",
   "N° bon",
   "Compte-rendu"
 ] as const;
+
+/**
+ * Colonne type + horaires : le type de passage (ouverture, fermeture, etc.)
+ * précède le texte déjà saisi, pour le contractuel comme pour l’exceptionnel.
+ * Sans type identifiable, le texte reste seul (pas de repli « Aléatoire »).
+ */
+function horairesDemandeObsExportCell(entry: RondeEntry): string {
+  const obs = String(entry.horairesDemandeObs || "").trim();
+  const kind = (resolveKnownRondePassageKind(entry) ?? "").trim();
+  if (!kind) return obs;
+  if (obs.toLowerCase().includes(kind.toLowerCase())) return obs;
+  return obs ? `${kind} — ${obs}` : kind;
+}
 
 /**
  * Exporte une liste ronde en Excel.
@@ -44,7 +58,7 @@ export async function exportRondeToExcel(
       rondeOriginLabelFr(entry),
       entry.intervenantName || "",
       rondeStatusLabelFr(entry),
-      entry.horairesDemandeObs || "",
+      horairesDemandeObsExportCell(entry),
       entry.arrivalTime || "",
       entry.departureTime || "",
       entry.durationMinutes ?? "",
