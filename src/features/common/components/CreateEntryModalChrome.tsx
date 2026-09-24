@@ -60,7 +60,7 @@ export function CreateEntryModalFooter({
         Fermer
       </button>
       <div className="mc-modal-footer-hints-center muted">{hintContent ?? null}</div>
-      <button type="submit" className="mc-btn-primary" disabled={Boolean(submitDisabled) || submitting}>
+      <button type="submit" className="mc-btn-primary entry-create-submit" disabled={Boolean(submitDisabled) || submitting}>
         {submitting ? submittingLabel : submitLabel}
       </button>
     </div>

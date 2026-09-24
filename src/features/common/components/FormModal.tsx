@@ -149,6 +149,7 @@ export function FormModal({
             {onSubmit ? (
               <button
                 type="button"
+                className={submitLabel === "Créer" || submitLabel === "Enregistrer" ? "entry-create-submit" : undefined}
                 title={submitTitle}
                 onClick={() => void handleSubmit()}
                 disabled={disabled || submitDisabled}

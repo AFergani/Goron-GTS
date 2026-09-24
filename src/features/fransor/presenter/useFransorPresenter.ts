@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { DATA_REFRESH_POLL_MS } from "../../common/constants/dataRefreshPoll";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { FransorClosure, FransorEntry, FransorMonthlyRecap, FransorResponsableRef, HolidayRef, Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -40,8 +41,8 @@ export function useFransorPresenter({
   const [recap, setRecap] = useState<FransorMonthlyRecap[]>([]);
   const [holidays, setHolidays] = useState<HolidayRef[]>([]);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const [resRows, entryRows, closureRows, recapRows, holidayRows] = await Promise.all([
         gtsApiClient.listFransorResponsables({ requesterRole }),
@@ -69,6 +70,13 @@ export function useFransorPresenter({
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refresh({ silent: true });
+    }, DATA_REFRESH_POLL_MS);
+    return () => window.clearInterval(timer);
   }, [refresh]);
 
   const upsertEntry = useCallback(

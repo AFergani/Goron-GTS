@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { useSuggestListKeyboard } from "../hooks/useSuggestListKeyboard";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
+import { SuggestListPortal } from "./SuggestListPortal";
 
 function filterIntervenantsByName(intervenants: IntervenantRef[], query: string, limit = 50): IntervenantRef[] {
   const text = String(query || "").trim().toLowerCase();
@@ -137,7 +138,7 @@ export function IntervenantSearchInput({
                 <X size={16} aria-hidden />
               </button>
             ) : null}
-            {listIsOpen ? (
+            <SuggestListPortal open={listIsOpen} anchorRef={inputRef}>
               <ul
                 ref={listRef}
                 id={listboxId}
@@ -166,7 +167,7 @@ export function IntervenantSearchInput({
                   </li>
                 ))}
               </ul>
-            ) : null}
+            </SuggestListPortal>
           </div>
         </label>
         {onTogglePendingIntervenant ? (

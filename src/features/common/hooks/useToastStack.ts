@@ -13,6 +13,7 @@ import {
   type ToastItem,
   type ToastVariant
 } from "../model/toast.types";
+import { extractUserFacingErrorMessage } from "../utils/extractUserFacingErrorMessage";
 
 /** Fenêtre de déduplication des toasts au même libellé / variante. */
 const TOAST_DEDUPE_WINDOW_MS = 8000;
@@ -65,8 +66,9 @@ export function useToastStack(): {
 
   const notify = useCallback<NotifyToast>(
     (message, variant = "success") => {
-      const trimmed = String(message || "").trim();
-      if (!trimmed) return;
+      const raw = String(message || "").trim();
+      if (!raw) return;
+      const trimmed = extractUserFacingErrorMessage(raw, raw);
 
       const resolvedVariant: ToastVariant =
         variant === "success" || variant === "warning" || variant === "error" ? variant : "success";

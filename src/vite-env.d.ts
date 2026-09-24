@@ -190,7 +190,7 @@ declare global {
         requesterUsername: string;
         code: string;
         name: string;
-      }) => Promise<{ success: boolean; alreadyExists: boolean }>;
+      }) => Promise<{ success: boolean; alreadyExists: boolean; existsIn?: "catalog" | "pending" }>;
       resolvePendingSite: (payload: {
         requesterRole: Role;
         requesterUsername: string;

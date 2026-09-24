@@ -24,8 +24,8 @@ export type NotifyToast = (message: string, variant?: ToastVariant) => void;
 /** Durées par défaut (ms), proches de RenExtract ; succès à 5 s comme demandé labo. */
 export const TOAST_DURATIONS_MS: Record<ToastVariant, number> = {
   success: 5000,
-  warning: 5000,
-  error: 7000
+  warning: 10000,
+  error: 12000
 };
 
 /** Nombre maximum de toasts visibles simultanément. */

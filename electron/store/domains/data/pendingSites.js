@@ -99,10 +99,10 @@ async function createPendingSite(store, { requesterRole, requesterUsername, code
   }
   const outcome = await db.transaction(async (tx) => {
     if (await tx.get(`SELECT id FROM data_sites WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
-      return { alreadyExists: true };
+      return { alreadyExists: true, existsIn: "catalog" };
     }
     if (await tx.get(`SELECT id FROM data_site_pending WHERE ${FOLD_CODE} LIMIT 1`, [cleanCode])) {
-      return { alreadyExists: true };
+      return { alreadyExists: true, existsIn: "pending" };
     }
     const id = generateEntityId();
     await tx.run(
@@ -118,7 +118,11 @@ async function createPendingSite(store, { requesterRole, requesterUsername, code
       details: { pendingSite: { code: cleanCode, name: cleanName } }
     });
   }
-  return { success: true, alreadyExists: outcome.alreadyExists };
+  return {
+    success: true,
+    alreadyExists: Boolean(outcome.alreadyExists),
+    existsIn: outcome.existsIn || null
+  };
 }
 
 /**

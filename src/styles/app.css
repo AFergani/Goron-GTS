@@ -1042,7 +1042,8 @@ th {
   display: flex;
   flex-direction: column-reverse;
   gap: 10px;
-  max-width: min(380px, calc(100vw - 40px));
+  width: min(36rem, calc(100vw - 32px));
+  max-width: min(36rem, calc(100vw - 32px));
   pointer-events: none;
 }
 
@@ -1054,7 +1055,8 @@ th {
   border: 2px solid transparent;
   background: #28a745;
   color: #000;
-  padding: 10px 14px;
+  min-height: 3.4rem;
+  padding: 14px 16px;
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
   font-weight: 600;
@@ -3173,17 +3175,20 @@ th {
   font-size: 12px;
 }
 
+.mc-site-suggest-portal {
+  position: fixed;
+  z-index: 1600;
+  width: 28rem;
+  max-width: calc(100vw - 16px);
+}
+
 .mc-site-suggest {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 80;
+  position: relative;
+  z-index: 1;
   box-sizing: border-box;
-  /* Largeur du champ : une liste plus large étirait la modale vers la droite. */
   width: 100%;
   min-width: 0;
-  max-width: 100%;
+  max-width: none;
   /* Au moins 3 sites visibles, jusqu’à 5 avant le défilement. */
   max-height: calc((2.6rem * 5) + 8px);
   overflow-y: auto;
@@ -3244,6 +3249,8 @@ th {
 .mc-site-suggest-name {
   color: var(--text);
   min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mc-modal-footer {
@@ -3358,6 +3365,13 @@ th {
 
 .mc-btn-primary {
   min-width: 140px;
+}
+
+.entry-create-submit {
+  width: 11rem;
+  min-width: 11rem;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 /* Largeur fixe : « Nouvelle planification » / « Nouvelle ronde » ne décalent pas la barre. */

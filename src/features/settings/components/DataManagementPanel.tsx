@@ -594,7 +594,7 @@ export function DataManagementPanel(props: DataManagementPanelProps) {
         title={referentialModalTitle}
         onClose={closeReferentialModal}
         onSubmit={() => submitReferentialForm()}
-        submitLabel={editingId ? "Enregistrer" : "Ajouter"}
+        submitLabel={editingId ? "Enregistrer" : "Créer"}
       >
         <div className="form">
           {createModalTarget === "sites" && (

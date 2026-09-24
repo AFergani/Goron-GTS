@@ -121,8 +121,8 @@ export function FransorEntryModal({
           <button type="button" className="btn-light" onClick={onRequestClose}>
             Fermer
           </button>
-          <button type="button" onClick={onSubmit}>
-            Enregistrer
+          <button type="button" className="entry-create-submit" onClick={onSubmit}>
+            Créer
           </button>
         </div>
       </div>

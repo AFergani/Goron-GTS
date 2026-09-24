@@ -43,8 +43,13 @@ export function useCreatePendingRefs({
           name
         });
         await reload();
+        if (response.existsIn === "catalog") {
+          onToast?.("Ce site est déjà au référentiel. Choisissez-le dans la recherche.", "warning");
+          return false;
+        }
         if (response.alreadyExists) {
-          onToast?.("Ce site existe déjà ou est déjà en attente de validation.", "warning");
+          onToast?.("Ce site est déjà en attente de validation.", "warning");
+          return false;
         } else {
           onToast?.("Site ajouté en attente de validation.");
         }

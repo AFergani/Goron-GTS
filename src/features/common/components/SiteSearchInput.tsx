@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { SiteRef } from "../../../types";
 import { PendingSiteIntervenantRefActions } from "./PendingSiteIntervenantRefActions";
+import { SuggestListPortal } from "./SuggestListPortal";
 import { PendingSiteInlineFields } from "./PendingRefInlineFields";
 import { copySiteDisplayCode } from "../utils/siteDisplayCopy";
 import { useSuggestListKeyboard } from "../hooks/useSuggestListKeyboard";
@@ -129,7 +130,7 @@ export function SiteSearchInput({
               aria-activedescendant={activeDescendantId}
               className="mc-site-code-input"
             />
-            {listIsOpen ? (
+            <SuggestListPortal open={listIsOpen} anchorRef={inputRef}>
               <ul
                 ref={listRef}
                 id={listboxId}
@@ -159,7 +160,7 @@ export function SiteSearchInput({
                   </li>
                 ))}
               </ul>
-            ) : null}
+            </SuggestListPortal>
           </div>
           {showClear || showCopyCode ? (
             <div className="mc-site-input-actions">

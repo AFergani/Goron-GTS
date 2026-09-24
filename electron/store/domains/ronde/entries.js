@@ -308,6 +308,16 @@ async function setRondeStatus(store, payload) {
       [entryId]
     );
     if (!locked) store.fail("ronde:status", "Ronde introuvable.", "RONDE_NOT_FOUND");
+    if (status === "ANNULE" && locked.status === "CLOTURE") {
+      store.fail(
+        "ronde:status",
+        "Cette ronde est clôturée. Rouvrez-la avant de l'annuler.",
+        "RONDE_CANCEL_CLOSED"
+      );
+    }
+    if (status === "ANNULE" && locked.status === "ANNULE") {
+      store.fail("ronde:status", "Cette ronde est déjà annulée.", "RONDE_ALREADY_CANCELLED");
+    }
     if (status === "CLOTURE") {
       assertPlannedClosureAllowed(store, "ronde:status", locked);
     }

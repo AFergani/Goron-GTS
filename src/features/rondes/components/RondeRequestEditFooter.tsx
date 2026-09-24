@@ -48,7 +48,12 @@ export function RondeRequestEditFooter({
           </button>
         ) : null}
         {!hideSubmit ? (
-          <button type="button" onClick={onSubmit} disabled={submitting}>
+          <button
+            type="button"
+            className={isEdit || isLinkedExistingBatch ? undefined : "entry-create-submit"}
+            onClick={onSubmit}
+            disabled={submitting}
+          >
             {submitting
               ? "Enregistrement…"
               : isEdit

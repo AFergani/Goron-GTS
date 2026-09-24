@@ -14,7 +14,7 @@ export function HelpSettingsDataTopic() {
           <strong>Fransor</strong>.
         </li>
         <li>
-          Ajoutez une entrée avec <strong>Nouvelle entrée / Ajouter</strong>, modifiez-la avec le crayon (validez avec
+          Ajoutez une entrée avec <strong>Nouvelle entrée / Créer</strong>, modifiez-la avec le crayon (validez avec
           la disquette), ou supprimez-la avec la corbeille — un <strong>motif est obligatoire</strong> pour toute
           suppression.
         </li>

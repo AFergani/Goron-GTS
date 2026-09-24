@@ -723,7 +723,7 @@ export function GardiennageEntryModal({
                     </button>
                   )}
                   {!isConsultation && !isReadOnlyByRole && (
-                    <button type="submit" className="mc-btn-primary" disabled={isSubmitDisabled}>
+                    <button type="submit" className="mc-btn-primary entry-create-submit" disabled={isSubmitDisabled}>
                       {isSaving ? "Enregistrement…" : isCreateMode ? "Créer" : "Enregistrer"}
                     </button>
                   )}
