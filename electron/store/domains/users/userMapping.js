@@ -18,12 +18,18 @@ const USERS_SELECT = `id, username, full_name, role, manager_profile, theme_mode
 /**
  * Applique les accès aux pages : les vues métier sont toujours ouvertes.
  * Paramètres est automatique selon le rôle (oui si non-opérateur, jamais pour un opérateur).
+ * Remarques vidéo : Admin, tout responsable, ou opérateur au profil Opérateur +.
  *
  * @param {object|null|undefined} _pageAccess - Conservé pour compatibilité d'appel ; ignoré.
  * @param {string} role
+ * @param {string|null|undefined} managerProfile
  * @returns {object}
  */
-function normalizePageAccess(_pageAccess, role) {
+function normalizePageAccess(_pageAccess, role, managerProfile) {
+  const videoRemarks =
+    role === "DEV" ||
+    role === "RESPONSABLE" ||
+    (role === "OPERATEUR" && managerProfile === "OPERATEUR_PLUS");
   return {
     mainCourante: true,
     fransor: true,
@@ -31,7 +37,8 @@ function normalizePageAccess(_pageAccess, role) {
     rondes: true,
     gardiennage: true,
     // Aligné sur resolveUserPageAccess / getDefaultPageAccessByRole (DEV hors OPERATEUR côté sanitize).
-    settings: role !== "OPERATEUR"
+    settings: role !== "OPERATEUR",
+    videoRemarks
   };
 }
 
@@ -48,7 +55,7 @@ function sanitizeUser(user) {
   } catch {
     parsedPageAccess = null;
   }
-  const pageAccess = normalizePageAccess(parsedPageAccess, user.role);
+  const pageAccess = normalizePageAccess(parsedPageAccess, user.role, user.manager_profile);
   return {
     id: user.id,
     username: user.username,

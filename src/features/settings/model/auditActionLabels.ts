@@ -130,7 +130,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   GARDIENNAGE_STATUS_CHANGE: "[Gardiennage] Changement de statut",
   GARDIENNAGE_REOPEN: "[Gardiennage] Gardiennage rouvert",
   GARDIENNAGE_AUTO_CLOSE_BATCH: "[Gardiennage] Clôture automatique des prestations échues",
-  GARDIENNAGE_OPEN_ENDED_HORIZON_BATCH: "[Gardiennage] Prolongation automatique d'un gardiennage H24 jusqu'à nouvel ordre"
+  GARDIENNAGE_OPEN_ENDED_HORIZON_BATCH: "[Gardiennage] Prolongation automatique d'un gardiennage H24 jusqu'à nouvel ordre",
+  VIDEO_REMARK_SNAPSHOT_CREATE: "[Remarques vidéo] Sauvegarde d'une remarque",
+  VIDEO_REMARK_SNAPSHOT_UPDATE: "[Remarques vidéo] Mise à jour d'une remarque"
 };
 
 export function formatAuditActionLabel(action: string): string {

@@ -5,6 +5,7 @@
 
 import type { Session } from "../../../app/session/SessionProvider";
 import type { User } from "../../../types";
+import { formatRoleProfileLabel } from "../model/businessProfile";
 import { canSessionManageUser } from "../model/userHierarchy";
 
 /**
@@ -92,11 +93,7 @@ export function UsersTable({
   }
 
   function formatManagerProfile(user: User): string | null {
-    if (user.role !== "RESPONSABLE") return null;
-    if (user.managerProfile === "SUPERVISEUR") return "Superviseur";
-    if (user.managerProfile === "RESPONSABLE_STATION") return "Responsable de station";
-    if (user.managerProfile === "DIRECTEUR_STATION") return "Directeur de station";
-    return null;
+    return formatRoleProfileLabel(user.role, user.managerProfile);
   }
 
   /** Affiche « Rôle (Profil) » ; sans profil, uniquement le rôle (pas de parenthèses vides). */

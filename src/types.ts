@@ -13,7 +13,16 @@ export type Role = "RESPONSABLE" | "OPERATEUR" | "DEV";
 /** Sous-profil des comptes responsables (hiérarchie station). */
 export type ManagerProfile = "SUPERVISEUR" | "RESPONSABLE_STATION" | "DIRECTEUR_STATION";
 
-/** Droits d'accès aux pages de la sidebar (persistés en `page_access_json`). */
+/**
+ * Droit supplémentaire d'un opérateur, sans changement de rang.
+ * Première attribution : page Remarques vidéo.
+ */
+export type OperatorProfile = "OPERATEUR_PLUS";
+
+/** Valeur de `manager_profile` : profil responsable, ou Opérateur +. */
+export type BusinessProfile = ManagerProfile | OperatorProfile;
+
+/** Droits d'accès aux pages de la sidebar (déduits du rôle et du profil). */
 export type PageAccess = {
   mainCourante: boolean;
   fransor: boolean;
@@ -21,6 +30,8 @@ export type PageAccess = {
   rondes: boolean;
   settings: boolean;
   gardiennage: boolean;
+  /** Admin, les trois profils responsable, et Opérateur +. */
+  videoRemarks: boolean;
 };
 
 /** Compte utilisateur exposé à l'UI après authentification ou gestion des comptes. */
@@ -29,7 +40,7 @@ export type User = {
   username: string;
   fullName: string;
   role: Role;
-  managerProfile: ManagerProfile | null;
+  managerProfile: BusinessProfile | null;
   pageAccess: PageAccess;
   mustChangePassword: boolean;
   isActive: boolean;

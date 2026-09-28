@@ -14,7 +14,7 @@ const { normalizePageAccess, sanitizeUser, toUserAuditSnapshot, USERS_SELECT } =
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const {
   AUTO_UNLOCK_DELAY_MS,
-  MANAGER_PROFILES,
+  normalizeBusinessProfile,
   requirePersistence,
   refreshUsersCache,
   getCachedUserRow,
@@ -351,16 +351,13 @@ async function createUser(
   if (![roles.OPERATEUR, roles.RESPONSABLE].includes(role)) {
     store.fail("users:create", "Role invalide.", "USER_BAD_ROLE", { role });
   }
-  if (role === roles.RESPONSABLE && !MANAGER_PROFILES.includes(managerProfile || "")) {
-    store.fail("users:create", "Profil responsable invalide.", "USER_BAD_MANAGER_PROFILE", { managerProfile });
-  }
   const normalizedFullName = String(fullName || username || "").trim();
   if (!normalizedFullName) {
     store.fail("users:create", "Le nom affiché est obligatoire.", "USER_DISPLAY_NAME_REQUIRED");
   }
   await assertActiveFullNameUnique(store, normalizedFullName, "users:create");
-  const normalizedPageAccess = normalizePageAccess(null, role);
-  const normalizedManagerProfile = role === roles.RESPONSABLE ? managerProfile : null;
+  const normalizedManagerProfile = normalizeBusinessProfile(store, role, managerProfile, roles, "users:create");
+  const normalizedPageAccess = normalizePageAccess(null, role, normalizedManagerProfile);
   assertCanAssignRank(
     store,
     getCachedUserRow(store, requesterUsername),
@@ -579,10 +576,7 @@ async function updateUserProfile(
   if (![role.OPERATEUR, role.RESPONSABLE].includes(newRole)) {
     store.fail("users:updateProfile", "Rôle invalide.", "USER_BAD_ROLE", { newRole });
   }
-  if (newRole === role.RESPONSABLE && !MANAGER_PROFILES.includes(managerProfile || "")) {
-    store.fail("users:updateProfile", "Profil responsable invalide.", "USER_BAD_MANAGER_PROFILE");
-  }
-  const nextManagerProfile = newRole === role.RESPONSABLE ? managerProfile : null;
+  const nextManagerProfile = normalizeBusinessProfile(store, newRole, managerProfile, role, "users:updateProfile");
   assertCanAssignRank(store, requester, newRole, nextManagerProfile, role, "users:updateProfile");
   // Le superviseur gère les comptes de rang inférieur, sans pouvoir les promouvoir.
   if (
@@ -607,7 +601,7 @@ async function updateUserProfile(
       "AUTH_SELF_ACTION_FORBIDDEN"
     );
   }
-  const nextPageAccess = normalizePageAccess(null, newRole);
+  const nextPageAccess = normalizePageAccess(null, newRole, nextManagerProfile);
   // Une réinitialisation seule (aucun champ de profil modifié) est tracée sous sa propre action d'audit.
   const isPasswordResetOnly =
     Boolean(mustResetPassword) &&

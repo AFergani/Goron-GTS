@@ -92,6 +92,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
 
   // --- Référentiels (sites, intervenants, types, jours fériés, rondes planifiées) ---
   listSites: (payload) => ipcRenderer.invoke("data:sites:list", payload),
+  getVideoRemarkSnapshot: (payload) => ipcRenderer.invoke("videoRemarks:get", payload),
+  saveVideoRemarkSnapshot: (payload) => ipcRenderer.invoke("videoRemarks:save", payload),
   createSite: (payload) => ipcRenderer.invoke("data:sites:create", payload),
   updateSite: (payload) => ipcRenderer.invoke("data:sites:update", payload),
   deleteSite: (payload) => ipcRenderer.invoke("data:sites:delete", payload),

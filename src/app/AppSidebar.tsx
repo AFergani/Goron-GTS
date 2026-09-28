@@ -169,6 +169,11 @@ export function AppSidebar({
               <span className="nav-btn-label">Fransor</span>
             </button>
           )}
+          {userPageAccess.videoRemarks && (
+            <button type="button" className={navClass("videoRemarks")} onClick={() => onNavigate("videoRemarks")}>
+              <span className="nav-btn-label">Remarques vidéo</span>
+            </button>
+          )}
         </nav>
       </div>
       <div className="sidebar-bottom">

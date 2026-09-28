@@ -7,10 +7,10 @@
  */
 
 import type { Session } from "../../../app/session/SessionProvider";
-import type { ManagerProfile, Role, User } from "../../../types";
+import type { BusinessProfile, Role, User } from "../../../types";
 
-/** Rang métier : opérateur 0, superviseur 1, responsable de station 2, directeur 3, Admin 4. */
-function computeHierarchyRank(role: Role, managerProfile?: ManagerProfile | null): number {
+/** Rang métier : opérateur (y compris Opérateur +) 0, superviseur 1, responsable de station 2, directeur 3, Admin 4. */
+function computeHierarchyRank(role: Role, managerProfile?: BusinessProfile | null): number {
   if (role === "DEV") return 4;
   if (role === "OPERATEUR") return 0;
   if (role === "RESPONSABLE") {
@@ -63,7 +63,7 @@ export function canSessionManageUser(session: NonNullable<Session>, target: User
 export function canSessionAssignRank(
   session: NonNullable<Session>,
   role: Role,
-  managerProfile: ManagerProfile | null
+  managerProfile: BusinessProfile | null
 ): boolean {
   const nextRank = computeHierarchyRank(role, managerProfile);
   return nextRank >= 0 && nextRank <= getSessionHierarchyRank(session);

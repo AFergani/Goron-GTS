@@ -13,7 +13,7 @@ import type { GtsApiSystemChannels } from "./infrastructure/api/gtsApiSystem.typ
 import type { GtsApiRondeChannels } from "./infrastructure/api/gtsApiRonde.types";
 import type {
   LoginPayload,
-  ManagerProfile,
+  BusinessProfile,
   PageAccess,
   User,
   Role,
@@ -31,6 +31,7 @@ import type { MainCouranteEntry, MainCouranteSavePayload } from "./features/main
 import type { InterventionEntry, InterventionSavePayload } from "./features/intervention/model/intervention.types";
 import type { PendingIntervenant, PendingSite } from "./features/common/model/pendingRefs.types";
 import type { FormVariableDef, FormVariablePayload } from "./features/settings/model/formVariables.types";
+import type { VideoRemarkDocument } from "./features/videoRemarks/model/videoRemarkTypes";
 import type {
   GardiennageClosePayload,
   GardiennageEntry,
@@ -69,7 +70,7 @@ declare global {
         username: string;
         fullName: string;
         role: Exclude<Role, "DEV">;
-        managerProfile: ManagerProfile | null;
+        managerProfile: BusinessProfile | null;
         pageAccess: PageAccess;
       }) => Promise<{ user: User; temporaryPassword: string }>;
       updateUserProfile: (payload: {
@@ -78,7 +79,7 @@ declare global {
         username: string;
         fullName: string;
         newRole: Exclude<Role, "DEV">;
-        managerProfile: ManagerProfile | null;
+        managerProfile: BusinessProfile | null;
         pageAccess: PageAccess;
         mustResetPassword: boolean;
         /** Motif obligatoire tracé dans le journal des actions. */
@@ -140,6 +141,17 @@ declare global {
       }) => Promise<{ success: boolean; themeMode: "dark" | "light" }>;
       // --- Référentiels ---
       listSites: (payload: { requesterRole: Role }) => Promise<SiteRef[]>;
+      getVideoRemarkSnapshot: (payload: {
+        requesterRole: Role;
+        siteId: string;
+      }) => Promise<{ updatedAt: string; payload: VideoRemarkDocument } | null>;
+      saveVideoRemarkSnapshot: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        siteId: string;
+        expectedUpdatedAt: string | null;
+        document: VideoRemarkDocument;
+      }) => Promise<{ updatedAt: string }>;
       createSite: (payload: {
         requesterRole: Role;
         requesterUsername: string;

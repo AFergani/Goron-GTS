@@ -3,7 +3,7 @@
  */
 
 import type { ReactNode } from "react";
-import type { ManagerProfile, Role } from "../../../types";
+import type { BusinessProfile, Role } from "../../../types";
 
 export type SettingsTab = "operators" | "data" | "templates" | "database" | "audit";
 /** Sous-onglets de Paramètres → Modèles et variables. */
@@ -27,7 +27,8 @@ export type DataRefreshTarget = DataTab | "pendingSites" | "pendingIntervenants"
 export type CreateUserFormState = {
   username: string;
   role: Exclude<Role, "DEV">;
-  managerProfile: ManagerProfile;
+  /** Profil responsable, Opérateur +, ou vide pour un opérateur standard. */
+  managerProfile: BusinessProfile | "";
   /** Motif d'audit, exigé en modification uniquement (la création est déjà tracée en tant que telle). */
   reason: string;
   pageAccess: {
@@ -37,6 +38,7 @@ export type CreateUserFormState = {
     rondes: boolean;
     settings: boolean;
     gardiennage: boolean;
+    videoRemarks: boolean;
   };
 };
 
@@ -44,6 +46,7 @@ export type CreateUserFormState = {
  * Accès pages par défaut selon le rôle (aligné sur `userMapping.normalizePageAccess`).
  * Les vues métier sont toujours ouvertes.
  * Paramètres : oui pour tout non-opérateur (responsable), non pour un opérateur.
+ * Remarques vidéo : oui pour un responsable ; pour un opérateur, seulement via Opérateur +.
  *
  * @param role - Rôle technique du compte à créer / basculer
  */
@@ -54,7 +57,8 @@ export function getDefaultPageAccessByRole(role: Exclude<Role, "DEV">): CreateUs
     intervention: true,
     rondes: true,
     gardiennage: true,
-    settings: role !== "OPERATEUR"
+    settings: role !== "OPERATEUR",
+    videoRemarks: role !== "OPERATEUR"
   };
 }
 

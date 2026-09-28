@@ -5,6 +5,7 @@
  */
 
 import type { AuditLog } from "../../../types";
+import { formatBusinessProfileCode } from "./businessProfile";
 import { mapImportErrorEntry } from "./auditTableDisplay";
 
 function isLikelyUuid(value: string) {
@@ -50,7 +51,7 @@ function toFrenchDetailKey(key: string): string {
     fullName: "Nom affiché",
     username: "Identifiant interne",
     role: "Rôle",
-    managerProfile: "Profil responsable",
+    managerProfile: "Profil métier",
     isActive: "Actif",
     isLocked: "Verrouillé",
     mustChangePassword: "Mot de passe à changer",
@@ -571,7 +572,7 @@ export function formatOldValuesTooltip(log: AuditLog) {
       "Création utilisateur",
       `Nom affiché: ${String(created.fullName || "-")}`,
       `Rôle: ${String(created.role || "-")}`,
-      `Profil responsable: ${String(created.managerProfile || "-")}`,
+      `Profil métier: ${formatBusinessProfileCode(created.managerProfile == null ? null : String(created.managerProfile))}`,
       `Actif: ${toYesNo(created.isActive)}`,
       `Mot de passe à changer: ${toYesNo(created.mustChangePassword)}`
     ].join("\n");
@@ -583,7 +584,7 @@ export function formatOldValuesTooltip(log: AuditLog) {
       "Modification utilisateur (avant => après)",
       `Nom affiché: ${String(before.fullName || "-")} => ${String(after.fullName || "-")}`,
       `Rôle: ${String(before.role || "-")} => ${String(after.role || "-")}`,
-      `Profil responsable: ${String(before.managerProfile || "-")} => ${String(after.managerProfile || "-")}`,
+      `Profil métier: ${formatBusinessProfileCode(before.managerProfile == null ? null : String(before.managerProfile))} => ${formatBusinessProfileCode(after.managerProfile == null ? null : String(after.managerProfile))}`,
       `Mot de passe à changer: ${toYesNo(before.mustChangePassword)} => ${toYesNo(after.mustChangePassword)}`,
       `Motif: ${String(detailsAny.reason || "-")}`
     ].join("\n");

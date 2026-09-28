@@ -4,7 +4,7 @@
  */
 
 import type { Session } from "../../../app/session/SessionProvider";
-import type { ManagerProfile } from "../../../types";
+import type { BusinessProfile, ManagerProfile } from "../../../types";
 import { FormModal } from "../../common/components/FormModal";
 import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
 import { getDefaultPageAccessByRole, type CreateUserFormState } from "../model/settings.types";
@@ -97,9 +97,18 @@ export function CreateUserModal({
             title={rankLockTitle}
             onChange={(e) => {
               const role = e.target.value as "RESPONSABLE" | "OPERATEUR";
+              const managerProfile: CreateUserFormState["managerProfile"] =
+                role === "RESPONSABLE"
+                  ? form.managerProfile === "OPERATEUR_PLUS" || form.managerProfile === ""
+                    ? "SUPERVISEUR"
+                    : form.managerProfile
+                  : form.managerProfile === "OPERATEUR_PLUS"
+                    ? "OPERATEUR_PLUS"
+                    : "";
               onChange({
                 ...form,
                 role,
+                managerProfile,
                 pageAccess: getDefaultPageAccessByRole(role)
               });
             }}
@@ -111,21 +120,31 @@ export function CreateUserModal({
         <label>
           Profil métier
           <select
-            value={form.managerProfile}
-            disabled={rankLocked || form.role !== "RESPONSABLE"}
-            title={rankLockTitle ?? (form.role === "RESPONSABLE" ? undefined : "Réservé aux comptes responsables")}
+            value={form.role === "OPERATEUR" ? form.managerProfile : form.managerProfile || "SUPERVISEUR"}
+            disabled={rankLocked}
+            title={
+              rankLockTitle ??
+              (form.role === "OPERATEUR" ? "Opérateur + ouvre la page Remarques vidéo" : undefined)
+            }
             onChange={(e) =>
               onChange({
                 ...form,
-                managerProfile: e.target.value as "SUPERVISEUR" | "RESPONSABLE_STATION" | "DIRECTEUR_STATION"
+                managerProfile: e.target.value as BusinessProfile | ""
               })
             }
           >
-            {MANAGER_PROFILE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} disabled={!canAssignProfile(option.value)}>
-                {option.label}
-              </option>
-            ))}
+            {form.role === "OPERATEUR" ? (
+              <>
+                <option value="">Opérateur</option>
+                <option value="OPERATEUR_PLUS">Opérateur +</option>
+              </>
+            ) : (
+              MANAGER_PROFILE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value} disabled={!canAssignProfile(option.value)}>
+                  {option.label}
+                </option>
+              ))
+            )}
           </select>
         </label>
         {mode === "edit" && (

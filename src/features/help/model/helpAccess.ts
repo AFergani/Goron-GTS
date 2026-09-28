@@ -20,6 +20,7 @@ export const OFFLINE_CONNECTION_HELP_ACCESS: HelpAccessContext = {
     gardiennage: false,
     mainCourante: false,
     fransor: false,
+    videoRemarks: false,
     settings: false
   },
   canManageUsers: false,
@@ -68,6 +69,8 @@ export function isHelpTopicAllowed(topicId: HelpTopicId, access?: HelpAccessCont
       return canAccessPageHelp(access, "mainCourante");
     case "fransor":
       return canAccessPageHelp(access, "fransor");
+    case "video-remarks":
+      return canAccessPageHelp(access, "videoRemarks");
     case "settings-operators":
       return canAccessOperatorsHelp(access);
     case "settings-data":

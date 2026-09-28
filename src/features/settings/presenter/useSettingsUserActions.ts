@@ -7,9 +7,11 @@
 
 import { createElement, useCallback, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { resolveUserPageAccess } from "../../../app/appNavigation";
 import type { Session } from "../../../app/session/SessionProvider";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { ConfirmDialogState, CreateUserFormState } from "../model/settings.types";
+import { businessProfileForSave } from "../model/businessProfile";
 import { getDefaultPageAccessByRole } from "../model/settings.types";
 import { MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
 import type { NotifyToast } from "../../common/model/toast.types";
@@ -80,7 +82,7 @@ export function useSettingsUserActions({
   const [createForm, setCreateForm] = useState<CreateUserFormState>({
     username: "",
     role: "OPERATEUR",
-    managerProfile: "SUPERVISEUR",
+    managerProfile: "",
     reason: "",
     pageAccess: getDefaultPageAccessByRole("OPERATEUR")
   });
@@ -89,7 +91,7 @@ export function useSettingsUserActions({
     setCreateForm({
       username: "",
       role: "OPERATEUR",
-      managerProfile: "SUPERVISEUR",
+      managerProfile: "",
       reason: "",
       pageAccess: getDefaultPageAccessByRole("OPERATEUR")
     });
@@ -117,7 +119,7 @@ export function useSettingsUserActions({
           username: createForm.username,
           fullName: createForm.username,
           role: createForm.role,
-          managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
+          managerProfile: businessProfileForSave(createForm.role, createForm.managerProfile),
           pageAccess: payloadPageAccess
         });
         onInfo("");
@@ -132,7 +134,7 @@ export function useSettingsUserActions({
           username: editingTechnicalUsername,
           fullName: createForm.username,
           newRole: createForm.role,
-          managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
+          managerProfile: businessProfileForSave(createForm.role, createForm.managerProfile),
           pageAccess: payloadPageAccess,
           mustResetPassword: false,
           reason: createForm.reason.trim(),
@@ -143,8 +145,12 @@ export function useSettingsUserActions({
           onSessionUserPatch({
             fullName: result.fullName || createForm.username,
             role: createForm.role,
-            managerProfile: createForm.role === "RESPONSABLE" ? createForm.managerProfile : null,
-            pageAccess: payloadPageAccess
+            managerProfile: businessProfileForSave(createForm.role, createForm.managerProfile),
+            pageAccess: resolveUserPageAccess(
+              createForm.role,
+              payloadPageAccess,
+              businessProfileForSave(createForm.role, createForm.managerProfile)
+            )
           });
         }
         if (result.temporaryPassword) {
@@ -167,7 +173,14 @@ export function useSettingsUserActions({
     setCreateForm({
       username: user.fullName,
       role: user.role,
-      managerProfile: user.managerProfile || "SUPERVISEUR",
+      managerProfile:
+        user.role === "OPERATEUR"
+          ? user.managerProfile === "OPERATEUR_PLUS"
+            ? "OPERATEUR_PLUS"
+            : ""
+          : user.managerProfile && user.managerProfile !== "OPERATEUR_PLUS"
+            ? user.managerProfile
+            : "SUPERVISEUR",
       reason: "",
       pageAccess: user.pageAccess
     });
@@ -210,7 +223,15 @@ export function useSettingsUserActions({
             username: user.username,
             fullName: user.fullName,
             newRole: user.role === "OPERATEUR" ? "OPERATEUR" : "RESPONSABLE",
-            managerProfile: user.role === "RESPONSABLE" ? user.managerProfile ?? "SUPERVISEUR" : null,
+            managerProfile: businessProfileForSave(
+              user.role === "OPERATEUR" ? "OPERATEUR" : "RESPONSABLE",
+              user.managerProfile === "OPERATEUR_PLUS" ||
+                user.managerProfile === "SUPERVISEUR" ||
+                user.managerProfile === "RESPONSABLE_STATION" ||
+                user.managerProfile === "DIRECTEUR_STATION"
+                ? user.managerProfile
+                : ""
+            ),
             pageAccess: user.pageAccess,
             mustResetPassword: true,
             reason: reasonToSend,

@@ -17,7 +17,7 @@ import type {
   HolidayRef,
   IntervenantRef,
   LoginPayload,
-  ManagerProfile,
+  BusinessProfile,
   PageAccess,
   Role,
   SiteRef,
@@ -27,6 +27,7 @@ import type { MainCouranteEntry, MainCouranteSavePayload } from "../../features/
 import type { InterventionEntry, InterventionSavePayload } from "../../features/intervention/model/intervention.types";
 import type { PendingIntervenant, PendingSite } from "../../features/common/model/pendingRefs.types";
 import type { FormVariableDef, FormVariablePayload } from "../../features/settings/model/formVariables.types";
+import type { VideoRemarkDocument } from "../../features/videoRemarks/model/videoRemarkTypes";
 import type { TemplateFlowKind } from "../../features/settings/model/documentTemplates.types";
 import type {
   GardiennageClosePayload,
@@ -318,7 +319,7 @@ export const gtsApiClient = {
     username: string;
     fullName: string;
     role: Exclude<Role, "DEV">;
-    managerProfile: ManagerProfile | null;
+    managerProfile: BusinessProfile | null;
     pageAccess: PageAccess;
   }) {
     return sessionCall(window.gtsApi.createUser, payload);
@@ -329,7 +330,7 @@ export const gtsApiClient = {
     username: string;
     fullName: string;
     newRole: Exclude<Role, "DEV">;
-    managerProfile: ManagerProfile | null;
+    managerProfile: BusinessProfile | null;
     pageAccess: PageAccess;
     mustResetPassword: boolean;
     /** Motif obligatoire tracé dans le journal des actions. */
@@ -379,6 +380,21 @@ export const gtsApiClient = {
   },
   listSites(payload: { requesterRole: Role }): Promise<SiteRef[]> {
     return sessionCall(window.gtsApi.listSites, payload);
+  },
+  getVideoRemarkSnapshot(payload: {
+    requesterRole: Role;
+    siteId: string;
+  }): Promise<{ updatedAt: string; payload: VideoRemarkDocument } | null> {
+    return sessionCall(window.gtsApi.getVideoRemarkSnapshot, payload);
+  },
+  saveVideoRemarkSnapshot(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    siteId: string;
+    expectedUpdatedAt: string | null;
+    document: VideoRemarkDocument;
+  }): Promise<{ updatedAt: string }> {
+    return sessionCall(window.gtsApi.saveVideoRemarkSnapshot, payload);
   },
   createSite(payload: {
     requesterRole: Role;

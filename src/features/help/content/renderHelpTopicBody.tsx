@@ -17,6 +17,7 @@ import { HelpSettingsAuditTopic } from "./HelpSettingsAuditTopic";
 import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
 import { HelpSettingsConnectionTopic } from "./HelpSettingsConnectionTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
+import { HelpVideoRemarksTopic } from "./HelpVideoRemarksTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
 export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessContext) {
@@ -38,6 +39,9 @@ export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessCon
   }
   if (topicId === "fransor") {
     return <HelpFransorTopic />;
+  }
+  if (topicId === "video-remarks") {
+    return <HelpVideoRemarksTopic />;
   }
   if (topicId === "settings-data") {
     return <HelpSettingsDataTopic />;

@@ -4,7 +4,7 @@
  * Utilisé par `AppShell` (page active, titre topbar) et `AppSidebar` (ordre des boutons).
  */
 
-import type { PageAccess, Role } from "../types";
+import type { BusinessProfile, PageAccess, Role } from "../types";
 
 /** Identifiant d'écran aligné sur `PageAccess`. */
 export type AppPage = keyof PageAccess;
@@ -16,6 +16,7 @@ export const SIDEBAR_PAGE_ORDER: AppPage[] = [
   "gardiennage",
   "mainCourante",
   "fransor",
+  "videoRemarks",
   "settings"
 ];
 
@@ -26,6 +27,7 @@ export const APP_PAGE_TITLES: Record<AppPage, string> = {
   gardiennage: "Gardiennage",
   mainCourante: "Main courante",
   fransor: "Accompagnement Fransor",
+  videoRemarks: "Remarques vidéo",
   settings: "Paramètres"
 };
 
@@ -36,7 +38,8 @@ export const DEV_FULL_PAGE_ACCESS: PageAccess = {
   intervention: true,
   rondes: true,
   settings: true,
-  gardiennage: true
+  gardiennage: true,
+  videoRemarks: true
 };
 
 /**
@@ -53,13 +56,33 @@ export function getFirstSidebarPageAccess(pageAccess: PageAccess): AppPage {
 }
 
 /**
+ * Page Remarques vidéo : Admin, les trois profils responsable, ou Opérateur +.
+ *
+ * @param role - Rôle du compte.
+ * @param managerProfile - Profil métier (`OPERATEUR_PLUS` pour un opérateur étendu).
+ */
+export function canAccessVideoRemarks(
+  role: Role | undefined,
+  managerProfile: BusinessProfile | null | undefined
+): boolean {
+  if (role === "DEV" || role === "RESPONSABLE") return true;
+  return role === "OPERATEUR" && managerProfile === "OPERATEUR_PLUS";
+}
+
+/**
  * Droits de navigation effectifs : vues métier toujours ouvertes ;
  * Paramètres pour tout compte non-opérateur (responsables). DEV = tout.
+ * Remarques vidéo selon le rôle et le profil (pas une case d'accès page).
  *
  * @param role - Rôle du compte, ou absent hors session.
- * @param pageAccess - Conservé pour signature ; Paramètres dérivé du rôle uniquement.
+ * @param pageAccess - Conservé pour signature ; les droits sont dérivés du rôle et du profil.
+ * @param managerProfile - Profil métier du compte.
  */
-export function resolveUserPageAccess(role: Role | undefined, pageAccess: PageAccess | undefined): PageAccess {
+export function resolveUserPageAccess(
+  role: Role | undefined,
+  pageAccess: PageAccess | undefined,
+  managerProfile?: BusinessProfile | null
+): PageAccess {
   if (role === "DEV") return DEV_FULL_PAGE_ACCESS;
   void pageAccess;
   return {
@@ -68,6 +91,7 @@ export function resolveUserPageAccess(role: Role | undefined, pageAccess: PageAc
     intervention: true,
     rondes: true,
     gardiennage: true,
-    settings: role !== "OPERATEUR" && Boolean(role)
+    settings: role !== "OPERATEUR" && Boolean(role),
+    videoRemarks: canAccessVideoRemarks(role, managerProfile)
   };
 }

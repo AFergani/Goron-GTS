@@ -29,6 +29,7 @@ import { FransorPage } from "../features/fransor/view/FransorPage";
 import { InterventionPage } from "../features/intervention/view/InterventionPage";
 import { RondePage } from "../features/rondes/view/RondePage";
 import { GardiennagePage } from "../features/gardiennage/view/GardiennagePage";
+import { VideoRemarksPage } from "../features/videoRemarks/view/VideoRemarksPage";
 import { ConfirmModal } from "../features/common/components/ConfirmModal";
 import { PgOfflineBlockingModal } from "../features/common/components/PgOfflineBlockingModal";
 import { ToastStack } from "../features/common/components/Toast";
@@ -50,6 +51,7 @@ import { DATA_REFRESH_POLL_MS } from "../features/common/constants/dataRefreshPo
 import "../styles/app.css";
 import "../styles/fransor.css";
 import "../styles/helpfransor.css";
+import "../styles/videoRemarks.css";
 
 type ThemeMode = "dark" | "light";
 
@@ -120,8 +122,8 @@ export function AppShell() {
   const [helpCenterInitialTopic, setHelpCenterInitialTopic] = useState<HelpTopicId | null>(null);
   const isManager = session?.user.role === "RESPONSABLE" || session?.user.role === "DEV";
   const userPageAccess = useMemo(
-    () => resolveUserPageAccess(session?.user.role, session?.user.pageAccess),
-    [session?.user.role, session?.user.pageAccess]
+    () => resolveUserPageAccess(session?.user.role, session?.user.pageAccess, session?.user.managerProfile),
+    [session?.user.role, session?.user.pageAccess, session?.user.managerProfile]
   );
   const firstSidebarPage = useMemo(() => getFirstSidebarPageAccess(userPageAccess), [userPageAccess]);
   const navBadges = useAppShellNavBadges(session, isManager, userPageAccess.rondes, userPageAccess.gardiennage);
@@ -549,6 +551,13 @@ export function AppShell() {
             operatorName={session.user.fullName}
             requesterUsername={session.user.username}
             requesterRole={session.user.role}
+            onToast={notifyToast}
+          />
+        )}
+        {activePage === "videoRemarks" && userPageAccess.videoRemarks && (
+          <VideoRemarksPage
+            requesterRole={session.user.role}
+            requesterUsername={session.user.username}
             onToast={notifyToast}
           />
         )}

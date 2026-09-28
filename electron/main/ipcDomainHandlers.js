@@ -102,7 +102,9 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["gardiennage:setStatus", "setGardiennageStatus"],
   ["gardiennage:delete", "deleteGardiennage"],
   ["gardiennage:close", "closeGardiennage"],
-  ["gardiennage:reopen", "reopenGardiennage"]
+  ["gardiennage:reopen", "reopenGardiennage"],
+  ["videoRemarks:get", "getVideoRemarkSnapshot"],
+  ["videoRemarks:save", "saveVideoRemarkSnapshot"]
 ];
 
 /**

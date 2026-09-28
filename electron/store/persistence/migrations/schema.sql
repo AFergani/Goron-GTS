@@ -642,3 +642,14 @@ GROUP BY (created_at::timestamptz AT TIME ZONE 'Europe/Paris')::date
 ON CONFLICT (domain, day_iso) DO UPDATE
 SET last_seq = GREATEST(daily_entry_counters.last_seq, EXCLUDED.last_seq);
 
+-- Instantané de remarque vidéo : une ligne par site du référentiel.
+CREATE TABLE IF NOT EXISTS video_remark_snapshots (
+  id TEXT PRIMARY KEY,
+  site_id TEXT NOT NULL UNIQUE,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_video_remark_snapshots_site ON video_remark_snapshots (site_id);
+

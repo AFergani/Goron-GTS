@@ -10,8 +10,9 @@ export function HelpSettingsOperatorsTopic() {
       <ul className="muted help-center-list">
         <li>
           Cliquez sur <strong>Nouvel utilisateur</strong>, renseignez le nom affiché et le rôle :{" "}
-          <strong>Opérateur</strong> (agent terrain) ou <strong>Responsable</strong> (avec un profil métier :
-          Superviseur, Responsable de station ou Directeur de station).
+          <strong>Opérateur</strong> (agent terrain, ou <strong>Opérateur +</strong> pour la page Remarques vidéo) ou{" "}
+          <strong>Responsable</strong> (avec un profil métier : Superviseur, Responsable de station ou Directeur de
+          station).
         </li>
         <li>
           🔒 Vous ne pouvez gérer que des comptes de niveau <strong>inférieur ou égal</strong> au vôtre, et jamais

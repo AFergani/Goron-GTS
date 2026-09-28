@@ -11,6 +11,8 @@ const { hashPassword, verifyPassword } = require("../../core/password");
 const { USERS_SELECT } = require("./userMapping");
 
 const MANAGER_PROFILES = ["SUPERVISEUR", "RESPONSABLE_STATION", "DIRECTEUR_STATION"];
+/** Opérateur avec la page Remarques vidéo. Même rang hiérarchique qu'un opérateur. */
+const OPERATOR_PLUS_PROFILE = "OPERATEUR_PLUS";
 const MAX_FAILED_ATTEMPTS = 5;
 /**
  * Le verrouillage après échecs de connexion est temporaire : il protège du bruteforce
@@ -257,6 +259,33 @@ function assertCanActOnUser(store, requesterRow, targetRow, roles, source) {
   if (requesterRank < 0 || targetRank < 0 || requesterRank < targetRank) {
     store.fail(source, "Action refusée : hiérarchie insuffisante pour ce compte.", "AUTH_FORBIDDEN");
   }
+}
+
+/**
+ * Normalise le profil métier stocké dans `manager_profile`.
+ * Responsable : un des trois profils station. Opérateur : null ou Opérateur +.
+ * L'Opérateur + ne change pas le rang (toujours 0).
+ *
+ * @param {object} store
+ * @param {string} role
+ * @param {string|null|undefined} managerProfile
+ * @param {object} roles
+ * @param {string} source
+ * @returns {string|null}
+ */
+function normalizeBusinessProfile(store, role, managerProfile, roles, source) {
+  if (role === roles.RESPONSABLE) {
+    if (!MANAGER_PROFILES.includes(managerProfile || "")) {
+      store.fail(source, "Profil responsable invalide.", "USER_BAD_MANAGER_PROFILE", { managerProfile });
+    }
+    return managerProfile;
+  }
+  if (role === roles.OPERATEUR) {
+    if (!managerProfile) return null;
+    if (managerProfile === OPERATOR_PLUS_PROFILE) return OPERATOR_PLUS_PROFILE;
+    store.fail(source, "Profil opérateur invalide.", "USER_BAD_MANAGER_PROFILE", { managerProfile });
+  }
+  return null;
 }
 
 /**
@@ -523,6 +552,8 @@ function checkAccountCredentials(store, userRow, password, roles) {
 module.exports = {
   AUTO_UNLOCK_DELAY_MS,
   MANAGER_PROFILES,
+  OPERATOR_PLUS_PROFILE,
+  normalizeBusinessProfile,
   MIN_AUDIT_REASON_LENGTH,
   requirePersistence,
   refreshUsersCache,

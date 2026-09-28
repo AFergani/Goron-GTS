@@ -26,6 +26,7 @@ const gardiennageDomain = require("./store/domains/gardiennage");
 const interventionDomain = require("./store/domains/intervention");
 const rondeDomain = require("./store/domains/ronde");
 const rondePlannedProfilesDomain = require("./store/domains/ronde/plannedProfiles");
+const videoRemarksDomain = require("./store/domains/videoRemarks/snapshots");
 
 /**
  * Façade publique : noyau PG + délégations domaines.
@@ -630,6 +631,15 @@ class UserStore extends UserStoreCore {
   async deleteGardiennage(payload) {
     await this.whenPostgresReady();
     return gardiennageDomain.deleteGardiennage(this, payload);
+  }
+
+  getVideoRemarkSnapshot(payload) {
+    return videoRemarksDomain.getVideoRemarkSnapshot(this, payload);
+  }
+
+  async saveVideoRemarkSnapshot(payload) {
+    await this.whenPostgresReady();
+    return videoRemarksDomain.saveVideoRemarkSnapshot(this, payload);
   }
 }
 
