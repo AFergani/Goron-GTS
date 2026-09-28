@@ -113,7 +113,7 @@ async function createSite(
   store,
   { requesterRole, requesterUsername, code, name, address, parc, famille, auditMode = "single" }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:sites:create");
   const fields = normalizeSiteInput({ code, name, address, parc, famille });
   if (!fields.code || !fields.name) {
@@ -179,7 +179,7 @@ async function updateSite(
     auditMode = "single"
   }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:sites:update");
   const fields = normalizeSiteInput({ code, name, address, parc, famille });
   if (!id || !fields.code || !fields.name) {
@@ -319,7 +319,7 @@ async function listIntervenants(store, { requesterRole }) {
  * @returns {Promise<{ success: true }>}
  */
 async function createIntervenant(store, { requesterRole, requesterUsername, name, auditMode = "single" }) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:intervenants:create");
   const cleanName = String(name || "").trim();
   if (!cleanName) {
@@ -368,7 +368,7 @@ async function updateIntervenant(
   store,
   { requesterRole, requesterUsername, id, name, expectedUpdatedAt, auditMode = "single" }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:intervenants:update");
   const cleanName = String(name || "").trim();
   if (!id || !cleanName) {
@@ -519,7 +519,7 @@ async function createAnomalyType(
   store,
   { requesterRole, requesterUsername, label, colorHex, auditMode = "single" }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:types:create");
   const cleanLabel = String(label || "").trim();
   const cleanColorHex = normalizeColorHex(colorHex);
@@ -570,7 +570,7 @@ async function updateAnomalyType(
   store,
   { requesterRole, requesterUsername, id, label, colorHex, expectedUpdatedAt, auditMode = "single" }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:types:update");
   const cleanLabel = String(label || "").trim();
   const cleanColorHex = normalizeColorHex(colorHex);

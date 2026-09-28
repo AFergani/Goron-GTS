@@ -41,6 +41,9 @@ type PostgresConnectionPanelProps = {
   variant?: "admin" | "bootstrap";
   /** Récupération depuis le login : la config existe déjà mais PostgreSQL ne répond pas. */
   isRecoveryMode?: boolean;
+  /** Mot de passe technique déjà enregistré, exigé pour remplacer la config. */
+  currentPassword?: string;
+  onCurrentPasswordChange?: (value: string) => void;
 };
 
 /**
@@ -56,7 +59,9 @@ export function PostgresConnectionPanel({
   testResult,
   busyPhase,
   variant = "admin",
-  isRecoveryMode = false
+  isRecoveryMode = false,
+  currentPassword = "",
+  onCurrentPasswordChange
 }: PostgresConnectionPanelProps) {
   const isBootstrap = variant === "bootstrap";
   const phase: PostgresBusyPhase = busyPhase ?? "idle";
@@ -65,7 +70,7 @@ export function PostgresConnectionPanel({
   const technicalSecretLead =
     "Le compte technique et le mot de passe sont fournis uniquement par le responsable ou le directeur de station. Ils sont stockés chiffrés sur ce poste uniquement.";
   const bootstrapLead = isRecoveryMode
-    ? `Le serveur PostgreSQL configuré sur ce poste est inaccessible. Vérifiez l'adresse IP (hôte LAN, ex. après changement de réseau), le port et Docker, puis testez avant d'enregistrer. ${technicalSecretLead}`
+    ? `Le serveur PostgreSQL configuré sur ce poste est inaccessible. Vérifiez l'adresse IP, le port et Docker, puis testez. Pour enregistrer une autre adresse, saisissez le mot de passe technique actuel. ${technicalSecretLead}`
     : `Indiquez le serveur PostgreSQL de la station (hôte LAN). Sur un 2e poste, utilisez l'adresse LAN du PC qui héberge Docker, pas localhost. ${technicalSecretLead}`;
 
   const sourceLabel =
@@ -175,6 +180,18 @@ export function PostgresConnectionPanel({
             aria-label="Mot de passe technique PostgreSQL"
           />
         </label>
+        {isRecoveryMode && onCurrentPasswordChange ? (
+          <label className="postgres-config-field postgres-config-field--wide">
+            <span>Mot de passe technique actuel</span>
+            <PasswordInput
+              value={currentPassword}
+              onChange={onCurrentPasswordChange}
+              disabled={isBusy || Boolean(config?.envOverridesActive)}
+              autoComplete="current-password"
+              aria-label="Mot de passe technique actuel"
+            />
+          </label>
+        ) : null}
       </div>
 
       <div className="postgres-config-actions">

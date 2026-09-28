@@ -7,6 +7,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const { ensureInterventionPayload, getMissingClosureFieldsFromRow } = require("./helpers");
 const {
@@ -251,9 +252,14 @@ async function updateIntervention(store, payload) {
     if (row.archived_at) {
       store.fail("intervention:update", "Intervention archivée non modifiable.", "INTERVENTION_ARCHIVED_READONLY");
     }
-    if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("intervention:update", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
-    }
+    assertOptimisticLock(
+      store,
+      "intervention:update",
+      row,
+      payload.expectedUpdatedAt,
+      "INTERVENTION_CONFLICT",
+      "Intervention modifiée ailleurs. Actualisez la liste."
+    );
     const mergedExtras = {
       ...parseExportExtraJson(row.export_extra_json),
       ...(payload.exportExtraValues && typeof payload.exportExtraValues === "object" ? payload.exportExtraValues : {})
@@ -327,9 +333,14 @@ async function setInterventionStatus(store, payload) {
     if (row.archived_at) {
       store.fail("intervention:status", "Intervention archivée non modifiable.", "INTERVENTION_ARCHIVED_READONLY");
     }
-    if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("intervention:status", "Intervention modifiée ailleurs. Actualisez la liste.", "INTERVENTION_CONFLICT");
-    }
+    assertOptimisticLock(
+      store,
+      "intervention:status",
+      row,
+      payload.expectedUpdatedAt,
+      "INTERVENTION_CONFLICT",
+      "Intervention modifiée ailleurs. Actualisez la liste."
+    );
     if (nextStatus === "CLOTURE") {
       const missing = getMissingClosureFieldsFromRow(row);
       if (missing.length) {

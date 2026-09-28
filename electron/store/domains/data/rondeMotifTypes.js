@@ -110,7 +110,7 @@ async function listRondeMotifTypes(store, { requesterRole }) {
  * @returns {Promise<object>} Motif créé.
  */
 async function createRondeMotifType(store, { requesterRole, requesterUsername, label, requiresFreeText, colorHex }) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:rondeMotifs:create");
   const cleanLabel = String(label || "").trim();
   if (!cleanLabel) {
@@ -170,7 +170,7 @@ async function updateRondeMotifType(
   store,
   { requesterRole, requesterUsername, id, label, requiresFreeText, colorHex, expectedUpdatedAt }
 ) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:rondeMotifs:update");
   const cleanId = String(id || "").trim();
   const cleanLabel = String(label || "").trim();

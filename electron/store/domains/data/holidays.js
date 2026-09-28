@@ -83,7 +83,7 @@ async function listHolidays(store, { requesterRole }) {
  * @returns {Promise<{ success: true }>}
  */
 async function createHoliday(store, { requesterRole, requesterUsername, dateIso, label }) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:holidays:create");
   const cleanDateIso = normalizeDateIso(dateIso);
   const cleanLabel = String(label || "").trim();
@@ -129,7 +129,7 @@ async function createHoliday(store, { requesterRole, requesterUsername, dateIso,
  * @returns {Promise<{ success: true }>}
  */
 async function updateHoliday(store, { requesterRole, requesterUsername, id, dateIso, label, expectedUpdatedAt }) {
-  store.ensureDataReaderRole(requesterRole);
+  store.ensureDataManagerRole(requesterRole);
   const db = requireDataPersistence(store, "data:holidays:update");
   const cleanId = String(id || "").trim();
   const cleanDateIso = normalizeDateIso(dateIso);

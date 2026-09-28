@@ -77,6 +77,7 @@ export function usePostgresBootstrapPresenter({
   const [pgReachable, setPgReachable] = useState(true);
   /** Ouverture manuelle de l'écran d'init depuis le login (récupération). */
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryCurrentPassword, setRecoveryCurrentPassword] = useState("");
   /** Config actuelle redevenue joignable pendant la récupération (Docker relancé, etc.). */
   const [recoveryRestored, setRecoveryRestored] = useState(false);
   const [postgresConfig, setPostgresConfig] = useState<PublicPostgresConfig | null>(null);
@@ -200,6 +201,7 @@ export function usePostgresBootstrapPresenter({
     onError("");
     setPostgresTestResult(null);
     setRecoveryRestored(false);
+    setRecoveryCurrentPassword("");
     setRecoveryOpen(false);
     void refreshStatus().catch(() => {
       setPgReachable(false);
@@ -209,6 +211,11 @@ export function usePostgresBootstrapPresenter({
   const onSavePostgresBootstrap = useCallback(async () => {
     if (busyPhase !== "idle") return;
     if (recoveryRestored) return;
+    const recovering = recoveryOpen && !needsSetup;
+    if (recovering && !recoveryCurrentPassword.trim()) {
+      onError("Saisissez le mot de passe technique actuel pour modifier la configuration de ce poste.");
+      return;
+    }
     onError("");
     setBusyPhase("saving");
     setPostgresTestResult(null);
@@ -219,10 +226,12 @@ export function usePostgresBootstrapPresenter({
         port: postgresDraft.port,
         database: postgresDraft.database,
         user: postgresDraft.user,
-        password: postgresDraft.password
+        password: postgresDraft.password,
+        currentPassword: recovering ? recoveryCurrentPassword : undefined
       });
       setPostgresConfig(result.config);
       setPostgresDraft((prev) => ({ ...prev, password: "" }));
+      setRecoveryCurrentPassword("");
       setNeedsSetup(false);
       setRecoveryOpen(false);
       setRecoveryRestored(false);
@@ -245,7 +254,17 @@ export function usePostgresBootstrapPresenter({
     } finally {
       setBusyPhase("idle");
     }
-  }, [busyPhase, markRecoveryRestored, onError, onToast, postgresDraft, recoveryRestored]);
+  }, [
+    busyPhase,
+    markRecoveryRestored,
+    needsSetup,
+    onError,
+    onToast,
+    postgresDraft,
+    recoveryCurrentPassword,
+    recoveryOpen,
+    recoveryRestored
+  ]);
 
   const onTestPostgresBootstrap = useCallback(async () => {
     if (busyPhase !== "idle") return;
@@ -287,6 +306,8 @@ export function usePostgresBootstrapPresenter({
     isRecoveryMode: recoveryOpen && !needsSetup,
     recoveryRestored: recoveryOpen && !needsSetup && recoveryRestored,
     recoveryRestoredMessage: RECOVERY_RESTORED_MESSAGE,
+    recoveryCurrentPassword,
+    setRecoveryCurrentPassword,
     postgresConfig,
     postgresDraft,
     setPostgresDraft,

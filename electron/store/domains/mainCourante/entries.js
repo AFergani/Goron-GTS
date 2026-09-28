@@ -10,6 +10,7 @@
  */
 
 const { parseExportExtraJson, stringifyExportExtraJson } = require("../../core/exportExtraJson");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 const { requireMainCourantePersistence } = require("./persistence");
 const { allocateNextDailyCode, localDayIsoFromTimestamp } = require("../../core/dailyEntryCode");
 const {
@@ -204,13 +205,14 @@ async function updateMainCouranteEntryOperator(
     if (!sameOperatorDisplay(row.operator_name, requesterFullName)) {
       store.fail("mainCourante:updateOp", "Vous ne pouvez modifier que vos propres entrées.", "MAIN_COURANTE_FORBIDDEN");
     }
-    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
-      store.fail(
-        "mainCourante:updateOp",
-        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-        "MAIN_COURANTE_CONFLICT"
-      );
-    }
+    assertOptimisticLock(
+      store,
+      "mainCourante:updateOp",
+      row,
+      expectedUpdatedAt,
+      "MAIN_COURANTE_CONFLICT",
+      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez."
+    );
     const now = new Date().toISOString();
     const result = await tx.run(
       `UPDATE main_courante_entries SET
@@ -322,13 +324,14 @@ async function applyMainCouranteManagerAction(
     if (row.status === "CLOTURE") {
       store.fail("mainCourante:manager", "Cette entrée est déjà clôturée.", "MAIN_COURANTE_BAD_STATUS");
     }
-    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
-      store.fail(
-        "mainCourante:manager",
-        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-        "MAIN_COURANTE_CONFLICT"
-      );
-    }
+    assertOptimisticLock(
+      store,
+      "mainCourante:manager",
+      row,
+      expectedUpdatedAt,
+      "MAIN_COURANTE_CONFLICT",
+      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez."
+    );
 
     const now = new Date().toISOString();
     let nextStatus = row.status;
@@ -452,13 +455,14 @@ async function reopenMainCouranteEntry(
     if (row.status !== "CLOTURE") {
       store.fail("mainCourante:reopen", "Seules les entrées clôturées peuvent être rouvertes.", "MAIN_COURANTE_BAD_STATUS");
     }
-    if (String(row.updated_at) !== String(expectedUpdatedAt || "")) {
-      store.fail(
-        "mainCourante:reopen",
-        "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez.",
-        "MAIN_COURANTE_CONFLICT"
-      );
-    }
+    assertOptimisticLock(
+      store,
+      "mainCourante:reopen",
+      row,
+      expectedUpdatedAt,
+      "MAIN_COURANTE_CONFLICT",
+      "Cette entrée a été modifiée ailleurs. Actualisez la liste puis réessayez."
+    );
     const now = new Date().toISOString();
     const result = await tx.run(
       `UPDATE main_courante_entries SET

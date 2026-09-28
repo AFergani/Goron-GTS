@@ -64,6 +64,20 @@ function timingSafeEqualHex(a, b) {
 }
 
 /**
+ * Comparaison en temps constant de deux chaînes UTF-8 (code maître, secret technique).
+ *
+ * @param {unknown} left
+ * @param {unknown} right
+ * @returns {boolean} `false` si les longueurs diffèrent ou si le contenu diffère.
+ */
+function timingSafeEqualUtf8(left, right) {
+  const a = Buffer.from(String(left ?? ""), "utf8");
+  const b = Buffer.from(String(right ?? ""), "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+/**
  * Vérifie un mot de passe contre l'enregistrement stocké (scrypt ou legacy SHA-256 hex).
  *
  * @param {string} rawPassword
@@ -152,6 +166,7 @@ function pushPasswordHistory(previousHash, historyJson) {
 module.exports = {
   hashPassword,
   verifyPassword,
+  timingSafeEqualUtf8,
   needsPasswordMigration,
   isPasswordRecentlyUsed,
   pushPasswordHistory

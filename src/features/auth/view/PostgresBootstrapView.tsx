@@ -32,6 +32,8 @@ type PostgresBootstrapViewProps = {
   onCancelRecovery?: () => void;
   /** Ouvre le centre d'aide sur la rubrique connexion PostgreSQL. */
   onOpenHelp?: () => void;
+  currentPassword?: string;
+  onCurrentPasswordChange?: (value: string) => void;
 };
 
 /**
@@ -52,7 +54,9 @@ export function PostgresBootstrapView({
   recoveryRestored = false,
   recoveryRestoredMessage = "",
   onCancelRecovery,
-  onOpenHelp
+  onOpenHelp,
+  currentPassword = "",
+  onCurrentPasswordChange
 }: PostgresBootstrapViewProps) {
   const isBusy = busyPhase !== "idle";
 
@@ -99,6 +103,8 @@ export function PostgresBootstrapView({
               onTest={onTest}
               testResult={testResult}
               busyPhase={busyPhase}
+              currentPassword={currentPassword}
+              onCurrentPasswordChange={onCurrentPasswordChange}
             />
             {isRecoveryMode && onCancelRecovery ? (
               <div className="login-links">

@@ -7,6 +7,7 @@
  * @module electron/main/postgresAdminService
  */
 
+const { timingSafeEqualUtf8 } = require("../store/core/password");
 const {
   getPublicPostgresConnectionConfig,
   getPostgresConnectionConfig,
@@ -149,15 +150,43 @@ function createPostgresAdminService(deps) {
   }
 
   /**
+   * Une config déjà enregistrée ne se remplace qu'en prouvant la connaissance
+   * du mot de passe technique actuel (stocké chiffré sur le poste).
+   *
+   * @param {object} payload
+   * @returns {void}
+   * @throws {Error}
+   */
+  function assertRecoveryKnowsCurrentPassword(payload) {
+    const existing = readEncryptedPostgresConfig();
+    if (!existing?.password) return;
+    const currentPassword = String(payload?.currentPassword || "");
+    if (payload && typeof payload === "object") {
+      payload.currentPassword = "";
+    }
+    if (!timingSafeEqualUtf8(currentPassword, existing.password)) {
+      const err = new Error(
+        "Mot de passe technique actuel incorrect. Il est demandé pour modifier une configuration déjà enregistrée sur ce poste."
+      );
+      err.code = "BOOTSTRAP_PASSWORD_REQUIRED";
+      throw err;
+    }
+  }
+
+  /**
    * Enregistrement 1er lancement / récupération sans session (PG injoignable).
+   * Si une config existe déjà, `currentPassword` doit correspondre au secret technique du poste.
    *
    * @param {object} payload
    * @returns {Promise<{ success: boolean, config: object, reconnect: object }>}
    */
   async function saveBootstrapConfig(payload) {
     await assertBootstrapOrRecoveryAllowed();
+    assertRecoveryKnowsCurrentPassword(payload);
+    const configPayload = { ...(payload || {}) };
+    delete configPayload.currentPassword;
     const result = await saveConfig({
-      ...payload,
+      ...configPayload,
       requesterUsername: BOOTSTRAP_ACTOR
     });
     if (!result?.reconnect?.reachable) {

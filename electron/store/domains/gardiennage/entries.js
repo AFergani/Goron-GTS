@@ -8,6 +8,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 const { stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
 const { generateEntityId } = require("../../core/ids");
@@ -335,9 +336,14 @@ async function updateGardiennage(store, payload) {
       [entryId]
     );
     if (!existing) store.fail("gardiennage:update", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
-    if (String(existing.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("gardiennage:update", "Ce gardiennage a été modifié par un autre utilisateur.", "GARDIENNAGE_CONFLICT");
-    }
+    assertOptimisticLock(
+      store,
+      "gardiennage:update",
+      existing,
+      payload.expectedUpdatedAt,
+      "GARDIENNAGE_CONFLICT",
+      "Ce gardiennage a été modifié par un autre utilisateur."
+    );
     const batchId = String(existing.planning_batch_id || existing.id);
     if (!snapshot) {
       const result = await tx.run(

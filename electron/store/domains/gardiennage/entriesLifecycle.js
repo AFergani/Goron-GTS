@@ -7,6 +7,7 @@
  */
 
 const { parseExportExtraJson, stringifyExportExtraJson } = require("../../core/exportExtraJson");
+const { assertOptimisticLock } = require("../data/optimisticLock");
 const { actorName } = require("../../core/actorName");
 const { normalizeDateIso } = require("../../core/isoDate");
 const {
@@ -121,9 +122,14 @@ async function setGardiennageStatus(store, payload) {
       [entryId]
     );
     if (!existing) store.fail("gardiennage:setStatus", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
-    if (String(existing.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("gardiennage:setStatus", "Ce gardiennage a été modifié. Veuillez recharger.", "GARDIENNAGE_CONFLICT");
-    }
+    assertOptimisticLock(
+      store,
+      "gardiennage:setStatus",
+      existing,
+      payload.expectedUpdatedAt,
+      "GARDIENNAGE_CONFLICT",
+      "Ce gardiennage a été modifié. Veuillez recharger."
+    );
     if (payload.status === "CLOTURE") {
       failIfCloseNotAllowed(store, "gardiennage:setStatus", existing, Date.now());
     }
@@ -242,9 +248,14 @@ async function closeGardiennage(store, payload) {
       [entryId]
     );
     if (!row) store.fail("gardiennage:close", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
-    if (String(row.updated_at) !== String(payload.expectedUpdatedAt || "")) {
-      store.fail("gardiennage:close", "Ce gardiennage a été modifié. Veuillez recharger.", "GARDIENNAGE_CONFLICT");
-    }
+    assertOptimisticLock(
+      store,
+      "gardiennage:close",
+      row,
+      payload.expectedUpdatedAt,
+      "GARDIENNAGE_CONFLICT",
+      "Ce gardiennage a été modifié. Veuillez recharger."
+    );
     if (row.status === "ANNULE") {
       store.fail("gardiennage:close", "Un gardiennage annulé ne peut pas être clôturé.", "GARDIENNAGE_STATUS_INVALID");
     }

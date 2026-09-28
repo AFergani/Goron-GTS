@@ -6,6 +6,7 @@
  */
 
 const { buildDesiredExceptionalSlotList } = require("./exceptionalSlotList");
+const { extractHeureDemandeeHm } = require("./passageRules");
 
 /** Clé canonique passage : dateISO|heure. */
 function exceptionalPlanningSlotKey(requestDate, requestedTime) {
@@ -21,8 +22,8 @@ function exceptionalPlanningSlotKey(requestDate, requestedTime) {
  */
 function extractSlotKeyFromRondeObservation(requestDateIso, obs) {
   const o = String(obs || "");
-  const m = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/.exec(o);
-  if (m) return exceptionalPlanningSlotKey(requestDateIso, `${m[1]}:${m[2]}`);
+  const hm = extractHeureDemandeeHm(o);
+  if (hm) return exceptionalPlanningSlotKey(requestDateIso, hm);
   const any = /(^|\s)([01]\d|2[0-3]):([0-5]\d)(\s|$)/.exec(o);
   if (any) return exceptionalPlanningSlotKey(requestDateIso, `${any[2]}:${any[3]}`);
   return exceptionalPlanningSlotKey(requestDateIso, "");

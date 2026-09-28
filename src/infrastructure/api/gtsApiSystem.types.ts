@@ -146,6 +146,7 @@ export interface GtsApiSystemChannels {
         database: string;
         user: string;
         password?: string;
+        currentPassword?: string;
       }) => Promise<{
         success: boolean;
         config: {
@@ -229,7 +230,7 @@ export interface GtsApiSystemChannels {
         requesterRole: Role;
         requesterUsername: string;
       }) => Promise<{ success: boolean; reachable: boolean; error: string | null }>;
-      getPostgresBackupStatus: (payload?: { sessionToken?: string | null }) => Promise<PostgresBackupStatus>;
+      getPostgresBackupStatus: (payload: { sessionToken: string }) => Promise<PostgresBackupStatus>;
       pickPostgresBackupFolder: (payload: {
         sessionToken: string;
         requesterRole: Role;
@@ -266,7 +267,7 @@ export interface GtsApiSystemChannels {
         requesterRole: Role;
         requesterUsername: string;
       }) => Promise<{ success: boolean; fileName: string; config: PostgresBackupStatus }>;
-      pickPostgresBackupFile: (payload?: { sessionToken?: string | null }) => Promise<{
+      pickPostgresBackupFile: (payload: { sessionToken: string }) => Promise<{
         canceled: boolean;
         filePath: string | null;
         fileName: string | null;

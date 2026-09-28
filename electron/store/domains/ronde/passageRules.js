@@ -7,15 +7,26 @@
 const { parsePlanningSnapshot } = require("./mapping");
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const HEURE_DEMANDEE_RE = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i;
+
+/**
+ * Heure HH:mm écrite dans l'observation (« Heure demandée: hh:mm »).
+ *
+ * @param {unknown} obs
+ * @returns {string} Chaîne vide si absente.
+ */
+function extractHeureDemandeeHm(obs) {
+  const match = HEURE_DEMANDEE_RE.exec(String(obs || ""));
+  return match ? `${match[1]}:${match[2]}` : "";
+}
 
 /**
  * @param {object} row
  * @returns {string} HH:mm
  */
 function extractRequestedTimeHm(row) {
-  const obs = String(row.horaires_demande_obs || row.horairesDemandeObs || "");
-  const fromObs = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i.exec(obs);
-  if (fromObs) return `${fromObs[1]}:${fromObs[2]}`;
+  const fromObs = extractHeureDemandeeHm(row.horaires_demande_obs || row.horairesDemandeObs);
+  if (fromObs) return fromObs;
   const snap = parsePlanningSnapshot(row.request_planning_snapshot_json ?? row.requestPlanningSnapshotJson);
   if (snap?.lines && Array.isArray(snap.lines)) {
     for (const ln of snap.lines) {
@@ -126,6 +137,7 @@ function assertPlannedClosureAllowed(store, source, row) {
 
 module.exports = {
   TIME_RE,
+  extractHeureDemandeeHm,
   extractRequestedTimeHm,
   isPassagePast,
   hasKnownTerrainData,

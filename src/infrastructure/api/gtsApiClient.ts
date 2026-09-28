@@ -177,6 +177,8 @@ export const gtsApiClient = {
     database: string;
     user: string;
     password?: string;
+    /** Secret technique déjà enregistré sur le poste (récupération seulement). */
+    currentPassword?: string;
   }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: PostgresReconnectResult }> {
     return window.gtsApi.savePostgresBootstrapConfig(payload);
   },
@@ -218,7 +220,7 @@ export const gtsApiClient = {
     return sessionCall(window.gtsApi.reconnectPostgres, payload);
   },
   getPostgresBackupStatus(): Promise<PostgresBackupStatus> {
-    return window.gtsApi.getPostgresBackupStatus();
+    return sessionOnlyCall(window.gtsApi.getPostgresBackupStatus);
   },
   pickPostgresBackupFolder(payload: { requesterRole: Role; requesterUsername: string }) {
     return sessionCall(window.gtsApi.pickPostgresBackupFolder, payload);
@@ -239,7 +241,7 @@ export const gtsApiClient = {
     return sessionCall(window.gtsApi.startPostgresBackupCycle, payload);
   },
   pickPostgresBackupFile() {
-    return window.gtsApi.pickPostgresBackupFile();
+    return sessionOnlyCall(window.gtsApi.pickPostgresBackupFile);
   },
   restorePostgresBackup(payload: {
     filePath?: string;

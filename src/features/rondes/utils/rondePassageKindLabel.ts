@@ -5,7 +5,7 @@
 import type { RondeEntry } from "../model/ronde.types";
 import type { RondePlannedRoundKind } from "../model/rondePlanned.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
-import { extractRondeRequestedTimeHm } from "./rondePassageRules";
+import { extractHeureDemandeeHmFromObs, extractRondeRequestedTimeHm } from "./rondePassageRules";
 
 function minutesOfHm(value: string): number | null {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
@@ -47,8 +47,7 @@ export function resolveKnownRondePassageKind(entry: RondeEntry): string | null {
     }
   }
   const obsRaw = String(entry.horairesDemandeObs || "");
-  const demanded = /Heure demandée:\s*((?:[01]\d|2[0-3]):[0-5]\d)/i.exec(obsRaw);
-  const demandedHm = demanded?.[1] ?? "";
+  const demandedHm = extractHeureDemandeeHmFromObs(obsRaw);
   if (demandedHm) {
     for (const line of snapshotLines) {
       if (line.roundKind !== "RANDOM") continue;

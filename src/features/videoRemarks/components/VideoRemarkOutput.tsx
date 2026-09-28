@@ -32,7 +32,7 @@ export function VideoRemarkOutput({ html, onCopy }: VideoRemarkOutputProps) {
         <iframe
           className="vr-preview"
           title="Aperçu HTML"
-          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          sandbox=""
           srcDoc={buildPreviewDocument(html)}
         />
       </section>

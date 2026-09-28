@@ -7,7 +7,7 @@
  */
 
 const crypto = require("crypto");
-const { hashPassword, verifyPassword } = require("../../core/password");
+const { hashPassword, verifyPassword, timingSafeEqualUtf8 } = require("../../core/password");
 const { USERS_SELECT } = require("./userMapping");
 
 const MANAGER_PROFILES = ["SUPERVISEUR", "RESPONSABLE_STATION", "DIRECTEUR_STATION"];
@@ -544,7 +544,7 @@ async function releaseExpiredLocks(store, db, lockedRows) {
 function checkAccountCredentials(store, userRow, password, roles) {
   if (userRow.role === roles.DEV) {
     if (!store.devMasterCode) return "dev-code-unavailable";
-    return password === store.devMasterCode ? "ok" : "invalid";
+    return timingSafeEqualUtf8(password, store.devMasterCode) ? "ok" : "invalid";
   }
   return verifyPassword(password, userRow.password_hash) ? "ok" : "invalid";
 }

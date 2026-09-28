@@ -524,14 +524,18 @@ function createPostgresBackupService(deps) {
 
   /**
    * Compare le dump à la base actuelle via une base temporaire (live intacte).
+   * Sans session vérifiée par l'IPC, exige le mot RESTAURER et le mot de passe d'un responsable.
+   * `sessionVerified` est posé par le handler, pas par le renderer.
    *
    * @param {object} payload
    * @returns {Promise<{ success: boolean, fileName: string, reportHtmlPath: string, totals: object, schemaWarning: boolean, dumpFileName: string, generatedAt: string, tables: object[] }>}
    */
   async function compareBackup(payload = {}) {
     const requesterUsername = String(payload.requesterUsername || SCHEDULER_ACTOR).trim() || SCHEDULER_ACTOR;
-    if (requesterUsername !== SCHEDULER_ACTOR && requesterUsername !== "system:pg-bootstrap") {
+    if (payload.sessionVerified === true) {
       assertCanManage(requesterUsername);
+    } else {
+      await assertRestoreConfirmation(payload, requesterUsername);
     }
     if (busy) {
       throw new Error(BUSY_ERROR);

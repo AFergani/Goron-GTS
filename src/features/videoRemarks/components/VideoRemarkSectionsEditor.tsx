@@ -6,7 +6,7 @@
 
 import { ChevronDown, ChevronUp, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { ALARM_IMAGE_SRC, alarmImageTag } from "../model/alarmImage";
-import { DEFAULT_SUMMARY_TEXT } from "../model/videoRemarkDocument";
+import { DEFAULT_SUMMARY_TEXT, moveItem } from "../model/videoRemarkDocument";
 import type { VideoField, VideoSection } from "../model/videoRemarkTypes";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 
@@ -67,15 +67,6 @@ function MoveChevrons({
       </button>
     </span>
   );
-}
-
-function moveList<T>(items: T[], index: number, direction: -1 | 1): T[] {
-  const next = index + direction;
-  if (next < 0 || next >= items.length) return items;
-  const copy = items.slice();
-  const [item] = copy.splice(index, 1);
-  copy.splice(next, 0, item);
-  return copy;
 }
 
 /**
@@ -159,8 +150,8 @@ export function VideoRemarkSectionsEditor({
               downLabel="Descendre la section"
               upDisabled={sectionIndex === 0}
               downDisabled={sectionIndex === sections.length - 1}
-              onUp={() => onChange(moveList(sections, sectionIndex, -1))}
-              onDown={() => onChange(moveList(sections, sectionIndex, 1))}
+              onUp={() => onChange(moveItem(sections, sectionIndex, -1))}
+              onDown={() => onChange(moveItem(sections, sectionIndex, 1))}
             />
             <details className="vr-section" open>
             <summary>
@@ -225,8 +216,8 @@ export function VideoRemarkSectionsEditor({
                     downLabel="Descendre le champ"
                     upDisabled={fieldIndex === 0}
                     downDisabled={fieldIndex === section.fields.length - 1}
-                    onUp={() => updateSection(section.id, { fields: moveList(section.fields, fieldIndex, -1) })}
-                    onDown={() => updateSection(section.id, { fields: moveList(section.fields, fieldIndex, 1) })}
+                    onUp={() => updateSection(section.id, { fields: moveItem(section.fields, fieldIndex, -1) })}
+                    onDown={() => updateSection(section.id, { fields: moveItem(section.fields, fieldIndex, 1) })}
                   />
                   <select
                     aria-label="Type de champ"

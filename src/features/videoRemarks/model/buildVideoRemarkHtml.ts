@@ -22,13 +22,28 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
 /**
- * Détecte un fragment HTML déjà balisé (image insérée, par exemple).
+ * Couleur CSS sûre pour un attribut style (sélecteur natif : #rrggbb).
  *
- * @param value - Valeur du champ.
+ * @param value - Couleur saisie.
+ * @param fallback - Repli si la valeur n'est pas un hex de 6 chiffres.
  */
-function containsHtml(value: string): boolean {
-  return /<[a-z][\s\S]*>/i.test(value);
+function cssColor(value: string, fallback: string): string {
+  const clean = String(value || "").trim();
+  return HEX_COLOR_RE.test(clean) ? clean : fallback;
+}
+
+/**
+ * Taille de police bornée, en pixels.
+ *
+ * @param size - Taille du style.
+ */
+function cssFontSize(size: number): number {
+  const value = Number(size);
+  if (!Number.isFinite(value)) return 16;
+  return Math.min(96, Math.max(8, Math.round(value)));
 }
 
 /**
@@ -38,9 +53,9 @@ function containsHtml(value: string): boolean {
  */
 function inlineStyle(style: TextStyle): string {
   const css = [];
-  if (style.colorOn) css.push(`color: ${style.colorValue}`);
-  if (style.bgOn) css.push(`background-color: ${style.bgValue}`);
-  css.push(`font-size: ${style.size}px`);
+  if (style.colorOn) css.push(`color: ${cssColor(style.colorValue, "#000000")}`);
+  if (style.bgOn) css.push(`background-color: ${cssColor(style.bgValue, "#ffff00")}`);
+  css.push(`font-size: ${cssFontSize(style.size)}px`);
   css.push(`font-weight: ${style.bold ? "bold" : "normal"}`);
   if (style.italic) css.push("font-style: italic");
   css.push(`text-decoration: ${style.underline ? "underline" : "none"}`);
@@ -51,27 +66,40 @@ function styledSpan(text: string, style: TextStyle): string {
   return `<span style="${inlineStyle(style)}">${text}</span>`;
 }
 
-function collapseBreaks(text: string): string {
+function collapseNewlines(text: string): string {
   return String(text)
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/\n[ \t]*\n+/g, "\n")
-    .replace(/(?:<br\s*\/?>\s*){2,}/gi, "<br>")
     .replace(/^\n+|\n+$/g, "");
 }
 
+/**
+ * Texte échappé. Seule la balise image d'alarme exacte est réinjectée.
+ *
+ * @param value - Valeur du champ.
+ * @param multiline - Conserve les retours ligne en `<br>`.
+ */
+function renderSafeText(value: string, multiline: boolean): string {
+  const alarmTag = alarmImageTag();
+  const parts = collapseNewlines(value).split(alarmTag);
+  return parts
+    .map((part) => {
+      const text = escapeHtml(part);
+      return multiline ? text.split("\n").join("<br>") : text.replace(/\n/g, " ");
+    })
+    .join(alarmTag);
+}
+
 function renderFieldValue(field: VideoField): string {
-  if (containsHtml(field.value)) return collapseBreaks(field.value);
-  const text = escapeHtml(collapseBreaks(field.value));
-  return field.multiline ? text.split("\n").join("<br>") : text;
+  return renderSafeText(field.value, field.multiline);
 }
 
 function renderNoticeHtml(field: VideoField, styles: VideoStyles): string {
   const img = alarmImageTag();
-  let inner: string;
-  if (containsHtml(field.value)) inner = field.value;
-  else if (field.wrapAlarms) inner = `${img} ${escapeHtml(field.value)} ${img}`;
-  else inner = escapeHtml(field.value);
+  const safe = renderSafeText(field.value, false);
+  const alreadyHasAlarm = field.value.includes(img);
+  const inner = field.wrapAlarms && !alreadyHasAlarm ? `${img} ${safe} ${img}` : safe;
   return `<strong style="${inlineStyle(styles.notice)}"> ${inner} </strong>`;
 }
 
@@ -123,8 +151,16 @@ function renderSectionHtml(
   return `<div style="${outer};">${titlePart}${detailsBlock}</div>`;
 }
 
+function safeHttpUrl(url: string): string {
+  const trimmed = String(url || "").trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : "";
+}
+
 function linkAnchor(url: string, text: string, linkStyle: TextStyle): string {
-  return `<a href="${escapeHtml(url)}" onclick="window.open(this.href, '_blank', 'width=1000,height=800'); return false;" style="${inlineStyle(linkStyle)}">${escapeHtml(text)}</a>`;
+  const href = safeHttpUrl(url);
+  const label = escapeHtml(text);
+  if (!href) return label;
+  return `<a href="${escapeHtml(href)}" onclick="window.open(this.href, '_blank', 'width=1000,height=800'); return false;" style="${inlineStyle(linkStyle)}">${label}</a>`;
 }
 
 function extraLinksHtml(doc: VideoRemarkDocument): string {

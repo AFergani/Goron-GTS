@@ -6,6 +6,19 @@ import type { RondeEntry } from "../model/ronde.types";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { isRondeTimeHm } from "./rondeTime";
 
+const HEURE_DEMANDEE_RE = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i;
+
+/**
+ * Heure HH:mm écrite dans l'observation (« Heure demandée: hh:mm »).
+ *
+ * @param obs - Texte d'observation.
+ * @returns Chaîne vide si absente.
+ */
+export function extractHeureDemandeeHmFromObs(obs: string | null | undefined): string {
+  const match = HEURE_DEMANDEE_RE.exec(String(obs || ""));
+  return match ? `${match[1]}:${match[2]}` : "";
+}
+
 /** Champs lus pour savoir si l'heure de passage est dépassée. */
 type RondePassageTiming = {
   requestDate?: string;
@@ -14,9 +27,8 @@ type RondePassageTiming = {
 };
 
 export function extractRondeRequestedTimeHm(entry: RondePassageTiming): string {
-  const obs = String(entry.horairesDemandeObs || "");
-  const fromObs = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i.exec(obs);
-  if (fromObs) return `${fromObs[1]}:${fromObs[2]}`;
+  const fromObs = extractHeureDemandeeHmFromObs(entry.horairesDemandeObs);
+  if (fromObs) return fromObs;
   const snap = entry.requestPlanningSnapshot;
   if (snap?.lines?.length) {
     for (const ln of snap.lines) {

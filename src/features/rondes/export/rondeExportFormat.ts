@@ -7,6 +7,7 @@ import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import type { RondeEntry } from "../model/ronde.types";
 import { isSuiteInterventionRonde, suiteInterventionClientName } from "../model/requestOrigin";
 import { isRondeTimeHm } from "../utils/rondeTime";
+import { extractHeureDemandeeHmFromObs } from "../utils/rondePassageRules";
 import { rondePassageKindLabel } from "../utils/rondePassageKindLabel";
 import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
@@ -70,8 +71,8 @@ function dedicatedRequestedTimeHm(
   profiles?: RondePlannedProfileRef[] | null
 ): string {
   if (!isDedicatedRondePassage(entry)) return "";
-  const fromObs = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i.exec(String(entry.horairesDemandeObs || ""));
-  if (fromObs) return `${fromObs[1]}:${fromObs[2]}`;
+  const fromObs = extractHeureDemandeeHmFromObs(entry.horairesDemandeObs);
+  if (fromObs) return fromObs;
   const snapLines = entry.requestPlanningSnapshot?.lines ?? [];
   for (const line of snapLines) {
     const rk = String(line.roundKind || "").trim().toUpperCase();

@@ -85,8 +85,9 @@ function registerSystemIpcHandlers(deps) {
     return result;
   });
   handleIpcAuth("system:resolveTemplateFileForContext", (payload) => getUserStore().resolveTemplateFileForContext(payload));
-  handleIpcAuth("system:openTemplatesFolder", () => {
+  handleIpcAuth("system:openTemplatesFolder", (payload) => {
     try {
+      getUserStore().ensureDataManagerRole(payload.requesterRole);
       const dir = documentTemplates.resolveWritableTemplatesDirectory();
       return shell.openPath(dir).then((error) => ({ success: !error, path: dir, error: error || null }));
     } catch (e) {
@@ -159,7 +160,7 @@ function registerSystemIpcHandlers(deps) {
     return postgresAdmin.reconnect();
   });
 
-  handleIpc("system:getPostgresBackupStatus", () => postgresBackup.getStatus());
+  handleIpcAuth("system:getPostgresBackupStatus", () => postgresBackup.getStatus());
   handleIpcAuth("system:pickPostgresBackupFolder", (payload = {}) => postgresBackup.pickFolder(payload));
   handleIpcAuth("system:savePostgresBackupSettings", (payload = {}) => postgresBackup.saveSettings(payload));
   handleIpcAuth("system:openPostgresBackupFolder", (payload = {}) => {
@@ -171,12 +172,17 @@ function registerSystemIpcHandlers(deps) {
   handleIpcAuth("system:runPostgresBackup", (payload = {}) => postgresBackup.runManualDump(payload));
   handleIpcAuth("system:runPostgresBackupSaveAs", (payload = {}) => postgresBackup.runManualDumpSaveAs(payload));
   handleIpcAuth("system:startPostgresBackupCycle", (payload = {}) => postgresBackup.startBackupCycle(payload));
-  handleIpc("system:pickPostgresBackupFile", () => postgresBackup.pickDumpFile());
-  // Restaurer / comparer sans session : écran login / bootstrap (Docker recréé).
+  handleIpcAuth("system:pickPostgresBackupFile", () => postgresBackup.pickDumpFile());
+  // Restaurer sans session : écran login / bootstrap (Docker recréé), avec mot de passe responsable.
   handleIpc("system:restorePostgresBackup", (payload = {}) => postgresBackup.restoreBackup(payload || {}));
   handleIpcAuth("system:restorePostgresBackupAuth", (payload = {}) => postgresBackup.restoreBackup(payload));
-  handleIpc("system:comparePostgresBackup", (payload = {}) => postgresBackup.compareBackup(payload || {}));
-  handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) => postgresBackup.compareBackup(payload));
+  // `sessionVerified` est posé ici, jamais lu depuis le payload client.
+  handleIpc("system:comparePostgresBackup", (payload = {}) =>
+    postgresBackup.compareBackup({ ...(payload || {}), sessionVerified: false })
+  );
+  handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) =>
+    postgresBackup.compareBackup({ ...payload, sessionVerified: true })
+  );
 
   handleIpc("system:quitApp", () => {
     setIsAppQuitting(true);

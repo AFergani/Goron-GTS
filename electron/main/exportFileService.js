@@ -2,7 +2,8 @@
  * Enregistrement local des exports Word/Excel et ouverture par l’application système.
  *
  * Instancié dans `main.js` ; exposé via IPC `system:saveExportFile` / `system:openExportFile`.
- * Mémorise le dernier dossier d’enregistrement sur le poste (`gts-export-prefs.json` dans userData).
+ * Mémorise le dernier dossier et la liste des fichiers réellement écrits par GTS
+ * (`gts-export-prefs.json` dans userData). L'ouverture refuse tout autre chemin.
  * Les chemins par fiche restent côté renderer (localStorage), car ils sont propres au poste.
  *
  * @module electron/main/exportFileService
@@ -11,6 +12,8 @@
 const PREFS_FILE_NAME = "gts-export-prefs.json";
 const MAX_EXPORT_BYTES = 40 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([".docx", ".xlsx"]);
+/** Nombre max de chemins d'export autorisés à l'ouverture, les plus récents d'abord. */
+const MAX_ALLOWED_EXPORT_PATHS = 200;
 
 /**
  * Fabrique le service d’export fichiers du processus principal.
@@ -32,30 +35,78 @@ function createExportFileService(deps) {
   const prefsPath = path.join(app.getPath("userData"), PREFS_FILE_NAME);
 
   /**
+   * @returns {{ lastExportDir: string, allowedExportPaths: string[] }}
+   */
+  function readPrefs() {
+    try {
+      if (!fs.existsSync(prefsPath)) return { lastExportDir: "", allowedExportPaths: [] };
+      const raw = JSON.parse(fs.readFileSync(prefsPath, "utf-8"));
+      const dir = raw && typeof raw.lastExportDir === "string" ? raw.lastExportDir.trim() : "";
+      const allowed = Array.isArray(raw?.allowedExportPaths)
+        ? raw.allowedExportPaths.filter((item) => typeof item === "string" && item.trim())
+        : [];
+      return { lastExportDir: dir, allowedExportPaths: allowed };
+    } catch {
+      return { lastExportDir: "", allowedExportPaths: [] };
+    }
+  }
+
+  /**
+   * @param {{ lastExportDir: string, allowedExportPaths: string[] }} prefs
+   * @returns {void}
+   */
+  function writePrefs(prefs) {
+    try {
+      fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), "utf-8");
+    } catch {
+      /* non bloquant : le prochain dialogue reprendra Documents */
+    }
+  }
+
+  /**
+   * Clé stable pour comparer deux chemins (Windows ignore la casse).
+   *
+   * @param {string} filePath
+   * @returns {string}
+   */
+  function exportPathKey(filePath) {
+    const resolved = path.resolve(filePath);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  }
+
+  /**
    * @returns {string} Dossier du dernier enregistrement, ou Documents.
    */
   function readLastExportDir() {
-    try {
-      if (!fs.existsSync(prefsPath)) return app.getPath("documents");
-      const raw = JSON.parse(fs.readFileSync(prefsPath, "utf-8"));
-      const dir = raw && typeof raw.lastExportDir === "string" ? raw.lastExportDir.trim() : "";
-      if (dir && fs.existsSync(dir)) return dir;
-    } catch {
-      /* repli Documents */
-    }
+    const dir = readPrefs().lastExportDir;
+    if (dir && fs.existsSync(dir)) return dir;
     return app.getPath("documents");
   }
 
   /**
-   * @param {string} dir
+   * Mémorise un fichier réellement écrit par GTS : seul celui-ci pourra être rouvert.
+   *
+   * @param {string} filePath
    * @returns {void}
    */
-  function writeLastExportDir(dir) {
-    try {
-      fs.writeFileSync(prefsPath, JSON.stringify({ lastExportDir: dir }, null, 2), "utf-8");
-    } catch {
-      /* non bloquant : le prochain dialogue reprendra Documents */
-    }
+  function rememberExportFile(filePath) {
+    const resolved = path.resolve(filePath);
+    const prefs = readPrefs();
+    const key = exportPathKey(resolved);
+    const allowedExportPaths = [
+      resolved,
+      ...prefs.allowedExportPaths.filter((item) => exportPathKey(item) !== key)
+    ].slice(0, MAX_ALLOWED_EXPORT_PATHS);
+    writePrefs({ lastExportDir: path.dirname(resolved), allowedExportPaths });
+  }
+
+  /**
+   * @param {string} filePath
+   * @returns {boolean}
+   */
+  function isRememberedExportFile(filePath) {
+    const key = exportPathKey(filePath);
+    return readPrefs().allowedExportPaths.some((item) => exportPathKey(item) === key);
   }
 
   /**
@@ -160,7 +211,7 @@ function createExportFileService(deps) {
     } catch (error) {
       throwFriendlyWriteError(error);
     }
-    writeLastExportDir(path.dirname(target));
+    rememberExportFile(target);
     return { canceled: false, filePath: target };
   }
 
@@ -180,6 +231,12 @@ function createExportFileService(deps) {
     const ext = path.extname(resolved).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       return { success: false, error: "Seuls les fichiers Word et Excel exportés peuvent être ouverts ici." };
+    }
+    if (!isRememberedExportFile(resolved)) {
+      return {
+        success: false,
+        error: "Ce fichier n'a pas été enregistré par GTS sur ce poste. Exportez-le à nouveau pour l'ouvrir depuis l'application."
+      };
     }
     if (!fs.existsSync(resolved)) {
       return {

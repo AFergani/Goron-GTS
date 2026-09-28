@@ -391,6 +391,8 @@ export function AppShell() {
             recoveryRestoredMessage={pgBootstrap.recoveryRestoredMessage}
             onCancelRecovery={pgBootstrap.closeRecoverySetup}
             onOpenHelp={() => openHelpCenter("settings-connection")}
+            currentPassword={pgBootstrap.recoveryCurrentPassword}
+            onCurrentPasswordChange={pgBootstrap.setRecoveryCurrentPassword}
           />
           <HelpCenterModal
             isOpen={helpCenterOpen}
