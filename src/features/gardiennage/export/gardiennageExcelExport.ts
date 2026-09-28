@@ -5,8 +5,7 @@
  * Fichier `gardiennage_export_<horodatage>.xlsx` enregistré via le dialogue natif.
  */
 
-import * as XLSX from "xlsx";
-import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
+import { buildFilteredListWorkbook, downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import { gardiennageDemandLabel, type GardiennageEntry } from "../model/gardiennage.types";
 import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
@@ -65,30 +64,6 @@ export async function exportGardiennageToExcel(entries: GardiennageEntry[]) {
     ])
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const tableRange = XLSX.utils.encode_range({
-    s: { r: 0, c: 0 },
-    e: { r: Math.max(0, rows.length - 1), c: HEADERS.length - 1 }
-  });
-  ws["!autofilter"] = { ref: tableRange };
-  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
-  ws["!rows"] = [{ hpt: 22 }];
-  ws["!cols"] = [
-    { wch: 14 },
-    { wch: 34 },
-    { wch: 30 },
-    { wch: 20 },
-    { wch: 24 },
-    { wch: 28 },
-    { wch: 14 },
-    { wch: 42 },
-    { wch: 42 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 14 }
-  ];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Gardiennage");
+  const wb = buildFilteredListWorkbook("Gardiennage", rows, [14, 34, 30, 20, 24, 28, 14, 42, 42, 16, 18, 14]);
   return downloadSheetJsWorkbook(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
 }

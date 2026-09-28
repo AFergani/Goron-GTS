@@ -2,9 +2,8 @@
  * Export Excel de la liste interventions filtrée (colonnes métier, pas d’UUID).
  */
 
-import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
+import { buildFilteredListWorkbook, downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
-import * as XLSX from "xlsx";
 import { type InterventionEntry } from "../model/intervention.types";
 import {
   formatInterventionDateTime,
@@ -50,34 +49,6 @@ export async function exportInterventionToExcel(entries: InterventionEntry[]) {
     ])
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const tableRange = XLSX.utils.encode_range({
-    s: { r: 0, c: 0 },
-    e: { r: Math.max(0, rows.length - 1), c: HEADERS.length - 1 }
-  });
-
-  // Rendu "tableur" : filtres auto + vue initiale lisible.
-  ws["!autofilter"] = { ref: tableRange };
-  ws["!rows"] = [{ hpt: 22 }];
-  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
-
-  ws["!cols"] = [
-    { wch: 14 },
-    { wch: 20 },
-    { wch: 36 },
-    { wch: 45 },
-    { wch: 24 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 50 },
-    { wch: 14 }
-  ];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Intervention");
-  wb.Workbook = wb.Workbook || {};
-  wb.Workbook.Views = [{ RTL: false }];
+  const wb = buildFilteredListWorkbook("Intervention", rows, [14, 20, 36, 45, 24, 12, 12, 18, 18, 50, 14]);
   return downloadSheetJsWorkbook(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
 }
