@@ -37,7 +37,7 @@ import { getLocalDateIso, getLocalTimeHm } from "../../common/utils/localDateIso
 import { FormVariableFields } from "../../common/components/FormVariableFields";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import { CancelReasonConfirmModal } from "../../common/components/CancelReasonConfirmModal";
 import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
@@ -744,31 +744,22 @@ export function GardiennageEntryModal({
       />
 
       {/* Annulation avec motif obligatoire */}
-      <ConfirmModal
+      <CancelReasonConfirmModal
         isOpen={showCancelConfirm}
         title="Annuler le gardiennage ?"
         message="L'annulation est définitive. Un motif est obligatoire."
         confirmLabel="Confirmer l'annulation"
-        confirmClassName="btn-danger"
-        confirmDisabled={!cancelReason.trim()}
-        onCancel={() => { setShowCancelConfirm(false); setCancelReason(""); }}
+        reasonLabel="Motif d'annulation *"
+        reason={cancelReason}
+        rows={3}
+        maxLength={500}
+        onReasonChange={setCancelReason}
+        onCancel={() => {
+          setShowCancelConfirm(false);
+          setCancelReason("");
+        }}
         onConfirm={() => void handleCancelGardiennage()}
-      >
-        <label className="mc-field mc-field-full" style={{ marginTop: 12 }}>
-          <span className="muted" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
-            Motif d'annulation *
-          </span>
-          <textarea
-            rows={3}
-            value={cancelReason}
-            maxLength={500}
-            placeholder="Ex. Motif exemple"
-            className="mc-textarea"
-            autoFocus
-            onChange={(e) => setCancelReason(e.target.value)}
-          />
-        </label>
-      </ConfirmModal>
+      />
     </>
   );
 }
