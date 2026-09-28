@@ -235,10 +235,12 @@ export const gtsApiClient = {
     return sessionCall(window.gtsApi.comparePostgresBackupAuth, payload);
   },
   quitApp(): Promise<{ success: boolean }> {
-    return window.gtsApi.quitApp();
+    const token = getGtsApiSessionToken();
+    return window.gtsApi.quitApp(token ? { sessionToken: token } : undefined);
   },
   minimizeApp(): Promise<{ success: boolean }> {
-    return window.gtsApi.minimizeApp();
+    const token = getGtsApiSessionToken();
+    return window.gtsApi.minimizeApp(token ? { sessionToken: token } : undefined);
   },
   /** Croix de fenêtre : le main demande à l'UI d'ouvrir le choix déconnexion / minimiser / quitter. */
   subscribeAppExitChoiceRequest(callback: () => void): () => void {

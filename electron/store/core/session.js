@@ -202,6 +202,25 @@ function clearAllSessions() {
 }
 
 /**
+ * Indique si le jeton est encore dans la mémoire du poste et dans le délai de 13 h.
+ * Ne consulte pas le cache utilisateurs : un jeton vivant reste valable si PostgreSQL
+ * est momentanément injoignable (quitter l'application pendant une panne).
+ *
+ * @param {unknown} token
+ * @returns {boolean}
+ */
+function isLiveSessionToken(token) {
+  if (!token || typeof token !== "string") return false;
+  const rec = sessions.get(token);
+  if (!rec) return false;
+  if (Date.now() - rec.createdAt >= SESSION_TTL_MS) {
+    dropSession(token);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Logins ayant une session non expirée (badge « connecté » : `users:getActiveSessions`).
  *
  * @returns {Set<string>} Usernames normalisés en minuscules.
@@ -221,5 +240,6 @@ module.exports = {
   revokeSession,
   clearAllSessions,
   loadPersistedSessions,
-  getActiveUsernames
+  getActiveUsernames,
+  isLiveSessionToken
 };

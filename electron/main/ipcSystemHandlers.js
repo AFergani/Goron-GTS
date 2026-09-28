@@ -25,6 +25,8 @@ const { probePostgresLabMonitored } = require("../store/persistence");
  * @param {(value: boolean) => void} deps.setIsAppQuitting
  * @param {() => import('electron').BrowserWindow|null} deps.getMainWindow
  * @param {(username: string) => boolean} deps.canManageDatabase
+ * @param {() => boolean} deps.hasLiveSession - Vrai si une session est encore ouverte sur ce poste.
+ * @param {(token: unknown) => boolean} deps.isLiveSessionToken - Jeton présent en mémoire, même si PostgreSQL est injoignable.
  * @param {(enabled: boolean) => void} deps.setDevToolsAccessEnabled
  * @param {object} deps.postgresAdmin
  * @param {object} deps.postgresBackup
@@ -46,6 +48,8 @@ function registerSystemIpcHandlers(deps) {
     getMainWindow,
     canManageDatabase,
     setDevToolsAccessEnabled,
+    hasLiveSession,
+    isLiveSessionToken,
     postgresAdmin,
     postgresBackup
   } = deps;
@@ -153,13 +157,28 @@ function registerSystemIpcHandlers(deps) {
   handleIpcAuth("system:restorePostgresBackupAuth", (payload = {}) => postgresBackup.restoreBackup(payload));
   handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) => postgresBackup.compareBackup(payload));
 
-  handleIpc("system:quitApp", () => {
+  /**
+   * Quitter ou réduire : libre tant qu'aucune session n'est ouverte (écran de connexion,
+   * panne avant login). Dès qu'une session est active, le jeton du poste est exigé.
+   *
+   * @param {object} [payload]
+   * @returns {void}
+   */
+  function assertLocalSessionIfAny(payload) {
+    if (typeof hasLiveSession === "function" && hasLiveSession() && !isLiveSessionToken(payload?.sessionToken)) {
+      throw new Error("Une session est ouverte sur ce poste. Reconnectez-vous pour quitter ou réduire l'application.");
+    }
+  }
+
+  handleIpc("system:quitApp", (payload = {}) => {
+    assertLocalSessionIfAny(payload);
     setIsAppQuitting(true);
     app.quit();
     return { success: true };
   });
 
-  handleIpc("system:minimizeApp", () => {
+  handleIpc("system:minimizeApp", (payload = {}) => {
+    assertLocalSessionIfAny(payload);
     const mainWindow = getMainWindow();
     if (!mainWindow) return { success: false };
     if (!mainWindow.isMinimized()) {

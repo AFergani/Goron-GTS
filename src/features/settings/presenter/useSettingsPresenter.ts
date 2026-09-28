@@ -370,11 +370,19 @@ export function useSettingsPresenter({
   };
 
   const onMinimizeApp = async () => {
-    await gtsApiClient.minimizeApp();
+    try {
+      await gtsApiClient.minimizeApp();
+    } catch (err) {
+      onError(extractUserFacingErrorMessage(err, "Impossible de réduire l'application."));
+    }
   };
 
   const onQuitAppNow = async () => {
-    await gtsApiClient.quitApp();
+    try {
+      await gtsApiClient.quitApp();
+    } catch (err) {
+      onError(extractUserFacingErrorMessage(err, "Impossible de quitter l'application."));
+    }
   };
 
   const closeConfirmDialog = () => {

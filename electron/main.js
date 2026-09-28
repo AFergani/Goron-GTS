@@ -406,6 +406,8 @@ registerSystemIpcHandlers({
   setDevToolsAccessEnabled: (enabled) => {
     devToolsAccessEnabled = Boolean(enabled);
   },
+  hasLiveSession: () => sessionMain.getActiveUsernames().size > 0,
+  isLiveSessionToken: (token) => sessionMain.isLiveSessionToken(token),
   postgresAdmin,
   postgresBackup
 });
