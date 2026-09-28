@@ -191,34 +191,6 @@ export const gtsApiClient = {
   }): Promise<PostgresTestResult> {
     return window.gtsApi.testPostgresBootstrapConfig(payload);
   },
-  getPostgresConfig(): Promise<PublicPostgresConfig> {
-    return sessionOnlyCall(window.gtsApi.getPostgresConfig);
-  },
-  savePostgresConfig(payload: {
-    host: string;
-    port: number;
-    database: string;
-    user: string;
-    password?: string;
-    requesterRole: Role;
-    requesterUsername: string;
-  }): Promise<{ success: boolean; config: PublicPostgresConfig; reconnect: PostgresReconnectResult }> {
-    return sessionCall(window.gtsApi.savePostgresConfig, payload);
-  },
-  testPostgresConfig(payload: {
-    host?: string;
-    port?: number;
-    database?: string;
-    user?: string;
-    password?: string;
-    requesterRole: Role;
-    requesterUsername: string;
-  }): Promise<PostgresTestResult> {
-    return sessionCall(window.gtsApi.testPostgresConfig, payload);
-  },
-  reconnectPostgres(payload: { requesterRole: Role; requesterUsername: string }): Promise<PostgresReconnectResult> {
-    return sessionCall(window.gtsApi.reconnectPostgres, payload);
-  },
   getPostgresBackupStatus(): Promise<PostgresBackupStatus> {
     return sessionOnlyCall(window.gtsApi.getPostgresBackupStatus);
   },

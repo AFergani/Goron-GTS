@@ -155,8 +155,7 @@ const exportFileService = createExportFileService({
 });
 
 const postgresAdmin = createPostgresAdminService({
-  getUserStore: () => userStore,
-  canManageDatabase
+  getUserStore: () => userStore
 });
 
 const postgresBackup = createPostgresBackupService({

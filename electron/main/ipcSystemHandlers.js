@@ -137,29 +137,6 @@ function registerSystemIpcHandlers(deps) {
   handleIpc("system:savePostgresBootstrapConfig", async (payload = {}) => postgresAdmin.saveBootstrapConfig(payload || {}));
   handleIpc("system:testPostgresBootstrapConfig", async (payload = {}) => postgresAdmin.testBootstrapConfig(payload || {}));
 
-  handleIpcAuth("system:getPostgresConfig", (payload = {}) => {
-    if (!canManageDatabase(payload?.requesterUsername)) {
-      throw new Error("Droits insuffisants pour consulter la configuration PostgreSQL.");
-    }
-    return postgresAdmin.getPublicConfig();
-  });
-
-  handleIpcAuth("system:savePostgresConfig", async (payload = {}) => postgresAdmin.saveConfig(payload));
-
-  handleIpcAuth("system:testPostgresConfig", async (payload = {}) => {
-    if (!canManageDatabase(payload?.requesterUsername)) {
-      throw new Error("Droits insuffisants pour tester la connexion PostgreSQL.");
-    }
-    return postgresAdmin.testConfig(payload);
-  });
-
-  handleIpcAuth("system:reconnectPostgres", async (payload = {}) => {
-    if (!canManageDatabase(payload?.requesterUsername)) {
-      throw new Error("Droits insuffisants pour reconnecter PostgreSQL.");
-    }
-    return postgresAdmin.reconnect();
-  });
-
   handleIpcAuth("system:getPostgresBackupStatus", () => postgresBackup.getStatus());
   handleIpcAuth("system:pickPostgresBackupFolder", (payload = {}) => postgresBackup.pickFolder(payload));
   handleIpcAuth("system:savePostgresBackupSettings", (payload = {}) => postgresBackup.saveSettings(payload));

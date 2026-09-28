@@ -191,7 +191,7 @@ function getPostgresConnectionConfig(options = {}) {
 }
 
 /**
- * Vue publique pour l'UI admin (sans mot de passe).
+ * Vue publique pour l'écran de connexion (sans mot de passe).
  *
  * @param {object} [options]
  * @param {string} [options.encFilePath]

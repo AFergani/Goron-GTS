@@ -175,61 +175,6 @@ export interface GtsApiSystemChannels {
         error: string | null;
         checkedAt: string;
       }>;
-      getPostgresConfig: (payload: { sessionToken: string }) => Promise<{
-        host: string;
-        port: number;
-        database: string;
-        user: string;
-        hasPassword: boolean;
-        source: "env" | "encrypted" | "defaults";
-        encryptionAvailable: boolean;
-        envOverridesActive: boolean;
-      }>;
-      savePostgresConfig: (payload: {
-        sessionToken: string;
-        requesterRole: Role;
-        requesterUsername: string;
-        host: string;
-        port: number;
-        database: string;
-        user: string;
-        password?: string;
-      }) => Promise<{
-        success: boolean;
-        config: {
-          host: string;
-          port: number;
-          database: string;
-          user: string;
-          hasPassword: boolean;
-          source: "env" | "encrypted" | "defaults";
-          encryptionAvailable: boolean;
-          envOverridesActive: boolean;
-        };
-        reconnect: { success: boolean; reachable: boolean; error: string | null };
-      }>;
-      testPostgresConfig: (payload: {
-        sessionToken: string;
-        requesterRole: Role;
-        requesterUsername: string;
-        host?: string;
-        port?: number;
-        database?: string;
-        user?: string;
-        password?: string;
-      }) => Promise<{
-        reachable: boolean;
-        host: string;
-        port: number;
-        database: string;
-        error: string | null;
-        checkedAt: string;
-      }>;
-      reconnectPostgres: (payload: {
-        sessionToken: string;
-        requesterRole: Role;
-        requesterUsername: string;
-      }) => Promise<{ success: boolean; reachable: boolean; error: string | null }>;
       getPostgresBackupStatus: (payload: { sessionToken: string }) => Promise<PostgresBackupStatus>;
       pickPostgresBackupFolder: (payload: {
         sessionToken: string;

@@ -26,7 +26,7 @@ export const DEFAULT_POSTGRES_CONFIG_DRAFT: PostgresConfigDraft = {
   password: ""
 };
 
-export type PostgresBusyPhase = "idle" | "testing" | "saving" | "reconnecting";
+export type PostgresBusyPhase = "idle" | "testing" | "saving";
 
 type PostgresConnectionPanelProps = {
   config: PublicPostgresConfig | null;
@@ -34,11 +34,8 @@ type PostgresConnectionPanelProps = {
   onDraftChange: (next: PostgresConfigDraft) => void;
   onSave: () => void | Promise<void>;
   onTest: () => void | Promise<void>;
-  onReconnect?: () => void | Promise<void>;
   testResult: PostgresTestResult | null;
   busyPhase?: PostgresBusyPhase;
-  /** `bootstrap` = premier paramétrage avant login (sans reconnexion manuelle). */
-  variant?: "admin" | "bootstrap";
   /** Récupération depuis le login : la config existe déjà mais PostgreSQL ne répond pas. */
   isRecoveryMode?: boolean;
   /** Mot de passe technique déjà enregistré, exigé pour remplacer la config. */
@@ -55,15 +52,12 @@ export function PostgresConnectionPanel({
   onDraftChange,
   onSave,
   onTest,
-  onReconnect,
   testResult,
   busyPhase,
-  variant = "admin",
   isRecoveryMode = false,
   currentPassword = "",
   onCurrentPasswordChange
 }: PostgresConnectionPanelProps) {
-  const isBootstrap = variant === "bootstrap";
   const phase: PostgresBusyPhase = busyPhase ?? "idle";
   const isBusy = phase !== "idle";
 
@@ -80,17 +74,15 @@ export function PostgresConnectionPanel({
         ? "Fichier chiffré local (safeStorage)"
         : "Valeurs labo par défaut";
 
-  const saveLabel = (() => {
-    if (phase === "saving") {
-      return (
-        <span className="login-submit-busy">
-          <Loader2 size={16} className="login-spinner" aria-hidden />
-          {isBootstrap ? "Enregistrement en cours…" : "Enregistrement…"}
-        </span>
-      );
-    }
-    return isBootstrap ? "Enregistrer et continuer" : "Enregistrer et reconnecter";
-  })();
+  const saveLabel =
+    phase === "saving" ? (
+      <span className="login-submit-busy">
+        <Loader2 size={16} className="login-spinner" aria-hidden />
+        Enregistrement en cours…
+      </span>
+    ) : (
+      "Enregistrer et continuer"
+    );
 
   const testLabel =
     phase === "testing" ? (
@@ -104,16 +96,12 @@ export function PostgresConnectionPanel({
 
   return (
     <div
-      className={isBootstrap ? "postgres-config-panel" : "postgres-config-panel postgres-config-panel--flat"}
-      aria-labelledby={isBootstrap ? "postgres-config-title" : undefined}
+      className="postgres-config-panel"
+      aria-labelledby="postgres-config-title"
       aria-busy={isBusy}
     >
-      {isBootstrap ? <h4 id="postgres-config-title">Connexion PostgreSQL</h4> : null}
-      <p className="muted postgres-config-lead">
-        {isBootstrap
-          ? bootstrapLead
-          : "Compte technique unique pour l'application. Le mot de passe est stocké chiffré sur ce poste et n'est jamais réaffiché."}
-      </p>
+      <h4 id="postgres-config-title">Connexion PostgreSQL</h4>
+      <p className="muted postgres-config-lead">{bootstrapLead}</p>
       <div className="postgres-config-meta muted">
         <span>Source actuelle : {sourceLabel}</span>
         {config?.hasPassword ? <span>Mot de passe : enregistré</span> : <span>Mot de passe : non défini</span>}
@@ -206,25 +194,11 @@ export function PostgresConnectionPanel({
         >
           {saveLabel}
         </button>
-        {!isBootstrap && onReconnect ? (
-          <button type="button" className="btn-light" disabled={isBusy} onClick={() => void onReconnect()}>
-            {phase === "reconnecting" ? (
-              <span className="login-submit-busy">
-                <Loader2 size={16} className="login-spinner" aria-hidden />
-                Reconnexion…
-              </span>
-            ) : (
-              "Reconnecter"
-            )}
-          </button>
-        ) : null}
       </div>
 
       {phase === "saving" ? (
         <p className="muted login-status" role="status">
-          {isBootstrap
-            ? "Enregistrement de la configuration et établissement de la connexion à la base…"
-            : "Enregistrement et reconnexion au serveur PostgreSQL…"}
+          Enregistrement de la configuration et établissement de la connexion à la base…
         </p>
       ) : null}
       {phase === "testing" ? (

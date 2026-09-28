@@ -94,7 +94,6 @@ export function PostgresBootstrapView({
         ) : (
           <>
             <PostgresConnectionPanel
-              variant="bootstrap"
               isRecoveryMode={isRecoveryMode}
               config={config}
               draft={draft}

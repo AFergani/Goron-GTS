@@ -1,8 +1,9 @@
 /**
  * Service admin PostgreSQL : lecture / enregistrement config chiffrée, test et reconnexion.
  *
- * IPC Paramètres (`system:*PostgresConfig`) et bootstrap pre-login
- * (`system:*PostgresBootstrap*`). RBAC : directeur / responsable de station / DEV, hors bootstrap.
+ * IPC bootstrap pre-login (`system:*PostgresBootstrap*`).
+ * La modification une fois connecté n'existe plus : si la base est injoignable, l'appli est bloquée
+ * et la récupération se fait avant le login.
  *
  * @module electron/main/postgresAdminService
  */
@@ -25,19 +26,15 @@ const BOOTSTRAP_ACTOR = "system:pg-bootstrap";
  *
  * @param {object} deps
  * @param {() => import('../userStore')|null} deps.getUserStore
- * @param {(username: string) => boolean} deps.canManageDatabase
  * @returns {{
- *   getPublicConfig: () => object,
  *   getBootstrapStatus: () => Promise<{ needsSetup: boolean, reachable: boolean, config: object }>,
- *   saveConfig: (payload: object) => Promise<object>,
  *   saveBootstrapConfig: (payload: object) => Promise<object>,
- *   testConfig: (payload?: object) => Promise<object>,
  *   testBootstrapConfig: (payload?: object) => Promise<object>,
  *   reconnect: () => Promise<object>
  * }}
  */
 function createPostgresAdminService(deps) {
-  const { getUserStore, canManageDatabase } = deps;
+  const { getUserStore } = deps;
 
   /**
    * Indique si une config PostgreSQL valide est déjà persistée sur le poste.
@@ -67,19 +64,6 @@ function createPostgresAdminService(deps) {
   }
 
   /**
-   * @param {string} requesterUsername
-   * @returns {void}
-   * @throws {Error}
-   */
-  function assertCanManage(requesterUsername) {
-    if (!canManageDatabase(requesterUsername)) {
-      const err = new Error("Droits insuffisants pour gérer la connexion PostgreSQL.");
-      err.code = "FORBIDDEN";
-      throw err;
-    }
-  }
-
-  /**
    * Autorise le bootstrap pre-login si aucune config n'existe encore,
    * ou si la config actuelle est injoignable (récupération IP / serveur).
    *
@@ -98,7 +82,7 @@ function createPostgresAdminService(deps) {
   }
 
   /**
-   * Vue publique (sans mot de passe) pour l'UI admin / bootstrap.
+   * Vue publique (sans mot de passe) pour l'écran de connexion.
    *
    * @returns {object}
    */
@@ -240,9 +224,10 @@ function createPostgresAdminService(deps) {
    */
   async function saveConfig(payload) {
     const requesterUsername = String(payload?.requesterUsername || "").trim();
-    const isBootstrap = requesterUsername === BOOTSTRAP_ACTOR;
-    if (!isBootstrap) {
-      assertCanManage(requesterUsername);
+    if (requesterUsername !== BOOTSTRAP_ACTOR) {
+      const err = new Error("La configuration PostgreSQL se modifie uniquement avant la connexion, lorsque la base est injoignable.");
+      err.code = "FORBIDDEN";
+      throw err;
     }
 
     if (hasEnvOverrides()) {
@@ -350,11 +335,8 @@ function createPostgresAdminService(deps) {
   }
 
   return {
-    getPublicConfig,
     getBootstrapStatus,
-    saveConfig,
     saveBootstrapConfig,
-    testConfig,
     testBootstrapConfig,
     reconnect,
     tryAutoPersistLabDefaultsIfMissing
