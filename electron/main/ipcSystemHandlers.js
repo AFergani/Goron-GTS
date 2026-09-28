@@ -173,16 +173,8 @@ function registerSystemIpcHandlers(deps) {
   handleIpcAuth("system:runPostgresBackupSaveAs", (payload = {}) => postgresBackup.runManualDumpSaveAs(payload));
   handleIpcAuth("system:startPostgresBackupCycle", (payload = {}) => postgresBackup.startBackupCycle(payload));
   handleIpcAuth("system:pickPostgresBackupFile", () => postgresBackup.pickDumpFile());
-  // Restaurer sans session : écran login / bootstrap (Docker recréé), avec mot de passe responsable.
-  handleIpc("system:restorePostgresBackup", (payload = {}) => postgresBackup.restoreBackup(payload || {}));
   handleIpcAuth("system:restorePostgresBackupAuth", (payload = {}) => postgresBackup.restoreBackup(payload));
-  // `sessionVerified` est posé ici, jamais lu depuis le payload client.
-  handleIpc("system:comparePostgresBackup", (payload = {}) =>
-    postgresBackup.compareBackup({ ...(payload || {}), sessionVerified: false })
-  );
-  handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) =>
-    postgresBackup.compareBackup({ ...payload, sessionVerified: true })
-  );
+  handleIpcAuth("system:comparePostgresBackupAuth", (payload = {}) => postgresBackup.compareBackup(payload));
 
   handleIpc("system:quitApp", () => {
     setIsAppQuitting(true);

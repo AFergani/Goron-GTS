@@ -272,13 +272,6 @@ export interface GtsApiSystemChannels {
         filePath: string | null;
         fileName: string | null;
       }>;
-      restorePostgresBackup: (payload: {
-        filePath?: string;
-        fileName?: string;
-        accountPassword?: string;
-        confirmPhrase?: string;
-        managerFullName?: string;
-      }) => Promise<PostgresRestoreResult>;
       restorePostgresBackupAuth: (payload: {
         sessionToken: string;
         requesterRole: Role;
@@ -289,10 +282,6 @@ export interface GtsApiSystemChannels {
         confirmPhrase?: string;
         managerFullName?: string;
       }) => Promise<PostgresRestoreResult>;
-      comparePostgresBackup: (payload: {
-        filePath?: string;
-        fileName?: string;
-      }) => Promise<PostgresCompareResult>;
       comparePostgresBackupAuth: (payload: {
         sessionToken: string;
         requesterRole: Role;

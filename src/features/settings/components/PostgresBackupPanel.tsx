@@ -1,6 +1,7 @@
 /**
  * Panneau sauvegardes PostgreSQL : dossier, cycle 3 h, copies manuelles, liste, comparaison, restauration.
- * Variante `admin` (Paramètres) ou `recovery` (écran d'init / login).
+ * Variante `admin` (Paramètres, session requise). La variante `recovery` ne propose plus
+ * ni restauration ni comparaison : ces actions passent uniquement par une session autorisée.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -171,21 +172,25 @@ export function PostgresBackupPanel({
     }
   };
 
-  const invokeBackupFileOp = async <T,>(
+  const runAuthedBackupFileOp = async <T,>(
     target: { fileName?: string; filePath?: string },
     authCall: (payload: {
       requesterRole: Role;
       requesterUsername: string;
       filePath?: string;
       fileName?: string;
-    }) => Promise<T>,
-    publicCall: (payload: { filePath?: string; fileName?: string }) => Promise<T>
-  ): Promise<T> => {
-    const payload = { filePath: target.filePath, fileName: target.fileName };
-    if (isAdmin && requesterRole && requesterUsername) {
-      return authCall({ requesterRole, requesterUsername, ...payload });
+    }) => Promise<T>
+  ): Promise<T | null> => {
+    if (!isAdmin || !requesterRole || !requesterUsername) {
+      notify("La restauration et la comparaison se font depuis Paramètres, une fois connecté.", "error");
+      return null;
     }
-    return publicCall(payload);
+    return authCall({
+      requesterRole,
+      requesterUsername,
+      filePath: target.filePath,
+      fileName: target.fileName
+    });
   };
 
   const confirmRestore = async (confirmation: {
@@ -201,11 +206,10 @@ export function PostgresBackupPanel({
         confirmPhrase: confirmation.confirmPhrase,
         managerFullName: confirmation.managerFullName
       };
-      const result = await invokeBackupFileOp(
-        restoreTarget,
-        (payload) => gtsApiClient.restorePostgresBackupAuth({ ...payload, ...extras }),
-        (payload) => gtsApiClient.restorePostgresBackup({ ...payload, ...extras })
+      const result = await runAuthedBackupFileOp(restoreTarget, (payload) =>
+        gtsApiClient.restorePostgresBackupAuth({ ...payload, ...extras })
       );
+      if (!result) return;
       setRestoreTarget(null);
       setCompareTarget(null);
       setCompareResult(null);
@@ -225,11 +229,12 @@ export function PostgresBackupPanel({
     setCompareResult(null);
     setBusy("comparing");
     try {
-      const result = await invokeBackupFileOp(
-        target,
-        (payload) => gtsApiClient.comparePostgresBackupAuth(payload),
-        (payload) => gtsApiClient.comparePostgresBackup(payload)
-      );
+      const result = await runAuthedBackupFileOp(target, (payload) => gtsApiClient.comparePostgresBackupAuth(payload));
+      if (!result) {
+        setCompareTarget(null);
+        setCompareResult(null);
+        return;
+      }
       setCompareResult(result);
       const lost = result.totals?.lost ?? 0;
       const recovered = result.totals?.recovered ?? 0;
@@ -441,19 +446,10 @@ export function PostgresBackupPanel({
                 />
               </>
             ) : (
-              <>
-                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void loadStatus()}>
-                  <RotateCcw size={16} aria-hidden />
-                  Actualiser
-                </button>
-                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget(setRestoreTarget)}>
-                  Restaurer une sauvegarde depuis…
-                </button>
-                <button type="button" className="btn-light" disabled={isBusy} onClick={() => void pickDumpTarget((target) => void startCompare(target))}>
-                  <GitCompare size={16} aria-hidden />
-                  Comparer une sauvegarde…
-                </button>
-              </>
+              <button type="button" className="btn-light" disabled={isBusy} onClick={() => void loadStatus()}>
+                <RotateCcw size={16} aria-hidden />
+                Actualiser
+              </button>
             )}
           </div>
           </div>
@@ -470,8 +466,14 @@ export function PostgresBackupPanel({
           sortKey={sortKey}
           sortDirection={sortDirection}
           onToggleSort={toggleSort}
-          onCompare={(file) => void startCompare({ fileName: file.fileName, filePath: file.filePath })}
-          onRestore={(file) => setRestoreTarget({ fileName: file.fileName, filePath: file.filePath })}
+          onCompare={(file) => {
+            if (!isAdmin) return;
+            void startCompare({ fileName: file.fileName, filePath: file.filePath });
+          }}
+          onRestore={(file) => {
+            if (!isAdmin) return;
+            setRestoreTarget({ fileName: file.fileName, filePath: file.filePath });
+          }}
         />
         <TablePaginationBar
           currentPage={pageSafe}

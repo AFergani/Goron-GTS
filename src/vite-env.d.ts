@@ -45,7 +45,6 @@ declare global {
     gtsApi: GtsApiSystemChannels & GtsApiRondeChannels & {
       // --- Authentification et comptes ---
       login: (payload: LoginPayload) => Promise<{ user: User; sessionToken: string }>;
-      getAdminAccessStatus: () => Promise<{ enabled: boolean }>;
       firstLogin: (payload: {
         username: string;
         temporaryPassword: string;

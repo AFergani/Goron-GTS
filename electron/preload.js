@@ -46,9 +46,7 @@ contextBridge.exposeInMainWorld("gtsApi", {
   runPostgresBackupSaveAs: (payload) => ipcRenderer.invoke("system:runPostgresBackupSaveAs", payload),
   startPostgresBackupCycle: (payload) => ipcRenderer.invoke("system:startPostgresBackupCycle", payload),
   pickPostgresBackupFile: (payload) => ipcRenderer.invoke("system:pickPostgresBackupFile", payload),
-  restorePostgresBackup: (payload) => ipcRenderer.invoke("system:restorePostgresBackup", payload),
   restorePostgresBackupAuth: (payload) => ipcRenderer.invoke("system:restorePostgresBackupAuth", payload),
-  comparePostgresBackup: (payload) => ipcRenderer.invoke("system:comparePostgresBackup", payload),
   comparePostgresBackupAuth: (payload) => ipcRenderer.invoke("system:comparePostgresBackupAuth", payload),
   quitApp: (payload) => ipcRenderer.invoke("system:quitApp", payload),
   minimizeApp: (payload) => ipcRenderer.invoke("system:minimizeApp", payload),
@@ -68,7 +66,6 @@ contextBridge.exposeInMainWorld("gtsApi", {
 
   // --- Authentification et comptes ---
   login: (payload) => ipcRenderer.invoke("auth:login", payload),
-  getAdminAccessStatus: () => ipcRenderer.invoke("auth:getAdminAccessStatus"),
   firstLogin: (payload) => ipcRenderer.invoke("auth:firstLogin", payload),
   resetPasswordWithPeer: (payload) => ipcRenderer.invoke("auth:resetPasswordWithPeer", payload),
   logout: (payload) => ipcRenderer.invoke("auth:logout", payload),

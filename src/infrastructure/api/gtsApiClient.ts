@@ -243,15 +243,6 @@ export const gtsApiClient = {
   pickPostgresBackupFile() {
     return sessionOnlyCall(window.gtsApi.pickPostgresBackupFile);
   },
-  restorePostgresBackup(payload: {
-    filePath?: string;
-    fileName?: string;
-    accountPassword?: string;
-    confirmPhrase?: string;
-    managerFullName?: string;
-  }) {
-    return window.gtsApi.restorePostgresBackup(payload);
-  },
   restorePostgresBackupAuth(payload: {
     requesterRole: Role;
     requesterUsername: string;
@@ -262,9 +253,6 @@ export const gtsApiClient = {
     managerFullName?: string;
   }) {
     return sessionCall(window.gtsApi.restorePostgresBackupAuth, payload);
-  },
-  comparePostgresBackup(payload: { filePath?: string; fileName?: string }) {
-    return window.gtsApi.comparePostgresBackup(payload);
   },
   comparePostgresBackupAuth(payload: {
     requesterRole: Role;

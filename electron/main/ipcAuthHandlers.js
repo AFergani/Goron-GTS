@@ -50,13 +50,6 @@ function registerAuthIpcHandlers(deps) {
     return { ...result, sessionToken };
   });
 
-  handleIpc("auth:getAdminAccessStatus", () => {
-    ensureStore();
-    return {
-      enabled: Boolean(getUserStore().adminAccessEnabled)
-    };
-  });
-
   handleIpcAuth("auth:setAdminCode", (payload) => {
     const { requesterRole, code } = payload;
     if (requesterRole !== "DEV") {
