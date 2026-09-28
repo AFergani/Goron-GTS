@@ -10,6 +10,7 @@ import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { Session } from "../../../app/session/SessionProvider";
 import type { LoginFormState, PasswordUpdateFormState, PeerResetFormState } from "../model/auth.types";
 import { extractUserFacingErrorMessage } from "../../common/utils/extractUserFacingErrorMessage";
+import { MIN_USER_PASSWORD_LENGTH } from "../model/passwordPolicy";
 
 const emptyPeerResetForm: PeerResetFormState = {
   fullName: "",
@@ -50,7 +51,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
   const [peerResetError, setPeerResetError] = useState("");
   const [isPeerResetting, setIsPeerResetting] = useState(false);
 
-  const isPasswordLongEnough = passwordUpdateForm.newPassword.length >= 6;
+  const isPasswordLongEnough = passwordUpdateForm.newPassword.length >= MIN_USER_PASSWORD_LENGTH;
   const isPasswordConfirmed = useMemo(
     () => passwordUpdateForm.confirmPassword.length > 0 && passwordUpdateForm.newPassword === passwordUpdateForm.confirmPassword,
     [passwordUpdateForm.confirmPassword, passwordUpdateForm.newPassword]
@@ -109,7 +110,7 @@ export function useAuthPresenter({ onSessionCreated, onError, onToast }: UseAuth
       return;
     }
     if (!isPasswordLongEnough) {
-      setPasswordUpdateError("Le mot de passe doit contenir au moins 6 caractères.");
+      setPasswordUpdateError(`Le mot de passe doit contenir au moins ${MIN_USER_PASSWORD_LENGTH} caractères.`);
       return;
     }
     if (!isPasswordConfirmed) {

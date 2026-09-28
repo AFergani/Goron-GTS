@@ -22,6 +22,7 @@ const {
   normalizeDisplayName,
   isDatabaseBooleanTrue,
   assertPasswordNotBlacklisted,
+  assertUserChosenPasswordLength,
   hasRelatedDataForUserDeletion,
   ensureStationAdminAccess,
   isStationAdminRequester,
@@ -191,9 +192,7 @@ async function completeFirstLogin(store, { username, temporaryPassword, newPassw
       fullName: normalizedFullName
     });
   }
-  if (!newPassword || newPassword.length < 6) {
-    store.fail("auth:firstLogin", "Le mot de passe doit contenir au moins 6 caractères.", "AUTH_PASSWORD_TOO_SHORT");
-  }
+  assertUserChosenPasswordLength(store, "auth:firstLogin", newPassword);
   assertPasswordNotBlacklisted(newPassword);
   if (isPasswordRecentlyUsed(newPassword, candidate.password_hash, candidate.password_history_json)) {
     store.fail(

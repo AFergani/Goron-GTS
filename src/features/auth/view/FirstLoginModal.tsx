@@ -8,6 +8,7 @@
 import type { FormEvent } from "react";
 import type { PasswordUpdateFormState } from "../model/auth.types";
 import { PasswordInput } from "../../common/components/PasswordInput";
+import { MIN_USER_PASSWORD_LENGTH } from "../model/passwordPolicy";
 import { AuthLogo } from "../components/AuthLogo";
 
 type FirstLoginModalProps = {
@@ -23,7 +24,7 @@ type FirstLoginModalProps = {
 };
 
 /**
- * Formulaire nouveau mot de passe + indicateurs de validation (6 caractères, confirmation,
+ * Formulaire nouveau mot de passe + indicateurs de validation (8 caractères, confirmation,
  * différence avec le mot de passe temporaire).
  *
  * La modale couvre tout l'écran : elle doit afficher ses propres refus, un message posé
@@ -50,7 +51,7 @@ export function FirstLoginModal({
         <p className="muted">Bienvenue {displayName}, veuillez définir votre mot de passe personnel.</p>
         <p className="muted">Il ne doit pas reprendre un mot de passe déjà utilisé récemment (y compris le temporaire).</p>
         <form onSubmit={onSubmit} className="form">
-          <label title="6 caractères minimum, sans contrainte de complexité">
+          <label title={`${MIN_USER_PASSWORD_LENGTH} caractères minimum, sans contrainte de complexité`}>
             Nouveau mot de passe
             <PasswordInput
               value={form.newPassword}
@@ -72,7 +73,7 @@ export function FirstLoginModal({
           </label>
           <div className="validation-box">
             <p className={isPasswordLongEnough ? "ok" : "ko"}>
-              {isPasswordLongEnough ? "✓" : "✗"} Le mot de passe doit contenir au moins 6 caractères.
+              {isPasswordLongEnough ? "✓" : "✗"} Le mot de passe doit contenir au moins {MIN_USER_PASSWORD_LENGTH} caractères.
             </p>
             <p className={isPasswordConfirmed ? "ok" : "ko"}>
               {isPasswordConfirmed ? "✓" : "✗"} Confirmation du mot de passe identique.

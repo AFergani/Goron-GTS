@@ -22,6 +22,13 @@ const MAX_FAILED_ATTEMPTS = 5;
 const AUTO_UNLOCK_DELAY_MS = 15 * 60 * 1000;
 /** Longueur minimale d'un motif d'audit, pour éviter les justifications vides du type « ok ». */
 const MIN_AUDIT_REASON_LENGTH = 5;
+/**
+ * Longueur minimale d'un mot de passe choisi par l'agent.
+ * Huit caractères : l'application reste sur le réseau local de la station,
+ * sans exposition web. Pas de règle de complexité. Les mots de passe déjà
+ * enregistrés, plus courts, restent acceptés à la connexion jusqu'au prochain changement.
+ */
+const MIN_USER_PASSWORD_LENGTH = 8;
 const PASSWORD_BLACKLIST = new Set([
   "123456", "1234567", "12345678", "123456789", "1234567890", "0000", "0000000", "00000000",
   "111111", "222222", "333333", "444444", "555555", "666666", "777777", "888888", "999999",
@@ -120,6 +127,24 @@ function generateLoginIdentifier() {
 function assertPasswordNotBlacklisted(password) {
   if (PASSWORD_BLACKLIST.has(String(password || "").toLowerCase())) {
     throw new Error("[AUTH_PASSWORD_BLACKLISTED] Ce mot de passe est trop simple. Choisissez un mot de passe plus original.");
+  }
+}
+
+/**
+ * Refuse un mot de passe choisi trop court (première connexion).
+ *
+ * @param {import('../../../userStore')} store
+ * @param {string} source
+ * @param {unknown} password
+ * @returns {void}
+ */
+function assertUserChosenPasswordLength(store, source, password) {
+  if (!password || String(password).length < MIN_USER_PASSWORD_LENGTH) {
+    store.fail(
+      source,
+      `Le mot de passe doit contenir au moins ${MIN_USER_PASSWORD_LENGTH} caractères.`,
+      "AUTH_PASSWORD_TOO_SHORT"
+    );
   }
 }
 
@@ -555,6 +580,8 @@ module.exports = {
   OPERATOR_PLUS_PROFILE,
   normalizeBusinessProfile,
   MIN_AUDIT_REASON_LENGTH,
+  MIN_USER_PASSWORD_LENGTH,
+  assertUserChosenPasswordLength,
   requirePersistence,
   refreshUsersCache,
   getCachedUserRow,
