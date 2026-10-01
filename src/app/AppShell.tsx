@@ -464,6 +464,7 @@ export function AppShell() {
         themeMode={themeMode}
         onToggleTheme={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))}
         onOpenHelp={() => openHelpCenter(null)}
+        onOpenAbout={() => openHelpCenter("about")}
         onOpenSettings={openSettingsAtFirstTabs}
         onOpenExitChoice={() => setShowCloseAppModal(true)}
       />
@@ -602,6 +603,8 @@ export function AppShell() {
           <GardiennagePage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
+            requesterDisplayName={session.user.fullName}
+            requesterManagerProfile={session.user.managerProfile}
             onToast={notifyToast}
             onNavigateToLinkedIntervention={
               userPageAccess.intervention
@@ -628,6 +631,8 @@ export function AppShell() {
           <RondePage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
+            requesterDisplayName={session.user.fullName}
+            requesterManagerProfile={session.user.managerProfile}
             onToast={notifyToast}
             onNavigateToLinkedIntervention={
               userPageAccess.intervention

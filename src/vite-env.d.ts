@@ -433,10 +433,27 @@ declare global {
         sessionToken: string;
         requesterRole: Role;
         requesterUsername: string;
+        requesterDisplayName?: string;
         id: string;
         expectedUpdatedAt: string;
         status: GardiennageStatus;
         cancellationReason?: string;
+      }) => Promise<GardiennageEntry>;
+      requestGardiennageCancellation: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        requesterDisplayName?: string;
+        id: string;
+        reason: string;
+      }) => Promise<GardiennageEntry>;
+      reviewGardiennageCancellation: (payload: {
+        sessionToken: string;
+        requesterRole: Role;
+        requesterUsername: string;
+        requesterDisplayName?: string;
+        id: string;
+        decision: "approve" | "reject";
       }) => Promise<GardiennageEntry>;
       deleteGardiennage: (payload: {
         sessionToken: string;

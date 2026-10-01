@@ -6,7 +6,7 @@ import { buildFilteredListWorkbook, downloadSheetJsWorkbook } from "../../common
 import type { RondeEntry } from "../model/ronde.types";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import { rondeOriginLabelFr, rondeStatusLabelFr } from "./rondeExportFormat";
+import { formatRondePassageStamp, rondeOriginLabelFr, rondeStatusLabelFr } from "./rondeExportFormat";
 import { resolveKnownRondePassageKind } from "../utils/rondePassageKindLabel";
 
 const HEADERS = [
@@ -17,8 +17,8 @@ const HEADERS = [
   "Prestataire",
   "Statut",
   "Type / horaires demandés / observation",
-  "H arrivée",
-  "H départ",
+  "Arrivée",
+  "Départ",
   "Durée (min)",
   "N° bon",
   "Compte-rendu"
@@ -58,15 +58,15 @@ export async function exportRondeToExcel(
       entry.intervenantName || "",
       rondeStatusLabelFr(entry),
       horairesDemandeObsExportCell(entry),
-      entry.arrivalTime || "",
-      entry.departureTime || "",
+      formatRondePassageStamp(entry, "arrival"),
+      formatRondePassageStamp(entry, "departure"),
       entry.durationMinutes ?? "",
       entry.workOrderNumber || "",
       entry.report || ""
     ])
   ];
 
-  const wb = buildFilteredListWorkbook(sheetName, rows, [14, 18, 34, 18, 24, 14, 46, 10, 10, 12, 14, 50]);
+  const wb = buildFilteredListWorkbook(sheetName, rows, [14, 18, 34, 18, 24, 14, 46, 20, 20, 12, 14, 50]);
   const scope = sheetName === "Ronde contractuelle" ? "contractuelle" : "exceptionnelle";
   return downloadSheetJsWorkbook(wb, `ronde_${scope}_export_${exportTimestampFrForFilename()}.xlsx`);
 }

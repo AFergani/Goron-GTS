@@ -14,7 +14,7 @@ import {
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
-import { formatInterventionWorkOrderNumber } from "./interventionExportFormat";
+import { formatInterventionDateTime, formatInterventionWorkOrderNumber } from "./interventionExportFormat";
 import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
 import { ficheWordExportFilename } from "../../common/utils/exportFilename";
 
@@ -43,8 +43,14 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       heure_demande: safeDocxText(entry.requestTime),
       motif: safeDocxText(entry.requestReason),
       prestataire: safeDocxText(entry.intervenantName),
-      heure_arrivee: safeDocxText(entry.arrivalTime),
-      heure_depart: safeDocxText(entry.departureTime),
+      heure_arrivee: safeDocxText(
+        entry.arrivalTime ? formatInterventionDateTime(entry.arrivalDate || entry.requestDate, entry.arrivalTime) : ""
+      ),
+      heure_depart: safeDocxText(
+        entry.departureTime
+          ? formatInterventionDateTime(entry.departureDate || entry.arrivalDate || entry.requestDate, entry.departureTime)
+          : ""
+      ),
       delai_minutes: safeDocxText(delayLabel),
       numero_bon: safeDocxText(formatInterventionWorkOrderNumber(entry)),
       compte_rendu: safeDocxText(entry.report),
@@ -79,8 +85,8 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de l'appel : ${safeDocxText(entry.requestTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Site : ${safeDocxText(entry.siteDisplay)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Motif de l'intervention : ${safeDocxText(entry.requestReason)}`)] }),
-          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure d'arrivée : ${safeDocxText(entry.arrivalTime)}`)] }),
-          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de départ : ${safeDocxText(entry.departureTime)}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Arrivée : ${safeDocxText(entry.arrivalTime ? formatInterventionDateTime(entry.arrivalDate || entry.requestDate, entry.arrivalTime) : "")}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Départ : ${safeDocxText(entry.departureTime ? formatInterventionDateTime(entry.departureDate || entry.arrivalDate || entry.requestDate, entry.departureTime) : "")}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Délai d'arrivée : ${safeDocxText(entry.delayMinutes)} min`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Numéro du bon : ${safeDocxText(formatInterventionWorkOrderNumber(entry))}`)] }),
           new Paragraph({ spacing: { before: 220, after: 80 }, children: [new TextRun({ text: "Observation :", bold: true })] }),

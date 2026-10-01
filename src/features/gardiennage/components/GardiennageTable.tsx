@@ -86,7 +86,9 @@ type GardiennageTableProps = {
    */
   hoursForDate?: string;
   onEdit: (entry: GardiennageEntry) => void;
-  onDelete: (entry: GardiennageEntry) => void;
+  onDelete?: (entry: GardiennageEntry) => void;
+  /** Masque Supprimer (journée clôturée dans le lot, ou profil non autorisé). */
+  canDelete?: (entry: GardiennageEntry) => boolean;
   onClose?: (entry: GardiennageEntry) => void;
   onNotify?: NotifyToast;
 };
@@ -157,6 +159,7 @@ export function GardiennageTable({
   hoursForDate,
   onEdit,
   onDelete,
+  canDelete,
   onClose,
   onNotify
 }: GardiennageTableProps) {
@@ -321,11 +324,11 @@ export function GardiennageTable({
                           Voir le détail
                         </button>
                       )}
-                      {!terminal ? (
+                      {onDelete && (canDelete ? canDelete(entry) : !terminal) ? (
                         <button
                           type="button"
                           className="table-action-btn table-action-btn--text table-action-btn--danger"
-                          title="Supprimer"
+                          title="Supprimer une prestation qui n'a pas eu lieu"
                           onClick={() => onDelete(entry)}
                         >
                           Supprimer

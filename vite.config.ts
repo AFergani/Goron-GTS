@@ -15,7 +15,8 @@ function rondeKernelCjsForRenderer(): Plugin {
       const isKernel = isElectronFile(id, "domains/ronde/slotTimeKernel.js");
       const isList = isElectronFile(id, "domains/ronde/exceptionalSlotList.js");
       const isAlign = isElectronFile(id, "core/alignRequestValidity.js");
-      if (!isKernel && !isList && !isAlign) return null;
+      const isJournal = isElectronFile(id, "core/activityJournal.js");
+      if (!isKernel && !isList && !isAlign && !isJournal) return null;
 
       let next = code;
       if (isList) {

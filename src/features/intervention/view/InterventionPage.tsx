@@ -241,6 +241,7 @@ export function InterventionPage({
         ...body
       });
       onToast?.("Ronde créée.");
+      await intervention.loadEntries(true);
       return true;
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Création de ronde impossible.", "error");
@@ -257,6 +258,7 @@ export function InterventionPage({
         ...payload
       });
       onToast?.("Gardiennage créé.");
+      await intervention.loadEntries(true);
       return true;
     } catch (error) {
       onToast?.(error instanceof Error ? error.message : "Création de gardiennage impossible.", "error");

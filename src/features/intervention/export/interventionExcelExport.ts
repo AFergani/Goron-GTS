@@ -17,8 +17,8 @@ const HEADERS = [
   "Clients (Code site)",
   "Motif de la demande d'inter",
   "Prestataire",
-  "H arrivee",
-  "H depart",
+  "Arrivée",
+  "Départ",
   "Delai d'inter (min)",
   "N deg bon inter",
   "Compte-rendu",
@@ -40,8 +40,8 @@ export async function exportInterventionToExcel(entries: InterventionEntry[]) {
       entry.siteDisplay || "",
       entry.requestReason || "",
       entry.intervenantName || "",
-      entry.arrivalTime || "",
-      entry.departureTime || "",
+      entry.arrivalTime ? formatInterventionDateTime(entry.arrivalDate || entry.requestDate, entry.arrivalTime) : "",
+      entry.departureTime ? formatInterventionDateTime(entry.departureDate || entry.arrivalDate || entry.requestDate, entry.departureTime) : "",
       entry.delayMinutes ?? "",
       formatInterventionWorkOrderNumber(entry),
       entry.report || "",
@@ -49,6 +49,6 @@ export async function exportInterventionToExcel(entries: InterventionEntry[]) {
     ])
   ];
 
-  const wb = buildFilteredListWorkbook("Intervention", rows, [14, 20, 36, 45, 24, 12, 12, 18, 18, 50, 14]);
+  const wb = buildFilteredListWorkbook("Intervention", rows, [14, 20, 36, 45, 24, 20, 20, 18, 18, 50, 14]);
   return downloadSheetJsWorkbook(wb, `intervention_export_${exportTimestampFrForFilename()}.xlsx`);
 }

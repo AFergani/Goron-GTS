@@ -30,6 +30,12 @@ import {
 } from "../model/gardiennagePlanningCalendar";
 import { normalizeGardiennagePlanningLinesNewestFirst } from "../utils/gardiennagePlanningLineOrder";
 import { resolveGardiennageValidityWeekdayLock } from "../utils/resolveGardiennageValidityWeekdayLock";
+import { isAuditReasonValid, MIN_AUDIT_REASON_LENGTH } from "../../common/model/auditReason";
+import { ActivityJournalPanel } from "../../common/components/ActivityJournalPanel";
+import { formatPlanningFluxChangeText } from "../../common/components/PlanningFluxChange";
+import { formatGardiennageFlux } from "../model/gardiennagePlanningLineSummary";
+import { displayActivityHistory, gardiennagePlanningSignature, renderActivityJournal } from "../../common/model/activityJournal";
+import { isStationManagerRole } from "../../settings/model/userHierarchy";
 import { CreateFormSection } from "../../common/components/CreateFormSection";
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { PendingIntervenantInlineField, PendingSiteInlineFields } from "../../common/components/PendingRefInlineFields";
@@ -73,6 +79,7 @@ type GardiennageEntryModalProps = {
   intervenants: IntervenantRef[];
   holidays?: HolidayRef[];
   requesterRole: Role;
+  requesterDisplayName?: string;
   /** Fiches du même lot (coches de clôture dans l'aperçu). */
   batchEntries?: GardiennageEntry[];
   createPreset?: GardiennageCreatePreset | null;
@@ -80,6 +87,7 @@ type GardiennageEntryModalProps = {
   onCreate: (payload: GardiennageSavePayload) => Promise<boolean>;
   onUpdate: (id: string, expectedUpdatedAt: string, payload: GardiennageSavePayload) => Promise<GardiennageEntry | null>;
   onSetStatus?: (id: string, expectedUpdatedAt: string, status: GardiennageStatus, cancellationReason?: string) => Promise<boolean>;
+  onRequestCancellation?: (id: string, reason: string) => Promise<boolean>;
   onReopenEntry?: (id: string, expectedUpdatedAt: string) => Promise<boolean>;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
@@ -96,12 +104,14 @@ export function GardiennageEntryModal({
   intervenants,
   holidays = [],
   requesterRole,
+  requesterDisplayName = "",
   batchEntries = [],
   createPreset,
   onClose,
   onCreate,
   onUpdate,
   onSetStatus,
+  onRequestCancellation,
   onReopenEntry,
   onNavigateToLinkedIntervention,
   onNavigateToLinkedRonde,
@@ -193,7 +203,6 @@ export function GardiennageEntryModal({
       isPonctuel,
       intervenantId: entry.intervenantId,
       intervenantName: entry.intervenantName,
-      notes: entry.notes,
       linkedInterventionId: entry.linkedInterventionId,
       linkedRondeId: entry.linkedRondeId,
       validFromDate: snap?.validFromDate || entry.recurrenceStartDate,
@@ -208,6 +217,7 @@ export function GardiennageEntryModal({
       requestDate: String(snap?.requestDate || "").trim() || created.date,
       requestTime: String(snap?.requestTime || "").trim() || created.time,
       clientName: String(snap?.clientName || "").trim(),
+      notes: "",
       planningLines: isContinuous || isPonctuel
         ? []
         : (snap?.lines?.length
@@ -313,6 +323,21 @@ export function GardiennageEntryModal({
 
   if (!isOpen) return null;
 
+  const planningChanged = !isCreateMode
+    && Boolean(entry?.planningSnapshot)
+    && gardiennagePlanningSignature(entry?.planningSnapshot) !== gardiennagePlanningSignature(planningSnapshot);
+  const previousFlux = formatGardiennageFlux(entry?.planningSnapshot);
+  const nextFlux = formatGardiennageFlux(planningSnapshot);
+  const journalHistory = isCreateMode
+    ? ""
+    : renderActivityJournal(entry?.planningSnapshot?.activityJournal)
+      || displayActivityHistory(entry?.notes || "", {
+        at: entry?.createdAt || new Date().toISOString(),
+        actor: "Création"
+      });
+  const pendingCancellation = entry?.planningSnapshot?.cancellationRequest || null;
+  const canCancelDirectly = isStationManagerRole(requesterRole);
+
   const isAnnule = entry?.status === "ANNULE";
   const isCloture = entry?.status === "CLOTURE";
   /** Restriction rôle uniquement hors création (la création reste ouverte à tous). */
@@ -324,7 +349,9 @@ export function GardiennageEntryModal({
   const canCreatePendingRefs = isCreateMode;
 
   const canReopen = !isCreateMode && (isCloture || isAnnule) && Boolean(onReopenEntry) && Boolean(entry) && !isReadOnlyByRole;
-  const canCancel = !isCreateMode && !isAnnule && !isCloture && Boolean(onSetStatus);
+  const canDirectCancel = !isCreateMode && !isAnnule && !isCloture && canCancelDirectly && Boolean(onSetStatus);
+  const canRequestCancel = !isCreateMode && !isAnnule && !isCloture && !canCancelDirectly
+    && !pendingCancellation?.requestedAt && Boolean(onRequestCancellation);
 
   const isSubmitDisabled =
     isSaving ||
@@ -339,7 +366,8 @@ export function GardiennageEntryModal({
       isContinuous: form.isContinuous,
       planningLines: form.planningLines
     }) ||
-    Boolean(linesOverlapError);
+    Boolean(linesOverlapError) ||
+    (planningChanged && !isAuditReasonValid(form.notes));
 
   const ponctuelCrossesMidnight = planningMode === "ponctuel"
     && Boolean(form.validFromDate)
@@ -369,6 +397,9 @@ export function GardiennageEntryModal({
     intervenantId: overrides?.intervenantId ?? form.intervenantId,
     intervenantName: overrides?.intervenantName ?? form.intervenantName,
     notes: form.notes,
+    consigneAddition: form.notes,
+    planningFluxChange: planningChanged ? formatPlanningFluxChangeText(previousFlux, nextFlux) : "",
+    requesterDisplayName,
     linkedInterventionId: form.linkedInterventionId,
     linkedRondeId: form.linkedRondeId,
     planningSnapshot,
@@ -443,10 +474,12 @@ export function GardiennageEntryModal({
   };
 
   const handleCancelGardiennage = async () => {
-    if (!entry || !onSetStatus || !cancelReason.trim()) return;
+    if (!entry || !cancelReason.trim()) return;
     setIsSaving(true);
     try {
-      const ok = await onSetStatus(entry.id, entry.updatedAt, "ANNULE", cancelReason.trim());
+      const ok = canRequestCancel
+        ? Boolean(await onRequestCancellation?.(entry.id, cancelReason.trim()))
+        : Boolean(await onSetStatus?.(entry.id, entry.updatedAt, "ANNULE", cancelReason.trim()));
       if (ok) onClose();
     } finally {
       setIsSaving(false);
@@ -629,17 +662,31 @@ export function GardiennageEntryModal({
                       : undefined
                   }
                 >
-                  <label className={`mc-field ${extras.requestDefs.length === 1 ? "request-motif-row__motif" : "mc-field-full"}`}>
-                    <textarea
-                      rows={3}
-                      value={form.notes}
-                      disabled={fieldsLocked}
-                      maxLength={2000}
-                      placeholder="Consignes particulières, observations…"
-                      className="mc-textarea"
-                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  <div className={extras.requestDefs.length === 1 ? "request-motif-row__motif" : undefined}>
+                    <ActivityJournalPanel
+                      historyText={journalHistory}
+                      pendingLine={
+                        planningChanged ? formatPlanningFluxChangeText(previousFlux, nextFlux) : ""
+                      }
+                      draft={form.notes}
+                      onDraftChange={(value) => setForm((current) => ({ ...current, notes: value }))}
+                      locked={fieldsLocked}
+                      draftLabel={
+                        isCreateMode
+                          ? "Consigne"
+                          : planningChanged
+                            ? `Motif du changement de planification (${MIN_AUDIT_REASON_LENGTH} caractères minimum)`
+                            : "Modification de consigne"
+                      }
+                      placeholder={
+                        planningChanged
+                          ? "Ex. Le client passe du lundi au mercredi, 06:00–20:00."
+                          : "Consignes particulières, observations…"
+                      }
+                      required={planningChanged}
+                      minLength={MIN_AUDIT_REASON_LENGTH}
                     />
-                  </label>
+                  </div>
                   {extras.requestDefs.length === 1 ? (
                     <FormVariableFields
                       defs={extras.requestDefs}
@@ -685,6 +732,14 @@ export function GardiennageEntryModal({
               )}
 
               {/* Info annulation */}
+              {!isCreateMode && pendingCancellation?.requestedAt && !isAnnule ? (
+                <CreateFormSection title="Demande d'annulation">
+                  <p className="muted mc-ref-hint">
+                    En attente : {pendingCancellation.requestedByDisplay || pendingCancellation.requestedBy || "un utilisateur"} — {pendingCancellation.reason}
+                  </p>
+                </CreateFormSection>
+              ) : null}
+
               {!isCreateMode && isAnnule && entry?.cancellationReason && (
                 <CreateFormSection title="Annulation">
                   <p className="muted mc-ref-hint">
@@ -712,14 +767,14 @@ export function GardiennageEntryModal({
                       {isSaving ? "Réouverture…" : "Rouvrir"}
                     </button>
                   )}
-                  {canCancel && (
+                  {(canDirectCancel || canRequestCancel) && (
                     <button
                       type="button"
                       className="btn-danger"
                       disabled={isSaving}
                       onClick={() => setShowCancelConfirm(true)}
                     >
-                      Annuler le gardiennage
+                      {canRequestCancel ? "Demander l'annulation" : "Annuler le gardiennage"}
                     </button>
                   )}
                   {!isConsultation && !isReadOnlyByRole && (
@@ -746,9 +801,13 @@ export function GardiennageEntryModal({
       {/* Annulation avec motif obligatoire */}
       <CancelReasonConfirmModal
         isOpen={showCancelConfirm}
-        title="Annuler le gardiennage ?"
-        message="L'annulation est définitive. Un motif est obligatoire."
-        confirmLabel="Confirmer l'annulation"
+        title={canRequestCancel ? "Demander l'annulation ?" : "Annuler le gardiennage ?"}
+        message={
+          canRequestCancel
+            ? "La demande sera transmise à un responsable. Le gardiennage reste visible tant qu'elle n'est pas acceptée."
+            : "L'annulation retire les journées non clôturées de l'écran de travail. Les journées déjà clôturées sont conservées. Un motif est obligatoire."
+        }
+        confirmLabel={canRequestCancel ? "Envoyer la demande" : "Confirmer l'annulation"}
         reasonLabel="Motif d'annulation *"
         reason={cancelReason}
         rows={3}

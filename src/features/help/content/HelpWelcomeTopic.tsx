@@ -10,6 +10,9 @@ export function HelpWelcomeTopic() {
       <ul className="muted help-center-list">
         <li>Cliquez sur un module pour ouvrir la page correspondante.</li>
         <li>
+          Le numéro de <strong>version</strong> à côté du titre ouvre la rubrique <strong>À propos</strong>.
+        </li>
+        <li>
           Le module actuellement ouvert est <strong>mis en évidence</strong> dans la barre latérale.
         </li>
         <li>

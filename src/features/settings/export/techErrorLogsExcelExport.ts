@@ -5,6 +5,7 @@
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import { exportTimestampForFilename } from "../../common/utils/exportFilename";
+import { formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 import type { TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
 import {
   formatTechDetailsText,
@@ -27,7 +28,7 @@ export async function exportTechErrorLogsToExcel(logs: TechErrorLog[]) {
     ...logs.map((log) => {
       const details = formatTechDetailsText(log.details);
       return [
-        log.occurredAt ? new Date(log.occurredAt).toLocaleString("fr-FR") : "",
+        formatDateTimeFr(log.occurredAt),
         resolveTechFamily(log.code, log.source),
         formatTechEventText(log),
         formatTechStatusLabel(getTechStatusTone(log.code)),

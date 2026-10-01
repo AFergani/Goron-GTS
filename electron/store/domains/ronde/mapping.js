@@ -12,7 +12,8 @@
  */
 const RONDE_ENTRY_SELECT = `id, created_at, updated_at, source, origin_intervention_id, site_id, site_display,
   request_date, motif_type_id, motif_category, motif_other, horaires_demande_obs, origin_kind, origin_detail,
-  intervenant_id, intervenant_name, arrival_time, departure_time, duration_minutes, work_order_number, report,
+  intervenant_id, intervenant_name, arrival_time, departure_time, arrival_date, departure_date,
+  duration_minutes, work_order_number, report,
   status, cancellation_reason, cancellation_kind, closed_at, planned_profile_id, planned_round_kind, planned_slot_key,
   closure_custom_values_json, request_planning_snapshot_json, request_batch_id,
   batch_suppressed_at, batch_suppressed_by, batch_suppressed_reason, daily_code`;
@@ -126,6 +127,8 @@ function mapRondeRow(row) {
     intervenantName: row.intervenant_name || "",
     arrivalTime: row.arrival_time || "",
     departureTime: row.departure_time || "",
+    arrivalDate: row.arrival_date || null,
+    departureDate: row.departure_date || null,
     durationMinutes: row.duration_minutes == null ? null : Number(row.duration_minutes),
     workOrderNumber: row.work_order_number || "",
     report: row.report || "",
@@ -173,6 +176,8 @@ function toRondeAuditSnapshot(row) {
     intervenantName: row.intervenant_name || row.intervenantName || "",
     arrivalTime: row.arrival_time || row.arrivalTime || "",
     departureTime: row.departure_time || row.departureTime || "",
+    arrivalDate: row.arrival_date || row.arrivalDate || null,
+    departureDate: row.departure_date || row.departureDate || null,
     status: row.status || "",
     dailyCode: row.daily_code || row.dailyCode || ""
   };

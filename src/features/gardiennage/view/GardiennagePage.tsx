@@ -15,7 +15,7 @@ import { ServiceListFiltersBar } from "../../common/components/ServiceListFilter
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
 import { ListLoadingOverlay } from "../../common/components/ListLoadingOverlay";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
-import type { Role } from "../../../types";
+import type { BusinessProfile, Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { matchesDailyCodeSearch } from "../../common/utils/dailyEntryCode";
 import type { GardiennageEntry } from "../model/gardiennage.types";
@@ -25,6 +25,11 @@ import { useGardiennageReferenceData } from "../presenter/useGardiennageReferenc
 import { GardiennageEntryModal, type GardiennageModalMode } from "../components/GardiennageEntryModal";
 import { GardiennageTable } from "../components/GardiennageTable";
 import { GardiennageCloseModal } from "../components/GardiennageCloseModal";
+import {
+  GardiennageCancellationQueueModal,
+  pendingGardiennageCancellationEntries
+} from "../components/GardiennageCancellationQueueModal";
+import { canPurgeUnstartedPrestations, isStationManagerRole } from "../../settings/model/userHierarchy";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { MonthSummaryStatsBlock } from "../../common/components/MonthSummaryStatsBlock";
 import { DateInput } from "../../common/components/DateInput";
@@ -39,6 +44,8 @@ const GARDIENNAGE_DISPLAY_MODE_STORAGE_KEY = "gardiennage.displayMode.v2";
 type GardiennagePageProps = {
   requesterRole: Role;
   requesterUsername: string;
+  requesterDisplayName?: string;
+  requesterManagerProfile?: BusinessProfile | null;
   onToast?: NotifyToast;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedRonde?: (rondeId: string) => void;
@@ -50,6 +57,8 @@ type GardiennagePageProps = {
 export function GardiennagePage({
   requesterRole,
   requesterUsername,
+  requesterDisplayName = "",
+  requesterManagerProfile = null,
   onToast,
   onNavigateToLinkedIntervention,
   onNavigateToLinkedRonde,
@@ -57,7 +66,18 @@ export function GardiennagePage({
   onFocusGardiennageConsumed
 }: GardiennagePageProps) {
 
-  const presenter = useGardiennagePresenter({ requesterRole, requesterUsername, onToast });
+  const presenter = useGardiennagePresenter({
+    requesterRole,
+    requesterUsername,
+    requesterDisplayName,
+    onToast
+  });
+  const canPurge = canPurgeUnstartedPrestations(requesterRole, requesterManagerProfile);
+  const canReviewCancellations = isStationManagerRole(requesterRole);
+  const pendingCancellations = useMemo(
+    () => pendingGardiennageCancellationEntries(presenter.entries),
+    [presenter.entries]
+  );
   const references = useGardiennageReferenceData(requesterRole, requesterUsername, onToast);
   const workstationExports = useWorkstationExports();
 
@@ -89,6 +109,9 @@ export function GardiennagePage({
   /* Modale de clôture rapide */
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [closeModalEntry, setCloseModalEntry] = useState<GardiennageEntry | null>(null);
+
+  /* Demandes d'annulation */
+  const [cancellationQueueOpen, setCancellationQueueOpen] = useState(false);
 
   /* Suppression avec motif */
   const [deleteTarget, setDeleteTarget] = useState<GardiennageEntry | null>(null);
@@ -183,7 +206,38 @@ export function GardiennagePage({
   };
   const closeModal = () => { setModalOpen(false); setActiveEntry(null); };
   const openCloseModal = (entry: GardiennageEntry) => { setCloseModalEntry(entry); setCloseModalOpen(true); };
-  const openDeleteConfirm = (entry: GardiennageEntry) => { setDeleteTarget(entry); setDeleteReason(""); };
+  const batchHasClosedDay = (entry: GardiennageEntry) => {
+    const batchId = String(entry.planningBatchId || "").trim();
+    const rows = batchId
+      ? presenter.entries.filter((row) => String(row.planningBatchId || "").trim() === batchId)
+      : [entry];
+    return rows.some((row) => row.status === "CLOTURE");
+  };
+  const canDeleteEntry = (entry: GardiennageEntry) => canPurge && !batchHasClosedDay(entry);
+  const openDeleteConfirm = (entry: GardiennageEntry) => {
+    if (!canDeleteEntry(entry)) {
+      onToast?.(
+        "Une journée de ce lot est déjà clôturée. Annulez les journées restantes.",
+        "warning"
+      );
+      return;
+    }
+    setDeleteTarget(entry);
+    setDeleteReason("");
+  };
+  const cancellationQueueButton = canReviewCancellations && pendingCancellations.length > 0 ? (
+    <button
+      type="button"
+      className="btn-light data-pending-submissions-btn"
+      title={`${pendingCancellations.length} demande(s) d'annulation à traiter`}
+      onClick={() => setCancellationQueueOpen(true)}
+    >
+      Demandes d&apos;annulation
+      <span className="tab-badge" aria-hidden>
+        {pendingCancellations.length}
+      </span>
+    </button>
+  ) : null;
   const deleteScopeCount = useMemo(() => {
     if (!deleteTarget) return 0;
     const batchId = String(deleteTarget.planningBatchId || "").trim();
@@ -293,6 +347,7 @@ export function GardiennagePage({
                   labelFirst
                 />
               </div>
+              {cancellationQueueButton}
               <button type="button" className="mc-btn-primary" onClick={openCreate}>
                 <Plus size={15} aria-hidden />
                 Nouveau gardiennage
@@ -320,6 +375,7 @@ export function GardiennagePage({
                 labelFirst
               />
             </div>
+            {cancellationQueueButton}
             <button type="button" className="mc-btn-primary" onClick={openCreate}>
               <Plus size={15} aria-hidden />
               Nouveau gardiennage
@@ -354,7 +410,8 @@ export function GardiennagePage({
                 entries={planificationPaginated}
                 showPeriode
                 onEdit={openEdit}
-                onDelete={openDeleteConfirm}
+                onDelete={canPurge ? openDeleteConfirm : undefined}
+                canDelete={canDeleteEntry}
                 onClose={openCloseModal}
                 onNotify={onToast}
               />
@@ -382,7 +439,8 @@ export function GardiennagePage({
                   entries={duJourEntries}
                   hoursForDate={selectedDate}
                   onEdit={openEdit}
-                  onDelete={openDeleteConfirm}
+                  onDelete={canPurge ? openDeleteConfirm : undefined}
+                  canDelete={canDeleteEntry}
                   onClose={openCloseModal}
                   onNotify={onToast}
                 />
@@ -406,10 +464,12 @@ export function GardiennagePage({
         intervenants={references.intervenants}
         holidays={references.holidays}
         requesterRole={requesterRole}
+        requesterDisplayName={requesterDisplayName}
         onClose={closeModal}
         onCreate={presenter.createEntry}
         onUpdate={presenter.updateEntry}
         onSetStatus={presenter.setStatus}
+        onRequestCancellation={presenter.requestCancellation}
         onReopenEntry={presenter.reopenEntry}
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
         onNavigateToLinkedRonde={onNavigateToLinkedRonde}
@@ -438,7 +498,7 @@ export function GardiennagePage({
         message={
           deleteTarget
             ? deleteScopeCount > 1
-              ? `${deleteScopeCount} entrée(s) du lot de gardiennage seront traitées: suppression des non clôturées, conservation des clôturées (site "${deleteTarget.siteDisplay || "—"}").`
+              ? `${deleteScopeCount} journées du lot "${deleteTarget.siteDisplay || "—"}" seront définitivement supprimées. Aucune n'est clôturée.`
               : `Le gardiennage du site "${deleteTarget.siteDisplay || "—"}" (${deleteTarget.startTime} → ${deleteTarget.endTime}) sera définitivement supprimé.`
             : ""
         }
@@ -463,6 +523,18 @@ export function GardiennagePage({
           />
         </label>
       </ConfirmModal>
+
+      <GardiennageCancellationQueueModal
+        isOpen={cancellationQueueOpen}
+        entries={presenter.entries}
+        onClose={() => setCancellationQueueOpen(false)}
+        onApprove={(entry) => void presenter.reviewCancellation(entry.id, "approve")}
+        onReject={(entry) => void presenter.reviewCancellation(entry.id, "reject")}
+        onView={(entry) => {
+          setCancellationQueueOpen(false);
+          openEdit(entry);
+        }}
+      />
     </>
   );
 }

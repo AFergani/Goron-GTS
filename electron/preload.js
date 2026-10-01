@@ -177,6 +177,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   createGardiennage: (payload) => ipcRenderer.invoke("gardiennage:create", payload),
   updateGardiennage: (payload) => ipcRenderer.invoke("gardiennage:update", payload),
   setGardiennageStatus: (payload) => ipcRenderer.invoke("gardiennage:setStatus", payload),
+  requestGardiennageCancellation: (payload) => ipcRenderer.invoke("gardiennage:requestCancellation", payload),
+  reviewGardiennageCancellation: (payload) => ipcRenderer.invoke("gardiennage:reviewCancellation", payload),
   deleteGardiennage: (payload) => ipcRenderer.invoke("gardiennage:delete", payload),
   closeGardiennage: (payload) => ipcRenderer.invoke("gardiennage:close", payload),
   reopenGardiennage: (payload) => ipcRenderer.invoke("gardiennage:reopen", payload)

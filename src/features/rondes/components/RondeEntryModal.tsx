@@ -157,6 +157,10 @@ export function RondeEntryModal({
     setIntervenantId,
     arrivalTime,
     setArrivalTime,
+    arrivalDate,
+    setArrivalDate,
+    departureDate,
+    setDepartureDate,
     departureTime,
     setDepartureTime,
     workOrderNumber,
@@ -325,6 +329,8 @@ export function RondeEntryModal({
           intervenants={intervenants}
           lockFields={lockFields}
           arrivalTime={arrivalTime}
+          arrivalDate={arrivalDate}
+          departureDate={departureDate}
           departureTime={departureTime}
           workOrderNumber={workOrderNumber}
           durationMinutes={durationMinutes}
@@ -337,6 +343,8 @@ export function RondeEntryModal({
           resolveFieldLabel={resolveLabelTemplate}
           onNotify={onNotify}
           onArrivalTimeChange={setArrivalTime}
+          onArrivalDateChange={setArrivalDate}
+          onDepartureDateChange={setDepartureDate}
           onDepartureTimeChange={setDepartureTime}
           onWorkOrderNumberChange={setWorkOrderNumber}
           onReportChange={setReport}

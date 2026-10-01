@@ -11,6 +11,7 @@ import { extractHeureDemandeeHmFromObs } from "../utils/rondePassageRules";
 import { rondePassageKindLabel } from "../utils/rondePassageKindLabel";
 import { resolvePlannedHeureDemandeeFromProfiles } from "../utils/plannedHeureDemandee";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
+import { resolveRondePassageDates } from "../utils/rondeEntryFormHelpers";
 
 /** Libellé statut pour tableau et exports. */
 export function rondeStatusLabelFr(entry: RondeEntry, options?: { feminine?: boolean }): string {
@@ -98,4 +99,19 @@ export function formatRondeClosureDateFr(
   if (!dateFr) return "";
   const time = dedicatedRequestedTimeHm(entry, profiles);
   return time ? `${dateFr} ${time}` : dateFr;
+}
+
+/** Arrivée ou départ avec la date, pour lever l'ambiguïté d'un passage à cheval sur minuit. */
+export function formatRondePassageStamp(entry: RondeEntry, side: "arrival" | "departure"): string {
+  const time = String(side === "arrival" ? entry.arrivalTime : entry.departureTime || "").trim();
+  if (!time) return "";
+  const dates = resolveRondePassageDates({
+    requestDate: entry.requestDate,
+    arrivalTime: entry.arrivalTime,
+    departureTime: entry.departureTime,
+    arrivalDate: entry.arrivalDate,
+    departureDate: entry.departureDate
+  });
+  const dateFr = formatDateShortFr(side === "arrival" ? dates.arrivalDate : dates.departureDate);
+  return dateFr ? `${dateFr} ${time}` : time;
 }

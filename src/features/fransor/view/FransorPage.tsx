@@ -523,6 +523,7 @@ export function FransorPage({
           </div>
         </div>
         <div className="fransor-today-row">
+          {presenter.month === todayIso.slice(0, 7) ? (
           <div className="fransor-today-entry-row">
             <span>Journée :</span>
             {todayIsPlannedDay ? (
@@ -549,6 +550,7 @@ export function FransorPage({
               <span className="muted">Non prévue ({todayNonPlannedReason})</span>
             )}
           </div>
+          ) : null}
           <div className="fransor-today-actions">
             <button
               type="button"

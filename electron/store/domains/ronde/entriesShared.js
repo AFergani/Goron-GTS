@@ -21,8 +21,9 @@ const INSERT_SQL = `INSERT INTO ronde_entries (
   origin_kind, origin_detail, intervenant_id, intervenant_name, arrival_time,
   departure_time, duration_minutes, work_order_number, report,
   closure_custom_values_json, planned_profile_id, planned_round_kind, planned_slot_key,
-  request_planning_snapshot_json, request_batch_id, status, cancellation_reason, closed_at, daily_code
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  request_planning_snapshot_json, request_batch_id, status, cancellation_reason, closed_at,
+  arrival_date, departure_date, daily_code
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 /** @param {string} dateIso @param {string} timeIso @returns {number|null} */
 function parseDateTimeMs(dateIso, timeIso) {
@@ -30,13 +31,40 @@ function parseDateTimeMs(dateIso, timeIso) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** @param {object} input @returns {number|null} */
-function computeDurationMinutes({ requestDate, arrivalTime, departureTime }) {
-  if (!requestDate || !arrivalTime || !departureTime) return null;
-  const arrivalMs = parseDateTimeMs(requestDate, arrivalTime);
-  let departureMs = parseDateTimeMs(requestDate, departureTime);
-  if (arrivalMs == null || departureMs == null) return null;
-  if (departureMs < arrivalMs) departureMs += 86400000;
+/** @param {string} dateIso @param {number} days */
+function shiftIsoDate(dateIso, days) {
+  const base = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(base.getTime())) return dateIso;
+  base.setDate(base.getDate() + days);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`;
+}
+
+/**
+ * Dates explicites, sinon date de demande. Départ d'horloge plus tôt = lendemain
+ * uniquement si la date de départ n'est pas fournie.
+ *
+ * @param {object} input
+ * @returns {{ arrivalDate: string, departureDate: string }}
+ */
+function resolvePassageDates({ requestDate, arrivalTime, departureTime, arrivalDate, departureDate }) {
+  const storedArrival = normalizeDateIso(arrivalDate);
+  const storedDeparture = normalizeDateIso(departureDate);
+  const resolvedArrival = storedArrival || (arrivalTime && requestDate ? requestDate : "");
+  let resolvedDeparture = storedDeparture;
+  if (!resolvedDeparture && departureTime && requestDate) {
+    const overnight = Boolean(arrivalTime) && departureTime < arrivalTime;
+    resolvedDeparture = overnight ? shiftIsoDate(requestDate, 1) : requestDate;
+  }
+  return { arrivalDate: resolvedArrival, departureDate: resolvedDeparture };
+}
+
+/** Minutes réelles entre les deux horodatages, sans rajouter 24 h. */
+function computeDurationMinutes({ arrivalDate, arrivalTime, departureDate, departureTime }) {
+  if (!arrivalDate || !arrivalTime || !departureDate || !departureTime) return null;
+  const arrivalMs = parseDateTimeMs(arrivalDate, arrivalTime);
+  const departureMs = parseDateTimeMs(departureDate, departureTime);
+  if (arrivalMs == null || departureMs == null || departureMs < arrivalMs) return null;
   return Math.round((departureMs - arrivalMs) / 60000);
 }
 
@@ -87,6 +115,26 @@ async function normalizeRondeBody(store, db, payload) {
   }
   const arrivalTime = normalizeTimeHm(payload.arrivalTime);
   const departureTime = normalizeTimeHm(payload.departureTime);
+  const passageDates = resolvePassageDates({
+    requestDate,
+    arrivalTime,
+    departureTime,
+    arrivalDate: payload.arrivalDate,
+    departureDate: payload.departureDate
+  });
+  const durationMinutes = computeDurationMinutes({
+    arrivalDate: passageDates.arrivalDate,
+    arrivalTime,
+    departureDate: passageDates.departureDate,
+    departureTime
+  });
+  if (arrivalTime && departureTime && durationMinutes == null) {
+    store.fail(
+      "ronde:validate",
+      "La date et l'heure de départ doivent être postérieures à l'arrivée.",
+      "RONDE_PASSAGE_ORDER"
+    );
+  }
   return {
     siteId: payload.siteId || null,
     siteDisplay,
@@ -101,7 +149,9 @@ async function normalizeRondeBody(store, db, payload) {
     intervenantName,
     arrivalTime,
     departureTime,
-    durationMinutes: computeDurationMinutes({ requestDate, arrivalTime, departureTime }),
+    arrivalDate: passageDates.arrivalDate || null,
+    departureDate: passageDates.departureDate || null,
+    durationMinutes,
     workOrderNumber: String(payload.workOrderNumber || "").trim(),
     report: String(payload.report || "").trim(),
     closureCustomValues: normalizeClosureCustomValues(payload.closureCustomValues)

@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTableFilters } from "../../common/hooks/useTableFilters";
 import { TablePaginationBar } from "../../common/components/TablePaginationBar";
-import type { Role } from "../../../types";
+import type { BusinessProfile, Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeOriginKind, RondeBatchDeleteRequestRef } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
@@ -30,6 +30,7 @@ import { WORKSTATION_EXPORT_KEYS, wordExportKey } from "../../common/utils/works
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { countTodayInProgressRondes, isContractualRondeEntry } from "../utils/rondeEntryClassification";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
+import { canEditContractualRondeProfile } from "../../settings/model/userHierarchy";
 import { requestOriginFromStoredEntry, type RequestOrigin } from "../model/requestOrigin";
 import { syntheticPlanningSnapshotForLinkedDemand } from "../utils/syntheticPlanningSnapshot";
 import { buildPlannedFallbackVirtualEntries } from "../utils/buildPlannedFallbackVirtualEntries";
@@ -43,6 +44,8 @@ import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 type RondePageProps = {
   requesterRole: Role;
   requesterUsername: string;
+  requesterDisplayName?: string;
+  requesterManagerProfile?: BusinessProfile | null;
   onToast?: NotifyToast;
   onNavigateToLinkedIntervention?: (interventionId: string) => void;
   onNavigateToLinkedGardiennage?: (gardiennageId: string) => void;
@@ -66,6 +69,8 @@ type RondePageProps = {
 export function RondePage({
   requesterRole,
   requesterUsername,
+  requesterDisplayName = "",
+  requesterManagerProfile = null,
   onToast,
   onNavigateToLinkedIntervention,
   onNavigateToLinkedGardiennage,
@@ -153,6 +158,7 @@ export function RondePage({
   );
 
   const canManageRondes = isRondeManagerRole(requesterRole);
+  const canEditContractProfiles = canEditContractualRondeProfile(requesterRole, requesterManagerProfile);
 
   const refreshBatchDeleteRequests = async () => {
     if (!canManageRondes) {
@@ -577,7 +583,8 @@ export function RondePage({
     <RondeServiceTabActions
       listView={listView}
       activeDisplayMode={activeDisplayMode}
-      canUpsertProfiles={Boolean(onUpsertRondePlannedProfile)}
+      canUpsertProfiles={Boolean(onUpsertRondePlannedProfile) && canEditContractProfiles}
+      canCreateContractualProfile={Boolean(onUpsertRondePlannedProfile) && canEditContractProfiles}
       canManageCancellation={lifecycle.canManageCancellation}
       pendingCancellationCount={pendingCancellationCount}
       canManageBatchDelete={canManageRondes}
@@ -773,6 +780,8 @@ export function RondePage({
         linkedDemandOrigin={linkedDemandOrigin}
         refreshBatchDeleteRequests={refreshBatchDeleteRequests}
         setBatchDeleteQueueOpen={setBatchDeleteQueueOpen}
+        requesterDisplayName={requesterDisplayName}
+        requesterManagerProfile={requesterManagerProfile}
         onNavigateToLinkedIntervention={onNavigateToLinkedIntervention}
         onNavigateToLinkedGardiennage={onNavigateToLinkedGardiennage}
         onUpsertRondePlannedProfile={onUpsertRondePlannedProfile}

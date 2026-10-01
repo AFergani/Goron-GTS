@@ -38,6 +38,8 @@ export type RondePlanningSnapshotV1 = {
   origin: RondePlanningReplayOriginV1;
   motifTypeId: string;
   consigne: string;
+  /** Journal horodaté (consigne, client, planification). */
+  activityJournal?: Array<{ at: string; actor: string; kind: string; text: string }>;
   siteId: string | null;
   intervenantId: string;
   createRoundsEnabled: boolean;

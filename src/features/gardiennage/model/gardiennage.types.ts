@@ -43,6 +43,15 @@ export type GardiennagePlanningSnapshotV1 = {
   requestTime?: string;
   /** Nom du client demandeur. Vide = demande télésurveillance. */
   clientName?: string;
+  /** Journal horodaté (consigne, client, planification, annulation). */
+  activityJournal?: Array<{ at: string; actor: string; kind: string; text: string }>;
+  /** Demande d'annulation en attente de validation. */
+  cancellationRequest?: {
+    reason: string;
+    requestedAt: string;
+    requestedBy: string;
+    requestedByDisplay: string;
+  } | null;
   lines: GardiennagePlanningLineV1[];
 };
 
@@ -105,6 +114,11 @@ export type GardiennageSavePayload = {
   intervenantId: string | null;
   intervenantName: string;
   notes: string;
+  /** Texte saisi dans le champ consigne : initiale, modification, ou motif de planification. */
+  consigneAddition?: string;
+  /** Comparaison « Ancien flux => Nouveau flux » lorsque la planification change. */
+  planningFluxChange?: string;
+  requesterDisplayName?: string;
   linkedInterventionId: string | null;
   linkedRondeId: string | null;
   planningSnapshot?: GardiennagePlanningSnapshotV1 | null;

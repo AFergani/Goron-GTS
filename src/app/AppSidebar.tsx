@@ -11,6 +11,7 @@ import logoGts from "../assets/logo-gts.png";
 import type { PageAccess } from "../types";
 import type { PostgresLabHealth } from "../infrastructure/api/gtsApiClient";
 import type { AppPage } from "./appNavigation";
+import { APP_VERSION } from "./appVersion";
 
 type ThemeMode = "dark" | "light";
 
@@ -30,6 +31,7 @@ type AppSidebarProps = {
   themeMode: ThemeMode;
   onToggleTheme: () => void;
   onOpenHelp: () => void;
+  onOpenAbout: () => void;
   onOpenSettings: () => void;
   onOpenExitChoice: () => void;
 };
@@ -74,6 +76,7 @@ export function AppSidebar({
   themeMode,
   onToggleTheme,
   onOpenHelp,
+  onOpenAbout,
   onOpenSettings,
   onOpenExitChoice
 }: AppSidebarProps) {
@@ -93,7 +96,18 @@ export function AppSidebar({
         <div className="sidebar-logo-wrap">
           <img src={logoGts} alt="Logo GTS" className="sidebar-logo" />
         </div>
-        <h2 className="sidebar-title">Télésurveillance GTS</h2>
+        <div className="sidebar-title-row">
+          <h2 className="sidebar-title">Télésurveillance GTS</h2>
+          <button
+            type="button"
+            className="sidebar-about-btn"
+            title="À propos de l'application"
+            aria-label={`À propos, version ${APP_VERSION}`}
+            onClick={onOpenAbout}
+          >
+            {APP_VERSION}
+          </button>
+        </div>
         <div className="user-badge">{fullName}</div>
         <div className="sidebar-today">{todayLabel}</div>
       </div>

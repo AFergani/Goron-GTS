@@ -24,10 +24,16 @@ function makeGardiennageId() {
 type UseGardiennagePresenterOptions = {
   requesterRole: Role;
   requesterUsername: string;
+  requesterDisplayName?: string;
   onToast?: NotifyToast;
 };
 
-export function useGardiennagePresenter({ requesterRole, requesterUsername, onToast }: UseGardiennagePresenterOptions) {
+export function useGardiennagePresenter({
+  requesterRole,
+  requesterUsername,
+  requesterDisplayName = "",
+  onToast
+}: UseGardiennagePresenterOptions) {
   const [entries, setEntries] = useState<GardiennageEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,6 +123,7 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
       const result = await gtsApiClient.setGardiennageStatus({
         requesterRole,
         requesterUsername,
+        requesterDisplayName,
         id,
         expectedUpdatedAt,
         status,
@@ -169,18 +176,57 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
     }
   };
 
+  const requestCancellation = async (id: string, reason: string) => {
+    try {
+      await gtsApiClient.requestGardiennageCancellation({
+        requesterRole,
+        requesterUsername,
+        requesterDisplayName,
+        id,
+        reason
+      });
+      notify("Demande d'annulation envoyée.");
+      await loadEntries(true);
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Demande d'annulation impossible.", "error");
+      return false;
+    }
+  };
+
+  const reviewCancellation = async (id: string, decision: "approve" | "reject") => {
+    try {
+      const result = await gtsApiClient.reviewGardiennageCancellation({
+        requesterRole,
+        requesterUsername,
+        requesterDisplayName,
+        id,
+        decision
+      });
+      if (decision === "approve") {
+        const cancelled = Number(result.batchOperation?.cancelledCount || 0);
+        const preserved = Number(result.batchOperation?.preservedClosedCount || 0);
+        notify(
+          preserved > 0
+            ? `Annulation acceptée : ${cancelled} journée(s) annulée(s), ${preserved} clôturée(s) conservée(s).`
+            : "Annulation acceptée."
+        );
+      } else {
+        notify("Demande d'annulation refusée.");
+      }
+      await loadEntries(true);
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Traitement de la demande impossible.", "error");
+      return false;
+    }
+  };
+
   const deleteEntry = async (id: string, reason: string) => {
     try {
       const result = await gtsApiClient.deleteGardiennage({ requesterRole, requesterUsername, id, reason });
       const deletedCount = Number(result.deletedCount || 0);
-      const preservedClosedCount = Number(result.preservedClosedCount || 0);
-      if (deletedCount > 0 || preservedClosedCount > 0) {
-        notify(
-          `Suppression gardiennage: ${deletedCount} entrée(s) supprimée(s), ${preservedClosedCount} clôturée(s) conservée(s).`
-        );
-      } else {
-        notify("Gardiennage supprimé.");
-      }
+      notify(deletedCount > 1 ? `${deletedCount} gardiennages supprimés.` : "Gardiennage supprimé.");
       await loadEntries(true);
       return true;
     } catch (error) {
@@ -199,6 +245,8 @@ export function useGardiennagePresenter({ requesterRole, requesterUsername, onTo
     setStatus,
     closeEntry,
     reopenEntry,
+    requestCancellation,
+    reviewCancellation,
     deleteEntry
   };
 }

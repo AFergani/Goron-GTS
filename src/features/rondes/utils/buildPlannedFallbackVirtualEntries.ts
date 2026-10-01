@@ -54,6 +54,8 @@ export function buildPlannedFallbackVirtualEntries(params: {
           intervenantName: slot.defaultIntervenantId ? intervenantById.get(slot.defaultIntervenantId) || "" : "",
           arrivalTime: "",
           departureTime: "",
+          arrivalDate: null,
+          departureDate: null,
           durationMinutes: null,
           workOrderNumber: "",
           report: "",

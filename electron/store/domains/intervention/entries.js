@@ -82,7 +82,8 @@ async function normalizeExportExtraJson(db, payload) {
 }
 
 /**
- * Première ronde / premier gardiennage liés à chaque intervention.
+ * Première ronde / premier gardiennage encore actifs liés à chaque intervention.
+ * Une fiche annulée ne bloque pas une nouvelle demande.
  *
  * @param {import('../../persistence/persistenceContract').PersistenceAdapter} db
  * @param {string[]} ids
@@ -94,7 +95,8 @@ async function getCrossDomainLinks(db, ids) {
   const placeholders = ids.map(() => "?").join(", ");
   const rondeRows = await db.all(
     `SELECT id, origin_intervention_id FROM ronde_entries
-     WHERE origin_intervention_id IN (${placeholders}) ORDER BY created_at ASC`,
+     WHERE origin_intervention_id IN (${placeholders}) AND status <> 'ANNULE'
+     ORDER BY created_at ASC`,
     ids
   );
   for (const row of rondeRows) {
@@ -103,7 +105,8 @@ async function getCrossDomainLinks(db, ids) {
   }
   const gardiennageRows = await db.all(
     `SELECT id, intervention_id FROM gardiennage_entries
-     WHERE intervention_id IN (${placeholders}) ORDER BY created_at ASC`,
+     WHERE intervention_id IN (${placeholders}) AND status <> 'ANNULE'
+     ORDER BY created_at ASC`,
     ids
   );
   for (const row of gardiennageRows) {

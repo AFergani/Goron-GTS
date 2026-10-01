@@ -14,6 +14,8 @@ type InterventionEntryEditFooterProps = {
   onClose: () => void;
   onOpenLinkedRonde?: () => void;
   onOpenLinkedGardiennage?: () => void;
+  onViewLinkedRonde?: () => void;
+  onViewLinkedGardiennage?: () => void;
   onRequestCancel: () => void;
   onCloseIntervention: () => void;
   onReopen: () => void;
@@ -31,6 +33,8 @@ export function InterventionEntryEditFooter({
   onClose,
   onOpenLinkedRonde,
   onOpenLinkedGardiennage,
+  onViewLinkedRonde,
+  onViewLinkedGardiennage,
   onRequestCancel,
   onCloseIntervention,
   onReopen,
@@ -59,7 +63,16 @@ export function InterventionEntryEditFooter({
             lastFilePath={lastWordFilePath}
           />
         ) : null}
-        {canOpenLinkedRonde && onOpenLinkedRonde ? (
+        {entry.linkedRondeId ? (
+          <>
+            <span className="muted">Une ronde liée existe déjà pour cette intervention. Merci de la modifier.</span>
+            {onViewLinkedRonde ? (
+              <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onViewLinkedRonde}>
+                Voir la ronde liée
+              </button>
+            ) : null}
+          </>
+        ) : canOpenLinkedRonde && onOpenLinkedRonde ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedRonde}>
             <span className="mc-footer-btn-with-icon">
               <Link2 size={16} aria-hidden />
@@ -67,7 +80,16 @@ export function InterventionEntryEditFooter({
             </span>
           </button>
         ) : null}
-        {canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
+        {entry.linkedGardiennageId ? (
+          <>
+            <span className="muted">Un gardiennage lié existe déjà pour cette intervention. Merci de le modifier.</span>
+            {onViewLinkedGardiennage ? (
+              <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onViewLinkedGardiennage}>
+                Voir le gardiennage lié
+              </button>
+            ) : null}
+          </>
+        ) : canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedGardiennage}>
             <span className="mc-footer-btn-with-icon">
               <Link2 size={16} aria-hidden />

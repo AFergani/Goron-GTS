@@ -5,6 +5,7 @@
 import * as XLSX from "xlsx";
 import { downloadSheetJsWorkbook } from "../../common/utils/downloadSheetJsWorkbook";
 import { exportTimestampForFilename } from "../../common/utils/exportFilename";
+import { formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 import type { AuditLog } from "../../../types";
 
 /**
@@ -18,7 +19,7 @@ export async function exportAuditLogsToExcel(logs: AuditLog[]) {
   const rows: string[][] = [
     headers,
     ...logs.map((log) => [
-      new Date(log.occurredAt).toLocaleString("fr-FR"),
+      formatDateTimeFr(log.occurredAt),
       String(log.actorUsername || ""),
       String(log.action || ""),
       String(log.targetUsername || ""),

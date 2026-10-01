@@ -22,6 +22,7 @@ import {
   getImportBatchStatusTone
 } from "../model/auditTableDisplay";
 import { formatOldValuesTooltip } from "../model/auditOldValuesTooltip";
+import { formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 
 /**
  * @param props.logs - Entrées d’audit à afficher
@@ -64,7 +65,7 @@ export function AuditTable({ logs }: { logs: AuditLog[] }) {
 
             return (
               <tr key={row.key}>
-                <td className="audit-cell-date">{new Date(row.occurredAt).toLocaleString("fr-FR")}</td>
+                <td className="audit-cell-date">{formatDateTimeFr(row.occurredAt) || "—"}</td>
                 <td className="audit-cell-actor">{row.actorUsername}</td>
                 <td className="audit-cell-family">
                   <span className="audit-family-cell">
@@ -127,7 +128,7 @@ export function AuditTable({ logs }: { logs: AuditLog[] }) {
           const log = row.log;
           return (
             <tr key={row.key}>
-              <td className="audit-cell-date">{new Date(log.occurredAt).toLocaleString("fr-FR")}</td>
+              <td className="audit-cell-date">{formatDateTimeFr(log.occurredAt) || "—"}</td>
               <td className="audit-cell-actor" title={buildActorTooltip(log)}>
                 {log.actorUsername}
               </td>

@@ -295,7 +295,17 @@ async function listRondePlannedProfiles(store, { requesterRole }) {
  * @returns {Promise<object>}
  */
 async function upsertRondePlannedProfile(store, payload) {
-  store.ensureDataReaderRole(payload.requesterRole);
+  const role = payload.requesterRole;
+  const canEditProfile = role === "DEV" || role === "RESPONSABLE"
+    || (role === "OPERATEUR" && payload.requesterManagerProfile === "OPERATEUR_PLUS");
+  if (!canEditProfile) {
+    store.fail(
+      "data:rondePlannedProfiles:upsert",
+      "La création d'un profil de ronde contractuelle est réservée à l'opérateur + et aux responsables.",
+      "AUTH_FORBIDDEN",
+      { requesterRole: role }
+    );
+  }
   const source = "data:rondePlannedProfiles:upsert";
   const db = requireRondePersistence(store, source);
   const label = String(payload.label || "").trim();
@@ -400,7 +410,8 @@ async function upsertRondePlannedProfile(store, payload) {
   store.logAudit({ actorUsername: payload.requesterUsername || "unknown",
     action: wasUpdate ? "DATA_RONDE_PLANNED_PROFILE_UPDATE" : "DATA_RONDE_PLANNED_PROFILE_CREATE",
     details: { id, label, siteId, createRoundsEnabled: payload.createRoundsEnabled !== false,
-      lineCount: lines.length, ...(!wasUpdate && autoValidate ? { autoValidated: true } : {}) } });
+      lineCount: lines.length, ...(!wasUpdate && autoValidate ? { autoValidated: true } : {}),
+      activityLine: String(payload.notes || "").trim().split("\n---\n").pop()?.slice(0, 400) || "" } });
   return getProfileById(db, id);
 }
 

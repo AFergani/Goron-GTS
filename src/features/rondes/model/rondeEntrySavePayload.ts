@@ -7,6 +7,7 @@
 import type { IntervenantRef, SiteRef } from "../../../types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import { isValidTime, normalizeTimeForSave } from "../../common/utils/timeInput";
+import { computeDurationMinutes, isIsoDate } from "../utils/rondeEntryFormHelpers";
 import type { RondeEntry, RondeOriginKind, RondeSavePayload } from "./ronde.types";
 
 /** Entrée de `buildRondeEntrySavePayload`. */
@@ -23,6 +24,8 @@ export type RondeEntrySavePayloadInput = {
   originDetail: string;
   arrivalTime: string;
   departureTime: string;
+  arrivalDate: string;
+  departureDate: string;
   workOrderNumber: string;
   report: string;
   isPureCreateMode: boolean;
@@ -66,15 +69,33 @@ export function buildRondeEntrySavePayload(
 
   const arrivalNorm = normalizeTimeForSave(input.arrivalTime);
   const departureNorm = normalizeTimeForSave(input.departureTime);
+  const arrivalDate = String(input.arrivalDate || "").trim();
+  const departureDate = String(input.departureDate || "").trim();
   if (arrivalNorm && !isValidTime(arrivalNorm)) {
     return { error: "L'heure d'arrivée est invalide." };
   }
   if (departureNorm && !isValidTime(departureNorm)) {
     return { error: "L'heure de départ est invalide." };
   }
+  if (!input.isPureCreateMode && arrivalNorm && !isIsoDate(arrivalDate)) {
+    return { error: "La date d'arrivée est obligatoire lorsque l'heure d'arrivée est renseignée." };
+  }
+  if (!input.isPureCreateMode && departureNorm && !isIsoDate(departureDate)) {
+    return { error: "La date de départ est obligatoire lorsque l'heure de départ est renseignée." };
+  }
+  if (
+    !input.isPureCreateMode &&
+    arrivalNorm &&
+    departureNorm &&
+    computeDurationMinutes(arrivalDate, arrivalNorm, departureDate, departureNorm) == null
+  ) {
+    return { error: "La date et l'heure de départ doivent être postérieures à l'arrivée." };
+  }
 
   const execArrival = input.isPureCreateMode ? "" : arrivalNorm;
   const execDeparture = input.isPureCreateMode ? "" : departureNorm;
+  const execArrivalDate = input.isPureCreateMode ? "" : arrivalDate;
+  const execDepartureDate = input.isPureCreateMode ? "" : departureDate;
   const execBon = input.isPureCreateMode ? "" : input.workOrderNumber.trim();
   const execReport = input.isPureCreateMode ? "" : input.report.trim();
   const execLogicalDate = input.isPureCreateMode ? "" : input.effectiveLogicalDate;
@@ -110,6 +131,8 @@ export function buildRondeEntrySavePayload(
       intervenantName: resolvedIntervenantName,
       arrivalTime: execArrival,
       departureTime: execDeparture,
+      arrivalDate: execArrivalDate || null,
+      departureDate: execDepartureDate || null,
       workOrderNumber: execBon,
       report: execReport,
       closureCustomValues: nextClosureCustomValues

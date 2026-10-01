@@ -21,7 +21,7 @@ import { rondePassageKindWordLabel } from "../utils/rondePassageKindLabel";
 import type { RondeEntry } from "../model/ronde.types";
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { plannedProfileWordTemplateFileName } from "./profileTemplateFilename";
-import { formatRondeClosureDateFr } from "./rondeExportFormat";
+import { formatRondeClosureDateFr, formatRondePassageStamp } from "./rondeExportFormat";
 
 let templateMissingWarningShown = false;
 
@@ -55,8 +55,8 @@ function buildTemplateData(
     prestataire: safeDocxText(entry.intervenantName),
     motif: safeDocxText(entry.motifTypeLabel),
     date_demande: safeDocxText(dateJour),
-    heure_arrivee: safeDocxText(entry.arrivalTime),
-    heure_depart: safeDocxText(entry.departureTime),
+    heure_arrivee: safeDocxText(formatRondePassageStamp(entry, "arrival")),
+    heure_depart: safeDocxText(formatRondePassageStamp(entry, "departure")),
     duree_minutes:
       entry.durationMinutes == null ? "—" : safeDocxText(`${entry.durationMinutes} min`),
     numero_bon: safeDocxText(entry.workOrderNumber),

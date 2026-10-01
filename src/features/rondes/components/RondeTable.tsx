@@ -15,6 +15,7 @@ import {
   rondeOriginSummaryFr,
   rondeStatusLabelFr,
   rondeStatusTone,
+  formatRondePassageStamp,
   rondeTableOriginParts
 } from "../export/rondeExportFormat";
 
@@ -116,8 +117,8 @@ export function RondeTable({
               <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("origin")}>Origine {sortLabel("origin")}</button></th>
             ) : null}
             <th><button type="button" className="table-sort-btn" onClick={() => toggleSort("intervenant")}>Prestataire {sortLabel("intervenant")}</button></th>
-            <th>H arrivée</th>
-            <th>H départ</th>
+            <th>Arrivée</th>
+            <th>Départ</th>
             <th>Durée</th>
             <th>N° bon</th>
             <th className="ronde-col-status-actions">
@@ -153,8 +154,8 @@ export function RondeTable({
                 </td>
               ) : null}
               <td>{entry.intervenantName || "—"}</td>
-              <td>{entry.arrivalTime || "—"}</td>
-              <td>{entry.departureTime || "—"}</td>
+              <td>{formatRondePassageStamp(entry, "arrival") || "—"}</td>
+              <td>{formatRondePassageStamp(entry, "departure") || "—"}</td>
               <td>{entry.durationMinutes == null ? "—" : `${entry.durationMinutes} min`}</td>
               <td>{entry.workOrderNumber || "—"}</td>
               <td className="ronde-col-status-actions">

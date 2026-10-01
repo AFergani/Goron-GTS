@@ -105,6 +105,55 @@ function renderObservationBlock(
   );
 }
 
+/** Texte libre plafonné : « Voir la suite » seulement si la cellule dépasse la hauteur repliée. */
+function ClampedPlainTextCell({ text }: { text: string }) {
+  const value = String(text || "");
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (expanded) {
+      setNeedsToggle(true);
+      return;
+    }
+    const el = contentRef.current;
+    if (!el) {
+      setNeedsToggle(false);
+      return;
+    }
+    setNeedsToggle(el.scrollHeight > el.clientHeight + 1);
+  }, [value, expanded]);
+
+  if (!value.trim()) {
+    return <span className="muted">—</span>;
+  }
+
+  return (
+    <div className="mc-observation-cell">
+      {needsToggle ? (
+        <div className="mc-observation-meta mc-observation-meta--with-toggle">
+          <span className="mc-observation-meta__text" />
+          <button
+            type="button"
+            className="mc-observation-expand-btn"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? "Réduire" : "Voir la suite"}
+          </button>
+        </div>
+      ) : null}
+      <div
+        ref={contentRef}
+        className={`mc-observation-comment${expanded ? "" : " mc-observation-list--collapsed"}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function ManagerObservationCell({ raw }: { raw: string | undefined }) {
   const blocks = parseManagerObservationBlocks(raw);
   const [expanded, setExpanded] = useState(false);
@@ -268,7 +317,9 @@ export function MainCouranteTable({
                 colorHex={anomalyTypes.find((typeItem) => typeItem.id === entry.anomalyTypeId)?.colorHex}
               />
             </td>
-            <td className="mc-col-information mc-cell-wrap">{entry.information}</td>
+            <td className="mc-col-information mc-cell-wrap">
+              <ClampedPlainTextCell text={entry.information} />
+            </td>
             <td className="mc-col-observation">
               <ManagerObservationCell raw={entry.managerObservation} />
             </td>

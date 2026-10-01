@@ -9,60 +9,58 @@
 const { parseExportExtraJson, stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { actorName } = require("../../core/actorName");
+const { appendActivityEntry } = require("../../core/activityJournal");
 const { normalizeDateIso } = require("../../core/isoDate");
 const {
   isManualCloseAllowed,
   isOpenEndedContinuousRow,
+  parsePlanningSnapshotJson,
   resolveSlotEndMs,
   toIsoTime
 } = require("./helpers");
 const {
   GARDIENNAGE_ENTRY_SELECT,
   mapGardiennageRow,
-  parseAuditDetails,
   requireEntryId,
   toGardiennageAuditSnapshot
 } = require("./mapping");
 const { requireGardiennagePersistence } = require("./persistence");
 
 /**
- * @param {string} value
+ * @param {object} payload
  * @returns {string}
  */
-function normalizeActorName(value) {
-  return String(value || "").trim().toLowerCase();
+function journalActor(payload) {
+  return String(payload.requesterDisplayName || "").trim() || actorName(payload.requesterUsername);
 }
 
 /**
- * Retrouve le créateur depuis `audit_logs` ; repli vide si l'audit est indisponible.
- * Scan limité (200 derniers logs) : un journal très ancien peut masquer le créateur.
+ * Admin, directeur de station ou responsable de station.
  *
- * @param {import('../../../userStore')} store
- * @param {object} row
- * @returns {Promise<string>}
+ * @param {object} payload
+ * @returns {boolean}
  */
-async function findGardiennageCreatorUsername(store, row) {
-  const auditDb = typeof store.getAuditPersistence === "function" ? store.getAuditPersistence() : null;
-  if (!auditDb) return "";
-  const batchId = String(row.planning_batch_id || "").trim();
-  const action = batchId ? "GARDIENNAGE_BATCH_CREATE" : "GARDIENNAGE_CREATE";
-  try {
-    const logs = await auditDb.all(
-      `SELECT actor_username, details_json FROM audit_logs
-       WHERE action = ? ORDER BY occurred_at DESC LIMIT 200`,
-      [action]
-    );
-    for (const log of logs) {
-      const details = parseAuditDetails(log.details_json);
-      const matches = batchId
-        ? String(details.batchId || "").trim() === batchId
-        : String(details.id || "").trim() === String(row.id || "").trim();
-      if (matches) return String(log.actor_username || "").trim();
-    }
-  } catch {
-    return "";
-  }
-  return "";
+function canPurgeGardiennage(payload) {
+  if (payload.requesterRole === "DEV") return true;
+  const profile = String(payload.requesterManagerProfile || "");
+  return payload.requesterRole === "RESPONSABLE"
+    && (profile === "DIRECTEUR_STATION" || profile === "RESPONSABLE_STATION");
+}
+
+/**
+ * @param {unknown} raw
+ * @param {{ at: string, actor: string, kind: string, text: string }} entry
+ * @param {object|null|undefined} cancellationRequest
+ * @returns {string|null}
+ */
+function snapshotJsonWithJournal(raw, entry, cancellationRequest) {
+  const snapshot = parsePlanningSnapshotJson(raw);
+  if (!snapshot) return null;
+  return JSON.stringify({
+    ...snapshot,
+    activityJournal: appendActivityEntry(snapshot.activityJournal, entry),
+    cancellationRequest: cancellationRequest || null
+  });
 }
 
 /**
@@ -113,6 +111,13 @@ async function setGardiennageStatus(store, payload) {
     store.fail("gardiennage:setStatus", "Statut invalide.", "GARDIENNAGE_STATUS_INVALID");
   }
   const reason = String(payload.cancellationReason || "").trim();
+  if (payload.status === "ANNULE" && payload.requesterRole === "OPERATEUR") {
+    store.fail(
+      "gardiennage:setStatus",
+      "Passez par une demande d'annulation. Un responsable la validera.",
+      "GARDIENNAGE_CANCEL_REQUEST_REQUIRED"
+    );
+  }
   if (payload.status === "ANNULE" && !reason) {
     store.fail("gardiennage:setStatus", "Un motif d'annulation est obligatoire.", "GARDIENNAGE_CANCEL_REASON_REQUIRED");
   }
@@ -135,6 +140,26 @@ async function setGardiennageStatus(store, payload) {
     }
     const now = new Date().toISOString();
     const batchId = String(existing.planning_batch_id || "").trim();
+    const cancelJson = payload.status === "ANNULE"
+      ? snapshotJsonWithJournal(
+        existing.planning_snapshot_json,
+        { at: now, actor: journalActor(payload), kind: "ANNULATION", text: reason },
+        null
+      )
+      : null;
+    if (cancelJson) {
+      if (batchId) {
+        await tx.run(
+          "UPDATE gardiennage_entries SET planning_snapshot_json = ? WHERE planning_batch_id = ?",
+          [cancelJson, batchId]
+        );
+      } else {
+        await tx.run(
+          "UPDATE gardiennage_entries SET planning_snapshot_json = ? WHERE id = ?",
+          [cancelJson, entryId]
+        );
+      }
+    }
     if (payload.status === "ANNULE" && batchId) {
       const rows = await tx.all(
         `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries
@@ -368,10 +393,11 @@ async function reopenGardiennage(store, payload) {
 }
 
 /**
- * Supprime une entrée ou les lignes non clôturées de son lot.
+ * Supprime un lot qui n'a aucune journée clôturée.
  *
- * Les opérateurs ne peuvent supprimer que leurs propres créations, identifiées dans
- * le journal PostgreSQL. Un audit indisponible provoque donc un refus prudent.
+ * Réservé à l'admin, au directeur de station et au responsable de station,
+ * pour retirer une prestation qui n'a pas eu lieu. Dès qu'une journée est clôturée,
+ * il faut annuler le reste.
  *
  * @param {import('../../../userStore')} store
  * @param {object} payload
@@ -383,6 +409,13 @@ async function deleteGardiennage(store, payload) {
   const entryId = requireEntryId(store, payload, "gardiennage:delete");
   const reason = String(payload.reason || "").trim();
   if (!reason) store.fail("gardiennage:delete", "Un motif de suppression est obligatoire.", "DATA_DELETE_REASON_REQUIRED");
+  if (!canPurgeGardiennage(payload)) {
+    store.fail(
+      "gardiennage:delete",
+      "La suppression est réservée à l'admin, au directeur de station et au responsable de station.",
+      "GARDIENNAGE_DELETE_FORBIDDEN"
+    );
+  }
   const db = requireGardiennagePersistence(store, "gardiennage:delete");
   const outcome = await db.transaction(async (tx) => {
     const existing = await tx.get(
@@ -398,38 +431,24 @@ async function deleteGardiennage(store, payload) {
         [batchId]
       )
       : [existing];
-    const deletable = scope.filter((row) => row.status !== "CLOTURE");
-    const preserved = scope.filter((row) => row.status === "CLOTURE");
-    if (!deletable.length) {
-      store.fail("gardiennage:delete", "Aucune entrée supprimable dans ce lot.", "GARDIENNAGE_DELETE_NOTHING_TO_DELETE");
-    }
-    const isManager = payload.requesterRole === "RESPONSABLE" || payload.requesterRole === "DEV";
-    if (!isManager) {
-      for (const row of deletable) {
-        const creator = await findGardiennageCreatorUsername(store, row);
-        if (!creator || normalizeActorName(creator) !== normalizeActorName(payload.requesterUsername)) {
-          store.fail(
-            "gardiennage:delete",
-            "Suppression refusée : vous ne pouvez supprimer que vos propres créations.",
-            "GARDIENNAGE_DELETE_FORBIDDEN_NOT_OWNER"
-          );
-        }
-      }
+    if (scope.some((row) => row.status === "CLOTURE")) {
+      store.fail(
+        "gardiennage:delete",
+        "Une journée de ce lot est déjà clôturée. Annulez les journées restantes : la suppression est réservée aux prestations qui n'ont pas eu lieu.",
+        "GARDIENNAGE_DELETE_HAS_CLOSURE"
+      );
     }
     const result = batchId
-      ? await tx.run(
-        "DELETE FROM gardiennage_entries WHERE planning_batch_id = ? AND status <> 'CLOTURE'",
-        [batchId]
-      )
+      ? await tx.run("DELETE FROM gardiennage_entries WHERE planning_batch_id = ?", [batchId])
       : await tx.run("DELETE FROM gardiennage_entries WHERE id = ?", [entryId]);
-    if (result.changes !== deletable.length) {
+    if (result.changes !== scope.length) {
       store.fail("gardiennage:delete", "Le gardiennage a été modifié pendant la suppression.", "GARDIENNAGE_CONFLICT");
     }
     return {
       existing,
       batchId: batchId || null,
       deletedCount: result.changes,
-      preservedClosedCount: preserved.length
+      preservedClosedCount: 0
     };
   });
   store.logAudit({
@@ -457,9 +476,241 @@ async function deleteGardiennage(store, payload) {
   };
 }
 
+/**
+ * Enregistre une demande d'annulation sur le lot, sans changer le statut.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @returns {Promise<object>}
+ */
+async function requestGardiennageCancellation(store, payload) {
+  store.ensureDataReaderRole(payload.requesterRole);
+  if (payload.requesterRole !== "OPERATEUR") {
+    store.fail(
+      "gardiennage:requestCancellation",
+      "Un responsable annule directement le gardiennage.",
+      "GARDIENNAGE_CANCEL_REQUEST_NOT_FOR_MANAGER"
+    );
+  }
+  const actor = actorName(payload.requesterUsername);
+  const entryId = requireEntryId(store, payload, "gardiennage:requestCancellation");
+  const reason = String(payload.reason || "").trim();
+  if (!reason) {
+    store.fail(
+      "gardiennage:requestCancellation",
+      "Un motif d'annulation est obligatoire.",
+      "GARDIENNAGE_CANCEL_REASON_REQUIRED"
+    );
+  }
+  const db = requireGardiennagePersistence(store, "gardiennage:requestCancellation");
+  const now = new Date().toISOString();
+  const updated = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (!existing) store.fail("gardiennage:requestCancellation", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
+    if (existing.status === "CLOTURE" || existing.status === "ANNULE") {
+      store.fail(
+        "gardiennage:requestCancellation",
+        "Ce gardiennage ne peut plus faire l'objet d'une demande d'annulation.",
+        "GARDIENNAGE_CANCEL_REQUEST_INVALID_STATUS"
+      );
+    }
+    const snapshot = parsePlanningSnapshotJson(existing.planning_snapshot_json);
+    if (!snapshot) {
+      store.fail(
+        "gardiennage:requestCancellation",
+        "Demande d'annulation indisponible sur cette fiche. Demandez à un responsable.",
+        "GARDIENNAGE_CANCEL_REQUEST_NO_SNAPSHOT"
+      );
+    }
+    if (snapshot.cancellationRequest?.requestedAt) {
+      store.fail(
+        "gardiennage:requestCancellation",
+        "Une demande d'annulation est déjà en attente.",
+        "GARDIENNAGE_CANCEL_REQUEST_PENDING"
+      );
+    }
+    const batchId = String(existing.planning_batch_id || "").trim();
+    const nextJson = snapshotJsonWithJournal(
+      existing.planning_snapshot_json,
+      { at: now, actor: journalActor(payload), kind: "ANNULATION_REQUEST", text: reason },
+      {
+        reason,
+        requestedAt: now,
+        requestedBy: actor,
+        requestedByDisplay: journalActor(payload)
+      }
+    );
+    const result = batchId
+      ? await tx.run(
+        "UPDATE gardiennage_entries SET planning_snapshot_json = ?, updated_at = ? WHERE planning_batch_id = ?",
+        [nextJson, now, batchId]
+      )
+      : await tx.run(
+        "UPDATE gardiennage_entries SET planning_snapshot_json = ?, updated_at = ? WHERE id = ?",
+        [nextJson, now, entryId]
+      );
+    if (!result.changes) {
+      store.fail("gardiennage:requestCancellation", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
+    }
+    const row = await tx.get(
+      `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`,
+      [entryId]
+    );
+    return { existing, batchId: batchId || null, row };
+  });
+  store.logAudit({
+    actorUsername: actor,
+    action: "GARDIENNAGE_CANCELLATION_REQUEST",
+    status: "SUCCESS",
+    details: {
+      id: entryId,
+      batchId: updated.batchId,
+      reason,
+      siteDisplay: updated.existing.site_display
+    }
+  });
+  return mapGardiennageRow(updated.row);
+}
+
+/**
+ * Accepte ou refuse une demande d'annulation.
+ * L'acceptation annule les journées non clôturées et conserve les clôturées.
+ *
+ * @param {import('../../../userStore')} store
+ * @param {object} payload
+ * @returns {Promise<object>}
+ */
+async function reviewGardiennageCancellation(store, payload) {
+  store.ensureDataManagerRole(payload.requesterRole);
+  const actor = actorName(payload.requesterUsername);
+  const entryId = requireEntryId(store, payload, "gardiennage:reviewCancellation");
+  const decision = String(payload.decision || "").trim();
+  if (decision !== "approve" && decision !== "reject") {
+    store.fail("gardiennage:reviewCancellation", "Décision invalide.", "GARDIENNAGE_CANCEL_REVIEW_INVALID");
+  }
+  const db = requireGardiennagePersistence(store, "gardiennage:reviewCancellation");
+  const now = new Date().toISOString();
+  const outcome = await db.transaction(async (tx) => {
+    const existing = await tx.get(
+      `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ? FOR UPDATE`,
+      [entryId]
+    );
+    if (!existing) store.fail("gardiennage:reviewCancellation", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
+    const snapshot = parsePlanningSnapshotJson(existing.planning_snapshot_json);
+    const request = snapshot?.cancellationRequest;
+    if (!request?.requestedAt) {
+      store.fail(
+        "gardiennage:reviewCancellation",
+        "Aucune demande d'annulation en attente.",
+        "GARDIENNAGE_CANCEL_REQUEST_MISSING"
+      );
+    }
+    const batchId = String(existing.planning_batch_id || "").trim();
+    const reason = String(request.reason || "").trim();
+    const nextJson = snapshotJsonWithJournal(
+      existing.planning_snapshot_json,
+      {
+        at: now,
+        actor: journalActor(payload),
+        kind: decision === "approve" ? "ANNULATION" : "ANNULATION_REJECTED",
+        text: decision === "approve" ? reason : "Demande refusée."
+      },
+      null
+    );
+    if (batchId) {
+      await tx.run(
+        "UPDATE gardiennage_entries SET planning_snapshot_json = ? WHERE planning_batch_id = ?",
+        [nextJson, batchId]
+      );
+    } else {
+      await tx.run(
+        "UPDATE gardiennage_entries SET planning_snapshot_json = ? WHERE id = ?",
+        [nextJson, entryId]
+      );
+    }
+    let cancelledCount = 0;
+    let preservedClosedCount = 0;
+    if (decision === "approve") {
+      if (batchId) {
+        const rows = await tx.all(
+          `SELECT status FROM gardiennage_entries WHERE planning_batch_id = ? FOR UPDATE`,
+          [batchId]
+        );
+        preservedClosedCount = rows.filter((row) => row.status === "CLOTURE").length;
+        const result = await tx.run(
+          `UPDATE gardiennage_entries
+           SET status = 'ANNULE', cancellation_reason = ?, updated_at = ?
+           WHERE planning_batch_id = ? AND status <> 'CLOTURE'`,
+          [reason, now, batchId]
+        );
+        cancelledCount = result.changes;
+      } else {
+        const result = await tx.run(
+          `UPDATE gardiennage_entries
+           SET status = 'ANNULE', cancellation_reason = ?, updated_at = ?
+           WHERE id = ? AND status <> 'CLOTURE'`,
+          [reason, now, entryId]
+        );
+        cancelledCount = result.changes;
+      }
+    } else {
+      const result = batchId
+        ? await tx.run(
+          "UPDATE gardiennage_entries SET updated_at = ? WHERE planning_batch_id = ?",
+          [now, batchId]
+        )
+        : await tx.run(
+          "UPDATE gardiennage_entries SET updated_at = ? WHERE id = ?",
+          [now, entryId]
+        );
+      if (!result.changes) {
+        store.fail("gardiennage:reviewCancellation", "Gardiennage introuvable.", "GARDIENNAGE_NOT_FOUND");
+      }
+    }
+    const row = await tx.get(
+      `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`,
+      [entryId]
+    );
+    return { existing, batchId: batchId || null, reason, cancelledCount, preservedClosedCount, row };
+  });
+  store.logAudit({
+    actorUsername: actor,
+    action: decision === "approve" ? "GARDIENNAGE_CANCELLATION_APPROVE" : "GARDIENNAGE_CANCELLATION_REJECT",
+    status: "SUCCESS",
+    details: {
+      id: entryId,
+      batchId: outcome.batchId,
+      reason: outcome.reason,
+      cancelledCount: outcome.cancelledCount,
+      preservedClosedCount: outcome.preservedClosedCount,
+      requestedBy: outcome.existing
+        ? parsePlanningSnapshotJson(outcome.existing.planning_snapshot_json)?.cancellationRequest?.requestedBy || ""
+        : ""
+    }
+  });
+  const mapped = mapGardiennageRow(outcome.row);
+  if (decision === "approve") {
+    return {
+      ...mapped,
+      batchOperation: {
+        type: "CANCEL",
+        isBatch: Boolean(outcome.batchId),
+        cancelledCount: outcome.cancelledCount,
+        preservedClosedCount: outcome.preservedClosedCount
+      }
+    };
+  }
+  return mapped;
+}
+
 module.exports = {
   closeGardiennage,
   deleteGardiennage,
   reopenGardiennage,
+  requestGardiennageCancellation,
+  reviewGardiennageCancellation,
   setGardiennageStatus
 };

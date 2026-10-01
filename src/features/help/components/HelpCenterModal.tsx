@@ -111,7 +111,8 @@ export function HelpCenterModal({ isOpen, onClose, access, initialTopicId }: Hel
             <p className="help-center-sidebar-title">Rubriques</p>
             <nav className="help-center-nav app-scrollbar" aria-label="Liste des rubriques">
               {navItems.map((item) => {
-                const lockedOut = connectionOnly && item.id !== OFFLINE_CONNECTION_HELP_TOPIC_ID;
+                const lockedOut =
+                  connectionOnly && item.id !== OFFLINE_CONNECTION_HELP_TOPIC_ID && item.id !== "about";
                 return (
                   <button
                     key={item.id}

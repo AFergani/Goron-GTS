@@ -4,7 +4,7 @@
  * Effets de formulaire : `[isOpen, mode]` création ; `[isOpen, mode, entry?.id]` édition.
  */
 
-import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
+import type { BusinessProfile, HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { formatSiteSelectedLabel } from "../../common/model/siteSearch";
 import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
@@ -12,7 +12,7 @@ import type { RondePlannedProfilePayload, RondePlannedProfileRef } from "../mode
 import { isRondeTimeHm } from "../utils/rondeDateTime";
 import { createPendingRefsIfNeededForSubmit } from "../../common/utils/pendingRefsBeforeSave";
 import type { NotifyToast } from "../../common/model/toast.types";
-import { mapRequestOriginToApiKind, formatRequestOriginDetail, type RequestOrigin } from "../model/requestOrigin";
+import { mapRequestOriginToApiKind, formatRequestOriginDetail, stripSuiteInterventionPrefix, type RequestOrigin } from "../model/requestOrigin";
 import { formatDemandeEmiseContext } from "../utils/formatDemandeEmiseContext";
 import { parseDateTimeSafeMs } from "../utils/parseDateTimeSafeMs";
 import { prepareRondeRequestLinesForSubmit } from "../utils/prepareRondeRequestLinesForSubmit";
@@ -29,6 +29,11 @@ import { RondeRequestEditFooter } from "./RondeRequestEditFooter";
 import { RondeLinkedBatchPanel } from "./RondeLinkedBatchPanel";
 import { useRondeRequestForm } from "../hooks/useRondeRequestForm";
 import { buildRondeProfileLinesFromDrafts } from "../utils/buildRondeProfileLinesFromDrafts";
+import { applyRondeActivityJournal, rondeDraftPlanningSignature } from "../utils/applyRondeActivityJournal";
+import { formatRondeRequestFlux } from "../utils/formatRondeResumeDemande";
+import { formatPlanningFluxChangeText } from "../../common/components/PlanningFluxChange";
+import { displayActivityHistory, isRenderedActivityJournal, renderActivityJournal } from "../../common/model/activityJournal";
+import { lineRefToDraft, planningSnapshotLineToDraft } from "../model/rondeRequestLineDraft";
 
 export type { RequestOrigin } from "../model/requestOrigin";
 
@@ -39,6 +44,9 @@ type RondeRequestModalProps = {
   holidays?: HolidayRef[];
   rondeMotifs: RondeMotifTypeRef[];
   requesterRole?: Role;
+  requesterManagerProfile?: BusinessProfile | null;
+  /** Nom affiché dans le journal d'activité. */
+  requesterDisplayName?: string;
   /** Profil à éditer — si fourni, la modale s'ouvre en mode édition */
   editProfile?: RondePlannedProfileRef | null;
   /** Actions cycle de vie (édition profil uniquement) — ouvertes via confirmations parent. */
@@ -219,7 +227,108 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     closeGuard
   } = form;
 
+  const journalHistory = props.editProfile
+    ? displayActivityHistory(props.editProfile.notes, {
+      at: props.editProfile.lines[0]?.createdAt || new Date().toISOString(),
+      actor: "Création"
+    })
+    : props.replayPlanningSnapshot?.activityJournal?.length
+      ? renderActivityJournal(props.replayPlanningSnapshot.activityJournal)
+      : props.replayPlanningSnapshot?.consigne
+        ? displayActivityHistory(props.replayPlanningSnapshot.consigne, {
+          at: new Date().toISOString(),
+          actor: "Création"
+        })
+        : "";
+
+  const planningBaseline = props.editProfile
+    ? rondeDraftPlanningSignature({
+      validFrom: props.editProfile.planningValidFrom || "",
+      validFromTime: "",
+      validTo: props.editProfile.planningValidTo || "",
+      validToTime: "",
+      isSingleDay: false,
+      lines: props.editProfile.lines.map(lineRefToDraft)
+    })
+    : props.replayPlanningSnapshot
+      ? rondeDraftPlanningSignature({
+        validFrom: props.replayPlanningSnapshot.validFrom || "",
+        validFromTime: props.replayPlanningSnapshot.validFromTime || "",
+        validTo: props.replayPlanningSnapshot.validTo || "",
+        validToTime: props.replayPlanningSnapshot.validToTime || "",
+        isSingleDay: Boolean(props.replayPlanningSnapshot.isSingleDay),
+        lines: (props.replayPlanningSnapshot.lines || []).map((line) => planningSnapshotLineToDraft(line))
+      })
+      : "";
+
   if (!props.isOpen) return null;
+
+  const planningChangedLive = Boolean(planningBaseline) && planningBaseline !== rondeDraftPlanningSignature(
+    isEdit || isContract
+      ? {
+        validFrom: validFrom.trim(),
+        validFromTime: "",
+        validTo: isSingleDay ? validFrom.trim() : validTo.trim(),
+        validToTime: "",
+        isSingleDay: false,
+        lines
+      }
+      : {
+        validFrom: validFrom.trim(),
+        validFromTime,
+        validTo: isSingleDay ? validFrom.trim() : validTo.trim(),
+        validToTime,
+        isSingleDay,
+        lines
+      }
+  );
+  const previousRondeFlux = props.editProfile
+    ? formatRondeRequestFlux({
+      validFrom: props.editProfile.planningValidFrom || "",
+      validFromTime: "",
+      validTo: props.editProfile.planningValidTo || "",
+      validToTime: "",
+      isSingleDay: false,
+      lines: props.editProfile.lines.map(lineRefToDraft)
+    })
+    : props.replayPlanningSnapshot
+      ? formatRondeRequestFlux({
+        validFrom: props.replayPlanningSnapshot.validFrom || "",
+        validFromTime: props.replayPlanningSnapshot.validFromTime || "",
+        validTo: props.replayPlanningSnapshot.validTo || "",
+        validToTime: props.replayPlanningSnapshot.validToTime || "",
+        isSingleDay: Boolean(props.replayPlanningSnapshot.isSingleDay),
+        lines: (props.replayPlanningSnapshot.lines || []).map((line) => planningSnapshotLineToDraft(line))
+      })
+      : "";
+  const nextRondeFlux = formatRondeRequestFlux(
+    isEdit || isContract
+      ? {
+        validFrom: validFrom.trim(),
+        validFromTime: "",
+        validTo: isSingleDay ? validFrom.trim() : validTo.trim(),
+        validToTime: "",
+        isSingleDay: false,
+        lines
+      }
+      : {
+        validFrom: validFrom.trim(),
+        validFromTime,
+        validTo: isSingleDay ? validFrom.trim() : validTo.trim(),
+        validToTime,
+        isSingleDay,
+        lines
+      }
+  );
+  const planningFluxChange = planningChangedLive
+    ? formatPlanningFluxChangeText(previousRondeFlux, nextRondeFlux)
+    : "";
+
+  const consigneDraftLabel = !isEdit && !isLinkedExistingBatch
+    ? "Consigne de ronde"
+    : planningChangedLive
+      ? "Motif du changement de planification"
+      : "Modification de consigne";
 
   const linkedInterventionId = resolveRequestLinkedInterventionId(props);
   const canNavigateLinkedIntervention =
@@ -287,7 +396,49 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
     setSubmitting(true);
     try {
       const fromIntervention = origin === "SUITE_INTERVENTION" && Boolean(props.initialInterventionId);
-      const originDetail = formatRequestOriginDetail(origin, { consigne, clientName });
+      const nextPlanningSignature = (isEdit || isContract)
+      ? rondeDraftPlanningSignature({
+        validFrom: validFrom.trim(),
+        validFromTime: "",
+        validTo: effectiveValidTo,
+        validToTime: "",
+        isSingleDay: false,
+        lines
+      })
+      : rondeDraftPlanningSignature({
+        validFrom: validFrom.trim(),
+        validFromTime: validFromTimeNorm,
+        validTo: effectiveValidTo,
+        validToTime: validToTimeNorm,
+        isSingleDay,
+        lines
+      });
+    const planningChanged = Boolean(planningBaseline) && planningBaseline !== nextPlanningSignature;
+    const previousOrigin = props.replayPlanningSnapshot?.origin;
+    const previousOriginDetail = String(props.linkedBatchEntries?.[0]?.originDetail || "").trim();
+    const previousClient = previousOrigin === "APPEL_CLIENT"
+      ? previousOriginDetail
+      : previousOrigin === "SUITE_INTERVENTION"
+        ? stripSuiteInterventionPrefix(previousOriginDetail)
+        : "";
+    const storedNotes = String(props.editProfile?.notes || "");
+    const appliedJournal = applyRondeActivityJournal({
+      mode: isEdit || isLinkedExistingBatch ? "update" : "create",
+      previousEntries: props.replayPlanningSnapshot?.activityJournal,
+      previousPlainConsigne: isRenderedActivityJournal(storedNotes) ? "" : (props.replayPlanningSnapshot?.consigne || storedNotes),
+      previousNotes: storedNotes,
+      previousClient,
+      nextClient: clientName.trim(),
+      planningChanged,
+      planningFluxChange,
+      draft: consigne,
+      actor: String(props.requesterDisplayName || "").trim() || "Utilisateur",
+      at: new Date().toISOString(),
+      trackClient: !isContract,
+      storeAs: isContract || isEdit ? "notes" : "entries"
+    });
+    if (appliedJournal.error) return setError(appliedJournal.error);
+    const originDetail = formatRequestOriginDetail(origin, { consigne: appliedJournal.consigne, clientName });
       const needsPlanningSnapshot =
         (isLinkedExistingBatch && Boolean(props.onSaveLinkedBatch) && Boolean(props.linkedBatchEntries?.length) && !isEdit) ||
         (!isContract && !isEdit && !isLinkedExistingBatch && Boolean(props.onCreateEntry));
@@ -302,13 +453,16 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             isSingleDay,
             origin,
             motifTypeId,
-            consigne,
+            consigne: appliedJournal.consigne,
             siteId: selectedSite?.id ?? null,
             intervenantId: selectedIntervenant?.id ?? "",
             lines: linesForSubmit,
             originInterventionId: fromIntervention ? props.initialInterventionId ?? null : null
           })
         : null;
+      if (planningSnapshotPayload) {
+        planningSnapshotPayload.activityJournal = appliedJournal.entries;
+      }
 
       /* Mise à jour d'un lot exceptionnel existant (même modale + fiches en dessous) */
       if (isLinkedExistingBatch && props.onSaveLinkedBatch && props.linkedBatchEntries?.length && !isEdit) {
@@ -349,7 +503,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           const scheduleDetails = [
             demandeCtx,
             planned.requestedTime ? `Heure demandée: ${planned.requestedTime}` : "",
-            consigne.trim()
+            appliedJournal.consigne
           ]
             .filter(Boolean)
             .join(" — ");
@@ -392,7 +546,7 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
           label: selectedSite ? formatSiteSelectedLabel(selectedSite) : pendingSiteDisplay || "",
           siteId: selectedSite?.id ?? null,
           intervenantId: selectedIntervenant?.id ?? "",
-          notes: consigne.trim(),
+          notes: appliedJournal.historyText,
           planningValidFrom: validFrom,
           planningValidTo: effectiveValidTo,
           createRoundsEnabled: true,
@@ -492,6 +646,10 @@ export function RondeRequestModal(props: RondeRequestModalProps) {
             pendingIntervenantName={pendingIntervenantName}
             clientName={clientName}
             consigne={consigne}
+            journalHistory={journalHistory}
+            pendingJournalLine={planningFluxChange}
+            consigneDraftLabel={consigneDraftLabel}
+            showMotifDetail={Boolean(isLinkedExistingBatch && selectedMotifMeta?.requiresFreeText)}
             motifDetail={motifDetail}
             onNotify={props.onNotify}
             onRequestDateChange={setRequestDate}

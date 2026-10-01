@@ -584,6 +584,8 @@ FROM (
 WHERE e.id = sub.id;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ronde_daily_code
   ON ronde_entries (daily_code);
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS arrival_date TEXT;
+ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS departure_date TEXT;
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_at TEXT;
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_by TEXT;
 ALTER TABLE ronde_entries ADD COLUMN IF NOT EXISTS batch_suppressed_reason TEXT;

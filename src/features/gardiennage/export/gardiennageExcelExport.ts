@@ -9,7 +9,7 @@ import { buildFilteredListWorkbook, downloadSheetJsWorkbook } from "../../common
 import { gardiennageDemandLabel, type GardiennageEntry } from "../model/gardiennage.types";
 import { statusLabelFr } from "./gardiennageExportFormat";
 import { exportTimestampFrForFilename } from "../../common/utils/exportFilename";
-import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import { formatDateShortFr, formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 
 const HEADERS = [
   "N°",
@@ -34,9 +34,33 @@ function formatPeriod(entry: GardiennageEntry): string {
   return `${start} -> ${formatDateShortFr(entry.recurrenceEndDate)}`;
 }
 
+function shiftIsoDate(dateIso: string, days: number): string {
+  const base = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(base.getTime())) return dateIso;
+  base.setDate(base.getDate() + days);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`;
+}
+
+function formatSlotStamp(iso: string): string {
+  const raw = String(iso || "").trim();
+  if (!raw.includes("T") && !raw.includes(" ")) return "";
+  return formatDateTimeFr(raw);
+}
+
+/** Horaires avec les dates, y compris quand le départ est le lendemain. */
 function formatSchedule(entry: GardiennageEntry): string {
+  const startStamp = formatSlotStamp(entry.planningSlotStart || "");
+  const endStamp = formatSlotStamp(entry.planningSlotEnd || "");
+  if (startStamp && endStamp) return `${startStamp} -> ${endStamp}`;
   if (!entry.startTime || !entry.endTime) return "";
-  return entry.crossesMidnight ? `${entry.startTime} -> ${entry.endTime} (nuit)` : `${entry.startTime} -> ${entry.endTime}`;
+  const startDate = String(entry.recurrenceStartDate || "").trim();
+  const overnight = Boolean(entry.crossesMidnight) || entry.endTime < entry.startTime;
+  const endDate = overnight ? shiftIsoDate(startDate, 1) : startDate;
+  const startLabel = formatDateShortFr(startDate);
+  const endLabel = formatDateShortFr(endDate);
+  if (!startLabel) return `${entry.startTime} -> ${entry.endTime}`;
+  return `${startLabel} ${entry.startTime} -> ${endLabel || startLabel} ${entry.endTime}`;
 }
 
 /**
@@ -64,6 +88,6 @@ export async function exportGardiennageToExcel(entries: GardiennageEntry[]) {
     ])
   ];
 
-  const wb = buildFilteredListWorkbook("Gardiennage", rows, [14, 34, 30, 20, 24, 28, 14, 42, 42, 16, 18, 14]);
+  const wb = buildFilteredListWorkbook("Gardiennage", rows, [14, 34, 30, 42, 24, 28, 14, 42, 42, 16, 18, 14]);
   return downloadSheetJsWorkbook(wb, `gardiennage_export_${exportTimestampFrForFilename()}.xlsx`);
 }

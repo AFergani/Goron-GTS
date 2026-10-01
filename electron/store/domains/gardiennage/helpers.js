@@ -153,6 +153,8 @@ function normalizePlanningSnapshot(payload) {
     requestDate: normalizeDateIso(snapshot.requestDate) || "",
     requestTime: toIsoTime(snapshot.requestTime) || "",
     clientName: String(snapshot.clientName || "").trim(),
+    activityJournal: Array.isArray(snapshot.activityJournal) ? snapshot.activityJournal : [],
+    cancellationRequest: null,
     lines: Array.isArray(snapshot.lines)
       ? snapshot.lines.map((line, index) => ({
         id: String(line.id || `line-${index + 1}`),

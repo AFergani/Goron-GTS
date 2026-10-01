@@ -4,6 +4,7 @@
 
 import type { RondeEntry } from "../model/ronde.types";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
+import { isStationManagerRole } from "../../settings/model/userHierarchy";
 import { isRondeTimeHm } from "./rondeTime";
 
 const HEURE_DEMANDEE_RE = /Heure demandée:\s*([01]\d|2[0-3]):([0-5]\d)/i;
@@ -49,7 +50,7 @@ export function isRondePassagePast(entry: RondePassageTiming, nowMs = Date.now()
 }
 
 export function isRondeManagerRole(role: string | undefined | null): boolean {
-  return role === "RESPONSABLE" || role === "DEV";
+  return isStationManagerRole(role);
 }
 
 /**

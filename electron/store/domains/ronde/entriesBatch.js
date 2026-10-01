@@ -140,7 +140,7 @@ async function updateRondeBatchSharedFields(store, payload) {
               normalized.motifCategorySnapshot, normalized.motifOther || null, observation,
               normalized.originKind, normalized.originDetail || null, normalized.intervenantId,
               normalized.intervenantName, null, null, null, null, null, "{}", null, null, null,
-              snapshotJson, template.request_batch_id || null, "EN_COURS", null, null,
+              snapshotJson, template.request_batch_id || null, "EN_COURS", null, null, null, null,
               await allocateNextDailyCode(
                 tx,
                 "ronde",
@@ -186,7 +186,17 @@ async function updateRondeBatchSharedFields(store, payload) {
     actorUsername: payload.requesterUsername || "unknown",
     action: "RONDE_BATCH_UPDATE",
     details: { count: summaries.length, entryIds: summaries.map((row) => row.id),
-      planningSnapshotSynced: snapshotProvided, planningResync, rows: summaries.slice(0, 25) }
+      planningSnapshotSynced: snapshotProvided, planningResync, rows: summaries.slice(0, 25),
+      activityLine: (() => {
+        try {
+          const parsed = snapshotProvided ? JSON.parse(snapshotJson) : null;
+          const journal = Array.isArray(parsed?.activityJournal) ? parsed.activityJournal : [];
+          const last = journal[journal.length - 1];
+          return last?.text ? `${last.kind || ""} : ${String(last.text).slice(0, 300)}` : "";
+        } catch {
+          return "";
+        }
+      })() }
   });
   return { ok: true, updatedCount: summaries.length };
 }

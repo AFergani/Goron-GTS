@@ -11,6 +11,7 @@ type RondeServiceTabActionsProps = {
   listView: RondeListView;
   activeDisplayMode: "day" | "list";
   canUpsertProfiles: boolean;
+  canCreateContractualProfile: boolean;
   canManageCancellation: boolean;
   pendingCancellationCount: number;
   canManageBatchDelete: boolean;
@@ -30,6 +31,7 @@ export function RondeServiceTabActions({
   listView,
   activeDisplayMode,
   canUpsertProfiles,
+  canCreateContractualProfile,
   canManageCancellation,
   pendingCancellationCount,
   canManageBatchDelete,
@@ -108,14 +110,16 @@ export function RondeServiceTabActions({
           ) : null}
         </button>
       ) : null}
-      <button
-        type="button"
-        className="mc-btn-primary ronde-primary-action-btn"
-        onClick={onCreate}
-      >
-        <Plus size={16} aria-hidden />
-        {listView === "urgence" ? "Nouvelle ronde" : "Nouvelle planification"}
-      </button>
+      {listView === "urgence" || canCreateContractualProfile ? (
+        <button
+          type="button"
+          className="mc-btn-primary ronde-primary-action-btn"
+          onClick={onCreate}
+        >
+          <Plus size={16} aria-hidden />
+          {listView === "urgence" ? "Nouvelle ronde" : "Nouvelle planification"}
+        </button>
+      ) : null}
     </div>
   );
 }

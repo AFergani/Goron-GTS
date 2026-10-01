@@ -1,5 +1,5 @@
 /**
- * Saisie horaire compacte pour les champs `type="time"` (Entrée / blur).
+ * Saisie horaire compacte pour les champs `type="time"`.
  *
  * Exemples : `12` → `12:00`, `1` ou `01` → `01:00`, `1230` → `12:30`.
  */
@@ -35,6 +35,8 @@ export function normalizeCompactTimeInput(input: string): string | null {
   const raw = String(input || "").trim();
   if (!raw) return null;
   if (isValidTime(raw)) return raw;
+  const withSeconds = raw.match(/^(\d{2}:\d{2}):\d{2}$/);
+  if (withSeconds && isValidTime(withSeconds[1])) return withSeconds[1];
 
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 1) {

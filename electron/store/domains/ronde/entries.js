@@ -129,6 +129,26 @@ async function createRonde(store, payload) {
   if (originInterventionId && !await interventionDomain.hasInterventionEntry(store, originInterventionId)) {
     store.fail("ronde:create", "Intervention liée introuvable.", "RONDE_ORIGIN_INTERVENTION_NOT_FOUND");
   }
+  const requestBatchIdForLink = source !== "PLANIFIE"
+    ? String(payload.requestBatchId || "").trim().slice(0, 48) || ""
+    : "";
+  if (originInterventionId) {
+    const alreadyLinked = await db.get(
+      `SELECT id FROM ronde_entries
+       WHERE origin_intervention_id = ?
+         AND status <> 'ANNULE'
+         AND NOT (? <> '' AND request_batch_id = ?)
+       LIMIT 1`,
+      [originInterventionId, requestBatchIdForLink, requestBatchIdForLink]
+    );
+    if (alreadyLinked) {
+      store.fail(
+        "ronde:create",
+        "Une ronde liée existe déjà pour cette intervention. Merci de la modifier.",
+        "RONDE_INTERVENTION_ALREADY_LINKED"
+      );
+    }
+  }
   const statusInput = String(payload.initialStatus || "EN_COURS").trim().toUpperCase();
   const status = ["EN_COURS", "CLOTURE", "ANNULE"].includes(statusInput) ? statusInput : "EN_COURS";
   const cancellationReason = String(payload.cancellationReason || "").trim();
@@ -183,6 +203,7 @@ async function createRonde(store, payload) {
     insertParams[1] = now;
     insertParams[2] = now;
     insertParams[insertParams.length - 1] = status === "EN_COURS" ? null : now;
+    insertParams.push(normalized.arrivalDate || null, normalized.departureDate || null);
     insertParams.push(
       await allocateNextDailyCode(tx, "ronde", resolveRondeDailyCodeDayIso(source, normalized.requestDate, snapshotJson))
     );
@@ -256,14 +277,16 @@ async function updateRonde(store, payload) {
       `UPDATE ronde_entries SET updated_at = ?, site_id = ?, site_display = ?, request_date = ?,
          motif_type_id = ?, motif_category = ?, motif_other = ?, horaires_demande_obs = ?,
          origin_kind = ?, origin_detail = ?, intervenant_id = ?, intervenant_name = ?,
-         arrival_time = ?, departure_time = ?, duration_minutes = ?, work_order_number = ?,
+         arrival_time = ?, departure_time = ?, arrival_date = ?, departure_date = ?,
+         duration_minutes = ?, work_order_number = ?,
          report = ?, closure_custom_values_json = ?
        WHERE id = ? AND updated_at = ?`,
       [now, normalized.siteId, normalized.siteDisplay, normalized.requestDate,
         normalized.motifTypeId, normalized.motifCategorySnapshot, normalized.motifOther || null,
         normalized.horairesDemandeObs || null, normalized.originKind, normalized.originDetail || null,
         normalized.intervenantId, normalized.intervenantName, normalized.arrivalTime || null,
-        normalized.departureTime || null, normalized.durationMinutes, normalized.workOrderNumber || null,
+        normalized.departureTime || null, normalized.arrivalDate || null, normalized.departureDate || null,
+        normalized.durationMinutes, normalized.workOrderNumber || null,
         normalized.report || null, JSON.stringify(normalized.closureCustomValues),
         entryId, payload.expectedUpdatedAt]
     );

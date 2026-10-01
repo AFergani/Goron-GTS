@@ -18,9 +18,13 @@ import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
 import { HelpSettingsConnectionTopic } from "./HelpSettingsConnectionTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
 import { HelpVideoRemarksTopic } from "./HelpVideoRemarksTopic";
+import { HelpAboutTopic } from "./HelpAboutTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
 export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessContext) {
+  if (topicId === "about" && isHelpTopicAllowed(topicId, access)) {
+    return <HelpAboutTopic />;
+  }
   if (!isHelpTopicAllowed(topicId, access) || topicId === "welcome") {
     return <HelpWelcomeTopic />;
   }

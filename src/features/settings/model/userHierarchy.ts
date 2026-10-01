@@ -35,11 +35,34 @@ function getSessionHierarchyRank(session: NonNullable<Session>): number {
  * Création de comptes et journal : Admin, directeur de station et responsable de station
  * (pas le superviseur). L'accès Paramètres découle du rôle, sans interrupteur UI.
  */
-export function isSessionStationAdmin(session: Session | null): boolean {
-  const role = session?.user.role;
-  const managerProfile = session?.user.managerProfile;
+/** Admin, directeur de station ou responsable de station. Le superviseur n'est pas inclus. */
+export function canPurgeUnstartedPrestations(
+  role: Role | null | undefined,
+  managerProfile?: BusinessProfile | null
+): boolean {
   if (role === "DEV") return true;
   return role === "RESPONSABLE" && (managerProfile === "DIRECTEUR_STATION" || managerProfile === "RESPONSABLE_STATION");
+}
+
+/** Responsable (y compris superviseur) ou admin : annulation directe, file des demandes. */
+export function isStationManagerRole(role: Role | string | null | undefined): boolean {
+  return role === "RESPONSABLE" || role === "DEV";
+}
+
+/**
+ * Création et modification d'un profil de ronde contractuelle.
+ * Opérateur + oui, opérateur classique non. Les responsables et l'admin aussi.
+ */
+export function canEditContractualRondeProfile(
+  role: Role | string | null | undefined,
+  managerProfile?: BusinessProfile | string | null
+): boolean {
+  if (role === "DEV" || role === "RESPONSABLE") return true;
+  return role === "OPERATEUR" && managerProfile === "OPERATEUR_PLUS";
+}
+
+export function isSessionStationAdmin(session: Session | null): boolean {
+  return canPurgeUnstartedPrestations(session?.user.role, session?.user.managerProfile);
 }
 
 export function canSessionAccessOperatorsTab(session: Session | null): boolean {

@@ -11,6 +11,7 @@ import { PendingIntervenantInlineField, PendingSiteInlineFields } from "../../co
 import { SearchEntry } from "../../common/components/SearchEntry";
 import { RequestDateTimeField } from "../../common/components/RequestDateTimeField";
 import type { NotifyToast } from "../../common/model/toast.types";
+import { ActivityJournalPanel } from "../../common/components/ActivityJournalPanel";
 import type { RondeMotifTypeRef } from "../model/ronde.types";
 import type { RequestOrigin } from "../model/requestOrigin";
 
@@ -38,6 +39,10 @@ type RondeRequestMetaSectionProps = {
   pendingName: string;
   pendingIntervenantName: string;
   consigne: string;
+  journalHistory?: string;
+  pendingJournalLine?: string;
+  consigneDraftLabel?: string;
+  showMotifDetail?: boolean;
   motifDetail: string;
   onNotify?: NotifyToast;
   onRequestDateChange: (value: string) => void;
@@ -187,28 +192,29 @@ export function RondeRequestMetaSection(props: RondeRequestMetaSectionProps) {
       </div>
 
       <div className={props.besideConsigne ? "request-motif-row request-motif-row--with-extra" : undefined}>
-        <label className={`mc-field ${props.besideConsigne ? "request-motif-row__motif" : "mc-field-full"}`}>
-          <span>Consigne de ronde</span>
-          <textarea
-            className="mc-textarea"
-            rows={4}
-            value={props.consigne}
-            readOnly={locked || props.isEdit || props.isLinkedExistingBatch}
-            onChange={(e) => props.onConsigneChange(e.target.value)}
+        <div className={props.besideConsigne ? "request-motif-row__motif" : undefined}>
+          <ActivityJournalPanel
+            historyText={props.journalHistory || ""}
+            pendingLine={props.pendingJournalLine}
+            draft={props.consigne}
+            onDraftChange={props.onConsigneChange}
+            locked={locked}
+            draftLabel={props.consigneDraftLabel || "Consigne de ronde"}
+            placeholder="Consigne ou motif de la modification"
           />
-        </label>
+        </div>
         {props.besideConsigne}
       </div>
-      {props.isLinkedExistingBatch ? (
+      {props.showMotifDetail ? (
         <label className="mc-field mc-field-full">
-          <span>Détail des modification</span>
+          <span>Détail du motif</span>
           <textarea
             className="mc-textarea"
             rows={3}
             value={props.motifDetail}
             readOnly={locked}
             onChange={(e) => props.onMotifDetailChange(e.target.value)}
-            aria-label="Détail des modification"
+            aria-label="Détail du motif"
           />
         </label>
       ) : null}

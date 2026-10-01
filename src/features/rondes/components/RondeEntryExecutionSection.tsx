@@ -14,7 +14,8 @@ import type { NotifyToast } from "../../common/model/toast.types";
 import { isRondeAutoClosureReport, type RondeEntry } from "../model/ronde.types";
 import type { RondePlannedProfileRef, RondePlannedRoundKind } from "../model/rondePlanned.types";
 import { formatPlannedRoundKindLabel } from "../model/plannedSlots";
-import { formatJourneeDuLabel } from "../utils/rondeEntryFormHelpers";
+import { formatDurationHoursHint, formatJourneeDuLabel } from "../utils/rondeEntryFormHelpers";
+import { DateInput } from "../../common/components/DateInput";
 import { RondeClosureFieldsEditor } from "./RondeClosureFieldsEditor";
 
 type RondeEntryExecutionSectionProps = {
@@ -29,6 +30,8 @@ type RondeEntryExecutionSectionProps = {
   intervenants: IntervenantRef[];
   lockFields: boolean;
   arrivalTime: string;
+  arrivalDate: string;
+  departureDate: string;
   departureTime: string;
   workOrderNumber: string;
   durationMinutes: number | null;
@@ -41,6 +44,8 @@ type RondeEntryExecutionSectionProps = {
   resolveFieldLabel: (template: string) => string;
   onNotify?: NotifyToast;
   onArrivalTimeChange: (value: string) => void;
+  onArrivalDateChange: (value: string) => void;
+  onDepartureDateChange: (value: string) => void;
   onDepartureTimeChange: (value: string) => void;
   onWorkOrderNumberChange: (value: string) => void;
   onReportChange: (value: string) => void;
@@ -66,6 +71,8 @@ export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProp
     intervenants,
     lockFields,
     arrivalTime,
+    arrivalDate,
+    departureDate,
     departureTime,
     workOrderNumber,
     durationMinutes,
@@ -133,14 +140,30 @@ export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProp
       ) : null}
 
       <div className="mc-form-grid mc-form-grid-main ronde-cr-times-row">
-        <label className="mc-field">
-          <span>Heure arrivée</span>
-          <TimeInput value={arrivalTime} disabled={lockFields} onChange={props.onArrivalTimeChange} />
-        </label>
-        <label className="mc-field">
-          <span>Heure départ</span>
-          <TimeInput value={departureTime} disabled={lockFields} onChange={props.onDepartureTimeChange} />
-        </label>
+        <div className="intervention-passage-group">
+          <span className="intervention-passage-group__label">Arrivée</span>
+          <div className="intervention-passage-group__inputs">
+            <DateInput
+              value={arrivalDate}
+              disabled={lockFields}
+              aria-label="Date d'arrivée"
+              onChange={(event) => props.onArrivalDateChange(event.target.value)}
+            />
+            <TimeInput value={arrivalTime} disabled={lockFields} aria-label="Heure d'arrivée" onChange={props.onArrivalTimeChange} />
+          </div>
+        </div>
+        <div className="intervention-passage-group">
+          <span className="intervention-passage-group__label">Départ</span>
+          <div className="intervention-passage-group__inputs">
+            <DateInput
+              value={departureDate}
+              disabled={lockFields}
+              aria-label="Date de départ"
+              onChange={(event) => props.onDepartureDateChange(event.target.value)}
+            />
+            <TimeInput value={departureTime} disabled={lockFields} aria-label="Heure de départ" onChange={props.onDepartureTimeChange} />
+          </div>
+        </div>
         <label className="mc-field">
           <span>N° bon</span>
           <input
@@ -155,8 +178,11 @@ export function RondeEntryExecutionSection(props: RondeEntryExecutionSectionProp
             value={durationMinutes == null ? "" : String(durationMinutes)}
             readOnly
             className="mc-input-readonly"
-            title="Calculée à partir des heures d'arrivée et de départ"
+            title="Calculée à partir des dates et heures d'arrivée et de départ"
           />
+          {durationMinutes != null && durationMinutes >= 60 ? (
+            <span className="muted">soit {formatDurationHoursHint(durationMinutes)}</span>
+          ) : null}
         </label>
       </div>
       {logicalDateShiftedAfterMidnight ? (

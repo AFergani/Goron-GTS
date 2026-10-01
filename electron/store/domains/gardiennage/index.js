@@ -20,6 +20,8 @@ module.exports = {
   createGardiennage: entries.createGardiennage,
   updateGardiennage: entries.updateGardiennage,
   setGardiennageStatus: entriesLifecycle.setGardiennageStatus,
+  requestGardiennageCancellation: entriesLifecycle.requestGardiennageCancellation,
+  reviewGardiennageCancellation: entriesLifecycle.reviewGardiennageCancellation,
   closeGardiennage: entriesLifecycle.closeGardiennage,
   reopenGardiennage: entriesLifecycle.reopenGardiennage,
   deleteGardiennage: entriesLifecycle.deleteGardiennage,

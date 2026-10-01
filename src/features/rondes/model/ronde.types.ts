@@ -64,6 +64,10 @@ export type RondeEntry = {
   intervenantName: string;
   arrivalTime: string;
   departureTime: string;
+  /** Date civile d'arrivée (AAAA-MM-JJ). Vide : déduite de la date de demande. */
+  arrivalDate: string | null;
+  /** Date civile de départ. Peut être le lendemain, ou plus tard. */
+  departureDate: string | null;
   durationMinutes: number | null;
   workOrderNumber: string;
   report: string;
@@ -108,6 +112,8 @@ export type RondeSavePayload = {
   intervenantName: string;
   arrivalTime: string;
   departureTime: string;
+  arrivalDate?: string | null;
+  departureDate?: string | null;
   workOrderNumber: string;
   report: string;
   closureCustomValues?: Record<string, string>;

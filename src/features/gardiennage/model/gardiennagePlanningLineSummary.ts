@@ -43,3 +43,36 @@ export function formatGardiennagePlanningLineSummary(
   parts.push(timePart);
   return parts.join(" · ");
 }
+
+/**
+ * Photo courte d'une planification gardiennage (période + lignes).
+ *
+ * @param snapshot - Planification enregistrée ou en cours de saisie
+ * @returns Libellé vide si le snapshot est absent
+ */
+export function formatGardiennageFlux(
+  snapshot: {
+    validFromDate?: string;
+    validFromTime?: string;
+    validToDate?: string;
+    validToTime?: string;
+    isContinuous?: boolean;
+    isOpenEnded?: boolean;
+    lines?: GardiennagePlanningLineV1[];
+  } | null | undefined
+): string {
+  if (!snapshot) return "";
+  const from = formatDateShortFr(String(snapshot.validFromDate || "")) || "—";
+  const fromTime = String(snapshot.validFromTime || "").trim();
+  const toTime = String(snapshot.validToTime || "").trim();
+  const period = snapshot.isOpenEnded
+    ? `à partir du ${from}${fromTime ? ` ${fromTime}` : ""}, jusqu'à nouvel ordre`
+    : `du ${from}${fromTime ? ` ${fromTime}` : ""} au ${formatDateShortFr(String(snapshot.validToDate || "")) || "—"}${toTime ? ` ${toTime}` : ""}`;
+  if (snapshot.isContinuous) return `H24 ${period}`;
+  const lines = (snapshot.lines || [])
+    .map((line) => formatGardiennagePlanningLineSummary(line))
+    .filter(Boolean);
+  const ponctuel = snapshot.lines?.length === 1 && snapshot.lines[0]?.id === "ponctuel-slot";
+  const head = ponctuel ? "Ponctuel" : "Planification libre";
+  return lines.length ? `${head} ${period} · ${lines.join(" ; ")}` : `${head} ${period}`;
+}

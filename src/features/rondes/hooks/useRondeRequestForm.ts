@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
+import type { BusinessProfile, HolidayRef, IntervenantRef, Role, SiteRef } from "../../../types";
 import { getDefaultSystemRefId } from "../../common/model/systemReferentials";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
 import type { RondeEntry, RondeMotifTypeRef } from "../model/ronde.types";
@@ -26,6 +26,7 @@ import { buildExceptionalGeneratedItems } from "../utils/buildExceptionalGenerat
 import { buildContractualGeneratedPreview } from "../utils/buildContractualGeneratedPreview";
 import { resolveValidityWeekdayLock } from "../utils/resolveValidityWeekdayLock";
 import { isRondeManagerRole } from "../utils/rondePassageRules";
+import { canEditContractualRondeProfile } from "../../settings/model/userHierarchy";
 import { useFormVariableFields } from "../../common/hooks/useFormVariableFields";
 import type { FormTarget } from "../../settings/model/formVariables.types";
 import {
@@ -41,6 +42,7 @@ export type UseRondeRequestFormParams = {
   holidays?: HolidayRef[];
   rondeMotifs: RondeMotifTypeRef[];
   requesterRole?: Role;
+  requesterManagerProfile?: BusinessProfile | null;
   editProfile?: RondePlannedProfileRef | null;
   fixedOrigin?: RequestOrigin | null;
   initialRequestDate?: string | null;
@@ -91,7 +93,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
   const isEdit = Boolean(props.editProfile);
   const isManager = isRondeManagerRole(props.requesterRole);
   /** Opérateur : consultation seule en édition de profil (pas de modification de programmation). */
-  const isProgrammingReadOnly = isEdit && !isManager;
+  const isProgrammingReadOnly = isEdit && !canEditContractualRondeProfile(props.requesterRole, props.requesterManagerProfile);
   const linkedBatchSig = useMemo(
     () => (props.linkedBatchEntries ?? []).map((e) => `${e.id}:${e.updatedAt}`).join("|"),
     [props.linkedBatchEntries]
@@ -126,7 +128,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
       setMotifTypeId(defaultMotifTypeId);
       setOrigin("CONTRAT");
       setClientName("");
-      setConsigne(ep.notes ?? "");
+      setConsigne("");
       setMotifDetail("");
       setValidFrom(ep.planningValidFrom ?? today);
       setValidFromTime(nowHm);
@@ -156,7 +158,7 @@ export function useRondeRequestForm(props: UseRondeRequestFormParams) {
           ? s.origin
           : "AUTRE";
       setOrigin(props.fixedOrigin ?? replayOriginFallback);
-      setConsigne(s.consigne ?? "");
+      setConsigne("");
       {
         const fromBatch = String(props.linkedBatchEntries?.[0]?.originDetail ?? "").trim();
         const originForClient = props.fixedOrigin ?? replayOriginFallback;

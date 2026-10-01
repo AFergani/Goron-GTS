@@ -3,6 +3,7 @@
  */
 
 import type { TechErrorLog } from "../../../infrastructure/api/gtsApiClient";
+import { formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 import {
   formatTechDetailsText,
   formatTechEventText,
@@ -48,7 +49,7 @@ export function TechErrorLogsTable({ logs }: { logs: TechErrorLog[] }) {
 
           return (
             <tr key={`${log.occurredAt}-${log.code}-${index}`}>
-              <td className="audit-cell-date">{log.occurredAt ? new Date(log.occurredAt).toLocaleString("fr-FR") : "—"}</td>
+              <td className="audit-cell-date">{formatDateTimeFr(log.occurredAt) || "—"}</td>
               <td className="audit-cell-family">
                 <span className="audit-family-cell">
                   <span className={`audit-page-badge audit-page-badge--${tone}`}>{family}</span>

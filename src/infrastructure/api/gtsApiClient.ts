@@ -648,12 +648,31 @@ export const gtsApiClient = {
   setGardiennageStatus(payload: {
     requesterRole: Role;
     requesterUsername: string;
+    requesterDisplayName?: string;
     id: string;
     expectedUpdatedAt: string;
     status: GardiennageStatus;
     cancellationReason?: string;
   }): Promise<GardiennageStatusResult> {
     return sessionCall(window.gtsApi.setGardiennageStatus, payload) as Promise<GardiennageStatusResult>;
+  },
+  requestGardiennageCancellation(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    requesterDisplayName?: string;
+    id: string;
+    reason: string;
+  }) {
+    return sessionCall(window.gtsApi.requestGardiennageCancellation, payload);
+  },
+  reviewGardiennageCancellation(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    requesterDisplayName?: string;
+    id: string;
+    decision: "approve" | "reject";
+  }): Promise<GardiennageStatusResult> {
+    return sessionCall(window.gtsApi.reviewGardiennageCancellation, payload) as Promise<GardiennageStatusResult>;
   },
   deleteGardiennage(payload: { requesterRole: Role; requesterUsername: string; id: string; reason: string }) {
     return sessionCall(window.gtsApi.deleteGardiennage, payload);

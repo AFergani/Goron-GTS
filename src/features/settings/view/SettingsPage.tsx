@@ -12,6 +12,7 @@ import { Plus } from "lucide-react";
 import { AuditTable } from "../components/AuditTable";
 import { TechErrorLogsTable } from "../components/TechErrorLogsTable";
 import { JournalFiltersBar, matchesJournalDateRange } from "../components/JournalFiltersBar";
+import { formatDateTimeFr } from "../../common/utils/formatDateShortFr";
 import { CreateUserModal } from "../components/CreateUserModal";
 import { DataManagementPanel } from "../components/DataManagementPanel";
 import { TemplatesManagementPanel } from "../components/TemplatesManagementPanel";
@@ -373,7 +374,7 @@ export function SettingsPage(props: SettingsPageProps) {
             <>
           <p className="muted">
               Historique visibilité des actions jusqu&apos;à{" "}
-              <strong>{props.auditMetadata.firstOccurredAt ? new Date(props.auditMetadata.firstOccurredAt).toLocaleString("fr-FR") : "Aucune donnée"}</strong>
+              <strong>{formatDateTimeFr(props.auditMetadata.firstOccurredAt) || "Aucune donnée"}</strong>
           </p>
           <JournalFiltersBar
             dateFrom={auditDateFrom}

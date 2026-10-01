@@ -100,6 +100,26 @@ function formatValiditySpan(
   return `du ${fromFr}${fromHm} au ${toFr}${toHm}`;
 }
 
+/** Photo courte d'une demande de ronde (lignes + validité). */
+export function formatRondeRequestFlux(input: {
+  validFrom: string;
+  validFromTime: string;
+  validTo: string;
+  validToTime: string;
+  isSingleDay: boolean;
+  lines: LineDraft[];
+}): string {
+  const span = formatValiditySpan(
+    input.validFrom,
+    input.validFromTime,
+    input.validTo,
+    input.validToTime,
+    input.isSingleDay
+  );
+  const phrases = input.lines.map((line) => formatResumeLinePhrase(line, false)).filter(Boolean);
+  return [phrases.join(" ; "), span].filter(Boolean).join(", ");
+}
+
 function formatResumeDemandeProse(
   entry: RondeEntry,
   lines: LineDraft[],

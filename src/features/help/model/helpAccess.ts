@@ -53,10 +53,11 @@ function canAccessPageHelp(access: HelpAccessContext | undefined, page: keyof He
 /** Vérifie si la rubrique d'aide est autorisée pour le profil connecté. */
 export function isHelpTopicAllowed(topicId: HelpTopicId, access?: HelpAccessContext): boolean {
   if (access?.connectionOnly) {
-    return topicId === OFFLINE_CONNECTION_HELP_TOPIC_ID;
+    return topicId === OFFLINE_CONNECTION_HELP_TOPIC_ID || topicId === "about";
   }
-  if (!access) return topicId === "welcome";
+  if (!access) return topicId === "welcome" || topicId === "about";
   switch (topicId) {
+    case "about":
     case "welcome":
       return true;
     case "interventions":

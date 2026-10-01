@@ -5,7 +5,7 @@
  */
 
 import type { Dispatch, SetStateAction, ComponentProps } from "react";
-import type { Role } from "../../../types";
+import type { BusinessProfile, Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import type { RondeEntry, RondeBatchDeleteRequestRef } from "../model/ronde.types";
 import type { RondePlanningSnapshotV1 } from "../model/rondePlanningSnapshot.types";
@@ -28,6 +28,8 @@ import { RondePlannedProfileLifecycleModals } from "./RondePlannedProfileLifecyc
 
 type RondePageModalsProps = {
   requesterRole: Role;
+  requesterDisplayName?: string;
+  requesterManagerProfile?: BusinessProfile | null;
   onToast?: NotifyToast;
   ronde: ReturnType<typeof useRondePresenter>;
   references: ReturnType<typeof useRondeReferenceData>;
@@ -100,6 +102,8 @@ type RondePageModalsProps = {
 export function RondePageModals(props: RondePageModalsProps) {
   const {
     requesterRole,
+    requesterDisplayName,
+    requesterManagerProfile,
     onToast,
     ronde,
     references,
@@ -231,12 +235,14 @@ export function RondePageModals(props: RondePageModalsProps) {
         }}
         onCreate={createLinkedGardiennage}
         onUpdate={async () => null}
+        requesterDisplayName={requesterDisplayName}
         onCreatePendingSite={references.createPendingSite}
         onCreatePendingIntervenant={references.createPendingIntervenant}
         onNotify={onToast}
       />
       <RondeRequestModal
         isOpen={requestModalOpen}
+        requesterDisplayName={requesterDisplayName}
         onClose={() => {
           setRequestModalOpen(false);
           clearLinkedDemandNavigation();
@@ -325,6 +331,8 @@ export function RondePageModals(props: RondePageModalsProps) {
           intervenants={references.intervenants}
           rondeMotifs={references.rondeMotifs}
           requesterRole={requesterRole}
+          requesterManagerProfile={requesterManagerProfile}
+          requesterDisplayName={requesterDisplayName}
           onNotify={onToast}
           onClose={closeProfileModal}
           onStopProfile={

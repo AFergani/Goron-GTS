@@ -8,6 +8,7 @@
  */
 
 const { actorName } = require("../../core/actorName");
+const { evolveGardiennageJournal, formatActivityLine } = require("../../core/activityJournal");
 const { assertOptimisticLock } = require("../data/optimisticLock");
 const { stringifyExportExtraJson } = require("../../core/exportExtraJson");
 const { allocateNextDailyCode } = require("../../core/dailyEntryCode");
@@ -20,6 +21,7 @@ const {
   filterSlotsPreservingClosed,
   isPonctuelPlanningSnapshot,
   normalizePlanningSnapshot,
+  parsePlanningSnapshotJson,
   toIsoTime,
   validatePlanningLinesNoOverlap
 } = require("./helpers");
@@ -54,6 +56,28 @@ async function validateCrossEngineLinks(store, payload, source) {
   const interventionId = String(payload.linkedInterventionId || "").trim();
   if (interventionId && !await interventionDomain.hasInterventionEntry(store, interventionId)) {
     store.fail(source, "Intervention liée introuvable.", "GARDIENNAGE_INTERVENTION_NOT_FOUND");
+  }
+  const interventionIdForLink = String(payload.linkedInterventionId || "").trim();
+  if (interventionIdForLink) {
+    const excludeId = String(payload.excludeEntryId || "").trim();
+    const excludeBatchId = String(payload.excludePlanningBatchId || "").trim();
+    const db = requireGardiennagePersistence(store, source);
+    const alreadyLinked = await db.get(
+      `SELECT id FROM gardiennage_entries
+       WHERE intervention_id = ?
+         AND status <> 'ANNULE'
+         AND id <> ?
+         AND NOT (? <> '' AND planning_batch_id = ?)
+       LIMIT 1`,
+      [interventionIdForLink, excludeId, excludeBatchId, excludeBatchId]
+    );
+    if (alreadyLinked) {
+      store.fail(
+        source,
+        "Un gardiennage lié existe déjà pour cette intervention. Merci de le modifier.",
+        "GARDIENNAGE_INTERVENTION_ALREADY_LINKED"
+      );
+    }
   }
   const rondeId = String(payload.linkedRondeId || "").trim();
   if (!rondeId) return;
@@ -115,6 +139,16 @@ async function takeReusableGardiennageDailyCode(tx, pool, startDate, slotStartIs
  * @param {string} now
  * @returns {object}
  */
+/**
+ * Nom affiché dans le journal. Repli sur l'identifiant de connexion.
+ *
+ * @param {object} payload
+ * @returns {string}
+ */
+function journalActor(payload) {
+  return String(payload.requesterDisplayName || "").trim() || actorName(payload.requesterUsername);
+}
+
 function makeBaseRow(payload, normalized, id, now) {
   return {
     id,
@@ -238,21 +272,35 @@ async function createGardiennage(store, payload) {
   }
   const now = new Date().toISOString();
   const batchId = snapshot ? entryId : null;
+  let storedNotes = String(payload.notes || "").trim();
+  if (snapshot) {
+    const evolved = evolveGardiennageJournal({
+      isCreate: true,
+      nextSnapshot: snapshot,
+      addition: payload.consigneAddition ?? payload.notes,
+      actor: journalActor(payload),
+      at: now
+    });
+    snapshot.activityJournal = evolved.journal;
+    snapshot.cancellationRequest = null;
+    storedNotes = evolved.notes;
+  }
   const snapshotJson = snapshot ? JSON.stringify(snapshot) : null;
+  const rowPayload = { ...payload, notes: storedNotes };
   await db.transaction(async (tx) => {
     if (await tx.get("SELECT id FROM gardiennage_entries WHERE id = ?", [entryId])) {
       store.fail("gardiennage:create", "Ce gardiennage existe déjà.", "GARDIENNAGE_ALREADY_EXISTS");
     }
     if (!snapshot) {
       const dailyCode = await allocateNextDailyCode(tx, "gardiennage", normalized.recurrenceStartDate);
-      await insertGardiennageRow(tx, { ...makeBaseRow(payload, normalized, entryId, now), dailyCode });
+      await insertGardiennageRow(tx, { ...makeBaseRow(rowPayload, normalized, entryId, now), dailyCode });
       return;
     }
     for (let index = 0; index < slots.length; index += 1) {
       const slot = slots[index];
       const dailyCode = await allocateNextDailyCode(tx, "gardiennage", slot.startDate);
       await insertGardiennageRow(tx, {
-        ...makeBaseRow(payload, normalized, index === 0 ? entryId : generateEntityId(), now),
+        ...makeBaseRow(rowPayload, normalized, index === 0 ? entryId : generateEntityId(), now),
         startTime: slot.startTime,
         endTime: slot.endTime,
         crossesMidnight: slot.crossesMidnight,
@@ -320,7 +368,15 @@ async function updateGardiennage(store, payload) {
   const actor = actorName(payload.requesterUsername);
   const entryId = requireEntryId(store, payload, "gardiennage:update");
   const db = requireGardiennagePersistence(store, "gardiennage:update");
-  await validateCrossEngineLinks(store, payload, "gardiennage:update");
+  const existingLink = await db.get(
+    "SELECT id, planning_batch_id FROM gardiennage_entries WHERE id = ?",
+    [entryId]
+  );
+  await validateCrossEngineLinks(store, {
+    ...payload,
+    excludeEntryId: entryId,
+    excludePlanningBatchId: String(existingLink?.planning_batch_id || "").trim()
+  }, "gardiennage:update");
   const normalized = normalizeRequest(store, payload, "gardiennage:update");
   const snapshot = normalizePlanningSnapshot(payload);
   const holidays = holidaysDomain.getHolidayDateIsosForPlanning(store);
@@ -345,6 +401,28 @@ async function updateGardiennage(store, payload) {
       "Ce gardiennage a été modifié par un autre utilisateur."
     );
     const batchId = String(existing.planning_batch_id || existing.id);
+    const previousSnapshot = parsePlanningSnapshotJson(existing.planning_snapshot_json);
+    const evolved = snapshot
+      ? evolveGardiennageJournal({
+        isCreate: false,
+        previousSnapshot,
+        previousNotes: existing.notes,
+        previousCreatedAt: existing.created_at,
+        nextSnapshot: snapshot,
+        addition: payload.consigneAddition ?? payload.notes,
+        planningFluxChange: payload.planningFluxChange,
+        actor: journalActor(payload),
+        at: now
+      })
+      : null;
+    if (evolved?.error) {
+      store.fail("gardiennage:update", evolved.error.message, evolved.error.code);
+    }
+    if (snapshot && evolved) {
+      snapshot.activityJournal = evolved.journal;
+      snapshot.cancellationRequest = previousSnapshot?.cancellationRequest || null;
+    }
+    const storedNotes = evolved?.notes ?? String(payload.notes || "").trim();
     if (!snapshot) {
       const result = await tx.run(
         `UPDATE gardiennage_entries SET
@@ -360,7 +438,7 @@ async function updateGardiennage(store, payload) {
           normalized.startTime, normalized.endTime, normalized.endTime < normalized.startTime ? 1 : 0,
           normalized.recurrenceStartDate, normalized.recurrenceEndDate, normalized.isPonctuel ? 1 : 0,
           String(payload.intervenantId || "").trim() || null, String(payload.intervenantName || "").trim(),
-          String(payload.notes || "").trim(), String(payload.linkedInterventionId || "").trim() || null,
+          storedNotes, String(payload.linkedInterventionId || "").trim() || null,
           String(payload.linkedRondeId || "").trim() || null,
           stringifyExportExtraJson(payload.exportExtraValues),
           now, entryId, payload.expectedUpdatedAt
@@ -407,7 +485,7 @@ async function updateGardiennage(store, payload) {
       const id = index === 0 && !closedIds.has(entryId) ? entryId : generateEntityId();
       if (index === 0) returnId = id;
       await insertGardiennageRow(tx, {
-        ...makeBaseRow(payload, normalized, id, now),
+        ...makeBaseRow({ ...payload, notes: storedNotes }, normalized, id, now),
         createdAt,
         startTime: slot.startTime,
         endTime: slot.endTime,
@@ -431,12 +509,18 @@ async function updateGardiennage(store, payload) {
       [
         String(payload.siteId || "").trim() || null, String(payload.siteDisplay || "").trim(),
         String(payload.intervenantId || "").trim() || null, String(payload.intervenantName || "").trim(),
-        String(payload.notes || "").trim(), String(payload.linkedInterventionId || "").trim() || null,
+        storedNotes, String(payload.linkedInterventionId || "").trim() || null,
         String(payload.linkedRondeId || "").trim() || null, snapshotJson,
         stringifyExportExtraJson(payload.exportExtraValues), now, batchId, entryId
       ]
     );
-    return { existing, returnId, inserted: slots.length, preserved: closedRows.length };
+    return {
+      existing,
+      returnId,
+      inserted: slots.length,
+      preserved: closedRows.length,
+      activityLine: evolved?.journal?.length ? formatActivityLine(evolved.journal[evolved.journal.length - 1]) : ""
+    };
   });
   const updated = await db.get(
     `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`,
@@ -456,6 +540,7 @@ async function updateGardiennage(store, payload) {
     status: "SUCCESS",
     details: {
       id: outcome.returnId,
+      activityLine: outcome.activityLine || "",
       before: toGardiennageAuditSnapshot(mapGardiennageRow(outcome.existing)),
       after: {
         ...toGardiennageAuditSnapshot(mapped),

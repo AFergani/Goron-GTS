@@ -618,6 +618,16 @@ class UserStore extends UserStoreCore {
     return gardiennageDomain.setGardiennageStatus(this, payload);
   }
 
+  async requestGardiennageCancellation(payload) {
+    await this.whenPostgresReady();
+    return gardiennageDomain.requestGardiennageCancellation(this, payload);
+  }
+
+  async reviewGardiennageCancellation(payload) {
+    await this.whenPostgresReady();
+    return gardiennageDomain.reviewGardiennageCancellation(this, payload);
+  }
+
   async closeGardiennage(payload) {
     await this.whenPostgresReady();
     return gardiennageDomain.closeGardiennage(this, payload);

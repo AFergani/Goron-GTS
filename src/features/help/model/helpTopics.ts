@@ -7,6 +7,7 @@
 
 /** Identifiants des rubriques du centre d'aide (navigation hiérarchique). */
 export type HelpTopicId =
+  | "about"
   | "welcome"
   | "interventions"
   | "rondes"
@@ -55,6 +56,7 @@ export type HelpNavItem = {
 /** Catalogue complet des rubriques (ordre de la sidebar du centre d'aide). */
 export const HELP_NAV_CATALOG: HelpNavItem[] = [
   { id: "settings-connection", label: "Connexion PostgreSQL", emoji: "🔌" },
+  { id: "about", label: "À propos", emoji: "ℹ️" },
   { id: "welcome", label: "Navigation", emoji: "🧭" },
   { id: "interventions", label: "Interventions", emoji: "📋" },
   { id: "rondes", label: "Rondes", emoji: "🔄" },
@@ -118,6 +120,7 @@ function isHelpNavItemVisible(id: HelpTopicId, ctx: HelpAccessContext): boolean 
   switch (id) {
     case "settings-connection":
       return Boolean(ctx.pageAccess.settings && ctx.canManageUsers);
+    case "about":
     case "welcome":
       return true;
     case "interventions":

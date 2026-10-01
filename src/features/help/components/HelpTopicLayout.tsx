@@ -9,6 +9,8 @@ import type { ReactNode } from "react";
 type HelpTopicLayoutProps = {
   title: string;
   purpose: ReactNode;
+  /** Titre de la seconde carte. Défaut : « Comment l'utiliser ? ». */
+  usageTitle?: string;
   children: ReactNode;
 };
 
@@ -19,7 +21,7 @@ type HelpTopicLayoutProps = {
  * @param props.purpose - Texte de la carte « À quoi ça sert ? ».
  * @param props.children - Contenu de la carte « Comment l’utiliser ? » (liste, éventuellement un paragraphe).
  */
-export function HelpTopicLayout({ title, purpose, children }: HelpTopicLayoutProps) {
+export function HelpTopicLayout({ title, purpose, usageTitle = "Comment l'utiliser ?", children }: HelpTopicLayoutProps) {
   return (
     <article className="help-center-article">
       <h2 className="help-center-content-title">{title}</h2>
@@ -28,7 +30,7 @@ export function HelpTopicLayout({ title, purpose, children }: HelpTopicLayoutPro
         <p className="muted">{purpose}</p>
       </div>
       <div className="help-center-card">
-        <h3 className="help-center-card-title">Comment l&apos;utiliser ?</h3>
+        <h3 className="help-center-card-title">{usageTitle}</h3>
         {children}
       </div>
     </article>

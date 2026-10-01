@@ -100,6 +100,8 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["gardiennage:create", "createGardiennage"],
   ["gardiennage:update", "updateGardiennage"],
   ["gardiennage:setStatus", "setGardiennageStatus"],
+  ["gardiennage:requestCancellation", "requestGardiennageCancellation"],
+  ["gardiennage:reviewCancellation", "reviewGardiennageCancellation"],
   ["gardiennage:delete", "deleteGardiennage"],
   ["gardiennage:close", "closeGardiennage"],
   ["gardiennage:reopen", "reopenGardiennage"],

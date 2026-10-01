@@ -15,7 +15,7 @@ import type { RondeEntry, RondeMotifTypeRef, RondeOriginKind } from "../model/ro
 import type { RondePlannedProfileRef } from "../model/rondePlanned.types";
 import { getLocalDateIso } from "../../common/utils/localDateIso";
 import { computeRondeLogicalDate } from "../utils/logicalDate";
-import { computeDurationMinutes, isIsoDate } from "../utils/rondeEntryFormHelpers";
+import { addIsoDays, computeDurationMinutes, isIsoDate, resolveRondePassageDates } from "../utils/rondeEntryFormHelpers";
 import { resolvePlannedLineRequestedTime } from "../utils/plannedHeureDemandee";
 
 export type RondeEntryMode = "create" | "edit";
@@ -68,6 +68,8 @@ export function useRondeEntryForm({
   const [originDetail, setOriginDetail] = useState("");
   const [intervenantId, setIntervenantId] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
+  const [arrivalDate, setArrivalDate] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
   const [departureTime, setDepartureTime] = useState("");
   const [workOrderNumber, setWorkOrderNumber] = useState("");
   const [report, setReport] = useState("");
@@ -150,8 +152,13 @@ export function useRondeEntryForm({
   ]);
 
   const durationMinutes = useMemo(
-    () => computeDurationMinutes(requestDate, normalizeTimeForSave(arrivalTime), normalizeTimeForSave(departureTime)),
-    [arrivalTime, departureTime, requestDate]
+    () => computeDurationMinutes(
+      arrivalDate,
+      normalizeTimeForSave(arrivalTime),
+      departureDate,
+      normalizeTimeForSave(departureTime)
+    ),
+    [arrivalDate, arrivalTime, departureDate, departureTime]
   );
   const logicalDateComputed = useMemo(
     () =>
@@ -205,6 +212,8 @@ export function useRondeEntryForm({
       setOriginDetail("");
       setIntervenantId(createPreset.intervenantId || "");
       setArrivalTime("");
+      setArrivalDate("");
+      setDepartureDate("");
       setDepartureTime("");
       setWorkOrderNumber("");
       setReport("");
@@ -223,6 +232,8 @@ export function useRondeEntryForm({
       setOriginDetail("");
       setIntervenantId(linkedInterventionEntry.intervenantId || "");
       setArrivalTime("");
+      setArrivalDate("");
+      setDepartureDate("");
       setDepartureTime("");
       setWorkOrderNumber("");
       setReport("");
@@ -240,6 +251,8 @@ export function useRondeEntryForm({
     setOriginDetail("");
     setIntervenantId("");
     setArrivalTime("");
+    setArrivalDate("");
+    setDepartureDate("");
     setDepartureTime("");
     setWorkOrderNumber("");
     setReport("");
@@ -273,6 +286,15 @@ export function useRondeEntryForm({
     setIntervenantId(entry.intervenantId || "");
     setArrivalTime(entry.arrivalTime || "");
     setDepartureTime(entry.departureTime || "");
+    const passageDates = resolveRondePassageDates({
+      requestDate: entry.requestDate || "",
+      arrivalTime: entry.arrivalTime || "",
+      departureTime: entry.departureTime || "",
+      arrivalDate: entry.arrivalDate,
+      departureDate: entry.departureDate
+    });
+    setArrivalDate(passageDates.arrivalDate);
+    setDepartureDate(passageDates.departureDate);
     setWorkOrderNumber(entry.workOrderNumber || "");
     setReport(entry.report || "");
     setClosureCustomValues(entry.closureCustomValues || {});
@@ -284,6 +306,22 @@ export function useRondeEntryForm({
       ).trim()
     );
   }, [isOpen, isCreateMode, entry?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !arrivalTime.trim() || !isIsoDate(requestDate)) return;
+    setArrivalDate((current) => current || requestDate);
+  }, [isOpen, arrivalTime, requestDate]);
+
+  useEffect(() => {
+    if (!isOpen || !departureTime.trim() || !isIsoDate(requestDate)) return;
+    setDepartureDate((current) => {
+      if (current) return current;
+      const arrival = normalizeTimeForSave(arrivalTime);
+      const departure = normalizeTimeForSave(departureTime);
+      if (arrival && departure && departure < arrival) return addIsoDays(requestDate, 1);
+      return requestDate;
+    });
+  }, [isOpen, departureTime, arrivalTime, requestDate]);
 
   const isRondeCreateDirty = useMemo(() => {
     if (!isCreateMode) return false;
@@ -344,6 +382,20 @@ export function useRondeEntryForm({
         intervenantId !== (entry.intervenantId || "") ||
         arrivalTime !== (entry.arrivalTime || "") ||
         departureTime !== (entry.departureTime || "") ||
+        arrivalDate !== resolveRondePassageDates({
+          requestDate: entry.requestDate || "",
+          arrivalTime: entry.arrivalTime || "",
+          departureTime: entry.departureTime || "",
+          arrivalDate: entry.arrivalDate,
+          departureDate: entry.departureDate
+        }).arrivalDate ||
+        departureDate !== resolveRondePassageDates({
+          requestDate: entry.requestDate || "",
+          arrivalTime: entry.arrivalTime || "",
+          departureTime: entry.departureTime || "",
+          arrivalDate: entry.arrivalDate,
+          departureDate: entry.departureDate
+        }).departureDate ||
         workOrderNumber !== (entry.workOrderNumber || "") ||
         report !== (entry.report || "") ||
         extrasChanged ||
@@ -366,6 +418,8 @@ export function useRondeEntryForm({
     intervenantId,
     arrivalTime,
     departureTime,
+    arrivalDate,
+    departureDate,
     workOrderNumber,
     report,
     extras.values,
@@ -442,6 +496,10 @@ export function useRondeEntryForm({
     setIntervenantId,
     arrivalTime,
     setArrivalTime,
+    arrivalDate,
+    setArrivalDate,
+    departureDate,
+    setDepartureDate,
     departureTime,
     setDepartureTime,
     workOrderNumber,

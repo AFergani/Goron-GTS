@@ -420,6 +420,22 @@ export function InterventionEntryModal({
                   onClose={form.createCloseGuard.requestClose}
                   onOpenLinkedRonde={onOpenLinkedRonde}
                   onOpenLinkedGardiennage={onOpenLinkedGardiennage}
+                  onViewLinkedRonde={
+                    entry.linkedRondeId && onNavigateToLinkedRonde
+                      ? () => {
+                          onNavigateToLinkedRonde(entry.linkedRondeId!);
+                          onClose();
+                        }
+                      : undefined
+                  }
+                  onViewLinkedGardiennage={
+                    entry.linkedGardiennageId && onNavigateToLinkedGardiennage
+                      ? () => {
+                          onNavigateToLinkedGardiennage(entry.linkedGardiennageId!);
+                          onClose();
+                        }
+                      : undefined
+                  }
                   onRequestCancel={() => {
                     form.setFieldError("");
                     form.setCancelReasonInput("");
