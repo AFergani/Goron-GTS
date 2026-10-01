@@ -159,8 +159,9 @@ function safeHttpUrl(url: string): string {
 function linkAnchor(url: string, text: string, linkStyle: TextStyle): string {
   const href = safeHttpUrl(url);
   const label = escapeHtml(text);
-  if (!href) return label;
-  return `<a href="${escapeHtml(href)}" onclick="window.open(this.href, '_blank', 'width=1000,height=800'); return false;" style="${inlineStyle(linkStyle)}">${label}</a>`;
+  const style = inlineStyle(linkStyle);
+  if (!href) return `<span style="${style}">${label}</span>`;
+  return `<a href="${escapeHtml(href)}" onclick="window.open(this.href, '_blank', 'width=1000,height=800'); return false;" style="${style}">${label}</a>`;
 }
 
 function extraLinksHtml(doc: VideoRemarkDocument): string {
