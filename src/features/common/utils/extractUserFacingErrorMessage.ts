@@ -75,3 +75,46 @@ export function extractUserFacingErrorMessage(error: unknown, fallback = "Une er
 
   return mapFileLockMessage(cleanUserFacingMessage(raw, fallback));
 }
+
+/** Ligne de sortie outil, pile ou code système : pas un libellé pour l'opérateur. */
+const TECHNICAL_LINE =
+  /^(?:pg_restore|pg_dump|psql|docker|node|npm)(?::|\s)|^(?:error|warning|notice):\s|Error invoking remote method|\bSQLSTATE\b|\bat \S+\(|node_modules|node:internal|\b(?:ENOENT|EPERM|EBUSY|ECONNREFUSED|ECONNRESET|ETIMEDOUT)\b|syntax error at or near|duplicate key value|violates |relation "|column "|command failed|exit code \d+|Process exited/i;
+
+/** Plafond du détail technique conservé sous le libellé français. */
+const TECHNICAL_DETAIL_MAX = 1200;
+
+/**
+ * Cadre un message d'erreur pour le toast : phrase française, détail technique
+ * seulement s'il reste utile à la lecture.
+ *
+ * @param error - Erreur ou texte déjà extrait
+ * @param fallback - Libellé si rien de lisible ne reste
+ * @returns Texte affichable, éventuellement sur plusieurs lignes
+ */
+export function frameUserFacingError(error: unknown, fallback = "Une erreur est survenue."): string {
+  const cleaned = extractUserFacingErrorMessage(error, fallback);
+  const lines = cleaned
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const readable = lines.filter((line) => !TECHNICAL_LINE.test(line));
+  if (readable.length > 0 && readable.join("\n") === cleaned) {
+    return cleaned;
+  }
+  if (readable.length > 0) {
+    return readable.join("\n");
+  }
+  const detail = lines
+    .map((line) =>
+      line
+        .replace(/^(?:pg_restore|pg_dump|psql):\s*/i, "")
+        .replace(/^(?:error|warning):\s*/i, "")
+        .trim()
+    )
+    .filter(Boolean)
+    .slice(-4)
+    .join("\n")
+    .slice(0, TECHNICAL_DETAIL_MAX);
+  if (!detail || detail === fallback) return fallback;
+  return `${fallback}\n${detail}`;
+}

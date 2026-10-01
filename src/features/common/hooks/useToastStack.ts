@@ -1,5 +1,6 @@
 /**
- * Hook de pile de toasts (max 4, disparition auto, fermeture au clic).
+ * Hook de pile de toasts (max 4).
+ * Succès : disparition automatique. Alerte orange ou rouge : fermeture manuelle.
  * Inspiré du NotificationManager RenExtract.
  * Déduplique les messages identiques sur une courte fenêtre pour éviter
  * le spam lors d'échecs IPC parallèles (ex. panne / reconnexion PostgreSQL).
@@ -13,7 +14,7 @@ import {
   type ToastItem,
   type ToastVariant
 } from "../model/toast.types";
-import { extractUserFacingErrorMessage } from "../utils/extractUserFacingErrorMessage";
+import { frameUserFacingError } from "../utils/extractUserFacingErrorMessage";
 
 /** Fenêtre de déduplication des toasts au même libellé / variante. */
 const TOAST_DEDUPE_WINDOW_MS = 8000;
@@ -68,10 +69,10 @@ export function useToastStack(): {
     (message, variant = "success") => {
       const raw = String(message || "").trim();
       if (!raw) return;
-      const trimmed = extractUserFacingErrorMessage(raw, raw);
-
       const resolvedVariant: ToastVariant =
         variant === "success" || variant === "warning" || variant === "error" ? variant : "success";
+      const trimmed =
+        resolvedVariant === "success" ? raw : frameUserFacingError(raw, "Une erreur est survenue.");
 
       const dedupeKey = `${resolvedVariant}::${trimmed}`;
       const now = Date.now();
@@ -96,7 +97,7 @@ export function useToastStack(): {
         for (const old of evicted) clearTimer(old.id);
         return next.slice(-TOAST_STACK_MAX);
       });
-      scheduleDismiss(item.id, durationMs);
+      if (durationMs > 0) scheduleDismiss(item.id, durationMs);
     },
     [clearTimer, scheduleDismiss]
   );

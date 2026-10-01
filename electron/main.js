@@ -321,6 +321,9 @@ function attachAuthContext(payload) {
   if (!ctx) {
     throw new Error("SESSION_INVALID: Session invalide. Reconnectez-vous.");
   }
+  if (ctx.missingAccount) {
+    throw new Error("SESSION_INVALID: Votre compte n'existe plus dans cette base. Reconnectez-vous.");
+  }
   if (ctx.unavailable) {
     throw new Error("Le serveur PostgreSQL n'est pas joignable. Réessayez après le retour du service.");
   }

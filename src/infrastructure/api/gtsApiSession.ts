@@ -54,6 +54,7 @@ export function isSessionUserFacingMessage(message: string): boolean {
   if (/session a expiré/i.test(msg)) return true;
   if (/session expirée/i.test(msg)) return true;
   if (/session requise/i.test(msg)) return true;
+  if (/votre compte n'existe plus dans cette base/i.test(msg)) return true;
   return false;
 }
 
@@ -62,6 +63,9 @@ function resolveSessionErrorMessage(err: unknown): string {
   if (msg.includes("SESSION_EXPIRED:")) {
     return "Votre session a expiré (limite 13h). Reconnectez-vous.";
   }
+  const invalid = msg.match(/SESSION_INVALID:\s*([\s\S]+)$/i);
+  const detail = invalid?.[1]?.replace(/^(?:Error:\s*)+/i, "").trim();
+  if (detail) return detail;
   return "Session invalide. Reconnectez-vous.";
 }
 

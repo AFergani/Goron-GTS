@@ -152,7 +152,7 @@ function dropSession(token) {
  *
  * @param {string|null|undefined} token
  * @param {import('../../userStore')} userStore
- * @returns {null|{ expired: true }|{ unavailable: true }|{ username: string, role: string, managerProfile: string|null }}
+ * @returns {null|{ expired: true }|{ unavailable: true }|{ missingAccount: true }|{ username: string, role: string, managerProfile: string|null }}
  */
 function validateSession(token, userStore) {
   if (!token || typeof token !== "string" || !userStore) return null;
@@ -172,7 +172,7 @@ function validateSession(token, userStore) {
       return { unavailable: true };
     }
     dropSession(token);
-    return null;
+    return { missingAccount: true };
   }
   return {
     username: row.username,
