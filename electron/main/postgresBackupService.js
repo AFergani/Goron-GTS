@@ -527,7 +527,7 @@ function createPostgresBackupService(deps) {
    * Réservé à une session déjà autorisée à gérer la base (`comparePostgresBackupAuth`).
    *
    * @param {object} payload
-   * @returns {Promise<{ success: boolean, fileName: string, reportHtmlPath: string, totals: object, schemaWarning: boolean, dumpFileName: string, generatedAt: string, tables: object[] }>}
+   * @returns {Promise<{ success: boolean, fileName: string, totals: object, schemaWarning: boolean, dumpFileName: string, generatedAt: string, tables: object[] }>}
    */
   async function compareBackup(payload = {}) {
     const requesterUsername = String(payload.requesterUsername || "").trim();
@@ -553,7 +553,6 @@ function createPostgresBackupService(deps) {
       });
       logBackupTechEvent("PG_BACKUP_COMPARE_OK", "Comparaison dump / base actuelle terminée.", {
         fileName: path.basename(srcPath),
-        reportHtmlPath: compared.htmlPath,
         lost: compared.totals.lost,
         recovered: compared.totals.recovered,
         changed: compared.totals.changed,
@@ -562,7 +561,6 @@ function createPostgresBackupService(deps) {
       return {
         success: true,
         fileName: path.basename(srcPath),
-        reportHtmlPath: compared.htmlPath,
         totals: compared.totals,
         schemaWarning: Boolean(compared.schemaWarning),
         dumpFileName: compared.dumpFileName,

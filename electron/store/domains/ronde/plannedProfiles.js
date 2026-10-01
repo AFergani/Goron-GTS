@@ -9,6 +9,7 @@ const { todayDateIso } = require("../../core/isoDate");
 const { requireRondePersistence } = require("./persistence");
 const { RONDE_PLANNED_PROFILE_SELECT } = require("./mapping");
 const { assertOptimisticLock } = require("../data/optimisticLock");
+const { presentActorLabels } = require("../../core/actorName");
 
 const ROUND_KINDS = new Set(["OPENING", "CLOSING", "ACCOMPAGNEMENT", "RANDOM"]);
 const RECURRENCE_KINDS = new Set(["WEEKLY", "DAILY", "MONTHLY", "DATE_RANGE"]);
@@ -248,8 +249,13 @@ function canManagePlannedProfileCancellation(requesterRole, roles) {
   return requesterRole === roles.RESPONSABLE || requesterRole === roles.DEV;
 }
 
-/** @param {object} db @param {string|null} id @returns {Promise<object|null>} */
-async function getProfileById(db, id) {
+/**
+ * @param {object} db
+ * @param {string|null} id
+ * @param {import('../../../userStore')|null} [store]
+ * @returns {Promise<object|null>}
+ */
+async function getProfileById(db, id, store) {
   const profile = await db.get(
     `SELECT ${PROFILE_SELECT_P}, CASE WHEN s.id IS NULL THEN NULL
        WHEN trim(COALESCE(s.code, '')) <> '' AND trim(COALESCE(s.name, '')) <> ''
@@ -270,7 +276,8 @@ async function getProfileById(db, id) {
      WHERE l.profile_id = ? ORDER BY l.sort_order ASC, l.created_at ASC`,
     [id]
   );
-  return mapProfileRow(profile, lines.map(mapLineRow));
+  const mapped = mapProfileRow(profile, lines.map(mapLineRow));
+  return store ? presentActorLabels(store, mapped) : mapped;
 }
 
 /**
@@ -284,7 +291,7 @@ async function listRondePlannedProfiles(store, { requesterRole }) {
   store.ensureDataReaderRole(requesterRole);
   const db = requireRondePersistence(store, "data:rondePlannedProfiles:list");
   const ids = await db.all("SELECT id FROM data_ronde_planned_profiles ORDER BY lower(label), id", []);
-  return Promise.all(ids.map((row) => getProfileById(db, row.id)));
+  return Promise.all(ids.map((row) => getProfileById(db, row.id, store)));
 }
 
 /**
@@ -412,7 +419,7 @@ async function upsertRondePlannedProfile(store, payload) {
     details: { id, label, siteId, createRoundsEnabled: payload.createRoundsEnabled !== false,
       lineCount: lines.length, ...(!wasUpdate && autoValidate ? { autoValidated: true } : {}),
       activityLine: String(payload.notes || "").trim().split("\n---\n").pop()?.slice(0, 400) || "" } });
-  return getProfileById(db, id);
+  return getProfileById(db, id, store);
 }
 
 /**
@@ -540,7 +547,7 @@ async function requestRondePlannedProfileCancellation(store, payload) {
       }
     });
   });
-  return getProfileById(db, id);
+  return getProfileById(db, id, store);
 }
 
 /**
@@ -607,7 +614,7 @@ async function setRondePlannedProfilePlanningEnd(store, payload) {
       }
     });
   });
-  return getProfileById(db, id);
+  return getProfileById(db, id, store);
 }
 
 /**
@@ -723,7 +730,7 @@ async function reviewRondePlannedProfileCancellationRequest(store, payload) {
       }
     });
   });
-  return getProfileById(db, id);
+  return getProfileById(db, id, store);
 }
 
 /**
@@ -764,7 +771,7 @@ async function setRondePlannedProfileValidated(store, payload) {
         before: { validatedAt: existing.validated_at || null, validatedByUsername: existing.validated_by || null },
         after: { validatedAt: validated ? now : null, validatedByUsername: validated ? actor : null } } });
   });
-  return getProfileById(db, id);
+  return getProfileById(db, id, store);
 }
 
 module.exports = {

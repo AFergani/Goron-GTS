@@ -3349,6 +3349,11 @@ button.toast__close:hover {
   margin-left: auto;
 }
 
+.mc-modal-footer.mc-modal-footer-split.mc-modal-footer-split--one-line,
+.mc-modal-footer-split--one-line .mc-modal-footer-end {
+  flex-wrap: nowrap;
+}
+
 .mc-footer-btn-with-icon {
   display: inline-flex;
   align-items: center;

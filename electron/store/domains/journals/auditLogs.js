@@ -10,6 +10,7 @@
  */
 
 const authUsersDomain = require("../users/authUsers");
+const { presentActorLabels } = require("../../core/actorName");
 
 /**
  * Exige l'adaptateur audit PostgreSQL.
@@ -104,7 +105,7 @@ async function listAuditLogs(store, { requesterUsername, limit = 200, role }) {
     action: row.action,
     targetUsername: toDisplayName(displayNameByUsername, row.target_username),
     status: row.status,
-    details: parseAuditDetails(row.details_json)
+    details: presentActorLabels(store, parseAuditDetails(row.details_json))
   }));
 }
 

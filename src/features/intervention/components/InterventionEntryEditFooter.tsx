@@ -46,7 +46,7 @@ export function InterventionEntryEditFooter({
   const showWordFileActions =
     Boolean(onSaveWord && onOpenWord) && (entry.status === "CLOTURE" || entry.status === "ANNULE");
   return (
-    <div className="mc-modal-footer mc-modal-footer-split">
+    <div className="mc-modal-footer mc-modal-footer-split mc-modal-footer-split--one-line">
       <div className="mc-modal-footer-start">
         <button type="button" className="btn-ghost" onClick={onClose}>
           Fermer
@@ -64,14 +64,15 @@ export function InterventionEntryEditFooter({
           />
         ) : null}
         {entry.linkedRondeId ? (
-          <>
-            <span className="muted">Une ronde liée existe déjà pour cette intervention. Merci de la modifier.</span>
-            {onViewLinkedRonde ? (
-              <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onViewLinkedRonde}>
-                Voir la ronde liée
-              </button>
-            ) : null}
-          </>
+          <button
+            type="button"
+            className="btn-light"
+            disabled={isActionSubmitting || !onViewLinkedRonde}
+            title="Une ronde liée existe déjà pour cette intervention. Merci de la modifier."
+            onClick={onViewLinkedRonde}
+          >
+            Voir la ronde liée
+          </button>
         ) : canOpenLinkedRonde && onOpenLinkedRonde ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedRonde}>
             <span className="mc-footer-btn-with-icon">
@@ -81,14 +82,15 @@ export function InterventionEntryEditFooter({
           </button>
         ) : null}
         {entry.linkedGardiennageId ? (
-          <>
-            <span className="muted">Un gardiennage lié existe déjà pour cette intervention. Merci de le modifier.</span>
-            {onViewLinkedGardiennage ? (
-              <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onViewLinkedGardiennage}>
-                Voir le gardiennage lié
-              </button>
-            ) : null}
-          </>
+          <button
+            type="button"
+            className="btn-light"
+            disabled={isActionSubmitting || !onViewLinkedGardiennage}
+            title="Un gardiennage lié existe déjà pour cette intervention. Merci de le modifier."
+            onClick={onViewLinkedGardiennage}
+          >
+            Voir le gardiennage lié
+          </button>
         ) : canOpenLinkedGardiennage && onOpenLinkedGardiennage ? (
           <button type="button" className="btn-light" disabled={isActionSubmitting} onClick={onOpenLinkedGardiennage}>
             <span className="mc-footer-btn-with-icon">

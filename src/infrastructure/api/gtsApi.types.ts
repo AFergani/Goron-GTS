@@ -95,7 +95,6 @@ export type PostgresCompareTable = {
 export type PostgresCompareResult = {
   success: boolean;
   fileName: string;
-  reportHtmlPath: string;
   totals: {
     lost: number;
     recovered: number;

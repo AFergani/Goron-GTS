@@ -333,6 +333,7 @@ function attachAuthContext(payload) {
   return {
     ...base,
     requesterUsername: ctx.username,
+    requesterDisplayName: String(ctx.fullName || base.requesterDisplayName || "").trim(),
     requesterRole: ctx.role,
     requesterManagerProfile: ctx.managerProfile
   };

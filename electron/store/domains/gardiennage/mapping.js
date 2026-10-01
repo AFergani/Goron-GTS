@@ -8,6 +8,7 @@
 
 const { parsePlanningSnapshotJson } = require("./helpers");
 const { parseExportExtraJson } = require("../../core/exportExtraJson");
+const { presentActorLabels } = require("../../core/actorName");
 
 /**
  * Colonnes métier de `gardiennage_entries` (évite `SELECT *`).
@@ -39,10 +40,11 @@ function requireEntryId(store, payload, source) {
  * Snapshot de planification : uniquement V1 (sinon `null`).
  *
  * @param {object} row
+ * @param {import('../../../userStore')|null} [store] - Présent : logins remplacés par le nom affiché.
  * @returns {object}
  */
-function mapGardiennageRow(row) {
-  return {
+function mapGardiennageRow(row, store) {
+  const mapped = {
     id: row.id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -72,6 +74,7 @@ function mapGardiennageRow(row) {
     dailyCode: row.daily_code || "",
     exportExtraValues: parseExportExtraJson(row.export_extra_json)
   };
+  return store ? presentActorLabels(store, mapped) : mapped;
 }
 
 /**

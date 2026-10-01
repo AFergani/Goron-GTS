@@ -1,6 +1,6 @@
 {
   "name": "goron-gts",
-  "version": "1.0.94",
+  "version": "1.0.95",
   "description": "Application de gestion des tableurs GTS",
   "main": "electron/main.js",
   "scripts": {

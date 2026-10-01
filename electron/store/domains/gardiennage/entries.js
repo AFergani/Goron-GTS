@@ -216,7 +216,7 @@ async function listGardiennages(store, { requesterRole }) {
      ORDER BY recurrence_start_date DESC, start_time ASC, id ASC`,
     []
   );
-  return rows.map(mapGardiennageRow);
+  return rows.map((row) => mapGardiennageRow(row, store));
 }
 
 /**
@@ -339,7 +339,7 @@ async function createGardiennage(store, payload) {
       }
     });
   } else {
-    const mapped = mapGardiennageRow(created);
+    const mapped = mapGardiennageRow(created, store);
     await store.recordEntityChange({
       entityType: "gardiennage_entries",
       entityId: entryId,
@@ -353,7 +353,7 @@ async function createGardiennage(store, payload) {
       details: { id: entryId, created: toGardiennageAuditSnapshot(mapped) }
     });
   }
-  return mapGardiennageRow(created);
+  return mapGardiennageRow(created, store);
 }
 
 /**
@@ -526,7 +526,7 @@ async function updateGardiennage(store, payload) {
     `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`,
     [outcome.returnId]
   );
-  const mapped = mapGardiennageRow(updated);
+  const mapped = mapGardiennageRow(updated, store);
   const historyBefore = await store.getEntityChangeHistory("gardiennage_entries", String(outcome.existing.id), 3);
   await store.recordEntityChange({
     entityType: "gardiennage_entries",
@@ -541,7 +541,7 @@ async function updateGardiennage(store, payload) {
     details: {
       id: outcome.returnId,
       activityLine: outcome.activityLine || "",
-      before: toGardiennageAuditSnapshot(mapGardiennageRow(outcome.existing)),
+      before: toGardiennageAuditSnapshot(mapGardiennageRow(outcome.existing, store)),
       after: {
         ...toGardiennageAuditSnapshot(mapped),
         planner: snapshot

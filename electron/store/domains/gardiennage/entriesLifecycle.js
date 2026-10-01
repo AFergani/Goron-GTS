@@ -197,7 +197,7 @@ async function setGardiennageStatus(store, payload) {
     `SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`,
     [entryId]
   );
-  const updated = mapGardiennageRow(updatedRow);
+  const updated = mapGardiennageRow(updatedRow, store);
   const historyBefore = await store.getEntityChangeHistory("gardiennage_entries", entryId, 3);
   await store.recordEntityChange({
     entityType: "gardiennage_entries",
@@ -311,7 +311,8 @@ async function closeGardiennage(store, payload) {
     return row;
   });
   const updated = mapGardiennageRow(
-    await db.get(`SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`, [entryId])
+    await db.get(`SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`, [entryId]),
+    store
   );
   const historyBefore = await store.getEntityChangeHistory("gardiennage_entries", entryId, 3);
   await store.recordEntityChange({
@@ -368,7 +369,8 @@ async function reopenGardiennage(store, payload) {
     return row;
   });
   const updated = mapGardiennageRow(
-    await db.get(`SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`, [entryId])
+    await db.get(`SELECT ${GARDIENNAGE_ENTRY_SELECT} FROM gardiennage_entries WHERE id = ?`, [entryId]),
+    store
   );
   const historyBefore = await store.getEntityChangeHistory("gardiennage_entries", entryId, 3);
   await store.recordEntityChange({
@@ -572,7 +574,7 @@ async function requestGardiennageCancellation(store, payload) {
       siteDisplay: updated.existing.site_display
     }
   });
-  return mapGardiennageRow(updated.row);
+  return mapGardiennageRow(updated.row, store);
 }
 
 /**
@@ -691,7 +693,7 @@ async function reviewGardiennageCancellation(store, payload) {
         : ""
     }
   });
-  const mapped = mapGardiennageRow(outcome.row);
+  const mapped = mapGardiennageRow(outcome.row, store);
   if (decision === "approve") {
     return {
       ...mapped,

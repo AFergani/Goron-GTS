@@ -55,7 +55,7 @@ async function listRondes(store, { requesterRole }) {
      ORDER BY r.request_date DESC, r.id DESC`,
     []
   );
-  const mapped = rows.map(mapRondeRow);
+  const mapped = rows.map((row) => mapRondeRow(row, store));
   const withLinks = await attachLinkedGardiennageIds(db, mapped);
   if (!isRondeManagerRole(requesterRole)) {
     return withLinks.filter((entry) => !entry.batchDeleteRequestedAt);
@@ -216,7 +216,7 @@ async function createRonde(store, payload) {
       action: "RONDE_CREATE_IDEMPOTENT",
       details: { id: entryId, existing: toRondeAuditSnapshot(outcome.existing) }
     });
-    return mapRondeRow(await getRondeById(db, entryId) || outcome.existing);
+    return mapRondeRow(await getRondeById(db, entryId) || outcome.existing, store);
   }
   if (requestBatchId) {
     if (outcome.batchBefore === 0) {
@@ -243,7 +243,7 @@ async function createRonde(store, payload) {
       } }
     });
   }
-  return mapRondeRow(await getRondeById(db, entryId));
+  return mapRondeRow(await getRondeById(db, entryId), store);
 }
 
 /**
@@ -305,7 +305,7 @@ async function updateRonde(store, payload) {
       departureTime: normalized.departureTime
     } }
   });
-  return mapRondeRow(await getRondeById(db, entryId));
+  return mapRondeRow(await getRondeById(db, entryId), store);
 }
 
 /**
@@ -426,7 +426,7 @@ async function setRondeStatus(store, payload) {
       }
     }
   });
-  return mapRondeRow(await getRondeById(db, entryId));
+  return mapRondeRow(await getRondeById(db, entryId), store);
 }
 
 /** @param {object} store @param {object[]} rows @returns {void} */

@@ -6,6 +6,8 @@
  * @module electron/store/domains/ronde/mapping
  */
 
+const { presentActorLabels } = require("../../core/actorName");
+
 /**
  * Colonnes de `ronde_entries` (sans préfixe table).
  * @type {string}
@@ -99,15 +101,16 @@ function requireEntryId(store, payload, source) {
  * Convertit une ligne PostgreSQL en contrat public Ronde.
  *
  * @param {object} row
+ * @param {import('../../../userStore')|null} [store] - Présent : logins remplacés par le nom affiché.
  * @returns {object}
  */
-function mapRondeRow(row) {
+function mapRondeRow(row, store) {
   const label = String(row.motif_type_label || row.motif_category || "").trim();
   const scopedDeleteIds = parseBatchDeleteEntryIds(row.batch_delete_entry_ids_json);
   const pendingApplies =
     Boolean(row.batch_delete_requested_at) &&
     (!scopedDeleteIds || scopedDeleteIds.includes(String(row.id || "").trim()));
-  return {
+  const mapped = {
     id: row.id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -159,6 +162,7 @@ function mapRondeRow(row) {
     // Overlay liste : premier gardiennage lié (colonne absente de ronde_entries).
     linkedGardiennageId: row.linked_gardiennage_id || null
   };
+  return store ? presentActorLabels(store, mapped) : mapped;
 }
 
 /**
