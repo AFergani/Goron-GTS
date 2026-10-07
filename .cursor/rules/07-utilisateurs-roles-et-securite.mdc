@@ -1,0 +1,19 @@
+---
+description: Gestion des utilisateurs, roles et droits minimums
+alwaysApply: true
+---
+
+# Utilisateurs, Roles et Securite
+
+- Appliquer un modele RBAC (roles et permissions explicites).
+- Principe du moindre privilege: donner seulement les droits necessaires.
+- Seuls les roles autorises peuvent creer/modifier des profils utilisateurs.
+- Tracer les actions sensibles de gestion des comptes et permissions.
+- Interdire toute action d'administration sans authentification valide.
+
+## Roles minimum recommandes
+
+- Super Admin: configuration globale, comptes, roles.
+- Responsable: gestion operationnelle et supervision.
+- Operateur: saisie metier et consultation.
+- Lecture seule (option): consultation sans modification.

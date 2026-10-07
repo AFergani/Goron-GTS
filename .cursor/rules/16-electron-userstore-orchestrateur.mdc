@@ -1,0 +1,23 @@
+---
+description: Electron UserStore orchestrateur, domaines métier et DRY
+alwaysApply: true
+---
+
+# UserStore = Orchestrateur
+
+- `electron/userStore.js` ne doit pas porter de logique métier détaillée.
+- `UserStore` orchestre: validation d'entrée minimale, délégation aux modules, composition des dépendances.
+- Toute logique métier doit vivre dans `electron/store/domains/*`.
+
+## Répartition obligatoire
+
+- `electron/store/domains/*`: règles métier par domaine (`authUsers`, `referentials`, `fransor`, `mainCourante`, etc.).
+- `electron/store/core/*`: blocs transverses réutilisables (`errors`, `audit`, `rbac`, `ids`, etc.).
+- Interdire la duplication de helpers (UUID, normalisation, vérifs communes): extraire dans `core`.
+
+## Règles de maintenance
+
+- Toute nouvelle méthode ajoutée à `UserStore` doit déléguer vers `domains/*` ou `core/*`.
+- Si un bloc métier dépasse ~30 lignes dans `UserStore`, le déplacer dans un module dédié.
+- Préserver les signatures publiques existantes côté `UserStore` pour éviter les régressions IPC/API.
+- Après refactor: vérifier lint/diagnostics et conserver l'audit des écritures SQL métier.

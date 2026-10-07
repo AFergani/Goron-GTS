@@ -1,0 +1,18 @@
+---
+description: Mode developpement controlable et outillage de diagnostic
+alwaysApply: true
+---
+
+# Mode Dev et Diagnostic
+
+- Autoriser les devtools en environnement developpement.
+- En production, rendre l'activation conditionnelle via un switch "Mode dev" controle.
+- Journaliser les erreurs techniques pour faciliter le diagnostic.
+- Fournir des messages utilisateur simples en cas de probleme.
+- Ne jamais exposer d'information sensible dans les messages affiches.
+- Definir explicitement le profil actif (`production` ou `development`) au demarrage.
+- Interdire les bascules implicites de profil en cours de session.
+
+## But
+
+- Aider le support et le debug sans degrader la securite operationnelle.

@@ -1,0 +1,13 @@
+---
+description: Respect WCAG pour les themes sombre et clair
+alwaysApply: true
+---
+
+# Accessibilite WCAG et themes
+
+- Toute nouvelle couleur UI doit respecter les contrastes WCAG AA (texte normal >= 4.5:1, texte large >= 3:1).
+- Verifier la lisibilite en theme sombre ET en theme clair avant validation.
+- Eviter les textes d'information en faible contraste (couleurs "muted" trop pales).
+- Maintenir un focus visible clavier (`:focus-visible`) sur les controles interactifs.
+- Tout nouveau composant doit fonctionner sans perte de lisibilite sur les deux themes.
+- Si un compromis visuel est necessaire, prioriser l'accessibilite sur l'esthetique.

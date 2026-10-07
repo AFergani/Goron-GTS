@@ -1,0 +1,28 @@
+---
+description: Formulaires modaux — pas de reinitialisation sur poll listes ni refresh referentiels
+alwaysApply: true
+---
+
+# Formulaires et rafraichissements de donnees
+
+Les listes metier et les referentiels sont souvent recharges en arriere-plan (intervalle, retour focus, invalidation). Chaque chargement produit de **nouveaux** objets en memoire : une dependance React sur l'objet entier (`entry`, `sites`, `intervenants`, etc.) relance les effets et **reinitialise les formulaires ouverts**, ce qui efface la saisie en cours.
+
+## Regle obligatoire
+
+- **Interdire** de synchroniser l'etat local d'un formulaire (modale, panneau d'edition) depuis des props dont la reference change a chaque refresh **sans** que l'utilisateur ait change de contexte (autre enregistrement, autre mode).
+- **Ne pas** mettre `entry` (objet complet), `updatedAt` seul pour resynchroniser tout le formulaire, ni les tableaux `sites` / `intervenants` dans les dependances d'un effet qui remplit les champs du formulaire.
+
+## Pattern attendu (aligne main courante)
+
+- **Creation** : un `useEffect` dedie avec dependances reduites, typiquement `[isOpen, mode]` ou `[isOpen, isCreateMode]` — reinitialiser uniquement lors de l'ouverture en mode creation, pas quand les listes se rechargent.
+- **Edition** : un `useEffect` separe qui hydrate depuis la ligne courante avec dependances **`[isOpen, mode, entry?.id]`** (identifiant stable de l'enregistrement). Pas de `entry` entier, pas de `updatedAt` pour recharger tout le formulaire (sinon conflit avec le poll et perte de saisie).
+- Les champs qui doivent refléter une mise à jour serveur sans fermer la modale (ex. statut, badge) peuvent utiliser les **props en lecture directe** dans le rendu ou un effet **cible** sur un seul champ, pas un reset global.
+
+## Audit
+
+- Avant merge d'une nouvelle modale ou formulaire long, verifier les `useEffect` qui appellent `setXxx` depuis les props : la liste des dependances doit respecter cette regle.
+
+## Reference implementation
+
+- `src/features/mainCourante/components/MainCouranteEntryModal.tsx`
+- `src/features/intervention/components/InterventionEntryModal.tsx`

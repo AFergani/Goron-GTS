@@ -1,0 +1,19 @@
+---
+description: Checklist obligatoire avant implementation d'une fonctionnalite
+alwaysApply: true
+---
+
+# Checklist de Demarrage
+
+Avant de coder une fonctionnalite, verifier:
+
+- Besoin metier formule et valide.
+- Module cible identifie (main courante, interventions, rondes, accompagnements, stats, utilisateurs).
+- Role utilisateur autorise defini.
+- Comportement en cas d'indisponibilite PostgreSQL defini (badge DB, message, pas de perte de saisie).
+- Impact audit et tracabilite defini.
+- Critere d'acceptation testable ecrit.
+
+## Regle de blocage
+
+- Si un point manque, ne pas lancer l'implementation.

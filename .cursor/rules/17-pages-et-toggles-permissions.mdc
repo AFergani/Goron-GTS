@@ -1,0 +1,21 @@
+---
+description: Permissions par page et switch toggle obligatoires
+alwaysApply: true
+---
+
+# UI - Permissions pages et toggles
+
+- Toute nouvelle page/feature navigable doit etre ajoutee des sa creation dans le systeme de permissions de vue (modeles, API, UI de gestion des utilisateurs, et navigation effective).
+- Interdire la creation d'une nouvelle page sans possibilite explicite de l'activer/desactiver pour un utilisateur via ses droits.
+- Quand une nouvelle page est ajoutee, mettre a jour les formulaires de creation/modification utilisateur pour inclure la permission correspondante.
+
+## Switch de donnees (obligatoire)
+
+- Pour tout booleen pilotant un etat utilisateur (activation, affichage, mode, permission), utiliser un composant toggle reutilisable de type "switch" (bouton avec curseur gauche/droite).
+- Ne pas utiliser de checkbox brute pour les switches metier en interface.
+- Le switch doit inclure `role="switch"`, `aria-checked`, `aria-label` et un focus clavier visible.
+
+## Regle DRY
+
+- Centraliser le comportement dans un composant toggle commun.
+- Reutiliser ce composant partout ou un switch de donnee est necessaire.

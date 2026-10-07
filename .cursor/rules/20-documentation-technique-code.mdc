@@ -1,0 +1,30 @@
+---
+description: Documentation technique du code (JSDoc) et revue d'utilisation avant commit
+alwaysApply: true
+---
+
+# Documentation technique du code
+
+## Objectif
+
+- Chaque module/fichier traité doit avoir un en-tête de module en français (rôle, appelants principaux).
+- Chaque fonction exportée ou significative doit avoir une JSDoc en français : rôle, `@param`, `@returns`, effets de bord, replis.
+- Référence de style : `electron/main/appConfigService.js`, `electron/main/archiveRunner.js`.
+
+## Revue d'utilisation (obligatoire avant documentation)
+
+- Vérifier les usages (`grep`) des exports et symboles internes.
+- Supprimer le code mort **avant** d'ajouter de la documentation sur du code à retirer.
+- Ne pas documenter des API qui seront supprimées au même passage.
+
+## Workflow Git (branche `dev`)
+
+- Travailler sur la branche **`dev`**.
+- **Après chaque fichier modifié** (documentation, nettoyage, aide, règle) : commit dédié sur `dev` avec un message court en français décrivant le fichier ou le périmètre (ex. `docs(electron): JSDoc archiveRunner.js`).
+- Un fichier = un commit ; ne pas mélanger plusieurs fichiers non liés dans le même commit sauf demande explicite de l'utilisateur.
+
+## Périmètre actuel (parcours)
+
+- Priorité au chantier **persistance PostgreSQL** : adaptateur, `electron/store/domains/*` domaine par domaine, puis nettoyage writer (voir règle `21-persistance-postgresql.mdc` et `Z_Dossier_Perso/Plan_Migration_PostgreSQL/`).
+- Conserver la même exigence JSDoc française sur tout fichier touché.
+- Extension progressive au reste du dépôt selon la même méthode.

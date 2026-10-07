@@ -1,0 +1,20 @@
+---
+description: Donnees et ecriture — PostgreSQL connexion directe
+alwaysApply: true
+---
+
+# Donnees et Ecriture
+
+## Persistance (PostgreSQL)
+
+- Un serveur PostgreSQL (PC H24 ou VM) ; chaque poste Goron-GTS se connecte au moteur.
+- PostgreSQL gere la concurrence ; le mecanisme writer / file SMB / HTTP writer est **retire**.
+- Compte **technique** unique pour l'appli ; les operateurs s'authentifient via les **profils Goron-GTS** (pas de compte PG par agent).
+- En indisponibilite serveur : message clair + badge DB ; pas d'ecriture silencieuse.
+- Audit de toutes les ecritures metier (`INSERT` / `UPDATE` / `DELETE`).
+
+## Invariants
+
+- Aucune suppression silencieuse d'information sensible.
+- Chaque evenement critique doit rester tracable.
+- Exiger l'idempotence des demandes d'ecriture pour eviter les doublons.

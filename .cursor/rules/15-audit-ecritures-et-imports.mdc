@@ -1,0 +1,62 @@
+---
+description: Audit obligatoire des écritures BDD et imports de masse
+alwaysApply: true
+---
+
+# Audit des écritures BDD
+
+## Portee absolue (obligatoire)
+
+- Ces regles s'appliquent a toutes les tables presentes et futures.
+- Interdiction d'introduire une ecriture metier sans audit associe.
+
+- Toute écriture SQL métier (`INSERT`, `UPDATE`, `DELETE`) doit produire une entrée dans `audit_logs`.
+- Ne pas journaliser les simples lectures/consultations (liste, affichage d'écran, navigation).
+- Chaque log d'écriture doit inclure au minimum: acteur (`requesterUsername`), action explicite, statut et détails utiles.
+
+## Convention de libellé UI (obligatoire)
+
+- Les libellés affichés dans le journal doivent suivre la forme: `[Page] Donnée`.
+- Exemples attendus:
+  - `[Main courante] Information marquée comme "À suivre"`
+  - `[Main courante] Information marquée comme "Clôturée"`
+  - `[Main courante] Création d'une information`
+  - `[Fransor] Suppression d'une exception`
+  - `[Fransor] Ajout d'une exception`
+  - `[Fransor] Modification d'une exception`
+- Éviter les libellés techniques ou ambigus (ex: "Action manager...").
+
+## Imports de masse
+
+- Ne pas créer un log de succès par ligne importée.
+- Produire un log agrégé de lot avec compteurs (`total`, `success`, `failed`) et cible importée.
+- Journaliser les lignes en échec avec suffisamment de contexte pour diagnostic (index de ligne, cause, données de la ligne).
+
+## Détails "avant / après"
+
+- Pour toute action de modification métier (`UPDATE`), journaliser systématiquement:
+  - `before` (valeurs utiles avant),
+  - `after` (valeurs utiles après).
+- Pour les entites de gestion de donnees et futures pages metier sensibles (hors `main_courante_entries`), journaliser aussi `historyBefore` avec les 3 derniers changements connus.
+- Pour `CREATE`, journaliser les données utiles créées (au minimum identifiant + champs métier clés).
+- Pour `DELETE`, journaliser les données supprimées utiles au diagnostic (identifiant + champs métier clés + motif obligatoire).
+- Ne pas surcharger les logs: ne conserver que les champs utiles à l'audit et au support.
+
+## Nouveau schéma / nouvelle table
+
+- Lors de l'ajout d'une nouvelle table métier modifiable, définir dès le départ:
+  - les actions d'audit CRUD associées,
+  - la propagation de `requesterUsername` jusqu'à la couche d'écriture,
+  - la stratégie d'audit d'import de masse (résumé + erreurs détaillées).
+- Refuser toute implémentation CRUD qui écrit en base sans audit correspondant.
+
+## Référentiel UI des actions d'audit
+
+- Toute nouvelle action d'audit introduite dans le backend doit être ajoutée au référentiel d'affichage côté UI (mapping `code_action` -> libellé français).
+- Interdire les libellés "non référencée" pour une action métier attendue: compléter le mapping avant merge.
+- Conserver des libellés explicites, homogènes et en français dans les composants de journal d'actions, en respectant le format `[Page] Donnée`.
+
+## Format des dates
+
+- Toute date affichée à l'utilisateur doit être au format français (`fr-FR`) avec un libellé lisible.
+- Éviter les formats techniques bruts (`YYYY-MM`, ISO complet) dans l'interface, sauf besoin strictement technique.

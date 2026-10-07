@@ -1,0 +1,19 @@
+---
+description: Etat global DB visible — badge PostgreSQL obligatoire
+alwaysApply: true
+---
+
+# UI globale — Etat donnees obligatoire
+
+## Badge connexion base
+
+- Afficher un **badge de connexion a la base** (`DB accessible` / `DB inaccessible`).
+- Toute fonctionnalite doit gerer l'indisponibilite du serveur PostgreSQL : message utilisateur clair, pas de panne silencieuse.
+- Priorite metier : ne pas effacer la saisie locale a l'ecran si l'enregistrement echoue pour cause reseau/DB.
+- Si le serveur est down, l'ecriture est impossible jusqu'au retour du service (procedure station).
+
+## Regle de conception
+
+- Les composants ne doivent pas supposer que la base distante est toujours joignable.
+- En cas de compromis UX, prioriser la clarte operationnelle (etat visible + message explicite).
+- Modale panne PG : bloquante, non fermable, avec option de quitter l'application.

@@ -1,0 +1,16 @@
+---
+description: Conventions UI sidebar, DRY et composants reutilisables
+alwaysApply: true
+---
+
+# UI, DRY et Reutilisation
+
+- Conserver une sidebar visible en permanence pour la navigation principale.
+- Garder une experience utilisateur coherente sur tous les ecrans.
+- Pour les regles DRY/detail de structure frontend, se referer en priorite a `09-mvp-structure-et-taille-fichiers.mdc`.
+- Formulaires / modales et rafraichissements de listes : `19-formulaires-et-refresh-donnees.mdc`.
+- Pour les regles boutons icones/toggles, se referer a `10-ui-icones-actions.mdc` et `17-pages-et-toggles-permissions.mdc`.
+
+## Regle de decision
+
+- Si une logique UI apparait dans plusieurs pages, extraire un composant commun.

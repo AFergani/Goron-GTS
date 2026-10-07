@@ -1,0 +1,24 @@
+---
+description: Separation stricte UI, metier et acces donnees (PostgreSQL)
+alwaysApply: true
+---
+
+# Architecture et Responsabilites
+
+- Separer strictement la logique UI et la logique metier.
+- Interdire toute regle metier directement dans les composants visuels.
+- Centraliser l'acces base de donnees dans une **couche de persistance dediee** (adaptateur `pg`), pas dans les composants React.
+- Garder des modules independants: main-courante, utilisateurs/roles, futurs modules.
+- Exiger des interfaces claires entre couches pour limiter les effets de bord.
+
+## Persistance
+
+- Moteur : **PostgreSQL** (version majeure 18 en labo ; 17 acceptable sans refonte SQL).
+- Acces applicatif via un **adaptateur async** unique (`electron/store/persistence`).
+- Les domaines `electron/store/domains/*` ne dependent pas du driver natif hors adaptateur.
+- L'UI React (`src/features`) conserve le contrat IPC existant.
+
+## Objectif
+
+- Faciliter la maintenance.
+- Evoluer les domaines metier sans refonte globale de l'interface.

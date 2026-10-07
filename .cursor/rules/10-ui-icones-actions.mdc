@@ -1,0 +1,18 @@
+---
+description: Harmonisation UI des boutons d'actions par icones
+alwaysApply: true
+---
+
+# UI — Boutons d'actions en icones
+
+- Pour les actions simples et universelles (modifier, supprimer, sauvegarder, annuler, reset, navigation), preferer des boutons icones plutot que du texte.
+- Utiliser une bibliotheque unique d'icones sur tout le projet (lucide-react) pour eviter les disparites visuelles.
+- Garder les boutons icones compacts et coherents (taille, padding, alignement, etat hover/disabled).
+- Conserver `title` et/ou `aria-label` sur les boutons icones pour clarte UX et accessibilite.
+- Utiliser du texte uniquement quand l'action n'est pas evidente sans libelle.
+
+## Reset filtres (consolide)
+
+- Tous les boutons de reinitialisation de filtres doivent utiliser une icone `lucide-react` (ex: `RotateCcw`) plutot qu'un libelle texte.
+- Le bouton reset doit rester compact (format icone), avec `title` et `aria-label` en francais.
+- Eviter les libelles "Reset" en interface: preferer "Reinitialiser" dans les attributs d'accessibilite.

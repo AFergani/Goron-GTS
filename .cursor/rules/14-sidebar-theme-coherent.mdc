@@ -1,0 +1,22 @@
+---
+description: Sidebar avec theme visuel stable entre dark et light
+alwaysApply: true
+---
+
+# UI - Sidebar theme coherent et stable
+
+- Tous les elements de la sidebar (fond, logo, navigation, badges et actions) doivent conserver une apparence visuelle coherente entre mode dark et mode light.
+- Eviter les variantes de couleurs specifiques au theme pour la sidebar, sauf si un besoin d'accessibilite l'impose.
+- Garder une palette unique "sidebar" dediee, independante des couleurs de surface du contenu principal.
+
+## Accessibilite
+
+- Appliquer les exigences WCAG globales definies dans `11-wcag-et-themes.mdc`.
+- Maintenir un contraste lisible (WCAG AA) pour le texte et les icones de la sidebar.
+- Conserver un focus clavier visible (`:focus-visible`) sur les boutons de navigation et actions.
+- Ne jamais degrader la lisibilite du badge DB selon le theme.
+
+## Regle de validation
+
+- Tout nouvel element ajoute dans la sidebar doit etre verifie en dark et light et rendre visuellement de la meme famille UI.
+- Si un ecart existe entre themes dans la sidebar, corriger avant merge.

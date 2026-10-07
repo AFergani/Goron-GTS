@@ -1,0 +1,20 @@
+---
+description: Serveur PostgreSQL station — disponibilite et procedure panne
+alwaysApply: true
+---
+
+# Serveur PostgreSQL et disponibilite
+
+## Architecture station
+
+- Un **poste (ou VM) serveur PostgreSQL** allume H24 remplace l'ancien couple Maitre/Backup writer.
+- Plus de bascule writer applicatif : disponibilite = service PostgreSQL + reseau LAN.
+- Procedure operateur simple : redemarrer le PC/service serveur, verifier le badge DB.
+- Une VM SI utilise la meme config applicative (hote/port) qu'un PC H24.
+- Ne pas reconstruire AD/SSPI en V1 sauf decision explicite ulterieure.
+
+## Panne
+
+- Badge **DB inaccessible** + modale bloquante tant que le serveur est down.
+- Pas d'ecriture metier possible jusqu'au retour du service (voulu).
+- Journal local des evenements PG sur le poste (`gts-pg-events.log` dans userData).

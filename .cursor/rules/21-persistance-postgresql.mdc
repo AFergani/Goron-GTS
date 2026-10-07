@@ -1,0 +1,33 @@
+---
+description: Persistance PostgreSQL — adaptateur, config, doc FR
+alwaysApply: true
+---
+
+# Persistance PostgreSQL
+
+Plan detaille (hors git) : `Z_Dossier_Perso/Plan_Migration_PostgreSQL/`.
+
+## Architecture
+
+- PostgreSQL **18** en labo (17 compatible sans refonte SQL si le SI l'impose).
+- Connexion **directe** des postes a PostgreSQL (pas d'API HTTP obligatoire en V1).
+- Compte technique applicatif unique ; operateurs = profils Goron-GTS existants.
+- Pas d'auth AD/SSPI ni cle USB en V1.
+- Secret technique : stockage local chiffre (`safeStorage` / DPAPI), ecran admin technique uniquement.
+- En developpement (appli non packagée) : defauts Docker labo sans ecran bootstrap a chaque lancement.
+- PC serveur H24 ou VM : meme code, seule la config hote/port change.
+
+## Methode de code
+
+- Adaptateur async unique (`electron/store/persistence/*`) ; domaines dans `electron/store/domains/*`.
+- Modules partages pour pool, transactions (meme connexion), helpers SQL, health-check.
+- Verifier `pageAccess` / refus backend, pas seulement masquage UI.
+- Toute fonction/module ajoute ou modifie : **JSDoc francaise** (en-tete + `@param` / `@returns`).
+- Ne pas reintroduire de code SQLite metier ni de writer SMB/HTTP.
+- Ne pas cumuler avec montees majeures Electron / charte graphique sans besoin.
+
+## Tests labo
+
+- Dev local : Docker `postgres:18` (ou natif).
+- Concurrence : 2e PC (ou `npm run dev:2`) pointant vers le serveur labo (port 5432 ouvert).
+- Avant demo responsable : checklist dans `Plan_Migration_PostgreSQL/10-Checklist-responsable.md`.

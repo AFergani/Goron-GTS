@@ -1,0 +1,24 @@
+---
+description: Architecture MVP front, DRY et limite de taille des fichiers
+alwaysApply: true
+---
+
+# Structure MVP obligatoire
+
+- Organiser le frontend React par fonctionnalite/page (`features/<feature>/view`, `presenter`, `model`, `components`).
+- Limiter `App` et le shell applicatif a l'orchestration et la navigation globale.
+- Interdire la logique metier directement dans les composants de vue.
+- Passer par des presenters/hooks pour les regles metier et la coordination des appels API.
+
+## Reutilisation et DRY
+
+- Extraire un composant reutilisable des qu'un bloc UI/interaction est duplique.
+- Mutualiser les modales, toasts, lignes d'actions et blocs de table recurrents.
+- Eviter les variantes locales non necessaires quand un composant commun existe.
+
+## Taille maximale des fichiers
+
+- Viser des fichiers courts et lisibles.
+- Interdire tout fichier source applicatif depassant 800 lignes.
+- A partir de 700 lignes, planifier et effectuer un split en composants/modules avant merge.
+- Prioriser le decoupage par responsabilite (view/presenter/model) plutot qu'un fichier monolithique.

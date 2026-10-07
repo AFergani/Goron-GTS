@@ -1,0 +1,16 @@
+---
+description: Organisation CSS par page avec un fichier global commun
+alwaysApply: true
+---
+
+# Organisation des Styles
+
+- Utiliser un fichier CSS par page/ecran pour les styles specifiques.
+- Maintenir un fichier CSS global pour les classes recurrentes (espacement, alignement, helpers).
+- Eviter les styles disperses non documentes.
+- Conserver des noms de classes lisibles et coherents.
+- Revoir regulierement les classes dupliquees pour les mutualiser.
+
+## Attendu
+
+- Styles previsibles, faciles a relire, faciles a faire evoluer.

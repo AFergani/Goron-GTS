@@ -1,0 +1,16 @@
+---
+description: Interdire l'exposition des identifiants techniques au client
+alwaysApply: true
+---
+
+# UI - Identifiants techniques interdits
+
+- Ne jamais afficher en interface client des identifiants techniques internes (UUID, IDs DB, clés système, login interne).
+- Ne jamais exporter ces identifiants dans les fichiers destinés aux utilisateurs (Excel, Word, PDF, CSV).
+- Remplacer par des libellés métier lisibles si une référence est nécessaire.
+- Conserver les identifiants techniques uniquement pour les traitements internes, logs techniques et corrélation support.
+
+## Audit et exceptions
+
+- Si un identifiant technique est exceptionnellement requis pour diagnostic, l'exposer uniquement dans un contexte support restreint.
+- Toute exception doit être explicitée et tracée dans l'audit.

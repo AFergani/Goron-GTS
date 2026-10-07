@@ -1,0 +1,19 @@
+---
+description: Cadrage produit obligatoire avant toute implementation
+alwaysApply: true
+---
+
+# Cadrage Produit
+
+- Ne pas coder une fonctionnalite sans objectif metier clair.
+- Exiger un besoin formule en langage simple: qui, pourquoi, resultat attendu.
+- Definir les criteres d'acceptation avant implementation.
+- Verifier les cas limites (absence reseau, donnee incomplete, erreur utilisateur).
+- Decouper la V1 en petits livrables validables rapidement.
+
+## Definition de termine
+
+- Besoin decrit et valide.
+- Regles metier explicites.
+- Ecran/flux utilisateur identifies.
+- Criteres de validation listes.
