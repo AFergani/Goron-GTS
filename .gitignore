@@ -1,5 +1,7 @@
-# Règles Cursor locales (optionnel par poste)
-.cursor/
+# État local Cursor / VS Code. Les règles du projet sont partagées entre les postes.
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 .cursorignore
 .vscode/
 

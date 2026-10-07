@@ -1,0 +1,19 @@
+---
+description: Toute réécriture de fonctionnalité inclut le nettoyage du code résiduel devenu inutile
+alwaysApply: true
+---
+
+# Nettoyage du code résiduel
+
+Quand une modification de fonctionnalité réécrit un comportement existant, le même changement retire le code précédent devenu inutile. Ne pas laisser de dette technique morte à côté du nouveau chemin.
+
+Avant de conclure, vérifier les fichiers touchés :
+
+- fonctions, branches, états, props et imports qui ne sont plus appelés
+- anciens chemins (sauvegarde globale, liste native, libellé en double) remplacés par le nouveau
+- styles, types et libellés qui ne servent plus que l’ancien comportement
+- commentaires ou textes d’aide qui décrivent l’ancien fonctionnement
+
+Conserver ce qui sert encore : un journal historique, un format déjà enregistré, ou un second appelant réel.
+
+Exemple : remplacer une saisie par un champ de recherche implique de supprimer l’ancienne liste (`datalist`, liste déroulante de recherche) et le style qui n’allait qu’avec elle. Un libellé d’action d’audit encore présent dans d’anciens journaux reste.
