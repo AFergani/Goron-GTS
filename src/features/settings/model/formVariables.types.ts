@@ -4,6 +4,9 @@
 
 import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
 
+/** Type d’une variable de formulaire, y compris la case à cocher. */
+export type FormVariableFieldType = RondeClosureFieldType | "checkbox";
+
 export type FormTarget = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE" | "INTERVENTION" | "MAIN_COURANTE" | "GARDIENNAGE";
 export type VariableAssignmentKind = "FORM" | "PROFILE" | "TEMPLATE" | "SITE" | "FAMILLE";
 /** Moment de saisie (demande vs clôture). Défaut clôture. */
@@ -32,7 +35,7 @@ export type FormVariableDef = {
   sortOrder: number;
   fieldKey: string;
   label: string;
-  fieldType: RondeClosureFieldType;
+  fieldType: FormVariableFieldType;
   placeholder: string;
   required: boolean;
   options: string[];
@@ -46,10 +49,16 @@ export type FormVariableDef = {
 export type FormVariablePayload = {
   fieldKey: string;
   label: string;
-  fieldType: RondeClosureFieldType;
+  fieldType: FormVariableFieldType;
   placeholder: string;
   required: boolean;
   options: string[];
   assignments: FormVariableAssignment[];
   entryStage?: FormVariableEntryStage;
+};
+
+/** Suppression tracée : le motif est obligatoire, comme pour les autres référentiels. */
+export type FormVariableDeletion = {
+  fieldKey: string;
+  reason: string;
 };

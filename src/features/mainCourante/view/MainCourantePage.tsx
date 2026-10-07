@@ -230,7 +230,7 @@ export function MainCourantePage({ operatorName, requesterUsername, requesterRol
     try {
       await workstationExports.saveAndRemember(
         wordExportKey("mainCourante", entry.id),
-        () => exportMainCouranteEntryToWord(entry),
+        () => exportMainCouranteEntryToWord(entry, { sites }),
         onToast,
         "Document Word enregistré."
       );

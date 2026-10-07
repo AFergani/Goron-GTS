@@ -5,6 +5,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { ToggleSwitch } from "./ToggleSwitch";
 import { TimeInput } from "./TimeInput";
+import { isFormCheckboxChecked } from "../utils/docxSharedTokens";
 import type { FormVariableFieldDef } from "../model/formVariableField.types";
 
 type FormVariableFieldsProps = {
@@ -91,6 +92,20 @@ export function FormVariableFields({
               </option>
             ))}
           </select>
+        </label>
+      );
+    }
+    if (def.fieldType === "checkbox") {
+      const checked = isFormCheckboxChecked(value);
+      return (
+        <label key={def.fieldKey} className={fieldClass}>
+          <span>{def.label}</span>
+          <input
+            type="checkbox"
+            checked={checked}
+            disabled={disabled}
+            onChange={(e) => setVal(e.target.checked ? "X" : "")}
+          />
         </label>
       );
     }

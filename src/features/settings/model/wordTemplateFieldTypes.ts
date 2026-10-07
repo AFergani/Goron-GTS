@@ -2,19 +2,20 @@
  * Types et libellés de champs pour modèles Word et panneau variables.
  */
 
-import type { RondeClosureFieldType } from "../../rondes/model/rondePlanned.types";
+import type { FormVariableFieldType } from "./formVariables.types";
 
-/** Types de champs alignés sur les rapports Word / formulaires (rondes & interventions). */
-export const WORD_TEMPLATE_FIELD_TYPES: Array<{ value: RondeClosureFieldType; label: string }> = [
+/** Types proposés à la création d’une variable de formulaire. */
+export const WORD_TEMPLATE_FIELD_TYPES: Array<{ value: FormVariableFieldType; label: string }> = [
   { value: "text", label: "Texte court" },
   { value: "textarea", label: "Texte long" },
   { value: "number", label: "Nombre" },
   { value: "time", label: "Heure" },
-  { value: "select", label: "Liste déroulante" }
+  { value: "select", label: "Liste déroulante" },
+  { value: "checkbox", label: "Case à cocher" }
 ];
 
 /** Libellé français du type de champ (tableaux, modales). */
-export function wordTemplateFieldTypeLabel(t: RondeClosureFieldType): string {
+export function wordTemplateFieldTypeLabel(t: FormVariableFieldType): string {
   return WORD_TEMPLATE_FIELD_TYPES.find((o) => o.value === t)?.label ?? t;
 }
 

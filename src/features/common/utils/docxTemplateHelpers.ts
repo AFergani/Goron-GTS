@@ -98,7 +98,10 @@ export function renderDocxtemplaterBlob(buffer: ArrayBuffer, data: Record<string
   const zip = new PizZip(buffer);
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
-    linebreaks: true
+    linebreaks: true,
+    nullGetter() {
+      return "";
+    }
   });
   doc.render(frenchReportDocxData(data));
   return doc.getZip().generate({

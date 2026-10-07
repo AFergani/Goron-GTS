@@ -218,7 +218,7 @@ export function InterventionPage({
     try {
       await workstationExports.saveAndRemember(
         wordExportKey("intervention", entry.id),
-        () => exportInterventionEntryToWord(entry),
+        () => exportInterventionEntryToWord(entry, { sites: references.sites }),
         onToast,
         "Document Word enregistré."
       );

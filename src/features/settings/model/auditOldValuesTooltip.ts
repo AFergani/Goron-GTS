@@ -48,6 +48,12 @@ function toFrenchDetailKey(key: string): string {
     code: "Code",
     name: "Nom",
     label: "Libellé",
+    fieldKey: "Variable",
+    fieldType: "Type",
+    placeholder: "Indication",
+    entryStage: "Saisie",
+    options: "Options",
+    assignments: "Affectations",
     fullName: "Nom affiché",
     username: "Identifiant interne",
     role: "Rôle",
@@ -649,6 +655,20 @@ export function formatOldValuesTooltip(log: AuditLog) {
   if (log.action === "POSTGRES_BACKUP_SETTINGS_SAVE") {
     const after = (detailsAny.after || detailsAny) as Record<string, unknown>;
     return ["Planning automatique", ...formatDetailsAsLines(after)].join("\n");
+  }
+  if (log.action === "DATA_FORM_VARIABLE_UPDATE") {
+    const before = (detailsAny.before || {}) as Record<string, unknown>;
+    const after = (detailsAny.after || {}) as Record<string, unknown>;
+    const lines = [
+      "Modification d'une variable (avant => après)",
+      `Variable: ${String(before.fieldKey || "-")} => ${String(after.fieldKey || "-")}`,
+      `Libellé: ${String(before.label || "-")} => ${String(after.label || "-")}`,
+      `Type: ${String(before.fieldType || "-")} => ${String(after.fieldType || "-")}`,
+      `Saisie: ${String(before.entryStage || "-")} => ${String(after.entryStage || "-")}`,
+      `Affectations: ${String(before.assignments || "-")} => ${String(after.assignments || "-")}`
+    ];
+    if (historyText) lines.push("", historyText);
+    return lines.join("\n");
   }
   if (log.action.endsWith("_CREATE")) {
     const created = detailsAny.created || detailsAny;

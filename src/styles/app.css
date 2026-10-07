@@ -4235,6 +4235,81 @@ button.toast__close:hover {
   justify-content: space-between;
 }
 
+.variables-management-panel__intro {
+  margin: 0 0 12px;
+}
+
+.variables-field-modal .mc-site-field-wrap,
+.variables-field-modal .mc-site-field-wrap .mc-field,
+.variables-field-modal .mc-site-input-row,
+.variables-field-modal .mc-site-input-inner,
+.variables-field-modal .mc-site-code-input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.variables-group {
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surf);
+}
+
+.variables-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.variables-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.variables-group > summary::before {
+  content: "▸";
+  width: 1em;
+  color: var(--text-2);
+}
+
+.variables-group[open] > summary::before {
+  content: "▾";
+}
+
+.variables-group__count {
+  font-weight: 500;
+}
+
+.variables-group__hint {
+  margin: 0 12px 8px;
+}
+
+.variables-group .table-scroll-x {
+  padding: 0 8px 8px;
+}
+
+.variables-token-copy {
+  justify-content: flex-start;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.variables-token-copy:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.variables-token-copy code {
+  font-size: 12px;
+}
+
 .templates-management-panel .settings-tab-toolbar {
   flex-wrap: nowrap;
 }

@@ -23,6 +23,7 @@ const SHARED_DOCX_HELP_CORE: TemplateHelpVariable[] = [
   { token: "{site}", description: "Libellé site affiché sur la fiche (nom et code)." },
   { token: "{site_code}", description: "Code du site (extrait du libellé)." },
   { token: "{site_name}", description: "Nom du site, sans le code." },
+  { token: "{adresse_site}", description: "Adresse du site, telle qu’enregistrée dans le référentiel. « — » si elle est vide." },
   { token: "{numeroFiche}", description: "Numéro métier de la fiche (JJMMAAAA-XX)." }
 ];
 
@@ -176,3 +177,115 @@ export function resolveDocumentTemplateHelpBlock(helpId: string): TemplateHelpBl
   }
   return undefined;
 }
+
+/**
+ * Type affiché pour un jeton système, calé sur le champ de la fiche.
+ *
+ * @param token - Jeton avec accolades, par exemple `{motif}`.
+ * @param formTarget - Formulaire du bloc, pour les jetons dont le champ diffère.
+ */
+export function systemDocxVariableTypeLabel(token: string, formTarget: FormTarget | null): string {
+  if (token === "{motif}") {
+    return formTarget === "INTERVENTION" ? "Texte long" : "Liste déroulante";
+  }
+  const labels: Record<string, string> = {
+    "{site}": "Texte court",
+    "{site_code}": "Texte court",
+    "{site_name}": "Texte court",
+    "{adresse_site}": "Texte court",
+    "{numeroFiche}": "Texte court",
+    "{prestataire}": "Texte court",
+    "{date_demande}": "Date",
+    "{heure_demande}": "Heure",
+    "{heure_arrivee}": "Date et heure",
+    "{heure_depart}": "Date et heure",
+    "{numero_bon}": "Texte court",
+    "{compte_rendu}": "Texte long",
+    "{delai_minutes}": "Nombre",
+    "{duree_minutes}": "Nombre",
+    "{type_passage}": "Liste déroulante",
+    "{consigne}": "Texte long",
+    "{resume_demande}": "Texte long",
+    "{date_cloture}": "Date et heure",
+    "{date_creation}": "Date et heure",
+    "{operateur}": "Texte court",
+    "{responsable}": "Texte court",
+    "{type_anomalie}": "Liste déroulante",
+    "{statut}": "Texte court",
+    "{prise_en_compte}": "Date et heure",
+    "{information_operateur}": "Texte long",
+    "{observation_responsable}": "Texte long"
+  };
+  return labels[token] || "Texte court";
+}
+
+/** Retire les jetons déjà listés ailleurs (en général le bloc commun). */
+function variablesExcept(
+  variables: TemplateHelpVariable[],
+  excluded: TemplateHelpVariable[]
+): TemplateHelpVariable[] {
+  const skip = new Set(excluded.map((item) => item.token));
+  return variables.filter((item) => !skip.has(item.token));
+}
+
+export type DocxVariableGroup = {
+  id: string;
+  title: string;
+  hint: string;
+  collapsedByDefault: boolean;
+  /** `null` : bloc commun, sans variables personnalisées. */
+  formTarget: FormTarget | null;
+  systemVariables: TemplateHelpVariable[];
+};
+
+/** Blocs du récapitulatif Paramètres → Variables. Le gardiennage n’a pas d’export Word. */
+export const DOCX_VARIABLE_GROUPS: DocxVariableGroup[] = [
+  {
+    id: "commun",
+    title: "Commun",
+    hint: "Communes à tous les formulaires qui ont un export Word.",
+    collapsedByDefault: false,
+    formTarget: null,
+    systemVariables: SHARED_DOCX_HELP_CORE
+  },
+  {
+    id: "intervention",
+    title: "Intervention",
+    hint: "En plus des variables communes.",
+    collapsedByDefault: false,
+    formTarget: "INTERVENTION",
+    systemVariables: variablesExcept(DOCUMENT_TEMPLATE_HELP.intervention.variables, SHARED_DOCX_HELP_CORE)
+  },
+  {
+    id: "ronde-planifiee",
+    title: "Ronde contractuelle",
+    hint: "En plus des variables communes.",
+    collapsedByDefault: false,
+    formTarget: "RONDE_PLANIFIEE",
+    systemVariables: variablesExcept(RONDE_DOCX_HELP_VARIABLES, SHARED_DOCX_HELP_CORE)
+  },
+  {
+    id: "ronde-exceptionnelle",
+    title: "Ronde exceptionnelle",
+    hint: "En plus des variables communes.",
+    collapsedByDefault: false,
+    formTarget: "RONDE_EXCEPTIONNELLE",
+    systemVariables: variablesExcept(RONDE_DOCX_HELP_VARIABLES, SHARED_DOCX_HELP_CORE)
+  },
+  {
+    id: "main-courante",
+    title: "Main courante",
+    hint: "En plus des variables communes.",
+    collapsedByDefault: false,
+    formTarget: "MAIN_COURANTE",
+    systemVariables: variablesExcept(DOCUMENT_TEMPLATE_HELP["main-courante"].variables, SHARED_DOCX_HELP_CORE)
+  },
+  {
+    id: "gardiennage",
+    title: "Gardiennage",
+    hint: "Pas d’export Word pour le moment. Les champs créés ici sont enregistrés sur la fiche.",
+    collapsedByDefault: true,
+    formTarget: "GARDIENNAGE",
+    systemVariables: []
+  }
+];

@@ -2,14 +2,14 @@
  * Champ personnalisé déjà filtré pour un formulaire métier (saisie UI).
  */
 
-import type { FormVariableEntryStage } from "../../settings/model/formVariables.types";
+import type { FormVariableEntryStage, FormVariableFieldType } from "../../settings/model/formVariables.types";
 
 export type FormVariableFieldDef = {
   id: string;
   sortOrder: number;
   fieldKey: string;
   label: string;
-  fieldType: "text" | "textarea" | "number" | "time" | "select" | "toggle";
+  fieldType: FormVariableFieldType;
   placeholder: string;
   options: string[];
   entryStage: FormVariableEntryStage;

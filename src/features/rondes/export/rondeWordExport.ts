@@ -13,7 +13,12 @@ import {
   safeDocxText
 } from "../../common/utils/docxTemplateHelpers";
 import { ficheWordExportFilename } from "../../common/utils/exportFilename";
-import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
+import {
+  formVariableDocxExtras,
+  loadCheckboxFieldKeys,
+  siteDocxFields,
+  type SiteAddressRef
+} from "../../common/utils/docxSharedTokens";
 import { formatDateShortFr, formatIsoDatesInTextToFrench } from "../../common/utils/formatDateShortFr";
 import type { HolidayRef } from "../../../types";
 import { formatRondeConsigne, formatRondeResumeDemande } from "../utils/formatRondeResumeDemande";
@@ -32,6 +37,8 @@ type RondeTemplateFlowKind = "RONDE_PLANIFIEE" | "RONDE_EXCEPTIONNELLE";
 type RondeWordRenderContext = {
   profiles?: RondePlannedProfileRef[] | null;
   holidayDateIsos?: string[];
+  sites?: SiteAddressRef[] | null;
+  checkboxKeys?: Set<string> | null;
 };
 
 /** Données Docxtemplater : jetons ronde contractuelle + champs fiche + clés champs de clôture. */
@@ -40,7 +47,7 @@ function buildTemplateData(
   _profileLabel: string,
   ctx?: RondeWordRenderContext
 ): Record<string, string> {
-  const siteFields = siteDocxFields(entry.siteDisplay);
+  const siteFields = siteDocxFields(entry.siteDisplay, { siteId: entry.siteId, sites: ctx?.sites });
   const dateJour = formatDateShortFr(entry.requestDate);
   const resumeOpts = {
     profiles: ctx?.profiles,
@@ -69,7 +76,7 @@ function buildTemplateData(
 
   const merged: Record<string, string> = {
     ...base,
-    ...formVariableDocxExtras(entry.closureCustomValues)
+    ...formVariableDocxExtras(entry.closureCustomValues, ctx?.checkboxKeys)
   };
   for (const [key, value] of Object.entries(merged)) {
     merged[key] = formatIsoDatesInTextToFrench(value);
@@ -243,7 +250,7 @@ async function buildFallbackDocument(
  * Enregistre la fiche Word d’une ronde.
  *
  * @param entry - Fiche ronde.
- * @param options - Libellé de profil, programmations et jours fériés (récapitulatif Word).
+ * @param options - Libellé de profil, programmations, jours fériés et référentiel sites (`{adresse_site}`).
  * @returns Chemin enregistré, ou annulation utilisateur.
  */
 export async function exportRondeEntryToWord(
@@ -252,11 +259,14 @@ export async function exportRondeEntryToWord(
     profileLabel?: string;
     profiles?: RondePlannedProfileRef[] | null;
     holidays?: HolidayRef[] | null;
+    sites?: SiteAddressRef[] | null;
   }
 ): Promise<SaveExportFileResult> {
   const ctx: RondeWordRenderContext = {
     profiles: options?.profiles,
-    holidayDateIsos: (options?.holidays || []).map((item) => item.dateIso)
+    holidayDateIsos: (options?.holidays || []).map((item) => item.dateIso),
+    sites: options?.sites,
+    checkboxKeys: await loadCheckboxFieldKeys()
   };
   const label = resolveProfileLabel(entry, ctx.profiles, options?.profileLabel);
   const isPlannedFlow = isPlannedFlowEntry(entry);

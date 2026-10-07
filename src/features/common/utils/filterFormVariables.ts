@@ -12,7 +12,7 @@ import type { FormVariableFieldDef } from "../model/formVariableField.types";
 
 function normalizeFieldType(raw: unknown): FormVariableFieldDef["fieldType"] {
   const s = String(raw || "").trim().toLowerCase();
-  if (s === "textarea" || s === "number" || s === "time" || s === "select" || s === "toggle") return s;
+  if (s === "textarea" || s === "number" || s === "time" || s === "select" || s === "toggle" || s === "checkbox") return s;
   return "text";
 }
 

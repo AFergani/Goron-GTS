@@ -3,11 +3,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import type { Role, SiteRef } from "../../../types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
 import type { RondePlannedProfileRef } from "../../rondes/model/rondePlanned.types";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
+import { FamilleSearchInput } from "../../common/components/FamilleSearchInput";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import {
   FORM_VARIABLE_ENTRY_STAGE_OPTIONS,
@@ -15,6 +16,7 @@ import {
   normalizeFormVariableEntryStage,
   type FormTarget,
   type FormVariableDef,
+  type FormVariableDeletion,
   type FormVariableEntryStage,
   type FormVariablePayload
 } from "../model/formVariables.types";
@@ -22,6 +24,7 @@ import { WORD_TEMPLATE_FIELD_TYPES, labelToFieldKey, wordTemplateFieldTypeLabel 
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
 import { useCreateModalCloseGuard } from "../../common/hooks/useCreateModalCloseGuard";
+import { DOCX_VARIABLE_GROUPS, systemDocxVariableTypeLabel, type DocxVariableGroup } from "./documentTemplateHelpContent";
 
 type VariablesManagementPanelProps = {
   requesterRole: Role;
@@ -39,6 +42,75 @@ const FORM_TARGET_OPTIONS: Array<{ value: FormTarget; label: string }> = [
   { value: "GARDIENNAGE", label: "Gardiennage" }
 ];
 
+function docxToken(fieldKey: string): string {
+  const key = String(fieldKey || "").trim();
+  if (!key) return "";
+  return key.startsWith("{") ? key : `{${key}}`;
+}
+
+function scopeLabel(row: FormVariableDef, sites: SiteRef[]): string {
+  const siteScope = row.assignments.find((assignment) => assignment.kind === "SITE");
+  if (siteScope) {
+    const site = sites.find((item) => item.id === siteScope.value);
+    return site ? `Site: ${site.name} (${site.code})` : `Site: ${siteScope.value}`;
+  }
+  const familleScope = row.assignments.find((assignment) => assignment.kind === "FAMILLE");
+  if (familleScope) return `Famille: ${familleScope.value}`;
+  return "Tous";
+}
+
+function profilesLabel(row: FormVariableDef, profiles: RondePlannedProfileRef[]): string {
+  const profileAssignments = row.assignments.filter((assignment) => assignment.kind === "PROFILE");
+  const hasContractuelle = row.assignments.some(
+    (assignment) => assignment.kind === "FORM" && assignment.value === "RONDE_PLANIFIEE"
+  );
+  if (hasContractuelle && profileAssignments.length === 0) return "Toutes";
+  return (
+    profileAssignments
+      .map((assignment) => profiles.find((profile) => profile.id === assignment.value)?.label || assignment.value)
+      .join(", ") || "—"
+  );
+}
+
+function customRowsForGroup(rows: FormVariableDef[], group: DocxVariableGroup): FormVariableDef[] {
+  if (!group.formTarget) return [];
+  const formTarget = group.formTarget;
+  return rows.filter((row) =>
+    row.assignments.some((assignment) => assignment.kind === "FORM" && assignment.value === formTarget)
+  );
+}
+
+function VariableTokenButton({ token, onCopy }: { token: string; onCopy: (token: string) => void }) {
+  if (!token) return null;
+  return (
+    <button
+      type="button"
+      className="variables-token-copy"
+      title="Copier la variable"
+      aria-label={`Copier ${token}`}
+      onClick={() => onCopy(token)}
+    >
+      <code>{token}</code>
+    </button>
+  );
+}
+
+function RecapHead({ showProfiles }: { showProfiles: boolean }) {
+  return (
+    <thead>
+      <tr>
+        <th>Libellé</th>
+        <th>Variable</th>
+        <th>Type</th>
+        <th>Portée</th>
+        <th>Saisie</th>
+        {showProfiles ? <th>Profils ronde contractuelle</th> : null}
+        <th>Actions</th>
+      </tr>
+    </thead>
+  );
+}
+
 export function VariablesManagementPanel({
   requesterRole,
   requesterUsername,
@@ -51,6 +123,7 @@ export function VariablesManagementPanel({
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
+  const [duplicateSourceKey, setDuplicateSourceKey] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [draftPlaceholder, setDraftPlaceholder] = useState("");
   const [draftType, setDraftType] = useState<FormVariableDef["fieldType"]>("text");
@@ -62,8 +135,12 @@ export function VariablesManagementPanel({
   const [draftScopeFamille, setDraftScopeFamille] = useState("");
   const [draftEntryStage, setDraftEntryStage] = useState<FormVariableEntryStage>("CLOSURE");
   const [deleteFieldKey, setDeleteFieldKey] = useState<string | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   const [draftOpenTick, setDraftOpenTick] = useState(0);
   const [draftBaseline, setDraftBaseline] = useState("");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(DOCX_VARIABLE_GROUPS.map((group) => [group.id, !group.collapsedByDefault]))
+  );
   const canEdit = requesterRole === "RESPONSABLE" || requesterRole === "DEV";
 
   const loadData = useCallback(async () => {
@@ -83,7 +160,7 @@ export function VariablesManagementPanel({
   }, [loadData]);
 
   const persist = useCallback(
-    async (nextRows: FormVariableDef[]) => {
+    async (nextRows: FormVariableDef[], deletions?: FormVariableDeletion[]) => {
       if (!canEdit) return;
       setSaving(true);
       try {
@@ -100,7 +177,8 @@ export function VariablesManagementPanel({
         const saved = await gtsApiClient.saveFormVariables({
           requesterRole,
           requesterUsername,
-          variables: payload
+          variables: payload,
+          deletions
         });
         setRows(saved);
       } catch (err) {
@@ -118,24 +196,7 @@ export function VariablesManagementPanel({
     return rows.find((r) => r.fieldKey === editKey) ?? null;
   }, [rows, editKey]);
 
-  const openCreateModal = () => {
-    setEditKey(null);
-    setDraftLabel("");
-    setDraftPlaceholder("");
-    setDraftType("text");
-    setDraftOptions("");
-    setDraftForms([]);
-    setDraftProfileIds([]);
-    setDraftScopeKind("ALL");
-    setDraftScopeSite(null);
-    setDraftScopeFamille("");
-    setDraftEntryStage("CLOSURE");
-    setModalOpen(true);
-    setDraftOpenTick((tick) => tick + 1);
-  };
-
-  const openEditModal = (row: FormVariableDef) => {
-    setEditKey(row.fieldKey);
+  const fillDraftFromRow = (row: FormVariableDef) => {
     setDraftLabel(row.label);
     setDraftPlaceholder(row.placeholder);
     setDraftType(row.fieldType);
@@ -161,12 +222,45 @@ export function VariablesManagementPanel({
       setDraftScopeFamille("");
     }
     setDraftEntryStage(normalizeFormVariableEntryStage(row.entryStage));
+  };
+
+  const openCreateModal = () => {
+    setEditKey(null);
+    setDuplicateSourceKey(null);
+    setDraftLabel("");
+    setDraftPlaceholder("");
+    setDraftType("text");
+    setDraftOptions("");
+    setDraftForms([]);
+    setDraftProfileIds([]);
+    setDraftScopeKind("ALL");
+    setDraftScopeSite(null);
+    setDraftScopeFamille("");
+    setDraftEntryStage("CLOSURE");
+    setModalOpen(true);
+    setDraftOpenTick((tick) => tick + 1);
+  };
+
+  const openEditModal = (row: FormVariableDef) => {
+    setEditKey(row.fieldKey);
+    setDuplicateSourceKey(null);
+    fillDraftFromRow(row);
+    setModalOpen(true);
+    setDraftOpenTick((tick) => tick + 1);
+  };
+
+  const openDuplicateModal = (row: FormVariableDef) => {
+    setEditKey(null);
+    setDuplicateSourceKey(row.fieldKey);
+    fillDraftFromRow(row);
     setModalOpen(true);
     setDraftOpenTick((tick) => tick + 1);
   };
 
   const draftFieldKey = editKey ? editKey : labelToFieldKey(draftLabel);
-  const draftCanSubmit = Boolean(draftLabel.trim() && draftFieldKey && draftForms.length >= 1);
+  const technicalKeyTaken =
+    !editKey && Boolean(draftFieldKey) && rows.some((row) => row.fieldKey === draftFieldKey);
+  const draftCanSubmit = Boolean(draftLabel.trim() && draftFieldKey && draftForms.length >= 1 && !technicalKeyTaken);
   const draftSignature = JSON.stringify({
     draftLabel,
     draftPlaceholder,
@@ -191,7 +285,10 @@ export function VariablesManagementPanel({
   const { requestClose, showDiscardConfirm, confirmDiscardAndClose, cancelDiscard } = useCreateModalCloseGuard({
     enabled: modalOpen && !saving,
     isDirty: Boolean(draftBaseline) && draftSignature !== draftBaseline,
-    onClose: () => setModalOpen(false)
+    onClose: () => {
+      setModalOpen(false);
+      setDuplicateSourceKey(null);
+    }
   });
   const familles = useMemo(
     () =>
@@ -215,6 +312,10 @@ export function VariablesManagementPanel({
     ? "Le libellé est obligatoire."
     : !draftFieldKey
       ? "Le libellé doit contenir au moins une lettre pour générer une variable technique."
+      : technicalKeyTaken
+        ? duplicateSourceKey && draftFieldKey === duplicateSourceKey
+          ? "Changez le libellé : il produit la même variable technique que la variable d’origine."
+          : "Cette variable technique existe déjà. Modifiez le libellé."
       : draftForms.length < 1
         ? "Sélectionnez au moins un formulaire cible."
         : scopeValidationMessage
@@ -223,11 +324,6 @@ export function VariablesManagementPanel({
 
   const toggleChoice = (current: string[], value: string): string[] =>
     current.includes(value) ? current.filter((x) => x !== value) : [...current, value];
-
-  const formTargetLabel = useMemo(
-    () => Object.fromEntries(FORM_TARGET_OPTIONS.map((o) => [o.value, o.label])) as Record<FormTarget, string>,
-    []
-  );
 
   const saveDraftIntoRows = async () => {
     if (!draftCanSubmit) {
@@ -251,8 +347,6 @@ export function VariablesManagementPanel({
     } else if (draftScopeKind === "FAMILLE" && normalizedScopeFamille) {
       assignments.push({ kind: "FAMILLE", value: normalizedScopeFamille });
     }
-    const entryStage = draftEntryStage;
-
     const nextRows =
       editKey && editingRow
         ? rows.map((row) =>
@@ -264,7 +358,7 @@ export function VariablesManagementPanel({
                   placeholder: draftPlaceholder.trim(),
                   options,
                   assignments,
-                  entryStage,
+                  entryStage: draftEntryStage,
                   updatedAt: now
                 }
               : row
@@ -281,7 +375,7 @@ export function VariablesManagementPanel({
               required: false,
               options,
               assignments,
-              entryStage,
+              entryStage: draftEntryStage,
               createdAt: now,
               updatedAt: now
             }
@@ -289,18 +383,39 @@ export function VariablesManagementPanel({
     try {
       await persist(nextRows);
       setModalOpen(false);
-      onNotify?.(editKey ? "Champ personnalisé mis à jour." : "Champ personnalisé ajouté.");
+      setDuplicateSourceKey(null);
+      onNotify?.(
+        editKey
+          ? "Champ personnalisé mis à jour."
+          : duplicateSourceKey
+            ? "Champ personnalisé dupliqué."
+            : "Champ personnalisé ajouté."
+      );
     } catch {
       // Message déjà remonté dans persist.
     }
   };
 
+  const copyVariableToken = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(token);
+      onNotify?.("Variable copiée.");
+    } catch {
+      onNotify?.("Impossible de copier la variable.");
+    }
+  };
+
   const confirmDeleteVariable = async () => {
-    if (!deleteFieldKey) return;
+    const reason = deleteReason.trim();
+    if (!deleteFieldKey || !reason) {
+      onNotify?.("Le motif de suppression est obligatoire.");
+      return;
+    }
     const nextRows = rows.filter((v) => v.fieldKey !== deleteFieldKey);
     try {
-      await persist(nextRows);
+      await persist(nextRows, [{ fieldKey: deleteFieldKey, reason }]);
       setDeleteFieldKey(null);
+      setDeleteReason("");
       onNotify?.("Variable supprimée.");
     } catch {
       // Message déjà remonté dans persist.
@@ -308,7 +423,7 @@ export function VariablesManagementPanel({
   };
 
   return (
-    <div>
+    <div className="variables-management-panel">
       <div className="row settings-tab-toolbar settings-tab-toolbar--end">
         <div className="row-actions">
           <button
@@ -336,116 +451,133 @@ export function VariablesManagementPanel({
           ) : null}
         </div>
       </div>
-      <div className="table-scroll-x">
-        <table className="data-table-fixed">
-          <thead>
-            <tr>
-              <th>Libellé</th>
-              <th>Variable</th>
-              <th>Type</th>
-              <th>Portée</th>
-              <th>Formulaires</th>
-              <th>Saisie</th>
-              <th>Profils ronde contractuelle</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="muted">
-                  Chargement...
-                </td>
-              </tr>
-            ) : rows.length ? (
-              rows.map((row) => (
-                <tr key={row.fieldKey}>
-                  <td>{row.label}</td>
-                  <td>
-                    <code>{row.fieldKey}</code>
-                  </td>
-                  <td>{wordTemplateFieldTypeLabel(row.fieldType)}</td>
-                  <td>
-                    {(() => {
-                      const siteScope = row.assignments.find((a) => a.kind === "SITE");
-                      if (siteScope) {
-                        const site = sites.find((s) => s.id === siteScope.value);
-                        return site ? `Site: ${site.name} (${site.code})` : `Site: ${siteScope.value}`;
-                      }
-                      const familleScope = row.assignments.find((a) => a.kind === "FAMILLE");
-                      if (familleScope) return `Famille: ${familleScope.value}`;
-                      return "Tous";
-                    })()}
-                  </td>
-                  <td>
-                    {row.assignments
-                      .filter((a) => a.kind === "FORM")
-                      .map((a) => formTargetLabel[a.value as FormTarget] || a.value)
-                      .join(", ") || "—"}
-                  </td>
-                  <td>
-                    {formVariableEntryStageLabel(normalizeFormVariableEntryStage(row.entryStage))}
-                  </td>
-                  <td>
-                    {(() => {
-                      const profileAssignments = row.assignments.filter((a) => a.kind === "PROFILE");
-                      const hasContractuelle = row.assignments.some(
-                        (a) => a.kind === "FORM" && a.value === "RONDE_PLANIFIEE"
-                      );
-                      if (hasContractuelle && profileAssignments.length === 0) {
-                        return "Toutes";
-                      }
-                      return (
-                        profileAssignments
-                          .map((a) => rondePlannedProfiles.find((p) => p.id === a.value)?.label || a.value)
-                          .join(", ") || "—"
-                      );
-                    })()}
-                  </td>
-                  <td>
-                    {canEdit ? (
-                      <div className="table-actions">
-                        <button
-                          type="button"
-                          className="btn-light action-icon-btn"
-                          title="Modifier"
-                          aria-label="Modifier"
-                          disabled={saving}
-                          onClick={() => openEditModal(row)}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-danger action-icon-btn"
-                          title="Supprimer"
-                          aria-label="Supprimer"
-                          disabled={saving}
-                          onClick={() => setDeleteFieldKey(row.fieldKey)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={8} className="muted">
-                  Aucune variable définie.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <p className="muted variables-management-panel__intro">
+        Cliquez une variable pour copier le jeton Word. Les variables système se remplissent toutes seules : elles ne se modifient pas.
+      </p>
+      {DOCX_VARIABLE_GROUPS.map((group) => {
+        const customRows = customRowsForGroup(rows, group);
+        const count = group.systemVariables.length + (loading ? 0 : customRows.length);
+        const showProfiles = group.id === "ronde-planifiee";
+        const columnCount = showProfiles ? 7 : 6;
+        return (
+          <details
+            key={group.id}
+            className="variables-group"
+            open={openGroups[group.id]}
+            onToggle={(event) => {
+              const next = event.currentTarget.open;
+              setOpenGroups((prev) => (prev[group.id] === next ? prev : { ...prev, [group.id]: next }));
+            }}
+          >
+            <summary>
+              <span>{group.title}</span>
+              <span className="muted variables-group__count">{count}</span>
+            </summary>
+            <p className="muted variables-group__hint">{group.hint}</p>
+            <div className="table-scroll-x">
+              <table className="data-table-fixed">
+                <RecapHead showProfiles={showProfiles} />
+                <tbody>
+                  {group.systemVariables.map((variable) => (
+                    <tr key={`${group.id}-${variable.token}`}>
+                      <td>{variable.description}</td>
+                      <td>
+                        <VariableTokenButton token={variable.token} onCopy={(token) => void copyVariableToken(token)} />
+                      </td>
+                      <td>{systemDocxVariableTypeLabel(variable.token, group.formTarget)}</td>
+                      <td>{group.formTarget ? "Tous" : "Tous les exports Word"}</td>
+                      <td>Automatique</td>
+                      {showProfiles ? <td>Toutes</td> : null}
+                      <td>
+                        <span className="muted" title="Variable système : non modifiable ni supprimable">
+                          Variable système
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {loading && group.formTarget ? (
+                    <tr>
+                      <td colSpan={columnCount} className="muted">
+                        Chargement des variables personnalisées…
+                      </td>
+                    </tr>
+                  ) : (
+                    customRows.map((row) => (
+                      <tr key={`${group.id}-${row.fieldKey}`}>
+                        <td>{row.label}</td>
+                        <td>
+                          <VariableTokenButton
+                            token={docxToken(row.fieldKey)}
+                            onCopy={(token) => void copyVariableToken(token)}
+                          />
+                        </td>
+                        <td>{wordTemplateFieldTypeLabel(row.fieldType)}</td>
+                        <td>{scopeLabel(row, sites)}</td>
+                        <td>{formVariableEntryStageLabel(normalizeFormVariableEntryStage(row.entryStage))}</td>
+                        {showProfiles ? <td>{profilesLabel(row, rondePlannedProfiles)}</td> : null}
+                        <td>
+                          {canEdit ? (
+                            <div className="row-actions table-row-actions table-row-actions--text">
+                              <button
+                                type="button"
+                                className="table-action-btn table-action-btn--text"
+                                disabled={saving}
+                                onClick={() => openEditModal(row)}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="table-action-btn table-action-btn--text"
+                                disabled={saving}
+                                onClick={() => openDuplicateModal(row)}
+                              >
+                                Dupliquer
+                              </button>
+                              <button
+                                type="button"
+                                className="table-action-btn table-action-btn--text table-action-btn--danger"
+                                disabled={saving}
+                                onClick={() => {
+                                  setDeleteReason("");
+                                  setDeleteFieldKey(row.fieldKey);
+                                }}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {!loading && !group.systemVariables.length && !customRows.length ? (
+                    <tr>
+                      <td colSpan={columnCount} className="muted">
+                        Aucune variable pour ce formulaire.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        );
+      })}
       {modalOpen ? (
         <div className="modal-overlay" onClick={requestClose}>
-          <section className="modal fransor-help-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{editKey ? "Modifier un champ personnalisé" : "Ajouter un champ personnalisé"}</h3>
+          <section className="modal fransor-help-modal variables-field-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>
+              {editKey
+                ? "Modifier un champ personnalisé"
+                : duplicateSourceKey
+                  ? "Dupliquer un champ personnalisé"
+                  : "Ajouter un champ personnalisé"}
+            </h3>
             <p className="muted">
-              Configurez le champ supplémentaire sur le(s) formulaire(s) souhaité(s).
+              {duplicateSourceKey
+                ? "Les réglages sont repris. Changez le libellé : la variable technique se met à jour et doit rester unique."
+                : "Configurez le champ supplémentaire sur le(s) formulaire(s) souhaité(s)."}
             </p>
             <div className="form">
               <div className="modal-grid-two">
@@ -469,18 +601,17 @@ export function VariablesManagementPanel({
                     ))}
                   </select>
                 </label>
-                {draftType === "select" ? (
-                  <label>
-                    Valeurs liste (séparées par virgule)
-                    <input value={draftOptions} onChange={(e) => setDraftOptions(e.target.value)} placeholder="A, B, C" />
-                  </label>
-                ) : (
-                  <label>
-                    Variable technique
-                    <input value={draftFieldKey} disabled />
-                  </label>
-                )}
+                <label>
+                  Variable technique
+                  <input value={draftFieldKey} disabled />
+                </label>
               </div>
+              {draftType === "select" ? (
+                <label>
+                  Valeurs liste (séparées par virgule)
+                  <input value={draftOptions} onChange={(e) => setDraftOptions(e.target.value)} placeholder="A, B, C" />
+                </label>
+              ) : null}
               <div className="modal-grid-two">
                 <label>
                   Portée
@@ -499,32 +630,14 @@ export function VariablesManagementPanel({
                   </select>
                 </label>
                 {draftScopeKind === "SITE" ? (
-                  <label>
-                    Site
-                    <SiteSearchInput
-                      sites={sites}
-                      selectedSite={draftScopeSite}
-                      onSelectedSiteChange={setDraftScopeSite}
-                      copyNotify={onNotify}
-                    />
-                  </label>
+                  <SiteSearchInput
+                    sites={sites}
+                    selectedSite={draftScopeSite}
+                    onSelectedSiteChange={setDraftScopeSite}
+                    copyNotify={onNotify}
+                  />
                 ) : draftScopeKind === "FAMILLE" ? (
-                  <label>
-                    Famille
-                    <input
-                      value={draftScopeFamille}
-                      onChange={(e) => setDraftScopeFamille(e.target.value.toUpperCase())}
-                      list="variables-familles-list"
-                      placeholder="Saisissez au moins 3 caractères"
-                    />
-                    <datalist id="variables-familles-list">
-                      {normalizedScopeFamille.length >= 3
-                        ? familles
-                            .filter((f) => f.includes(normalizedScopeFamille))
-                            .map((f) => <option key={f} value={f} />)
-                        : null}
-                    </datalist>
-                  </label>
+                  <FamilleSearchInput familles={familles} value={draftScopeFamille} onChange={setDraftScopeFamille} />
                 ) : (
                   <label>
                     Cible
@@ -567,19 +680,10 @@ export function VariablesManagementPanel({
                       </option>
                     ))}
                   </select>
-                  <span className="muted" style={{ display: "block", marginTop: 6, fontWeight: "normal" }}>
-                    À la demande : saisi à la création, repris en lecture seule à la clôture. À la clôture : uniquement
-                    sur le retour terrain (ou le traitement responsable en main courante).
-                  </span>
                 </label>
               ) : null}
               <label>
-                Profils ronde contractuelle (choix multiple)
-                <p className="muted" style={{ marginTop: 6, marginBottom: 8, fontWeight: "normal" }}>
-                  {draftForms.includes("RONDE_PLANIFIEE")
-                    ? "Sans profil coché, le champ s’applique à toutes les rondes contractuelles. Cochez un ou plusieurs profils pour restreindre."
-                    : "Cochez « Ronde contractuelle » ci-dessus pour activer le filtrage par profil."}
-                </p>
+                Profils ronde contractuelle
                 <div className="settings-variables-checklist">
                   {rondePlannedProfiles.map((opt) => (
                     <ToggleSwitch
@@ -598,7 +702,7 @@ export function VariablesManagementPanel({
               <button type="button" className="btn-light" onClick={requestClose}>
                 Fermer
               </button>
-              <button type="button" onClick={() => void saveDraftIntoRows()} disabled={saving}>
+              <button type="button" onClick={() => void saveDraftIntoRows()} disabled={saving || !draftCanSubmit}>
                 Enregistrer
               </button>
             </div>
@@ -617,13 +721,35 @@ export function VariablesManagementPanel({
       />
       <ConfirmModal
         isOpen={Boolean(deleteFieldKey)}
-        title="Supprimer cette variable ?"
-        message="La variable sera retirée de la base de données. Cette action est immédiate."
-        confirmLabel="Supprimer"
+        title="Motif de suppression"
+        message={
+          deleteFieldKey
+            ? `Motif obligatoire - ${rows.find((row) => row.fieldKey === deleteFieldKey)?.label || deleteFieldKey}`
+            : "Motif obligatoire"
+        }
+        confirmLabel="Confirmer suppression"
         confirmClassName="btn-danger"
-        onCancel={() => setDeleteFieldKey(null)}
+        confirmDisabled={saving || !deleteReason.trim()}
+        onCancel={() => {
+          setDeleteFieldKey(null);
+          setDeleteReason("");
+        }}
         onConfirm={() => void confirmDeleteVariable()}
-      />
+      >
+        <label className="mc-field" style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
+          <span style={{ fontSize: "0.85em", fontWeight: 600 }}>
+            Motif (obligatoire) <span className="text-error">*</span>
+          </span>
+          <textarea
+            className="mc-textarea"
+            rows={2}
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            placeholder="Ex. Motif exemple"
+            autoFocus
+          />
+        </label>
+      </ConfirmModal>
     </div>
   );
 }

@@ -30,7 +30,7 @@ import type {
 import type { MainCouranteEntry, MainCouranteSavePayload } from "./features/mainCourante/model/mainCourante.types";
 import type { InterventionEntry, InterventionSavePayload } from "./features/intervention/model/intervention.types";
 import type { PendingIntervenant, PendingSite } from "./features/common/model/pendingRefs.types";
-import type { FormVariableDef, FormVariablePayload } from "./features/settings/model/formVariables.types";
+import type { FormVariableDef, FormVariableDeletion, FormVariablePayload } from "./features/settings/model/formVariables.types";
 import type { VideoRemarkDocument } from "./features/videoRemarks/model/videoRemarkTypes";
 import type {
   GardiennageClosePayload,
@@ -412,6 +412,7 @@ declare global {
         requesterRole: Role;
         requesterUsername: string;
         variables: FormVariablePayload[];
+        deletions?: FormVariableDeletion[];
       }) => Promise<FormVariableDef[]>;
       // --- Gardiennage ---
       listGardiennages: (payload: { sessionToken: string; requesterRole: Role }) => Promise<GardiennageEntry[]>;

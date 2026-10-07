@@ -26,7 +26,7 @@ import type {
 import type { MainCouranteEntry, MainCouranteSavePayload } from "../../features/mainCourante/model/mainCourante.types";
 import type { InterventionEntry, InterventionSavePayload } from "../../features/intervention/model/intervention.types";
 import type { PendingIntervenant, PendingSite } from "../../features/common/model/pendingRefs.types";
-import type { FormVariableDef, FormVariablePayload } from "../../features/settings/model/formVariables.types";
+import type { FormVariableDef, FormVariableDeletion, FormVariablePayload } from "../../features/settings/model/formVariables.types";
 import type { VideoRemarkDocument } from "../../features/videoRemarks/model/videoRemarkTypes";
 import type { TemplateFlowKind } from "../../features/settings/model/documentTemplates.types";
 import type {
@@ -628,7 +628,12 @@ export const gtsApiClient = {
   listFormVariables(payload: { requesterRole: Role }): Promise<FormVariableDef[]> {
     return sessionCall(window.gtsApi.listFormVariables, payload);
   },
-  saveFormVariables(payload: { requesterRole: Role; requesterUsername: string; variables: FormVariablePayload[] }) {
+  saveFormVariables(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    variables: FormVariablePayload[];
+    deletions?: FormVariableDeletion[];
+  }) {
     return sessionCall(window.gtsApi.saveFormVariables, payload);
   },
   listGardiennages(payload: { requesterRole: Role }): Promise<GardiennageEntry[]> {

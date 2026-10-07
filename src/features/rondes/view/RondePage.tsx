@@ -397,7 +397,8 @@ export function RondePage({
         () =>
           exportRondeEntryToWord(entry, {
             profiles: references.plannedProfiles,
-            holidays: references.holidays
+            holidays: references.holidays,
+            sites: references.sites
           }),
         onToast,
         "Document Word enregistré."

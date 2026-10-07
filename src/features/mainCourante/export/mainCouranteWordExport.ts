@@ -22,7 +22,12 @@ import {
 } from "../../common/utils/docxTemplateHelpers";
 import { ficheWordExportFilename } from "../../common/utils/exportFilename";
 import { formatMainCouranteDate, statusLabelFr } from "./mainCouranteExportFormat";
-import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
+import {
+  formVariableDocxExtras,
+  loadCheckboxFieldKeys,
+  siteDocxFields,
+  type SiteAddressRef
+} from "../../common/utils/docxSharedTokens";
 
 const MAIN_COURANTE_TEMPLATE_FILE = "main-courante-template.docx";
 const MAIN_COURANTE_TEMPLATE_URL = "/templates/main-courante-template.docx";
@@ -34,7 +39,7 @@ type LogoData = {
   height: number;
 };
 
-async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null> {
+async function renderFromTemplate(entry: MainCouranteEntry, sites?: SiteAddressRef[] | null): Promise<Blob | null> {
   try {
     const buffer = await loadDocumentTemplateBuffer({
       templateFileName: MAIN_COURANTE_TEMPLATE_FILE,
@@ -44,7 +49,7 @@ async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null
       throw new Error("Template introuvable");
     }
     return renderDocxtemplaterBlob(buffer, {
-      ...siteDocxFields(entry.siteDisplay),
+      ...siteDocxFields(entry.siteDisplay, { siteId: entry.siteId, sites }),
       date_creation: safeDocxText(formatMainCouranteDate(entry.createdAt)),
       operateur: safeDocxText(entry.operatorName),
       responsable: safeDocxText(entry.managerName),
@@ -55,7 +60,7 @@ async function renderFromTemplate(entry: MainCouranteEntry): Promise<Blob | null
       date_cloture: safeDocxText(entry.closedAt ? formatMainCouranteDate(entry.closedAt) : "—"),
       information_operateur: safeDocxText(entry.information),
       observation_responsable: safeDocxText(entry.managerObservation || "—"),
-      ...formVariableDocxExtras(entry.exportExtraValues)
+      ...formVariableDocxExtras(entry.exportExtraValues, await loadCheckboxFieldKeys())
     });
   } catch {
     if (!templateMissingWarningShown) {
@@ -111,7 +116,8 @@ function multilineSection(title: string, body: string): Paragraph[] {
   ];
 }
 
-async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
+async function buildEntryDocument(entry: MainCouranteEntry, sites?: SiteAddressRef[] | null): Promise<Document> {
+  const address = siteDocxFields(entry.siteDisplay, { siteId: entry.siteId, sites }).adresse_site;
   const logoData = await loadLogoJpegData();
   const children: Paragraph[] = [
     ...(logoData
@@ -138,6 +144,7 @@ async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
     fieldParagraph("Opérateur", entry.operatorName),
     fieldParagraph("Responsable", entry.managerName || "—"),
     fieldParagraph("Site", entry.siteDisplay || "—"),
+    fieldParagraph("Adresse site", address),
     fieldParagraph("Type d'anomalie", entry.anomalyTypeLabel),
     fieldParagraph("État", statusLabelFr(entry.status)),
     fieldParagraph("Prise en compte", entry.priseEnCompteAt ? formatMainCouranteDate(entry.priseEnCompteAt) : "—"),
@@ -166,11 +173,15 @@ async function buildEntryDocument(entry: MainCouranteEntry): Promise<Document> {
  * Génère un fichier .docx pour une entrée et ouvre le dialogue d’enregistrement.
  *
  * @param entry - Ligne de main courante.
+ * @param options - Référentiel sites, pour le jeton `{adresse_site}`.
  * @returns Chemin enregistré, ou annulation utilisateur.
  */
-export async function exportMainCouranteEntryToWord(entry: MainCouranteEntry): Promise<SaveExportFileResult> {
-  const templateBlob = await renderFromTemplate(entry);
-  const blob = templateBlob ?? (await Packer.toBlob(await buildEntryDocument(entry)));
+export async function exportMainCouranteEntryToWord(
+  entry: MainCouranteEntry,
+  options?: { sites?: SiteAddressRef[] | null }
+): Promise<SaveExportFileResult> {
+  const templateBlob = await renderFromTemplate(entry, options?.sites);
+  const blob = templateBlob ?? (await Packer.toBlob(await buildEntryDocument(entry, options?.sites)));
   const name = ficheWordExportFilename("main-courante", entry.dailyCode, entry.siteDisplay);
   return saveExportBlob(blob, name);
 }

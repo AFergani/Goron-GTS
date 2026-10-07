@@ -12,6 +12,7 @@ import {
   helpIdFromFlowKind,
   resolveDocumentTemplateHelpBlock
 } from "./documentTemplateHelpContent";
+import { FamilleSearchInput } from "../../common/components/FamilleSearchInput";
 import { SiteSearchInput } from "../../common/components/SiteSearchInput";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { DiscardConfirmModal } from "../../common/components/DiscardConfirmModal";
@@ -118,7 +119,7 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
   const uniqueFamilles = Array.from(
     new Set(
       sites
-        .map((s) => String(s.famille || "").trim())
+        .map((s) => String(s.famille || "").trim().toUpperCase())
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }))
     )
@@ -524,15 +525,9 @@ export function TemplatesManagementPanel({ requesterRole, requesterUsername, sit
                   />
                 </div>
               ) : (
-                <label>
-                  Famille
-                  <input list="familles-list" value={assignFamille} onChange={(e) => setAssignFamille(e.target.value)} placeholder="Ex. Famille exemple" />
-                  <datalist id="familles-list">
-                    {uniqueFamilles.map((f) => (
-                      <option key={f} value={f} />
-                    ))}
-                  </datalist>
-                </label>
+                <div className="templates-assign-modal__site-search">
+                  <FamilleSearchInput familles={uniqueFamilles} value={assignFamille} onChange={setAssignFamille} />
+                </div>
               )}
             </div>
             <div className="row-actions modal-actions">

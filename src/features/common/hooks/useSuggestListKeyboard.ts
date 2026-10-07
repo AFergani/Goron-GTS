@@ -6,7 +6,7 @@
  * La surbrillance revient au premier résultat quand le texte saisi change,
  * et l'élément actif est ramené dans la zone visible.
  *
- * Utilisé par : SiteSearchInput, IntervenantSearchInput.
+ * Utilisé par : SiteSearchInput, IntervenantSearchInput, FamilleSearchInput.
  */
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";

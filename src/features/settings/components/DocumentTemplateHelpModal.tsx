@@ -50,7 +50,10 @@ export function DocumentTemplateHelpModal({
           if (!key) continue;
           customRows.push({
             token: `{${key}}`,
-            description: `Variable custom: ${row.label || key}`
+            description:
+              row.fieldType === "checkbox"
+                ? `${row.label || key} — X si la case est cochée, vide sinon.`
+                : `Variable custom: ${row.label || key}`
           });
         }
         setTemplateCustomRows(customRows);

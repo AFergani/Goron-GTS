@@ -15,14 +15,19 @@ import {
 } from "../../common/utils/docxTemplateHelpers";
 import { formatDateShortFr } from "../../common/utils/formatDateShortFr";
 import { formatInterventionDateTime, formatInterventionWorkOrderNumber } from "./interventionExportFormat";
-import { formVariableDocxExtras, siteDocxFields } from "../../common/utils/docxSharedTokens";
+import {
+  formVariableDocxExtras,
+  loadCheckboxFieldKeys,
+  siteDocxFields,
+  type SiteAddressRef
+} from "../../common/utils/docxSharedTokens";
 import { ficheWordExportFilename } from "../../common/utils/exportFilename";
 
 const INTERVENTION_TEMPLATE_NAME = "intervention-template.docx";
 const INTERVENTION_TEMPLATE_URL = "/templates/intervention-template.docx";
 let templateMissingWarningShown = false;
 
-async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null> {
+async function renderFromTemplate(entry: InterventionEntry, sites?: SiteAddressRef[] | null): Promise<Blob | null> {
   try {
     const resolved = await gtsApiClient.resolveTemplateFileForContext({
       requesterRole: "OPERATEUR",
@@ -35,10 +40,10 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
       webFallbackUrl: INTERVENTION_TEMPLATE_URL
     });
     if (!buffer) throw new Error("Template introuvable");
-    const extras = formVariableDocxExtras(entry.exportExtraValues);
+    const extras = formVariableDocxExtras(entry.exportExtraValues, await loadCheckboxFieldKeys());
     const delayLabel = entry.delayMinutes == null ? "—" : `${entry.delayMinutes} Minutes`;
     return renderDocxtemplaterBlob(buffer, {
-      ...siteDocxFields(entry.siteDisplay),
+      ...siteDocxFields(entry.siteDisplay, { siteId: entry.siteId, sites }),
       date_demande: safeDocxText(formatDateShortFr(entry.requestDate) || "—"),
       heure_demande: safeDocxText(entry.requestTime),
       motif: safeDocxText(entry.requestReason),
@@ -66,7 +71,8 @@ async function renderFromTemplate(entry: InterventionEntry): Promise<Blob | null
   }
 }
 
-async function buildFallbackDocument(entry: InterventionEntry): Promise<Document> {
+async function buildFallbackDocument(entry: InterventionEntry, sites?: SiteAddressRef[] | null): Promise<Document> {
+  const address = siteDocxFields(entry.siteDisplay, { siteId: entry.siteId, sites }).adresse_site;
   return new Document({
     creator: "Goron GTS",
     title: "Intervention — Fiche",
@@ -84,6 +90,7 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Date de l'intervention : ${safeDocxText(formatDateShortFr(entry.requestDate) || entry.requestDate)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Heure de l'appel : ${safeDocxText(entry.requestTime)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Site : ${safeDocxText(entry.siteDisplay)}`)] }),
+          new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Adresse site : ${address}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Motif de l'intervention : ${safeDocxText(entry.requestReason)}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Arrivée : ${safeDocxText(entry.arrivalTime ? formatInterventionDateTime(entry.arrivalDate || entry.requestDate, entry.arrivalTime) : "")}`)] }),
           new Paragraph({ spacing: { after: 110 }, children: [new TextRun(`Départ : ${safeDocxText(entry.departureTime ? formatInterventionDateTime(entry.departureDate || entry.arrivalDate || entry.requestDate, entry.departureTime) : "")}`)] }),
@@ -101,11 +108,15 @@ async function buildFallbackDocument(entry: InterventionEntry): Promise<Document
  * Enregistre la fiche Word pour une intervention.
  *
  * @param entry - Fiche intervention.
+ * @param options - Référentiel sites, pour le jeton `{adresse_site}`.
  * @returns Chemin enregistré, ou annulation utilisateur.
  */
-export async function exportInterventionEntryToWord(entry: InterventionEntry): Promise<SaveExportFileResult> {
-  const templateBlob = await renderFromTemplate(entry);
-  const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry)));
+export async function exportInterventionEntryToWord(
+  entry: InterventionEntry,
+  options?: { sites?: SiteAddressRef[] | null }
+): Promise<SaveExportFileResult> {
+  const templateBlob = await renderFromTemplate(entry, options?.sites);
+  const blob = templateBlob ?? (await Packer.toBlob(await buildFallbackDocument(entry, options?.sites)));
   const name = ficheWordExportFilename("Intervention", entry.dailyCode, entry.siteDisplay);
   return saveExportBlob(blob, name);
 }
