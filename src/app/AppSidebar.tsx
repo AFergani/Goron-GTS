@@ -188,6 +188,11 @@ export function AppSidebar({
               <span className="nav-btn-label">Remarques vidéo</span>
             </button>
           )}
+          {userPageAccess.pvVideo && (
+            <button type="button" className={navClass("pvVideo")} onClick={() => onNavigate("pvVideo")}>
+              <span className="nav-btn-label">PV Vidéo</span>
+            </button>
+          )}
         </nav>
       </div>
       <div className="sidebar-bottom">

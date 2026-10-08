@@ -3,7 +3,7 @@
  * Cherche les modèles personnalisés sous `{userData}/templates`, puis les modèles embarqués.
  *
  * Instancié dans `main.js` ; exposé au renderer via `ipcSystemHandlers.js` et `gtsApiClient`
- * (Paramètres → modèles ; exports main courante, intervention, rondes).
+ * (Paramètres → modèles ; exports main courante, intervention, rondes, PV vidéo).
  *
  * @module electron/main/documentTemplates
  */
@@ -49,7 +49,9 @@ function createDocumentTemplatesService(deps) {
   const BUILTIN_TEMPLATE_FILE_NAMES = new Set([
     "main-courante-template.docx",
     "intervention-template.docx",
-    "ronde-template.docx"
+    "ronde-template.docx",
+    "PV-Video-template.docx",
+    "pv-video-template.docx"
   ]);
 
   /**
@@ -158,6 +160,7 @@ function createDocumentTemplatesService(deps) {
     if (name === "intervention-template.docx" || name.startsWith("intervention_")) return "intervention";
     if (name === "main-courante-template.docx") return "main-courante";
     if (name === "ronde-template.docx") return "ronde";
+    if (name === "pv-video-template.docx") return "pv-video";
     if (name.startsWith("ronde_planifiee_")) return "ronde-planifiee";
     if (name.startsWith("ronde_exceptionnelle_")) return "ronde-exceptionnelle";
     return "custom-docx";
@@ -175,7 +178,8 @@ function createDocumentTemplatesService(deps) {
       ronde: "Ronde",
       "ronde-planifiee": "Ronde contractuelle",
       "ronde-exceptionnelle": "Ronde exceptionnelle",
-      "main-courante": "Main courante"
+      "main-courante": "Main courante",
+      "pv-video": "PV Vidéo"
     };
     const label = labels[helpId];
     if (label) return `Modèle personnalisé — ${label}`;
@@ -289,7 +293,8 @@ function createDocumentTemplatesService(deps) {
     const builtins = [
       { kind: "builtin", templateKey: "main-courante", title: "Main courante — export Word", fileName: "main-courante-template.docx", helpId: "main-courante" },
       { kind: "builtin", templateKey: "intervention", title: "Intervention — export Word", fileName: "intervention-template.docx", helpId: "intervention" },
-      { kind: "builtin", templateKey: "ronde", title: "Ronde contractuelle — modèle par défaut (.docx)", fileName: "ronde-template.docx", helpId: "ronde" }
+      { kind: "builtin", templateKey: "ronde", title: "Ronde contractuelle — modèle par défaut (.docx)", fileName: "ronde-template.docx", helpId: "ronde" },
+      { kind: "builtin", templateKey: "pv-video", title: "PV Vidéo — modèle par défaut", fileName: "PV-Video-template.docx", helpId: "pv-video" }
     ];
     let writableDir = null;
     try {

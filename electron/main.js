@@ -239,8 +239,8 @@ function createWindow() {
   return windowService.createWindow();
 }
 
-/** Taille maximale d'un payload IPC sérialisé (512 Ko). */
-const IPC_MAX_PAYLOAD_BYTES = 512 * 1024;
+/** Taille maximale d'un payload IPC sérialisé (4 Mo : fiche PV avec plusieurs photos). */
+const IPC_MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 function checkIpcPayloadSize(payload) {
   if (payload === null || payload === undefined) return;

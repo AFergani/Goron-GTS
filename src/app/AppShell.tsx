@@ -30,6 +30,7 @@ import { InterventionPage } from "../features/intervention/view/InterventionPage
 import { RondePage } from "../features/rondes/view/RondePage";
 import { GardiennagePage } from "../features/gardiennage/view/GardiennagePage";
 import { VideoRemarksPage } from "../features/videoRemarks/view/VideoRemarksPage";
+import { PvVideoPage } from "../features/pvVideo/view/PvVideoPage";
 import { ConfirmModal } from "../features/common/components/ConfirmModal";
 import { PgOfflineBlockingModal } from "../features/common/components/PgOfflineBlockingModal";
 import { ToastStack } from "../features/common/components/Toast";
@@ -52,6 +53,8 @@ import "../styles/app.css";
 import "../styles/fransor.css";
 import "../styles/helpfransor.css";
 import "../styles/videoRemarks.css";
+import "../styles/pvVideo.css";
+import "../styles/sitePageToolbar.css";
 
 type ThemeMode = "dark" | "light";
 
@@ -561,6 +564,15 @@ export function AppShell() {
           <VideoRemarksPage
             requesterRole={session.user.role}
             requesterUsername={session.user.username}
+            onToast={notifyToast}
+          />
+        )}
+        {activePage === "pvVideo" && userPageAccess.pvVideo && (
+          <PvVideoPage
+            operatorName={session.user.fullName}
+            requesterRole={session.user.role}
+            requesterUsername={session.user.username}
+            canSetArchiveFolder={session.user.role !== "OPERATEUR"}
             onToast={notifyToast}
           />
         )}

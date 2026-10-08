@@ -1,8 +1,8 @@
 /**
  * Mémorise et rouvre les derniers exports Word/Excel de ce poste.
  *
- * Word : le bouton d’ouverture reste disponible tant qu’un fichier est mémorisé (une fiche = un rapport).
- * Excel : le bouton n’est actif que 20 s après l’export (plusieurs exports de liste possibles).
+ * Word de fiche : le bouton d’ouverture reste disponible tant qu’un fichier est mémorisé.
+ * Excel et rapports « quick: » : le bouton n’est actif que 20 s après l’export.
  *
  * Utilisé par les pages métier et le journal d’audit.
  */
@@ -13,8 +13,17 @@ import type { NotifyToast } from "../model/toast.types";
 import type { SaveExportFileResult } from "../utils/saveExportBlob";
 import { readStoredExportPaths, writeStoredExportPaths } from "../utils/workstationExportPaths";
 
-/** Durée pendant laquelle « Ouvrir l'Excel » reste actif après un export de liste. */
+/** Durée pendant laquelle « Ouvrir » reste actif après un export de liste ou un PV vidéo. */
 export const EXCEL_OPEN_WINDOW_MS = 20000;
+
+/**
+ * Vrai pour les exports dont l’ouverture ne dure que {@link EXCEL_OPEN_WINDOW_MS}.
+ *
+ * @param key - Clé `excel:` (listes) ou `quick:` (PV vidéo).
+ */
+function opensTemporarily(key: string): boolean {
+  return key.startsWith("excel:") || key.startsWith("quick:");
+}
 
 /**
  * Hook de chemins d’export locaux (localStorage) + ouverture système.
@@ -70,7 +79,7 @@ export function useWorkstationExports(): {
   );
 
   const armExcelOpenWindow = useCallback((key: string) => {
-    if (!key.startsWith("excel:")) return;
+    if (!opensTemporarily(key)) return;
     const until = Date.now() + EXCEL_OPEN_WINDOW_MS;
     const previousTimer = excelOpenTimersRef.current[key];
     if (previousTimer) window.clearTimeout(previousTimer);

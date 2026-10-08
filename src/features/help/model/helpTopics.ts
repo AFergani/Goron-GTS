@@ -15,6 +15,7 @@ export type HelpTopicId =
   | "main-courante"
   | "fransor"
   | "video-remarks"
+  | "pv-video"
   | "settings-operators"
   | "settings-data"
   | "settings-templates"
@@ -30,6 +31,7 @@ export type HelpPageAccess = {
   mainCourante: boolean;
   fransor: boolean;
   videoRemarks: boolean;
+  pvVideo: boolean;
   settings: boolean;
 };
 
@@ -64,6 +66,7 @@ export const HELP_NAV_CATALOG: HelpNavItem[] = [
   { id: "main-courante", label: "Main courante", emoji: "📒" },
   { id: "fransor", label: "Fransor", emoji: "📅" },
   { id: "video-remarks", label: "Remarques vidéo", emoji: "🎬" },
+  { id: "pv-video", label: "PV Vidéo", emoji: "📷" },
   { id: "settings-operators", label: "Gestion opérateur", emoji: "👤" },
   { id: "settings-data", label: "Gestion des données", emoji: "🗂️" },
   { id: "settings-templates", label: "Modèles et variables", emoji: "📄" },
@@ -135,6 +138,8 @@ function isHelpNavItemVisible(id: HelpTopicId, ctx: HelpAccessContext): boolean 
       return Boolean(ctx.pageAccess.fransor);
     case "video-remarks":
       return Boolean(ctx.pageAccess.videoRemarks);
+    case "pv-video":
+      return Boolean(ctx.pageAccess.pvVideo);
     case "settings-operators":
       return Boolean(ctx.pageAccess.settings && (ctx.canManageUsers || ctx.canAccessOperatorsTab));
     case "settings-data":

@@ -39,6 +39,7 @@ export type CreateUserFormState = {
     settings: boolean;
     gardiennage: boolean;
     videoRemarks: boolean;
+    pvVideo: boolean;
   };
 };
 
@@ -46,7 +47,7 @@ export type CreateUserFormState = {
  * Accès pages par défaut selon le rôle (aligné sur `userMapping.normalizePageAccess`).
  * Les vues métier sont toujours ouvertes.
  * Paramètres : oui pour tout non-opérateur (responsable), non pour un opérateur.
- * Remarques vidéo : oui pour un responsable ; pour un opérateur, seulement via Opérateur +.
+ * Remarques vidéo et PV Vidéo : oui pour un responsable ; pour un opérateur, seulement via Opérateur +.
  *
  * @param role - Rôle technique du compte à créer / basculer
  */
@@ -58,7 +59,8 @@ export function getDefaultPageAccessByRole(role: Exclude<Role, "DEV">): CreateUs
     rondes: true,
     gardiennage: true,
     settings: role !== "OPERATEUR",
-    videoRemarks: role !== "OPERATEUR"
+    videoRemarks: role !== "OPERATEUR",
+    pvVideo: role !== "OPERATEUR"
   };
 }
 

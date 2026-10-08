@@ -27,6 +27,7 @@ const interventionDomain = require("./store/domains/intervention");
 const rondeDomain = require("./store/domains/ronde");
 const rondePlannedProfilesDomain = require("./store/domains/ronde/plannedProfiles");
 const videoRemarksDomain = require("./store/domains/videoRemarks/snapshots");
+const pvVideoDomain = require("./store/domains/pvVideo/reports");
 
 /**
  * Façade publique : noyau PG + délégations domaines.
@@ -650,6 +651,31 @@ class UserStore extends UserStoreCore {
   async saveVideoRemarkSnapshot(payload) {
     await this.whenPostgresReady();
     return videoRemarksDomain.saveVideoRemarkSnapshot(this, payload);
+  }
+
+  getPvVideoReport(payload) {
+    return pvVideoDomain.getPvVideoReport(this, payload);
+  }
+
+  async savePvVideoReport(payload) {
+    await this.whenPostgresReady();
+    return pvVideoDomain.savePvVideoReport(this, payload);
+  }
+
+  async setPvVideoArchiveFolder(payload) {
+    await this.whenPostgresReady();
+    return pvVideoDomain.setPvVideoArchiveFolder(this, payload);
+  }
+
+  /**
+   * Copie le Word exporté dans le dossier des photos du site.
+   *
+   * @param {object} payload
+   * @returns {Promise<{ backedUp: boolean, reason: string }>}
+   */
+  async archivePvVideoExport(payload) {
+    await this.whenPostgresReady();
+    return pvVideoDomain.archivePvVideoExport(this, payload);
   }
 }
 

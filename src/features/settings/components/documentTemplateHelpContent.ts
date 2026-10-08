@@ -109,6 +109,37 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
     footerNote:
       "Chaque champ de clôture du profil est aussi disponible sous sa clé : {ma_clef}."
   },
+  "pv-video": {
+    title: "PV Vidéo — modèle par défaut (PV-Video-template.docx)",
+    intro:
+      "Syntaxe {nom_du_jeton}. Fichier : PV-Video-template.docx. Une copie dans data/templates remplace le modèle embarqué. La ligne des caméras se répète entre {#cameras} et {/cameras}. Les photos utilisent {%photo_camera} et {%capture_globale}.",
+    variables: [
+      { token: "{site}", description: "Libellé site affiché sur la fiche (nom et code)." },
+      { token: "{site_code}", description: "Code du site." },
+      { token: "{site_name}", description: "Nom du site, sans le code." },
+      { token: "{adresse_site}", description: "Adresse du site, telle qu’enregistrée dans le référentiel." },
+      { token: "{date_raccordement}", description: "Date de raccordement (JJ/MM/AAAA)." },
+      { token: "{responsable_tls}", description: "Nom du responsable TLS." },
+      { token: "{technicien}", description: "Nom et téléphone du technicien." },
+      { token: "{code_transmetteur}", description: "Code transmetteur." },
+      { token: "{methode_connexion}", description: "Méthode de connexion aux vidéos." },
+      { token: "{enregistreur}", description: "Marque et modèle de l’enregistreur." },
+      { token: "{adresse_ip}", description: "Adresse IP de l’enregistreur." },
+      { token: "{port}", description: "Port de l’enregistreur." },
+      { token: "{login}", description: "Identifiant de connexion, en clair dans le document." },
+      { token: "{mot_de_passe}", description: "Mot de passe de connexion, en clair dans le document." },
+      { token: "{#cameras}", description: "Début de la ligne qui se répète pour chaque caméra. À placer dans la première cellule." },
+      { token: "{numero_camera}", description: "Numéro de la caméra, selon l'ordre de la ligne (1, 2, 3…)." },
+      { token: "{intitule_camera}", description: "Intitulé de la caméra." },
+      {
+        token: "{information_camera}",
+        description: "Texte de la case Information. Vide si seule la photo est présente. « — » s'il n'y a ni texte ni photo."
+      },
+      { token: "{%photo_camera}", description: "Photo de la caméra, absente du document s'il n'y en a pas." },
+      { token: "{/cameras}", description: "Fin de la ligne caméra. À placer dans la dernière cellule, après la photo." },
+      { token: "{%capture_globale}", description: "Photo d’ensemble du site, sous le tableau des caméras." }
+    ]
+  },
   "custom-docx": {
     title: "Modèle personnalisé (.docx)",
     intro:
@@ -214,7 +245,24 @@ export function systemDocxVariableTypeLabel(token: string, formTarget: FormTarge
     "{statut}": "Texte court",
     "{prise_en_compte}": "Date et heure",
     "{information_operateur}": "Texte long",
-    "{observation_responsable}": "Texte long"
+    "{observation_responsable}": "Texte long",
+    "{date_raccordement}": "Date",
+    "{responsable_tls}": "Texte court",
+    "{technicien}": "Texte court",
+    "{code_transmetteur}": "Texte court",
+    "{methode_connexion}": "Texte court",
+    "{enregistreur}": "Texte court",
+    "{adresse_ip}": "Texte court",
+    "{port}": "Texte court",
+    "{login}": "Texte court",
+    "{mot_de_passe}": "Texte court",
+    "{#cameras}": "Liste",
+    "{numero_camera}": "Texte court",
+    "{intitule_camera}": "Texte court",
+    "{information_camera}": "Texte long",
+    "{%photo_camera}": "Image",
+    "{/cameras}": "Liste",
+    "{%capture_globale}": "Image"
   };
   return labels[token] || "Texte court";
 }
@@ -279,6 +327,14 @@ export const DOCX_VARIABLE_GROUPS: DocxVariableGroup[] = [
     collapsedByDefault: false,
     formTarget: "MAIN_COURANTE",
     systemVariables: variablesExcept(DOCUMENT_TEMPLATE_HELP["main-courante"].variables, SHARED_DOCX_HELP_CORE)
+  },
+  {
+    id: "pv-video",
+    title: "PV Vidéo",
+    hint: "En plus des variables communes. Les photos sont {%photo_camera} et {%capture_globale}.",
+    collapsedByDefault: true,
+    formTarget: null,
+    systemVariables: variablesExcept(DOCUMENT_TEMPLATE_HELP["pv-video"].variables, SHARED_DOCX_HELP_CORE)
   },
   {
     id: "gardiennage",

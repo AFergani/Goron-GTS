@@ -93,10 +93,21 @@ function frenchReportDocxData(data: Record<string, unknown>): Record<string, unk
   return next;
 }
 
-/** Rend un Buffer modèle Docxtemplater en Blob .docx. */
-export function renderDocxtemplaterBlob(buffer: ArrayBuffer, data: Record<string, unknown>): Blob {
+/**
+ * Rend un Buffer modèle Docxtemplater en Blob .docx.
+ *
+ * @param buffer - Contenu du .docx modèle.
+ * @param data - Valeurs des jetons `{nom}`.
+ * @param modules - Modules Docxtemplater (images, etc.), une instance neuve par rendu.
+ */
+export function renderDocxtemplaterBlob(
+  buffer: ArrayBuffer,
+  data: Record<string, unknown>,
+  modules: object[] = []
+): Blob {
   const zip = new PizZip(buffer);
   const doc = new Docxtemplater(zip, {
+    modules,
     paragraphLoop: true,
     linebreaks: true,
     nullGetter() {

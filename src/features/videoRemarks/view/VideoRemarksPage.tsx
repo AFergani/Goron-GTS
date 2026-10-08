@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, RotateCcw, Save, Upload } from "lucide-react";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { FormModal } from "../../common/components/FormModal";
-import { SiteSearchInput } from "../../common/components/SiteSearchInput";
+import { SitePageToolbar, ToolbarTextButton } from "../../common/components/SitePageToolbar";
 import { ToggleSwitch } from "../../common/components/ToggleSwitch";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { gtsApiClient } from "../../../infrastructure/api/gtsApiClient";
@@ -187,24 +187,19 @@ export function VideoRemarksPage({ onToast, requesterRole, requesterUsername }: 
 
   return (
     <div className="video-remarks">
-      <div className="vr-toolbar">
-        <SiteSearchInput
-          sites={sites}
-          selectedSite={selectedSite}
-          onSelectedSiteChange={applySelectedSite}
-          labelText="Site"
-          copyNotify={(message) => onToast(message)}
-        />
-        <button
-          type="button"
-          className="vr-add"
+      <SitePageToolbar
+        sites={sites}
+        selectedSite={selectedSite}
+        onSelectedSiteChange={applySelectedSite}
+        onCopyNotify={(message) => onToast(message)}
+      >
+        <ToolbarTextButton
+          icon={<Save size={16} />}
+          label="Sauvegarder"
           title="Enregistrer la remarque pour le site choisi"
-          aria-label="Sauvegarder"
           disabled={saving}
           onClick={saveSnapshot}
-        >
-          <Save size={16} /> Sauvegarder
-        </button>
+        />
         <button
           type="button"
           className="icon-btn"
@@ -219,11 +214,10 @@ export function VideoRemarksPage({ onToast, requesterRole, requesterUsername }: 
           onChangeStyle={(targetId, next) => commit(applyStyle(doc, targetId, next))}
           onReset={() => setPending("reset-styles")}
         />
-        <button
-          type="button"
-          className="vr-add"
+        <ToolbarTextButton
+          icon={<Upload size={16} />}
+          label="Exporter"
           title="Exporter"
-          aria-label="Exporter"
           onClick={() => {
             const payload = {
               exportVersion: 2,
@@ -242,18 +236,13 @@ export function VideoRemarksPage({ onToast, requesterRole, requesterUsername }: 
             URL.revokeObjectURL(url);
             onToast("Informations exportées.");
           }}
-        >
-          <Upload size={16} /> Exporter
-        </button>
-        <button
-          type="button"
-          className="vr-add"
-          title="Charger"
-          aria-label="Charger un fichier"
+        />
+        <ToolbarTextButton
+          icon={<Download size={16} />}
+          label="Charger"
+          title="Charger un fichier"
           onClick={() => importRef.current?.click()}
-        >
-          <Download size={16} /> Charger
-        </button>
+        />
         <input
           ref={importRef}
           type="file"
@@ -277,7 +266,7 @@ export function VideoRemarksPage({ onToast, requesterRole, requesterUsername }: 
             reader.readAsText(file);
           }}
         />
-      </div>
+      </SitePageToolbar>
 
       <div className="vr-layout">
         <div className="vr-editor">

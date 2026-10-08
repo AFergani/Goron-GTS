@@ -297,7 +297,8 @@ function run(command, label) {
 const REQUIRED_WORD_TEMPLATES = [
   "main-courante-template.docx",
   "intervention-template.docx",
-  "ronde-template.docx"
+  "ronde-template.docx",
+  "PV-Video-template.docx"
 ];
 
 /**
@@ -443,6 +444,7 @@ function preparePortableReleaseBundle(version, sourceExePath, releaseRootDir) {
       "                             main-courante-template.docx",
       "                             intervention-template.docx",
       "                             ronde-template.docx",
+      "                             PV-Video-template.docx",
       "    logs/                    (réservé)",
       "",
       "=== Premier lancement (chaque poste) ===",

@@ -106,7 +106,11 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["gardiennage:close", "closeGardiennage"],
   ["gardiennage:reopen", "reopenGardiennage"],
   ["videoRemarks:get", "getVideoRemarkSnapshot"],
-  ["videoRemarks:save", "saveVideoRemarkSnapshot"]
+  ["videoRemarks:save", "saveVideoRemarkSnapshot"],
+  ["pvVideo:get", "getPvVideoReport"],
+  ["pvVideo:save", "savePvVideoReport"],
+  ["pvVideo:setArchiveFolder", "setPvVideoArchiveFolder"],
+  ["pvVideo:archiveExport", "archivePvVideoExport"]
 ];
 
 /**

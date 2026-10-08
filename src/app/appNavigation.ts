@@ -17,6 +17,7 @@ export const SIDEBAR_PAGE_ORDER: AppPage[] = [
   "mainCourante",
   "fransor",
   "videoRemarks",
+  "pvVideo",
   "settings"
 ];
 
@@ -28,6 +29,7 @@ export const APP_PAGE_TITLES: Record<AppPage, string> = {
   mainCourante: "Main courante",
   fransor: "Accompagnement Fransor",
   videoRemarks: "Remarques vidéo",
+  pvVideo: "PV Vidéo",
   settings: "Paramètres"
 };
 
@@ -39,7 +41,8 @@ export const DEV_FULL_PAGE_ACCESS: PageAccess = {
   rondes: true,
   settings: true,
   gardiennage: true,
-  videoRemarks: true
+  videoRemarks: true,
+  pvVideo: true
 };
 
 /**
@@ -56,7 +59,7 @@ export function getFirstSidebarPageAccess(pageAccess: PageAccess): AppPage {
 }
 
 /**
- * Page Remarques vidéo : Admin, les trois profils responsable, ou Opérateur +.
+ * Page Remarques vidéo et page PV Vidéo : Admin, les trois profils responsable, ou Opérateur +.
  *
  * @param role - Rôle du compte.
  * @param managerProfile - Profil métier (`OPERATEUR_PLUS` pour un opérateur étendu).
@@ -72,7 +75,7 @@ export function canAccessVideoRemarks(
 /**
  * Droits de navigation effectifs : vues métier toujours ouvertes ;
  * Paramètres pour tout compte non-opérateur (responsables). DEV = tout.
- * Remarques vidéo selon le rôle et le profil (pas une case d'accès page).
+ * Remarques vidéo et PV Vidéo selon le rôle et le profil (pas une case d'accès page).
  *
  * @param role - Rôle du compte, ou absent hors session.
  * @param pageAccess - Conservé pour signature ; les droits sont dérivés du rôle et du profil.
@@ -92,6 +95,7 @@ export function resolveUserPageAccess(
     rondes: true,
     gardiennage: true,
     settings: role !== "OPERATEUR" && Boolean(role),
-    videoRemarks: canAccessVideoRemarks(role, managerProfile)
+    videoRemarks: canAccessVideoRemarks(role, managerProfile),
+    pvVideo: canAccessVideoRemarks(role, managerProfile)
   };
 }

@@ -655,3 +655,35 @@ CREATE TABLE IF NOT EXISTS video_remark_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_video_remark_snapshots_site ON video_remark_snapshots (site_id);
 
+-- PV vidéo : une fiche de raccordement par site. Login et mot de passe chiffrés (pas en clair).
+CREATE TABLE IF NOT EXISTS pv_video_reports (
+  id TEXT PRIMARY KEY,
+  site_id TEXT NOT NULL UNIQUE,
+  connection_date TEXT NOT NULL DEFAULT '',
+  tls_responsible_name TEXT NOT NULL DEFAULT '',
+  technician_contact TEXT NOT NULL DEFAULT '',
+  transmitter_code TEXT NOT NULL DEFAULT '',
+  connection_method TEXT NOT NULL DEFAULT '',
+  recorder_model TEXT NOT NULL DEFAULT '',
+  recorder_ip TEXT NOT NULL DEFAULT '',
+  recorder_port TEXT NOT NULL DEFAULT '',
+  login_cipher TEXT NOT NULL DEFAULT '',
+  password_cipher TEXT NOT NULL DEFAULT '',
+  cameras_json TEXT NOT NULL DEFAULT '[]',
+  image_relpath TEXT NOT NULL DEFAULT '',
+  image_mime TEXT NOT NULL DEFAULT '',
+  image_original_name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pv_video_reports_site ON pv_video_reports (site_id);
+
+-- Dossier partagé des photos de PV (chemin UNC ou local du serveur), une seule ligne.
+CREATE TABLE IF NOT EXISTS pv_video_archive (
+  id TEXT PRIMARY KEY,
+  folder_path TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+

@@ -15,7 +15,7 @@ export type ManagerProfile = "SUPERVISEUR" | "RESPONSABLE_STATION" | "DIRECTEUR_
 
 /**
  * Droit supplémentaire d'un opérateur, sans changement de rang.
- * Première attribution : page Remarques vidéo.
+ * Première attribution : pages Remarques vidéo et PV Vidéo.
  */
 export type OperatorProfile = "OPERATEUR_PLUS";
 
@@ -32,6 +32,8 @@ export type PageAccess = {
   gardiennage: boolean;
   /** Admin, les trois profils responsable, et Opérateur +. */
   videoRemarks: boolean;
+  /** Même public que Remarques vidéo. */
+  pvVideo: boolean;
 };
 
 /** Compte utilisateur exposé à l'UI après authentification ou gestion des comptes. */

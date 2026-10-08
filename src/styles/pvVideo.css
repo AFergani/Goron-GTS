@@ -1,0 +1,214 @@
+/**
+ * Page PV Vidéo. Couleurs du thème applicatif (clair et sombre).
+ */
+
+.content:has(.pv-video) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pv-video {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 16px;
+}
+
+.pv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.pv-form .mc-field > input:not([type="date"]),
+.pv-form .mc-field > input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.pv-hint,
+.pv-empty {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.pv-cameras-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pv-cameras-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.pv-cameras-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-cameras-head .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pv-cameras-head .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pv-camera-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pv-camera-table th,
+.pv-camera-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.pv-camera-table input,
+.pv-camera-table textarea {
+  text-transform: uppercase;
+}
+
+.pv-camera-table input[type="text"] {
+  width: 100%;
+}
+
+.pv-camera-check {
+  width: 36px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.pv-camera-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.pv-camera-check input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pv-camera-number {
+  width: 4.5rem;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.pv-camera-table th:nth-child(4),
+.pv-camera-table td.pv-camera-info-cell {
+  width: 56%;
+}
+
+.pv-camera-info-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-camera-info-line .toolbar-text-btn,
+.pv-camera-info-line .icon-btn {
+  flex: 0 0 auto;
+}
+
+.pv-camera-info-line .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pv-camera-info textarea {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 4.5rem;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.pv-camera-info img {
+  width: 120px;
+  height: 4.5rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.pv-image-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 180px;
+}
+
+.pv-image-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pv-image-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pv-image-cell {
+  flex: 1 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 160px;
+  border: 1px dashed var(--border-hi);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--card);
+  color: var(--text);
+}
+
+.pv-image-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
+.pv-image-cell img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.pv-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

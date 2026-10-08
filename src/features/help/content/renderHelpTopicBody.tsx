@@ -18,6 +18,7 @@ import { HelpSettingsDatabaseTopic } from "./HelpSettingsDatabaseTopic";
 import { HelpSettingsConnectionTopic } from "./HelpSettingsConnectionTopic";
 import { HelpSettingsTemplatesTopic } from "./HelpSettingsTemplatesTopic";
 import { HelpVideoRemarksTopic } from "./HelpVideoRemarksTopic";
+import { HelpPvVideoTopic } from "./HelpPvVideoTopic";
 import { HelpAboutTopic } from "./HelpAboutTopic";
 import { HelpWelcomeTopic } from "./HelpWelcomeTopic";
 
@@ -46,6 +47,9 @@ export function renderHelpTopicBody(topicId: HelpTopicId, access?: HelpAccessCon
   }
   if (topicId === "video-remarks") {
     return <HelpVideoRemarksTopic />;
+  }
+  if (topicId === "pv-video") {
+    return <HelpPvVideoTopic />;
   }
   if (topicId === "settings-data") {
     return <HelpSettingsDataTopic />;

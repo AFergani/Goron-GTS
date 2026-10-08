@@ -1,15 +1,15 @@
 ---
-description: Harmonisation UI des boutons d'actions par icones
+description: Harmonisation UI des boutons d'actions
 alwaysApply: true
 ---
 
-# UI — Boutons d'actions en icones
+# UI — Boutons d'actions
 
-- Pour les actions simples et universelles (modifier, supprimer, sauvegarder, annuler, reset, navigation), preferer des boutons icones plutot que du texte.
-- Utiliser une bibliotheque unique d'icones sur tout le projet (lucide-react) pour eviter les disparites visuelles.
-- Garder les boutons icones compacts et coherents (taille, padding, alignement, etat hover/disabled).
-- Conserver `title` et/ou `aria-label` sur les boutons icones pour clarte UX et accessibilite.
-- Utiliser du texte uniquement quand l'action n'est pas evidente sans libelle.
+- Les actions d'une barre de page (enregistrer, exporter, charger, parcourir, choisir un dossier) sont des boutons pleins : icone `lucide-react` et libelle visible.
+- Centraliser ce bouton dans `SitePageToolbar` (`ToolbarTextButton`) des qu'une page a une barre site + actions.
+- Les actions compactes d'une ligne (retirer une ligne de tableau) restent des boutons icones, avec `title` et `aria-label` en francais.
+- Utiliser une bibliotheque unique d'icones (lucide-react).
+- Conserver un focus clavier visible.
 
 ## Reset filtres (consolide)
 

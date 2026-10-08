@@ -32,6 +32,7 @@ import type { InterventionEntry, InterventionSavePayload } from "./features/inte
 import type { PendingIntervenant, PendingSite } from "./features/common/model/pendingRefs.types";
 import type { FormVariableDef, FormVariableDeletion, FormVariablePayload } from "./features/settings/model/formVariables.types";
 import type { VideoRemarkDocument } from "./features/videoRemarks/model/videoRemarkTypes";
+import type { PvVideoForm, PvVideoImage } from "./features/pvVideo/model/pvVideoForm";
 import type {
   GardiennageClosePayload,
   GardiennageEntry,
@@ -151,6 +152,33 @@ declare global {
         expectedUpdatedAt: string | null;
         document: VideoRemarkDocument;
       }) => Promise<{ updatedAt: string }>;
+      getPvVideoReport: (payload: {
+        requesterRole: Role;
+        siteId: string;
+      }) => Promise<{
+        updatedAt: string | null;
+        archiveConfigured: boolean;
+        form: PvVideoForm | null;
+        image: PvVideoImage | null;
+      }>;
+      savePvVideoReport: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+        siteId: string;
+        expectedUpdatedAt: string | null;
+        form: PvVideoForm;
+        image: PvVideoImage | null;
+        imageChanged: boolean;
+      }) => Promise<{ updatedAt: string }>;
+      setPvVideoArchiveFolder: (payload: {
+        requesterRole: Role;
+        requesterUsername: string;
+      }) => Promise<{ canceled: boolean; archiveConfigured: boolean }>;
+      archivePvVideoExport: (payload: {
+        requesterRole: Role;
+        siteId: string;
+        sourcePath: string;
+      }) => Promise<{ backedUp: boolean; reason: string }>;
       createSite: (payload: {
         requesterRole: Role;
         requesterUsername: string;

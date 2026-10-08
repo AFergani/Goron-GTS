@@ -13,7 +13,9 @@ export const WORKSTATION_EXPORT_KEYS = {
   excelRondeContractual: "excel:ronde:contractual",
   excelRondeExceptional: "excel:ronde:exceptional",
   excelAudit: "excel:audit",
-  excelTechLogs: "excel:techLogs"
+  excelTechLogs: "excel:techLogs",
+  /** Rapport Word PV vidéo : ouverture limitée à 20 s, comme un export Excel. */
+  wordPvVideo: "quick:pvVideo"
 } as const;
 
 /**

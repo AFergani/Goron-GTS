@@ -28,6 +28,7 @@ import type { InterventionEntry, InterventionSavePayload } from "../../features/
 import type { PendingIntervenant, PendingSite } from "../../features/common/model/pendingRefs.types";
 import type { FormVariableDef, FormVariableDeletion, FormVariablePayload } from "../../features/settings/model/formVariables.types";
 import type { VideoRemarkDocument } from "../../features/videoRemarks/model/videoRemarkTypes";
+import type { PvVideoForm, PvVideoImage } from "../../features/pvVideo/model/pvVideoForm";
 import type { TemplateFlowKind } from "../../features/settings/model/documentTemplates.types";
 import type {
   GardiennageClosePayload,
@@ -359,6 +360,41 @@ export const gtsApiClient = {
     document: VideoRemarkDocument;
   }): Promise<{ updatedAt: string }> {
     return sessionCall(window.gtsApi.saveVideoRemarkSnapshot, payload);
+  },
+  getPvVideoReport(payload: {
+    requesterRole: Role;
+    siteId: string;
+  }): Promise<{
+    updatedAt: string | null;
+    archiveConfigured: boolean;
+    form: PvVideoForm | null;
+    image: PvVideoImage | null;
+  }> {
+    return sessionCall(window.gtsApi.getPvVideoReport, payload);
+  },
+  savePvVideoReport(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+    siteId: string;
+    expectedUpdatedAt: string | null;
+    form: PvVideoForm;
+    image: PvVideoImage | null;
+    imageChanged: boolean;
+  }): Promise<{ updatedAt: string }> {
+    return sessionCall(window.gtsApi.savePvVideoReport, payload);
+  },
+  setPvVideoArchiveFolder(payload: {
+    requesterRole: Role;
+    requesterUsername: string;
+  }): Promise<{ canceled: boolean; archiveConfigured: boolean }> {
+    return sessionCall(window.gtsApi.setPvVideoArchiveFolder, payload);
+  },
+  archivePvVideoExport(payload: {
+    requesterRole: Role;
+    siteId: string;
+    sourcePath: string;
+  }): Promise<{ backedUp: boolean; reason: string }> {
+    return sessionCall(window.gtsApi.archivePvVideoExport, payload);
   },
   createSite(payload: {
     requesterRole: Role;
