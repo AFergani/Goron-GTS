@@ -3170,9 +3170,9 @@ button.toast__close:hover {
 }
 
 .mc-site-input-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   width: 100%;
 }
@@ -3181,11 +3181,22 @@ button.toast__close:hover {
   flex: 1 1 auto;
 }
 
+.mc-site-input-row--one-action .mc-site-code-input {
+  padding-right: 40px;
+}
+
+.mc-site-input-row--two-actions .mc-site-code-input {
+  padding-right: 68px;
+}
+
 .mc-site-input-actions {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .mc-site-input-actions .mc-site-clear-icon-btn,
@@ -3194,6 +3205,27 @@ button.toast__close:hover {
   top: auto;
   right: auto;
   transform: none;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.mc-site-input-actions .mc-site-clear-icon-btn:hover,
+.mc-site-input-actions .mc-site-copy-icon-btn:hover {
+  color: var(--accent, #58a6ff);
+  background: transparent;
+}
+
+.mc-site-input-actions .mc-site-clear-icon-btn:focus-visible,
+.mc-site-input-actions .mc-site-copy-icon-btn:focus-visible {
+  outline: 2px solid var(--accent, #58a6ff);
+  outline-offset: 1px;
 }
 
 .mc-site-input-inner {
@@ -3207,14 +3239,6 @@ button.toast__close:hover {
   padding-right: 40px;
 }
 
-.mc-site-input-inner--with-copy .mc-site-code-input {
-  padding-right: 40px;
-}
-
-.mc-site-input-inner--with-clear-and-copy .mc-site-code-input {
-  padding-right: 72px;
-}
-
 .mc-site-clear-icon-btn,
 .mc-site-copy-icon-btn {
   position: absolute;
@@ -3222,10 +3246,6 @@ button.toast__close:hover {
   top: 50%;
   transform: translateY(-50%);
   z-index: 5;
-}
-
-.mc-site-clear-icon-btn--before-copy {
-  right: 40px;
 }
 
 .main-courante-entry-modal .mc-site-code-input {

@@ -677,6 +677,26 @@ class UserStore extends UserStoreCore {
     await this.whenPostgresReady();
     return pvVideoDomain.archivePvVideoExport(this, payload);
   }
+
+  /**
+   * Liste les versions JSON d'une fiche PV.
+   *
+   * @param {object} payload
+   * @returns {Promise<{ snapshots: { version: number, savedAt: string, savedBy: string }[] }>}
+   */
+  listPvVideoSnapshots(payload) {
+    return pvVideoDomain.listPvVideoSnapshots(this, payload);
+  }
+
+  /**
+   * Recharge une version JSON dans la forme de l'écran, sans écrire en base.
+   *
+   * @param {object} payload
+   * @returns {Promise<{ version: number, savedAt: string, form: object, image: object|null }>}
+   */
+  loadPvVideoSnapshot(payload) {
+    return pvVideoDomain.loadPvVideoSnapshot(this, payload);
+  }
 }
 
 

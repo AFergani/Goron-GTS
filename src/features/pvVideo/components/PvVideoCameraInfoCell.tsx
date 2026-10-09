@@ -18,6 +18,8 @@ type PvVideoCameraInfoCellProps = {
   onImage: (image: PvVideoImage) => void;
   onClearImage: () => void;
   onReject: (message: string) => void;
+  /** Dépose la photo d'une autre ligne sur celle-ci. Les noms ne bougent pas. */
+  onDropPhoto: (fromIndex: number) => void;
 };
 
 /**
@@ -31,7 +33,8 @@ export function PvVideoCameraInfoCell({
   onText,
   onImage,
   onClearImage,
-  onReject
+  onReject,
+  onDropPhoto
 }: PvVideoCameraInfoCellProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const preview = image ? `data:${image.mime};base64,${image.base64}` : "";
@@ -54,7 +57,19 @@ export function PvVideoCameraInfoCell({
         acceptFile(file);
       }}
     >
-      <div className="pv-camera-info-line">
+      <div
+        className="pv-camera-info-line"
+        onDragOver={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+        }}
+        onDrop={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          const fromIndex = Number(event.dataTransfer.getData("text/plain"));
+          if (Number.isInteger(fromIndex)) onDropPhoto(fromIndex);
+        }}
+      >
         <textarea
           value={text}
           disabled={disabled}
@@ -64,7 +79,18 @@ export function PvVideoCameraInfoCell({
           title="Vous pouvez aussi coller une capture dans cette case."
           onChange={(event) => onText(event.target.value)}
         />
-        {preview ? <img src={preview} alt={`Photo caméra ${index + 1}`} /> : null}
+        {preview ? (
+          <img
+            src={preview}
+            alt={`Photo caméra ${index + 1}`}
+            draggable={!disabled}
+            title="Glisser cette photo sur une autre ligne. Le nom ne suit pas."
+            onDragStart={(event) => {
+              event.dataTransfer.setData("text/plain", String(index));
+              event.dataTransfer.effectAllowed = "move";
+            }}
+          />
+        ) : null}
         <ToolbarTextButton
           icon={<FolderOpen size={16} />}
           label="Parcourir"

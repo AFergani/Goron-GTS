@@ -14,13 +14,15 @@ const { requireDataPersistence } = require("../data/persistence");
 const { normalizePageAccess } = require("../users/userMapping");
 const {
   decodeIncomingImage,
-  writeReportImage,
+  restoreReportImages,
+  placeFichePhotos,
+  previousPhotoRels,
   readReportImage,
   deleteReportImage,
-  siteFolderName,
-  legacySiteFolderName,
+  isSitePhotoRel,
   backupExportFile
 } = require("./archiveFiles");
+const { writeReportSnapshot, listPvVideoSnapshots, loadPvVideoSnapshot } = require("./snapshots");
 
 const ARCHIVE_ROW_ID = "default";
 const MAX_CAMERAS = 80;
@@ -85,12 +87,15 @@ function normalizeForm(store, form) {
     const incoming = row && row.image && typeof row.image === "object" ? row.image : null;
     const storedRelpath = clip(incoming && incoming.storedRelpath, 240);
     const fresh = incoming && incoming.base64 && !storedRelpath ? incoming : null;
+    const keptMime = incoming && (incoming.mime === "image/png" || incoming.mime === "image/jpeg") ? incoming.mime : "";
     return {
       number: String(index + 1),
       title: clip(row && row.title, 200).toLocaleUpperCase("fr-FR"),
       information: clip(row && row.information, 500).toLocaleUpperCase("fr-FR"),
       image: fresh,
-      imageRelpath: fresh ? "" : storedRelpath
+      imageRelpath: fresh ? "" : storedRelpath,
+      imageMime: fresh ? "" : keptMime,
+      imageOriginalName: fresh ? "" : clip(incoming && incoming.originalName, 120)
     };
   });
   return {
@@ -99,6 +104,8 @@ function normalizeForm(store, form) {
     technicianContact: clip(form.technicianContact),
     transmitterCode: clip(form.transmitterCode, 80),
     connectionMethod: clip(form.connectionMethod),
+    vpnEnabled: form.vpnEnabled === true || form.vpnEnabled === 1 || form.vpnEnabled === "1",
+    vpnName: clip(form.vpnName),
     recorderModel: clip(form.recorderModel),
     recorderIp: clip(form.recorderIp, 80),
     recorderPort: clip(form.recorderPort, 20),
@@ -125,6 +132,8 @@ function toAuditSnapshot(site, form, hasImage) {
     technicianContact: form.technicianContact,
     transmitterCode: form.transmitterCode,
     connectionMethod: form.connectionMethod,
+    vpnEnabled: Boolean(form.vpnEnabled),
+    vpnName: form.vpnName,
     recorderModel: form.recorderModel,
     recorderIp: form.recorderIp,
     recorderPort: form.recorderPort,
@@ -167,6 +176,8 @@ function formFromRow(store, row) {
     technicianContact: String(row.technician_contact || ""),
     transmitterCode: String(row.transmitter_code || ""),
     connectionMethod: String(row.connection_method || ""),
+    vpnEnabled: Number(row.vpn_enabled) === 1,
+    vpnName: String(row.vpn_name || ""),
     recorderModel: String(row.recorder_model || ""),
     recorderIp: String(row.recorder_ip || ""),
     recorderPort: String(row.recorder_port || ""),
@@ -214,22 +225,6 @@ function hydrateCameraImages(cameras, archiveFolder) {
 }
 
 /**
- * Indique qu'un chemin de photo appartient au dossier du site, y compris l'ancien dossier par code seul.
- *
- * @param {{ name?: unknown, code?: unknown }} site
- * @param {string} relpath
- * @returns {boolean}
- */
-function isSitePhotoRel(site, relpath) {
-  if (!relpath || String(relpath).includes("..")) return false;
-  const prefixes = [
-    `pv-video/${siteFolderName(site)}/`,
-    `pv-video/${legacySiteFolderName(site && site.code)}/`
-  ];
-  return prefixes.some((prefix) => String(relpath).startsWith(prefix));
-}
-
-/**
  * Relit la fiche d'un site, ou seulement l'état du dossier si aucun site n'est choisi.
  *
  * @param {import("../../../userStore")} store
@@ -264,11 +259,48 @@ async function getPvVideoReport(store, { requesterRole, requesterManagerProfile,
 }
 
 /**
+ * Corps d'instantané écrit après un enregistrement réussi.
+ *
+ * @param {object} form
+ * @param {string} loginCipher
+ * @param {string} passwordCipher
+ * @param {object[]} cameras
+ * @param {string} imageRelpath
+ * @param {string} imageMime
+ * @param {string} imageOriginalName
+ * @param {string} savedAt
+ * @param {string} savedBy
+ * @returns {object}
+ */
+function snapshotPayload(form, loginCipher, passwordCipher, cameras, imageRelpath, imageMime, imageOriginalName, savedAt, savedBy) {
+  return {
+    savedAt,
+    savedBy,
+    connectionDate: form.connectionDate,
+    tlsResponsibleName: form.tlsResponsibleName,
+    technicianContact: form.technicianContact,
+    transmitterCode: form.transmitterCode,
+    connectionMethod: form.connectionMethod,
+    vpnEnabled: Boolean(form.vpnEnabled),
+    vpnName: form.vpnName,
+    recorderModel: form.recorderModel,
+    recorderIp: form.recorderIp,
+    recorderPort: form.recorderPort,
+    loginCipher,
+    passwordCipher,
+    cameras,
+    imageRelpath,
+    imageMime,
+    imageOriginalName
+  };
+}
+
+/**
  * Crée ou remplace la fiche du site. Les identifiants partent chiffrés.
  *
  * @param {import("../../../userStore")} store
  * @param {object} payload
- * @returns {Promise<{ updatedAt: string }>}
+ * @returns {Promise<{ updatedAt: string, snapshotSaved: boolean }>}
  */
 async function savePvVideoReport(store, payload) {
   const { requesterRole, requesterUsername, requesterManagerProfile, siteId, expectedUpdatedAt } = payload;
@@ -282,73 +314,46 @@ async function savePvVideoReport(store, payload) {
   const expected = expectedUpdatedAt ? String(expectedUpdatedAt) : null;
   const db = requireDataPersistence(store, "pvVideo:save");
   const archiveFolder = await readArchiveFolder(db);
+  const storedGlobalRel = clip(payload.image && payload.image.storedRelpath, 240);
   let nextImage = null;
-  if (imageChanged && payload.image) {
-    const decoded = decodeIncomingImage(store, payload.image);
-    nextImage = { ...decoded };
+  if (imageChanged && payload.image && payload.image.base64 && !storedGlobalRel) {
+    nextImage = { ...decodeIncomingImage(store, payload.image) };
   }
 
   const now = new Date().toISOString();
-  let writtenRel = "";
-  let previousRel = "";
+  /** @type {{ rel: string, previous: Buffer|null }[]} */
+  let photoBackups = [];
   /** @type {string[]} */
-  const writtenCameraRels = [];
+  let obsoleteRels = [];
   const outcome = await db.transaction(async (tx) => {
     const site = await tx.get(`SELECT id, code, name FROM data_sites WHERE id = ?`, [cleanSiteId]);
     if (!site) {
       store.fail("pvVideo:save", "Choisissez un site du référentiel.", "PV_VIDEO_SITE_REQUIRED");
     }
     const existing = await tx.get(`SELECT * FROM pv_video_reports WHERE site_id = ? FOR UPDATE`, [cleanSiteId]);
-    previousRel = existing ? String(existing.image_relpath || "") : "";
-    let previousCameras = [];
-    if (existing) {
-      try {
-        const parsed = JSON.parse(String(existing.cameras_json || "[]"));
-        previousCameras = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        previousCameras = [];
-      }
-    }
-    const storedCameras = form.cameras.map((camera) => {
-      if (camera.image) {
-        const decoded = decodeIncomingImage(store, camera.image);
-        const rel = writeReportImage(store, archiveFolder, site, decoded, { cameraLabel: camera.title });
-        writtenCameraRels.push(rel);
-        return {
-          number: camera.number,
-          title: camera.title,
-          information: camera.information,
-          imageRelpath: rel,
-          imageMime: decoded.mime,
-          imageOriginalName: decoded.originalName
-        };
-      }
-      const keep = isSitePhotoRel(site, camera.imageRelpath) ? camera.imageRelpath : "";
-      const previous = previousCameras.find((row) => String(row.imageRelpath || "") === keep);
-      return {
-        number: camera.number,
-        title: camera.title,
-        information: camera.information,
-        imageRelpath: previous ? keep : "",
-        imageMime: previous ? String(previous.imageMime || "") : "",
-        imageOriginalName: previous ? String(previous.imageOriginalName || "") : ""
-      };
+    const keptGlobalRel = imageChanged ? storedGlobalRel : (existing ? String(existing.image_relpath || "") : "");
+    const keptGlobalMime = imageChanged
+      ? (payload.image && (payload.image.mime === "image/png" || payload.image.mime === "image/jpeg") ? payload.image.mime : "")
+      : (existing ? String(existing.image_mime || "") : "");
+    const keptGlobalName = imageChanged
+      ? (clip(payload.image && payload.image.originalName, 120) || "capture.jpg")
+      : (existing ? String(existing.image_original_name || "") : "");
+    const clearGlobal = imageChanged && !nextImage && !(storedGlobalRel && isSitePhotoRel(site, storedGlobalRel));
+    const placed = placeFichePhotos(store, archiveFolder, site, form.cameras, {
+      clear: clearGlobal,
+      next: nextImage,
+      keptRel: isSitePhotoRel(site, keptGlobalRel) ? keptGlobalRel : "",
+      keptMime: keptGlobalMime,
+      keptName: keptGlobalName
     });
-    let imageRel = previousRel;
-    let imageMime = existing ? String(existing.image_mime || "") : "";
-    let imageName = existing ? String(existing.image_original_name || "") : "";
-    if (imageChanged) {
-      if (nextImage) {
-        writtenRel = writeReportImage(store, archiveFolder, site, nextImage, null);
-        imageRel = writtenRel;
-        imageMime = nextImage.mime;
-        imageName = nextImage.originalName;
-      } else {
-        imageRel = "";
-        imageMime = "";
-        imageName = "";
-      }
-    }
+    photoBackups = placed.backups;
+    const storedCameras = placed.cameras;
+    const imageRel = placed.imageRel;
+    const imageMime = placed.imageMime;
+    const imageName = placed.imageName;
+    const kept = new Set(storedCameras.map((camera) => camera.imageRelpath).filter(Boolean));
+    if (imageRel) kept.add(imageRel);
+    obsoleteRels = previousPhotoRels(existing).filter((rel) => !kept.has(rel) && isSitePhotoRel(site, rel));
     const hasImage = Boolean(imageRel);
     const after = toAuditSnapshot(site, form, hasImage);
     const cipherLogin = encryptField(form.login);
@@ -360,6 +365,8 @@ async function savePvVideoReport(store, payload) {
       form.technicianContact,
       form.transmitterCode,
       form.connectionMethod,
+      form.vpnEnabled ? 1 : 0,
+      form.vpnName,
       form.recorderModel,
       form.recorderIp,
       form.recorderPort,
@@ -384,9 +391,9 @@ async function savePvVideoReport(store, payload) {
       await tx.run(
         `INSERT INTO pv_video_reports (
            id, site_id, connection_date, tls_responsible_name, technician_contact, transmitter_code,
-           connection_method, recorder_model, recorder_ip, recorder_port, login_cipher, password_cipher,
+           connection_method, vpn_enabled, vpn_name, recorder_model, recorder_ip, recorder_port, login_cipher, password_cipher,
            cameras_json, image_relpath, image_mime, image_original_name, created_at, updated_at, updated_by
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, cleanSiteId, ...values.slice(0, -2), now, now, values[values.length - 1]]
       );
       return {
@@ -394,8 +401,8 @@ async function savePvVideoReport(store, payload) {
         id,
         before: null,
         after,
-        previousCameraRels: [],
-        keptCameraRels: storedCameras.map((camera) => camera.imageRelpath).filter(Boolean)
+        site,
+        snapshot: snapshotPayload(form, cipherLogin, cipherPassword, storedCameras, imageRel, imageMime, imageName, now, values[values.length - 1])
       };
     }
     if (expected && String(existing.updated_at || "") !== expected) {
@@ -408,7 +415,7 @@ async function savePvVideoReport(store, payload) {
     await tx.run(
       `UPDATE pv_video_reports SET
          connection_date = ?, tls_responsible_name = ?, technician_contact = ?, transmitter_code = ?,
-         connection_method = ?, recorder_model = ?, recorder_ip = ?, recorder_port = ?,
+         connection_method = ?, vpn_enabled = ?, vpn_name = ?, recorder_model = ?, recorder_ip = ?, recorder_port = ?,
          login_cipher = ?, password_cipher = ?, cameras_json = ?, image_relpath = ?, image_mime = ?,
          image_original_name = ?, updated_at = ?, updated_by = ?
        WHERE id = ?`,
@@ -425,14 +432,14 @@ async function savePvVideoReport(store, payload) {
       id: existing.id,
       before,
       after,
-      previousCameraRels: previousCameras.map((camera) => String(camera.imageRelpath || "")).filter(Boolean),
-      keptCameraRels: storedCameras.map((camera) => camera.imageRelpath).filter(Boolean)
+      site,
+      snapshot: snapshotPayload(form, cipherLogin, cipherPassword, storedCameras, imageRel, imageMime, imageName, now, values[values.length - 1])
     };
   }).catch((error) => {
-    if (writtenRel && writtenRel !== previousRel) deleteReportImage(archiveFolder, writtenRel);
-    for (const rel of writtenCameraRels) deleteReportImage(archiveFolder, rel);
+    restoreReportImages(archiveFolder, photoBackups);
     throw error;
   });
+  for (const rel of obsoleteRels) deleteReportImage(archiveFolder, rel);
 
   if (outcome.created) {
     store.logAudit({
@@ -460,7 +467,11 @@ async function savePvVideoReport(store, payload) {
       snapshot: outcome.after
     });
   }
-  return { updatedAt: now };
+  let snapshotSaved = false;
+  if (archiveFolder && outcome.site && outcome.snapshot) {
+    snapshotSaved = writeReportSnapshot(archiveFolder, outcome.site, outcome.snapshot);
+  }
+  return { updatedAt: now, snapshotSaved };
 }
 
 /**
@@ -535,4 +546,15 @@ async function archivePvVideoExport(store, payload) {
   return backupExportFile(store, archiveFolder, site, sourcePath);
 }
 
-module.exports = { getPvVideoReport, savePvVideoReport, setPvVideoArchiveFolder, archivePvVideoExport };
+module.exports = {
+  getPvVideoReport,
+  savePvVideoReport,
+  setPvVideoArchiveFolder,
+  archivePvVideoExport,
+  listPvVideoSnapshots,
+  loadPvVideoSnapshot,
+  readArchiveFolder,
+  hydrateCameraImages,
+  isSitePhotoRel,
+  assertPvVideoAccess
+};

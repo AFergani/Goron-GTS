@@ -5,6 +5,9 @@
  * est fait à l'enregistrement, le déchiffrement à la lecture.
  */
 
+/** Plafond d'enregistrement des lignes caméras. */
+export const MAX_PV_CAMERAS = 80;
+
 export type PvVideoCamera = {
   number: string;
   title: string;
@@ -19,6 +22,10 @@ export type PvVideoForm = {
   technicianContact: string;
   transmitterCode: string;
   connectionMethod: string;
+  /** Interrupteur VPN de la méthode de connexion. */
+  vpnEnabled: boolean;
+  /** Nom du VPN, saisi seulement lorsque l'interrupteur est activé. */
+  vpnName: string;
   recorderModel: string;
   recorderIp: string;
   recorderPort: string;
@@ -47,6 +54,8 @@ export function emptyPvVideoForm(tlsResponsibleName: string): PvVideoForm {
     technicianContact: "",
     transmitterCode: "",
     connectionMethod: "",
+    vpnEnabled: false,
+    vpnName: "",
     recorderModel: "",
     recorderIp: "",
     recorderPort: "",
@@ -88,6 +97,9 @@ export function normalizePvVideoForm(form: PvVideoForm): PvVideoForm {
   const cameras = Array.isArray(form.cameras) ? form.cameras : [];
   return {
     ...form,
+    connectionMethod: String(form.connectionMethod || ""),
+    vpnEnabled: form.vpnEnabled === true,
+    vpnName: String(form.vpnName || ""),
     cameras: prepareCameras(
       cameras.map((row) => ({
         number: "",

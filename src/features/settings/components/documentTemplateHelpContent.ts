@@ -122,12 +122,13 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       { token: "{responsable_tls}", description: "Nom du responsable TLS." },
       { token: "{technicien}", description: "Nom et téléphone du technicien." },
       { token: "{code_transmetteur}", description: "Code transmetteur." },
-      { token: "{methode_connexion}", description: "Méthode de connexion aux vidéos." },
+      { token: "{methode_connexion}", description: "« Logiciel : … ». « VPN : … » s'ajoute lorsque le nom du VPN est renseigné." },
       { token: "{enregistreur}", description: "Marque et modèle de l’enregistreur." },
       { token: "{adresse_ip}", description: "Adresse IP de l’enregistreur." },
       { token: "{port}", description: "Port de l’enregistreur." },
-      { token: "{login}", description: "Identifiant de connexion, en clair dans le document." },
-      { token: "{mot_de_passe}", description: "Mot de passe de connexion, en clair dans le document." },
+      { token: "{login}", description: "« Login : » suivi de l'identifiant, en clair dans le document." },
+      { token: "{mot_de_passe}", description: "« Mot de passe : » suivi du mot de passe, en clair dans le document." },
+      { token: "{nombre_cameras}", description: "Nombre de caméras, égal au nombre de lignes du listing." },
       { token: "{#cameras}", description: "Début de la ligne qui se répète pour chaque caméra. À placer dans la première cellule." },
       { token: "{numero_camera}", description: "Numéro de la caméra, selon l'ordre de la ligne (1, 2, 3…)." },
       { token: "{intitule_camera}", description: "Intitulé de la caméra." },
@@ -137,7 +138,7 @@ export const DOCUMENT_TEMPLATE_HELP: Record<string, TemplateHelpBlock> = {
       },
       { token: "{%photo_camera}", description: "Photo de la caméra, absente du document s'il n'y en a pas." },
       { token: "{/cameras}", description: "Fin de la ligne caméra. À placer dans la dernière cellule, après la photo." },
-      { token: "{%capture_globale}", description: "Photo d’ensemble du site, sous le tableau des caméras." }
+      { token: "{%capture_globale}", description: "Photo d’ensemble du site, seule au centre de la dernière page." }
     ]
   },
   "custom-docx": {
@@ -256,6 +257,7 @@ export function systemDocxVariableTypeLabel(token: string, formTarget: FormTarge
     "{port}": "Texte court",
     "{login}": "Texte court",
     "{mot_de_passe}": "Texte court",
+    "{nombre_cameras}": "Nombre",
     "{#cameras}": "Liste",
     "{numero_camera}": "Texte court",
     "{intitule_camera}": "Texte court",

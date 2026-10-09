@@ -22,6 +22,12 @@ import type { SaveExportFileResult } from "../../common/utils/saveExportBlob";
 
 type PvVideoExportResult = SaveExportFileResult & { archiveCopy: boolean };
 
+export type PvVideoSnapshotRef = {
+  version: number;
+  savedAt: string;
+  savedBy: string;
+};
+
 type UsePvVideoPageArgs = {
   operatorName: string;
   requesterRole: Role;
@@ -52,6 +58,9 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
   const [archiveConfigured, setArchiveConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [snapshots, setSnapshots] = useState<PvVideoSnapshotRef[]>([]);
+  const [snapshotKey, setSnapshotKey] = useState("");
+  const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
   const operatorNameRef = useRef(operatorName);
   operatorNameRef.current = operatorName;
   const loadSeq = useRef(0);
@@ -91,6 +100,9 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
       setImage(null);
       setImageChanged(false);
       setUpdatedAt(null);
+      setSnapshots([]);
+      setSnapshotKey("");
+      setLoadedVersion(null);
       return;
     }
     const siteId = selectedSiteId;
@@ -103,9 +115,20 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
         setImageChanged(false);
         if (!result.form) {
           setForm(emptyPvVideoForm(operatorNameRef.current));
-          return;
+        } else {
+          setForm(normalizePvVideoForm(result.form));
         }
-        setForm(normalizePvVideoForm(result.form));
+        void gtsApiClient.listPvVideoSnapshots({ requesterRole, siteId }).then(
+          (listed) => {
+            if (seq !== loadSeq.current) return;
+            setSnapshots(listed.snapshots);
+            setSnapshotKey("");
+            setLoadedVersion(null);
+          },
+          () => {
+            if (seq === loadSeq.current) setSnapshots([]);
+          }
+        );
       },
       (error: unknown) => {
         if (seq !== loadSeq.current) return;
@@ -115,34 +138,83 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
   }, [selectedSiteId, requesterRole, onToast]);
 
   const save = () => {
+    persistFiche(form, imageChanged ? image : null, imageChanged, "Fiche PV enregistrée.");
+  };
+
+  /**
+   * Enregistre la fiche affichée, ou une fiche vide lors d'une réinitialisation.
+   *
+   * @param nextForm - Champs à écrire.
+   * @param nextImage - Capture globale, ou aucune.
+   * @param nextImageChanged - Vrai si la capture globale doit remplacer celle en base.
+   * @param successMessage - Toast de succès.
+   */
+  const persistFiche = (
+    nextForm: PvVideoForm,
+    nextImage: PvVideoImage | null,
+    nextImageChanged: boolean,
+    successMessage: string
+  ) => {
     if (!selectedSiteId) {
       onToast("Choisissez un site avant d'enregistrer.", "error");
       return;
     }
+    const siteId = selectedSiteId;
     setSaving(true);
     void gtsApiClient
       .savePvVideoReport({
         requesterRole,
         requesterUsername,
-        siteId: selectedSiteId,
+        siteId,
         expectedUpdatedAt: updatedAt,
-        form: { ...form, cameras: prepareCameras(form.cameras) },
-        image: imageChanged ? image : null,
-        imageChanged
+        form: { ...nextForm, cameras: prepareCameras(nextForm.cameras) },
+        image: nextImageChanged ? nextImage : null,
+        imageChanged: nextImageChanged
       })
       .then(async (result) => {
           setUpdatedAt(result.updatedAt);
           setImageChanged(false);
-          const fresh = await gtsApiClient.getPvVideoReport({ requesterRole, siteId: selectedSiteId });
+          const fresh = await gtsApiClient.getPvVideoReport({ requesterRole, siteId });
           setArchiveConfigured(fresh.archiveConfigured);
           setUpdatedAt(fresh.updatedAt);
           setImage(fresh.image);
           if (fresh.form) setForm(normalizePvVideoForm(fresh.form));
-          onToast("Fiche PV enregistrée.");
+          setLoadedVersion(null);
+          setSnapshotKey("");
+          const listed = await gtsApiClient.listPvVideoSnapshots({ requesterRole, siteId });
+          setSnapshots(listed.snapshots);
+          onToast(successMessage);
+          if (result.snapshotSaved) {
+            onToast("Une version datée a été déposée dans le dossier des photos.");
+          } else if (fresh.archiveConfigured) {
+            onToast("L'instantané n'a pas pu être écrit dans le dossier des photos.", "warning");
+          }
         },
         (error: unknown) => onToast(errorMessage(error, "Enregistrement impossible."), "error")
       )
       .finally(() => setSaving(false));
+  };
+
+  /**
+   * Vide la fiche du site pour une saisie manuelle.
+   * Une fiche déjà enregistrée est remplacée en base. Les versions datées restent.
+   */
+  const resetFiche = () => {
+    if (!selectedSiteId) {
+      onToast("Choisissez un site avant de réinitialiser.", "error");
+      return;
+    }
+    const blank = emptyPvVideoForm(operatorNameRef.current);
+    if (!updatedAt) {
+      setForm(blank);
+      setImage(null);
+      setImageChanged(false);
+      setLoadedVersion(null);
+      setSnapshotKey("");
+      onToast("Fiche réinitialisée.");
+      return;
+    }
+    persistFiche(blank, null, true, "Fiche réinitialisée.");
   };
 
   /**
@@ -192,6 +264,40 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
     }
   };
 
+  /**
+   * Remplit la fiche avec une version JSON. L'enregistrement reste à décider.
+   *
+   * @param savedAt - Date technique de la version choisie, pas un chemin de fichier.
+   */
+  const loadSnapshot = (savedAt: string) => {
+    if (!selectedSiteId || !savedAt) {
+      onToast("Choisissez une version à recharger.", "error");
+      return;
+    }
+    setSaving(true);
+    void gtsApiClient
+      .loadPvVideoSnapshot({ requesterRole, siteId: selectedSiteId, savedAt })
+      .then(
+        (loaded) => {
+          setForm(normalizePvVideoForm(loaded.form));
+          setImage(loaded.image);
+          setImageChanged(true);
+          setLoadedVersion(loaded.version);
+          const when = new Date(loaded.savedAt);
+          const label = Number.isNaN(when.getTime())
+            ? ""
+            : when.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
+          onToast(
+            label
+              ? `Version ${loaded.version} du ${label} chargée. Enregistrez pour la reprendre comme fiche en cours.`
+              : `Version ${loaded.version} chargée. Enregistrez pour la reprendre comme fiche en cours.`
+          );
+        },
+        (error: unknown) => onToast(errorMessage(error, "Impossible de recharger cette version."), "error")
+      )
+      .finally(() => setSaving(false));
+  };
+
   const pickArchiveFolder = () => {
     void gtsApiClient.setPvVideoArchiveFolder({ requesterRole, requesterUsername }).then(
       (result) => {
@@ -212,6 +318,10 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
     archiveConfigured,
     saving,
     exporting,
+    snapshots,
+    snapshotKey,
+    loadedVersion,
+    setSnapshotKey,
     setSelectedSiteId,
     patchForm: (patch: Partial<PvVideoForm>) => setForm((current) => ({ ...current, ...patch })),
     setCameras: (cameras: PvVideoCamera[]) => setForm((current) => ({ ...current, cameras })),
@@ -224,6 +334,8 @@ export function usePvVideoPage({ operatorName, requesterRole, requesterUsername,
       setImageChanged(true);
     },
     save,
+    resetFiche,
+    loadSnapshot,
     exportWord,
     pickArchiveFolder
   };

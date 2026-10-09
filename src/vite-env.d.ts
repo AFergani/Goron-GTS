@@ -169,7 +169,7 @@ declare global {
         form: PvVideoForm;
         image: PvVideoImage | null;
         imageChanged: boolean;
-      }) => Promise<{ updatedAt: string }>;
+      }) => Promise<{ updatedAt: string; snapshotSaved: boolean }>;
       setPvVideoArchiveFolder: (payload: {
         requesterRole: Role;
         requesterUsername: string;
@@ -179,6 +179,20 @@ declare global {
         siteId: string;
         sourcePath: string;
       }) => Promise<{ backedUp: boolean; reason: string }>;
+      listPvVideoSnapshots: (payload: {
+        requesterRole: Role;
+        siteId: string;
+      }) => Promise<{ snapshots: { version: number; savedAt: string; savedBy: string }[] }>;
+      loadPvVideoSnapshot: (payload: {
+        requesterRole: Role;
+        siteId: string;
+        savedAt: string;
+      }) => Promise<{
+        version: number;
+        savedAt: string;
+        form: PvVideoForm;
+        image: PvVideoImage | null;
+      }>;
       createSite: (payload: {
         requesterRole: Role;
         requesterUsername: string;

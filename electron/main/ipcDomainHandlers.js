@@ -110,7 +110,9 @@ const STORE_PASSTHROUGH_CHANNELS = [
   ["pvVideo:get", "getPvVideoReport"],
   ["pvVideo:save", "savePvVideoReport"],
   ["pvVideo:setArchiveFolder", "setPvVideoArchiveFolder"],
-  ["pvVideo:archiveExport", "archivePvVideoExport"]
+  ["pvVideo:archiveExport", "archivePvVideoExport"],
+  ["pvVideo:listSnapshots", "listPvVideoSnapshots"],
+  ["pvVideo:loadSnapshot", "loadPvVideoSnapshot"]
 ];
 
 /**

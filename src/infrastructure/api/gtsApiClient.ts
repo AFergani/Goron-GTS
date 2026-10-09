@@ -380,7 +380,7 @@ export const gtsApiClient = {
     form: PvVideoForm;
     image: PvVideoImage | null;
     imageChanged: boolean;
-  }): Promise<{ updatedAt: string }> {
+  }): Promise<{ updatedAt: string; snapshotSaved: boolean }> {
     return sessionCall(window.gtsApi.savePvVideoReport, payload);
   },
   setPvVideoArchiveFolder(payload: {
@@ -395,6 +395,24 @@ export const gtsApiClient = {
     sourcePath: string;
   }): Promise<{ backedUp: boolean; reason: string }> {
     return sessionCall(window.gtsApi.archivePvVideoExport, payload);
+  },
+  listPvVideoSnapshots(payload: {
+    requesterRole: Role;
+    siteId: string;
+  }): Promise<{ snapshots: { version: number; savedAt: string; savedBy: string }[] }> {
+    return sessionCall(window.gtsApi.listPvVideoSnapshots, payload);
+  },
+  loadPvVideoSnapshot(payload: {
+    requesterRole: Role;
+    siteId: string;
+    savedAt: string;
+  }): Promise<{
+    version: number;
+    savedAt: string;
+    form: PvVideoForm;
+    image: PvVideoImage | null;
+  }> {
+    return sessionCall(window.gtsApi.loadPvVideoSnapshot, payload);
   },
   createSite(payload: {
     requesterRole: Role;

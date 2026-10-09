@@ -4,14 +4,30 @@
  * Accès : Admin, superviseur, responsable, directeur, Opérateur +.
  */
 
-import { Download, ExternalLink, FolderOpen, Save } from "lucide-react";
+import { useState } from "react";
+import { Download, ExternalLink, FolderOpen, History, RotateCcw, Save } from "lucide-react";
 import type { Role } from "../../../types";
 import type { NotifyToast } from "../../common/model/toast.types";
 import { SitePageToolbar, ToolbarTextButton } from "../../common/components/SitePageToolbar";
 import { useWorkstationExports } from "../../common/hooks/useWorkstationExports";
 import { exportFileBasename, WORKSTATION_EXPORT_KEYS } from "../../common/utils/workstationExportPaths";
 import { PvVideoFormFields } from "../components/PvVideoFormFields";
-import { usePvVideoPage } from "../presenter/usePvVideoPage";
+import { usePvVideoPage, type PvVideoSnapshotRef } from "../presenter/usePvVideoPage";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
+
+/**
+ * Libellé français d'une version, sans chemin de fichier.
+ *
+ * @param row - Version listée pour le site.
+ */
+function snapshotLabel(row: PvVideoSnapshotRef): string {
+  const when = new Date(row.savedAt);
+  const dateLabel = Number.isNaN(when.getTime())
+    ? ""
+    : when.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  const author = row.savedBy ? ` — ${row.savedBy}` : "";
+  return dateLabel ? `Version ${row.version} — ${dateLabel}${author}` : `Version ${row.version}${author}`;
+}
 
 type PvVideoPageProps = {
   operatorName: string;
@@ -33,6 +49,7 @@ export function PvVideoPage({
   onToast
 }: PvVideoPageProps) {
   const page = usePvVideoPage({ operatorName, requesterRole, requesterUsername, onToast });
+  const [resetOpen, setResetOpen] = useState(false);
   const workstationExports = useWorkstationExports();
   const siteReady = Boolean(page.selectedSite);
   const reportKey = WORKSTATION_EXPORT_KEYS.wordPvVideo;
@@ -66,8 +83,36 @@ export function PvVideoPage({
         selectedSite={page.selectedSite}
         onSelectedSiteChange={(site) => page.setSelectedSiteId(site?.id ?? null)}
         onCopyNotify={(message) => onToast(message)}
-        fill
       >
+        {siteReady && page.archiveConfigured ? (
+          <div className="pv-versions">
+            <label htmlFor="pv-version-select">Versions enregistrées</label>
+            <div className="pv-versions-row">
+              <select
+                id="pv-version-select"
+                value={page.snapshotKey}
+                disabled={page.saving || page.snapshots.length === 0}
+                onChange={(event) => page.setSnapshotKey(event.target.value)}
+              >
+                <option value="">
+                  {page.snapshots.length ? "Choisir une version" : "Aucune version pour ce site"}
+                </option>
+                {page.snapshots.map((row) => (
+                  <option key={`${row.version}-${row.savedAt}`} value={row.savedAt}>
+                    {snapshotLabel(row)}
+                  </option>
+                ))}
+              </select>
+              <ToolbarTextButton
+                icon={<History size={16} />}
+                label="Recharger"
+                title="Recharger la version choisie dans la fiche"
+                disabled={!page.snapshotKey || page.saving}
+                onClick={() => page.loadSnapshot(page.snapshotKey)}
+              />
+            </div>
+          </div>
+        ) : null}
         <ToolbarTextButton
           icon={<Save size={16} />}
           label="Enregistrer"
@@ -75,6 +120,16 @@ export function PvVideoPage({
           disabled={!siteReady || page.saving}
           onClick={page.save}
         />
+        <button
+          type="button"
+          className="icon-btn"
+          title="Réinitialiser"
+          aria-label="Réinitialiser"
+          disabled={!siteReady || page.saving}
+          onClick={() => setResetOpen(true)}
+        >
+          <RotateCcw size={16} />
+        </button>
         <ToolbarTextButton
           icon={<Download size={16} />}
           label="Exporter"
@@ -100,9 +155,14 @@ export function PvVideoPage({
       </SitePageToolbar>
       <p className="pv-hint">
         {page.archiveConfigured
-          ? "Dossier des photos prêt. Collez une capture ou parcourez un fichier."
+          ? "Dossier des photos prêt. Collez une capture, parcourez un fichier, ou importez un lot nommé 01, 02… et global."
           : "Le dossier des photos n'est pas encore choisi. Un responsable doit le définir avant d'enregistrer une image."}
       </p>
+      {page.loadedVersion ? (
+        <p className="pv-hint">
+          Version {page.loadedVersion} chargée. Enregistrez pour en faire la fiche en cours.
+        </p>
+      ) : null}
       {siteReady && page.selectedSite ? (
         <PvVideoFormFields
           form={page.form}
@@ -116,10 +176,22 @@ export function PvVideoPage({
           onImage={page.setImage}
           onClearImage={page.clearImage}
           onReject={(message) => onToast(message, "error")}
+          onNotice={onToast}
         />
       ) : (
         <p className="pv-empty">Choisissez un site pour ouvrir ou créer sa fiche de raccordement.</p>
       )}
+      <ConfirmModal
+        isOpen={resetOpen}
+        title="Réinitialiser"
+        message="Réinitialiser la fiche de ce site ? Les champs, les caméras et les photos seront effacés. Les versions déjà enregistrées restent disponibles."
+        confirmLabel="Réinitialiser"
+        onCancel={() => setResetOpen(false)}
+        onConfirm={() => {
+          setResetOpen(false);
+          page.resetFiche();
+        }}
+      />
     </div>
   );
 }

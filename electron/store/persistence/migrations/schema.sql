@@ -664,6 +664,8 @@ CREATE TABLE IF NOT EXISTS pv_video_reports (
   technician_contact TEXT NOT NULL DEFAULT '',
   transmitter_code TEXT NOT NULL DEFAULT '',
   connection_method TEXT NOT NULL DEFAULT '',
+  vpn_enabled INTEGER NOT NULL DEFAULT 0,
+  vpn_name TEXT NOT NULL DEFAULT '',
   recorder_model TEXT NOT NULL DEFAULT '',
   recorder_ip TEXT NOT NULL DEFAULT '',
   recorder_port TEXT NOT NULL DEFAULT '',
@@ -678,6 +680,9 @@ CREATE TABLE IF NOT EXISTS pv_video_reports (
   updated_by TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pv_video_reports_site ON pv_video_reports (site_id);
+
+ALTER TABLE pv_video_reports ADD COLUMN IF NOT EXISTS vpn_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pv_video_reports ADD COLUMN IF NOT EXISTS vpn_name TEXT NOT NULL DEFAULT '';
 
 -- Dossier partagé des photos de PV (chemin UNC ou local du serveur), une seule ligne.
 CREATE TABLE IF NOT EXISTS pv_video_archive (

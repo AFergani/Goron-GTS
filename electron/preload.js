@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld("gtsApi", {
   savePvVideoReport: (payload) => ipcRenderer.invoke("pvVideo:save", payload),
   setPvVideoArchiveFolder: (payload) => ipcRenderer.invoke("pvVideo:setArchiveFolder", payload),
   archivePvVideoExport: (payload) => ipcRenderer.invoke("pvVideo:archiveExport", payload),
+  listPvVideoSnapshots: (payload) => ipcRenderer.invoke("pvVideo:listSnapshots", payload),
+  loadPvVideoSnapshot: (payload) => ipcRenderer.invoke("pvVideo:loadSnapshot", payload),
   createSite: (payload) => ipcRenderer.invoke("data:sites:create", payload),
   updateSite: (payload) => ipcRenderer.invoke("data:sites:update", payload),
   deleteSite: (payload) => ipcRenderer.invoke("data:sites:delete", payload),

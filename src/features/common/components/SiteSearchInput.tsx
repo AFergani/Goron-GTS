@@ -107,7 +107,15 @@ export function SiteSearchInput({
       <div className="mc-field-with-inline-action">
         <label className="mc-field">
           {labelText !== null && labelText !== undefined ? <span>{labelText ?? (optional ? "Site (facultatif)" : "Site")}</span> : null}
-          <div className="mc-site-input-row">
+          <div
+            className={`mc-site-input-row${
+              showClear && showCopyCode
+                ? " mc-site-input-row--two-actions"
+                : showClear || showCopyCode
+                  ? " mc-site-input-row--one-action"
+                  : ""
+            }`}
+          >
           <div className="mc-site-input-inner">
             <input
               ref={inputRef}
@@ -167,7 +175,7 @@ export function SiteSearchInput({
               {showClear ? (
                 <button
                   type="button"
-                  className="mc-site-clear-icon-btn action-icon-btn"
+                  className="mc-site-clear-icon-btn"
                   title="Effacer la recherche site"
                   aria-label="Effacer la recherche site"
                   onMouseDown={(e) => e.preventDefault()}
@@ -179,7 +187,7 @@ export function SiteSearchInput({
               {showCopyCode ? (
                 <button
                   type="button"
-                  className="mc-site-copy-icon-btn action-icon-btn"
+                  className="mc-site-copy-icon-btn"
                   title="Copier le code site"
                   aria-label="Copier le code site"
                   onMouseDown={(e) => e.preventDefault()}
